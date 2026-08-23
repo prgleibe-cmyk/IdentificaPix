@@ -144,6 +144,14 @@ export const RelatoriosView: React.FC = memo(() => {
         return raw.filter((c: any) => allowedChurchIds.includes(c.id));
     }, [context?.churches, isSecondaryUser, allowedChurchIds]);
 
+    const churchNameMap = useMemo(() => {
+        const map = new Map<string, string>();
+        (churches || []).forEach((c: any) => {
+            if (c.id) map.set(c.id, c.name);
+        });
+        return map;
+    }, [churches]);
+
     const reportData = context?.reportData || [];
     const contributorFiles = context?.contributorFiles || [];
 
@@ -224,8 +232,8 @@ export const RelatoriosView: React.FC = memo(() => {
                 const itemChurchId = item.churchId || item.church;
                 const matchesAllowed = allowedChurchIds.some(cId => {
                     if (itemChurchId === cId) return true;
-                    const chObj = churches.find((c: any) => c.id === cId);
-                    return chObj && (item.church === chObj.name || item.churchId === chObj.id);
+                    const chName = churchNameMap.get(cId);
+                    return chName && (item.church === chName || item.churchId === cId);
                 });
                 if (!matchesAllowed) return false;
             }
@@ -235,8 +243,8 @@ export const RelatoriosView: React.FC = memo(() => {
                 const itemChurchId = item.churchId || item.church;
                 const matchesAny = selectedChurchIds.some(cId => {
                     if (itemChurchId === cId) return true;
-                    const chObj = churches.find((c: any) => c.id === cId);
-                    return chObj && (item.church === chObj.name || item.churchId === chObj.id);
+                    const chName = churchNameMap.get(cId);
+                    return chName && (item.church === chName || item.churchId === cId);
                 });
                 if (!matchesAny) return false;
             }
@@ -335,29 +343,52 @@ export const RelatoriosView: React.FC = memo(() => {
         };
     }, [filteredReportData]);
 
-    // Church summaries
+    // Church summaries - single-pass aggregation
     const churchSummaries = useMemo(() => {
         const totalSystemIncome = financialTotals.income || 1;
+        
+        const churchDataMap = new Map<string, { txCount: number; totalIncome: number; totalExpenses: number }>();
+        
+        (reportData || []).forEach((tx: any) => {
+            const cId = tx.churchId || tx.church;
+            if (!cId) return;
+            let entry = churchDataMap.get(cId);
+            if (!entry) {
+                entry = { txCount: 0, totalIncome: 0, totalExpenses: 0 };
+                churchDataMap.set(cId, entry);
+            }
+            entry.txCount++;
+            const amt = Number(tx.amount) || Number(tx.val) || 0;
+            const isExpense = tx.type === 'expense' || amt < 0;
+            if (isExpense) {
+                entry.totalExpenses += Math.abs(amt);
+            } else {
+                entry.totalIncome += amt;
+            }
+        });
+
+        const contributorCountByChurch = new Map<string, number>();
+        (contributorFiles || []).forEach((f: any) => {
+            const id = f.churchId || f.church?.id;
+            if (id) {
+                contributorCountByChurch.set(id, f.contributors?.length || 0);
+            }
+        });
+
         return churches.map((church: any) => {
-            const txs = reportData.filter((tx: any) => tx.churchId === church.id || tx.church === church.name);
-            const totalIncome = txs.filter((tx: any) => tx.type !== 'expense' && (Number(tx.amount) > 0 || Number(tx.val) > 0 || !tx.type))
-                .reduce((acc: number, tx: any) => acc + (Number(tx.amount) || Number(tx.val) || 0), 0);
-            const totalExpenses = txs.filter((tx: any) => tx.type === 'expense' || Number(tx.amount) < 0)
-                .reduce((acc: number, tx: any) => acc + Math.abs(Number(tx.amount) || Number(tx.val) || 0), 0);
-            
-            const cf = contributorFiles.find((f: any) => f.churchId === church.id || f.church?.id === church.id);
-            const contributorCount = cf?.contributors?.length || 0;
-            const sharePercent = Math.min(100, Math.round((totalIncome / totalSystemIncome) * 100));
+            const entry = churchDataMap.get(church.id) || churchDataMap.get(church.name) || { txCount: 0, totalIncome: 0, totalExpenses: 0 };
+            const contributorCount = contributorCountByChurch.get(church.id) || 0;
+            const sharePercent = Math.min(100, Math.round((entry.totalIncome / totalSystemIncome) * 100));
 
             return {
                 id: church.id,
                 name: church.name,
                 cnpJ: church.cnpj || church.cnpjCpf || 'N/A',
                 city: church.city || 'N/A',
-                txCount: txs.length,
-                totalIncome,
-                totalExpenses,
-                netBalance: totalIncome - totalExpenses,
+                txCount: entry.txCount,
+                totalIncome: entry.totalIncome,
+                totalExpenses: entry.totalExpenses,
+                netBalance: entry.totalIncome - entry.totalExpenses,
                 contributorCount,
                 sharePercent
             };
@@ -421,25 +452,32 @@ export const RelatoriosView: React.FC = memo(() => {
         return 'NÃO INFORMADO';
     }, []);
 
+    // Memoized map for contributor roles
+    const contributorRoleMap = useMemo(() => {
+        const map = new Map<string, string>();
+        (contributorFiles || []).forEach((file: any) => {
+            (file.contributors || []).forEach((c: any) => {
+                const name = (c.name || c.cleanedName || '').toLowerCase().trim();
+                const role = c.cargo || c.vinculo || c.role || c.type || c.position;
+                if (name && role && !map.has(name)) {
+                    map.set(name, String(role).trim());
+                }
+            });
+        });
+        return map;
+    }, [contributorFiles]);
+
     // Helper to resolve contributor role / cargo / vínculo
     const getTxRole = useCallback((tx: any) => {
-        let role = tx.cargo || tx.vinculo || tx.role || tx.contributorRole || tx.position;
-        if (!role && contributorFiles.length > 0) {
-            const payerName = (tx.payer || tx.contribuinte || tx.nome || '').toLowerCase().trim();
-            if (payerName) {
-                for (const file of contributorFiles) {
-                    const found = file.contributors?.find((c: any) => 
-                        (c.name || c.cleanedName || '').toLowerCase().trim() === payerName
-                    );
-                    if (found && (found.cargo || found.vinculo || found.role || found.type || found.position)) {
-                        role = found.cargo || found.vinculo || found.role || found.type || found.position;
-                        break;
-                    }
-                }
-            }
+        const directRole = tx.cargo || tx.vinculo || tx.role || tx.contributorRole || tx.position;
+        if (directRole && String(directRole).trim()) return String(directRole).trim();
+        const payerName = (tx.payer || tx.contribuinte || tx.nome || '').toLowerCase().trim();
+        if (payerName) {
+            const mapped = contributorRoleMap.get(payerName);
+            if (mapped) return mapped;
         }
-        return role && String(role).trim() ? String(role).trim() : 'Não Especificado';
-    }, [contributorFiles]);
+        return 'Não Especificado';
+    }, [contributorRoleMap]);
 
     // Master list of all system categories (from transactions, reference data, and defaults)
     const allSystemCategoryNames = useMemo(() => {

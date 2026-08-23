@@ -269,15 +269,15 @@ export const useReportsController = () => {
         }
 
         if (searchFilters.dateRange && (searchFilters.dateRange.start || searchFilters.dateRange.end)) {
-            const start = searchFilters.dateRange.start ? new Date(searchFilters.dateRange.start).getTime() : null;
-            const end = searchFilters.dateRange.end ? new Date(searchFilters.dateRange.end).getTime() + 86400000 : null;
+            const startStr = searchFilters.dateRange.start ? toIsoDate(searchFilters.dateRange.start) : null;
+            const endStr = searchFilters.dateRange.end ? toIsoDate(searchFilters.dateRange.end) : null;
             
             filteredData = filteredData.filter(r => {
-                const dateStr = r.transaction?.date;
+                const dateStr = r.transaction?.date || r.contributor?.date || (r as any).date;
                 if (!dateStr) return true;
-                const itemDate = new Date(dateStr.split('T')[0]).getTime();
-                if (start && itemDate < start) return false;
-                if (end && itemDate >= end) return false;
+                const itemIso = toIsoDate(dateStr);
+                if (startStr && itemIso < startStr) return false;
+                if (endStr && itemIso > endStr) return false;
                 return true;
             });
         }

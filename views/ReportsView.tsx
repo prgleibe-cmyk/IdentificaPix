@@ -161,7 +161,6 @@ export const ReportsView: React.FC = () => {
         setSelectedMonth(month);
         setSelectedYear(year);
         const { start, end } = getDatesFromMonthYear(month, year);
-        if (ctrl.setIsLoading) ctrl.setIsLoading(true);
         if (ctrl.setSearchFilters) {
             ctrl.setSearchFilters((prev: any) => ({
                 ...prev,
@@ -175,7 +174,6 @@ export const ReportsView: React.FC = () => {
             alert('Por favor, escolha as datas de início e fim.');
             return;
         }
-        if (ctrl.setIsLoading) ctrl.setIsLoading(true);
         if (ctrl.setSearchFilters) {
             ctrl.setSearchFilters((prev: any) => ({
                 ...prev,
