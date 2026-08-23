@@ -8,7 +8,7 @@ import {
     FileSpreadsheet, FileText, Filter, Loader2, RefreshCw, FileCode, Printer,
     CheckCircle2, AlertTriangle, Camera, Phone, Mail, MapPin, 
     ChevronDown, X, Eye, Check, ExternalLink, ShieldAlert,
-    Sparkles, User, Tag
+    Sparkles, User, Tag, ChevronLeft, ChevronRight
 } from 'lucide-react';
 
 const formatDocument = (doc?: string) => {
@@ -46,6 +46,8 @@ export const ContributorsReportSection: React.FC = () => {
     // Export and Modal state
     const [showDownloadMenu, setShowDownloadMenu] = useState<boolean>(false);
     const [selectedContributor, setSelectedContributor] = useState<any | null>(null);
+    const [currentPage, setCurrentPage] = useState<number>(1);
+    const ITEMS_PER_PAGE = 50;
 
     const churchDropdownRef = useRef<HTMLDivElement>(null);
     const downloadMenuRef = useRef<HTMLDivElement>(null);
@@ -226,6 +228,23 @@ export const ContributorsReportSection: React.FC = () => {
             return true;
         });
     }, [contributors, debouncedSearchQuery, selectedChurchIds, selectedPersonType, selectedRole, missingFilter]);
+
+    const totalPages = Math.ceil(filteredContributors.length / ITEMS_PER_PAGE) || 1;
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [debouncedSearchQuery, selectedChurchIds, selectedPersonType, selectedRole, missingFilter]);
+
+    useEffect(() => {
+        if (currentPage > totalPages && totalPages > 0) {
+            setCurrentPage(totalPages);
+        }
+    }, [filteredContributors.length, totalPages, currentPage]);
+
+    const paginatedContributors = useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        return filteredContributors.slice(start, start + ITEMS_PER_PAGE);
+    }, [filteredContributors, currentPage]);
 
     // Statistics & Data Quality Overview
     const stats = useMemo(() => {
@@ -508,8 +527,9 @@ export const ContributorsReportSection: React.FC = () => {
                         )}
                     </div>
                 ) : (
-                    <div className="flex-1 overflow-auto custom-scrollbar">
-                        <table className="w-full text-left border-collapse">
+                    <>
+                        <div className="flex-1 overflow-auto custom-scrollbar">
+                            <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-slate-800/40 text-[11px] font-black uppercase text-slate-400 tracking-wider">
                                     <th className="py-3 px-4">Nome / Razão Social</th>
@@ -523,7 +543,7 @@ export const ContributorsReportSection: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-white/5 text-xs text-slate-700 dark:text-slate-200 font-medium">
-                                {filteredContributors.map((item, idx) => {
+                                {paginatedContributors.map((item, idx) => {
                                     const isPj = item.personType === 'PJ';
                                     const name = item.name || item.fullName || 'NÃO INFORMADO';
                                     const initial = name.charAt(0).toUpperCase();
@@ -628,6 +648,51 @@ export const ContributorsReportSection: React.FC = () => {
                             </tbody>
                         </table>
                     </div>
+
+                    {filteredContributors.length > ITEMS_PER_PAGE && (
+                        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400">
+                            <span className="text-[11px]">
+                                Exibindo <span className="font-mono text-slate-900 dark:text-white">{(currentPage - 1) * ITEMS_PER_PAGE + 1}</span> a <span className="font-mono text-slate-900 dark:text-white">{Math.min(filteredContributors.length, currentPage * ITEMS_PER_PAGE)}</span> de <span className="font-mono text-slate-900 dark:text-white">{filteredContributors.length}</span> contribuintes
+                            </span>
+
+                            <div className="flex items-center gap-1.5 ml-auto">
+                                <button
+                                    onClick={() => setCurrentPage(1)}
+                                    disabled={currentPage === 1}
+                                    className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[11px] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors"
+                                >
+                                    Primeira
+                                </button>
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                    className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors"
+                                    title="Página Anterior"
+                                >
+                                    <ChevronLeft className="w-4 h-4" />
+                                </button>
+                                <span className="px-2 font-mono text-[11px] text-slate-800 dark:text-white">
+                                    {currentPage} / {totalPages}
+                                </span>
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages}
+                                    className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors"
+                                    title="Próxima Página"
+                                >
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
+                                <button
+                                    onClick={() => setCurrentPage(totalPages)}
+                                    disabled={currentPage === totalPages}
+                                    className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[11px] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors"
+                                >
+                                    Última
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </>
                 )}
             </div>
 

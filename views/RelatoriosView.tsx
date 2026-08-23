@@ -36,7 +36,9 @@ import {
     Tag,
     X,
     FileSpreadsheet,
-    FileCode
+    FileCode,
+    ChevronLeft,
+    ChevronRight
 } from 'lucide-react';
 
 export const RelatoriosView: React.FC = memo(() => {
@@ -57,6 +59,8 @@ export const RelatoriosView: React.FC = memo(() => {
     const [dateRange, setDateRange] = useState<'all' | 'month' | 'last-month' | 'quarter' | 'year' | 'custom'>('month');
     const [customStartDate, setCustomStartDate] = useState<string>('');
     const [customEndDate, setCustomEndDate] = useState<string>('');
+    const [balanceteCurrentPage, setBalanceteCurrentPage] = useState<number>(1);
+    const BALANCETE_ITEMS_PER_PAGE = 50;
     
     // Multi-select church filter
     const [selectedChurchIds, setSelectedChurchIds] = useState<string[]>([]);
@@ -279,6 +283,23 @@ export const RelatoriosView: React.FC = memo(() => {
             return true;
         });
     }, [reportData, selectedChurchIds, searchTerm, dateRange, customStartDate, customEndDate, churches]);
+
+    const balanceteTotalPages = Math.ceil(filteredReportData.length / BALANCETE_ITEMS_PER_PAGE) || 1;
+
+    useEffect(() => {
+        setBalanceteCurrentPage(1);
+    }, [dateRange, customStartDate, customEndDate, selectedChurchIds, searchTerm, balanceteType]);
+
+    useEffect(() => {
+        if (balanceteCurrentPage > balanceteTotalPages && balanceteTotalPages > 0) {
+            setBalanceteCurrentPage(balanceteTotalPages);
+        }
+    }, [filteredReportData.length, balanceteTotalPages, balanceteCurrentPage]);
+
+    const paginatedBalanceteData = useMemo(() => {
+        const start = (balanceteCurrentPage - 1) * BALANCETE_ITEMS_PER_PAGE;
+        return filteredReportData.slice(start, start + BALANCETE_ITEMS_PER_PAGE);
+    }, [filteredReportData, balanceteCurrentPage]);
 
     // Financial totals
     const financialTotals = useMemo(() => {
@@ -1491,14 +1512,14 @@ export const RelatoriosView: React.FC = memo(() => {
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-                                                {filteredReportData.length === 0 ? (
+                                                {paginatedBalanceteData.length === 0 ? (
                                                     <tr>
                                                         <td colSpan={7} className="py-8 text-center text-slate-400 italic">
                                                             Nenhum lançamento encontrado para o período/filtro selecionado.
                                                         </td>
                                                     </tr>
                                                 ) : (
-                                                    filteredReportData.map((tx: any, idx: number) => {
+                                                    paginatedBalanceteData.map((tx: any, idx: number) => {
                                                         const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
                                                         const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
 
@@ -1524,6 +1545,50 @@ export const RelatoriosView: React.FC = memo(() => {
                                             </tbody>
                                         </table>
                                     </div>
+
+                                    {filteredReportData.length > BALANCETE_ITEMS_PER_PAGE && (
+                                        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400">
+                                            <span className="text-[11px]">
+                                                Exibindo <span className="font-mono text-slate-900 dark:text-white">{(balanceteCurrentPage - 1) * BALANCETE_ITEMS_PER_PAGE + 1}</span> a <span className="font-mono text-slate-900 dark:text-white">{Math.min(filteredReportData.length, balanceteCurrentPage * BALANCETE_ITEMS_PER_PAGE)}</span> de <span className="font-mono text-slate-900 dark:text-white">{filteredReportData.length}</span> lançamentos
+                                            </span>
+
+                                            <div className="flex items-center gap-1.5 ml-auto">
+                                                <button
+                                                    onClick={() => setBalanceteCurrentPage(1)}
+                                                    disabled={balanceteCurrentPage === 1}
+                                                    className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[11px] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors"
+                                                >
+                                                    Primeira
+                                                </button>
+                                                <button
+                                                    onClick={() => setBalanceteCurrentPage(p => Math.max(1, p - 1))}
+                                                    disabled={balanceteCurrentPage === 1}
+                                                    className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors"
+                                                    title="Página Anterior"
+                                                >
+                                                    <ChevronLeft className="w-4 h-4" />
+                                                </button>
+                                                <span className="px-2 font-mono text-[11px] text-slate-800 dark:text-white">
+                                                    {balanceteCurrentPage} / {balanceteTotalPages}
+                                                </span>
+                                                <button
+                                                    onClick={() => setBalanceteCurrentPage(p => Math.min(balanceteTotalPages, p + 1))}
+                                                    disabled={balanceteCurrentPage === balanceteTotalPages}
+                                                    className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors"
+                                                    title="Próxima Página"
+                                                >
+                                                    <ChevronRight className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => setBalanceteCurrentPage(balanceteTotalPages)}
+                                                    disabled={balanceteCurrentPage === balanceteTotalPages}
+                                                    className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[11px] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors"
+                                                >
+                                                    Última
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}

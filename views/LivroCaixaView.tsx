@@ -25,7 +25,9 @@ import {
     RotateCcw,
     CheckCircle2,
     ArrowRight,
-    Check
+    Check,
+    ChevronLeft,
+    ChevronRight
 } from 'lucide-react';
 
 export const LivroCaixaView: React.FC = memo(() => {
@@ -41,6 +43,8 @@ export const LivroCaixaView: React.FC = memo(() => {
     const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
     const [customStartDate, setCustomStartDate] = useState<string>('');
     const [customEndDate, setCustomEndDate] = useState<string>('');
+    const [currentPage, setCurrentPage] = useState<number>(1);
+    const ITEMS_PER_PAGE = 50;
 
     const monthsList = [
         { val: 1, name: 'Janeiro' },
@@ -371,6 +375,23 @@ export const LivroCaixaView: React.FC = memo(() => {
             totalTransactions: filteredReportData.length
         };
     }, [filteredReportData]);
+
+    const totalPages = Math.ceil(filteredReportData.length / ITEMS_PER_PAGE) || 1;
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [selectedMonth, selectedYear, customStartDate, customEndDate, selectionMode, selectedChurchIds, selectedBankIds, searchTerm]);
+
+    useEffect(() => {
+        if (currentPage > totalPages && totalPages > 0) {
+            setCurrentPage(totalPages);
+        }
+    }, [filteredReportData.length, totalPages, currentPage]);
+
+    const paginatedReportData = useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        return filteredReportData.slice(start, start + ITEMS_PER_PAGE);
+    }, [filteredReportData, currentPage]);
 
     // Detalhado RESUMO financeiro do Livro Caixa
     const summaryBreakdown = useMemo(() => {
@@ -855,14 +876,14 @@ export const LivroCaixaView: React.FC = memo(() => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                                {filteredReportData.length === 0 ? (
+                                {paginatedReportData.length === 0 ? (
                                     <tr>
                                         <td colSpan={7} className="text-center py-12 text-slate-400 italic">
                                             Nenhum lançamento encontrado no Livro Caixa para os filtros selecionados.
                                         </td>
                                     </tr>
                                 ) : (
-                                    filteredReportData.map((tx: any, idx: number) => {
+                                    paginatedReportData.map((tx: any, idx: number) => {
                                         const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
                                         const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
                                         const tipoLabel = tx.contributionType || tx.tipo || (tx.type === 'expense' ? 'Despesa' : tx.type === 'income' ? 'Receita' : isExpense ? 'Despesa' : 'Entrada');
@@ -919,6 +940,50 @@ export const LivroCaixaView: React.FC = memo(() => {
                             </tbody>
                         </table>
                     </div>
+
+                    {filteredReportData.length > ITEMS_PER_PAGE && (
+                        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400">
+                            <span className="text-[11px]">
+                                Exibindo <span className="font-mono text-slate-900 dark:text-white">{(currentPage - 1) * ITEMS_PER_PAGE + 1}</span> a <span className="font-mono text-slate-900 dark:text-white">{Math.min(filteredReportData.length, currentPage * ITEMS_PER_PAGE)}</span> de <span className="font-mono text-slate-900 dark:text-white">{filteredReportData.length}</span> lançamentos
+                            </span>
+
+                            <div className="flex items-center gap-1.5 ml-auto">
+                                <button
+                                    onClick={() => setCurrentPage(1)}
+                                    disabled={currentPage === 1}
+                                    className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[11px] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors"
+                                >
+                                    Primeira
+                                </button>
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                    className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors"
+                                    title="Página Anterior"
+                                >
+                                    <ChevronLeft className="w-4 h-4" />
+                                </button>
+                                <span className="px-2 font-mono text-[11px] text-slate-800 dark:text-white">
+                                    {currentPage} / {totalPages}
+                                </span>
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages}
+                                    className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors"
+                                    title="Próxima Página"
+                                >
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
+                                <button
+                                    onClick={() => setCurrentPage(totalPages)}
+                                    disabled={currentPage === totalPages}
+                                    className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[11px] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors"
+                                >
+                                    Última
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* RESUMO DE CAIXA DETALHADO (NO FINAL DO RELATÓRIO) */}
