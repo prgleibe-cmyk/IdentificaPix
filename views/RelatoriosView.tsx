@@ -226,6 +226,14 @@ export const RelatoriosView: React.FC = memo(() => {
             lastMonthYear = currentYear - 1;
         }
 
+        const currentMonthPrefix = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+        const lastMonthPrefix = `${lastMonthYear}-${String(lastMonthIndex + 1).padStart(2, '0')}`;
+        const currentYearPrefix = String(currentYear);
+        const currentQuarter = Math.floor(currentMonth / 3);
+        const customStartIso = customStartDate ? customStartDate.split('T')[0] : null;
+        const customEndIso = customEndDate ? customEndDate.split('T')[0] : null;
+        const lowerSearch = searchTerm.trim().toLowerCase();
+
         return reportData.filter((item: any) => {
             // Secondary user church restriction
             if (isSecondaryUser && allowedChurchIds && allowedChurchIds.length > 0) {
@@ -250,47 +258,39 @@ export const RelatoriosView: React.FC = memo(() => {
             }
 
             // Search query
-            if (searchTerm.trim()) {
-                const term = searchTerm.toLowerCase();
+            if (lowerSearch) {
                 const desc = (item.desc || item.description || item.historico || '').toLowerCase();
                 const payer = (item.payer || item.contribuinte || item.nome || '').toLowerCase();
                 const cat = (item.category || item.categoria || '').toLowerCase();
                 const val = String(item.amount || item.val || '');
                 const ch = (item.church || '').toLowerCase();
-                if (!desc.includes(term) && !payer.includes(term) && !cat.includes(term) && !val.includes(term) && !ch.includes(term)) {
+                if (!desc.includes(lowerSearch) && !payer.includes(lowerSearch) && !cat.includes(lowerSearch) && !val.includes(lowerSearch) && !ch.includes(lowerSearch)) {
                     return false;
                 }
             }
 
-            // Date filter
+            // Date filter (Fast string comparison without Date instance allocations)
             if (item.date) {
-                const itemDate = new Date(item.date + (item.date.includes('T') ? '' : 'T12:00:00'));
-                
+                const itemIso = String(item.date).split(/[T ]/)[0];
                 if (dateRange === 'month') {
-                    if (itemDate.getMonth() !== currentMonth || itemDate.getFullYear() !== currentYear) return false;
+                    if (!itemIso.startsWith(currentMonthPrefix)) return false;
                 } else if (dateRange === 'last-month') {
-                    if (itemDate.getMonth() !== lastMonthIndex || itemDate.getFullYear() !== lastMonthYear) return false;
+                    if (!itemIso.startsWith(lastMonthPrefix)) return false;
                 } else if (dateRange === 'quarter') {
-                    const currentQuarter = Math.floor(currentMonth / 3);
-                    const itemQuarter = Math.floor(itemDate.getMonth() / 3);
-                    if (itemQuarter !== currentQuarter || itemDate.getFullYear() !== currentYear) return false;
+                    if (!itemIso.startsWith(currentYearPrefix)) return false;
+                    const monthNum = Number(itemIso.slice(5, 7));
+                    if (Math.floor((monthNum - 1) / 3) !== currentQuarter) return false;
                 } else if (dateRange === 'year') {
-                    if (itemDate.getFullYear() !== currentYear) return false;
+                    if (!itemIso.startsWith(currentYearPrefix)) return false;
                 } else if (dateRange === 'custom') {
-                    if (customStartDate) {
-                        const start = new Date(customStartDate + 'T00:00:00');
-                        if (itemDate < start) return false;
-                    }
-                    if (customEndDate) {
-                        const end = new Date(customEndDate + 'T23:59:59');
-                        if (itemDate > end) return false;
-                    }
+                    if (customStartIso && itemIso < customStartIso) return false;
+                    if (customEndIso && itemIso > customEndIso) return false;
                 }
             }
 
             return true;
         });
-    }, [reportData, selectedChurchIds, searchTerm, dateRange, customStartDate, customEndDate, churches]);
+    }, [reportData, selectedChurchIds, searchTerm, dateRange, customStartDate, customEndDate, churchNameMap, isSecondaryUser, allowedChurchIds]);
 
     const balanceteTotalPages = Math.ceil(filteredReportData.length / BALANCETE_ITEMS_PER_PAGE) || 1;
 

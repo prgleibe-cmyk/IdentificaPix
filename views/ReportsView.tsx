@@ -124,8 +124,8 @@ export const ReportsView: React.FC = () => {
             const now = new Date();
             const m = now.getMonth() + 1;
             const y = now.getFullYear();
-            setSelectedMonth(m);
-            setSelectedYear(y);
+            setSelectedMonth(prev => prev !== m ? m : prev);
+            setSelectedYear(prev => prev !== y ? y : prev);
             const { start, end } = getDatesFromMonthYear(m, y);
             if (ctrl.setSearchFilters) {
                 ctrl.setSearchFilters((prev: any) => ({
@@ -142,17 +142,17 @@ export const ReportsView: React.FC = () => {
                 const lastDay = new Date(y, m, 0).getDate();
                 const isFullMonth = startParts[2] === '01' && Number(endParts[2]) === lastDay && Number(endParts[1]) === m && Number(endParts[0]) === y;
                 if (isFullMonth) {
-                    setSelectedMonth(m);
-                    setSelectedYear(y);
-                    setSelectionMode('month');
+                    setSelectedMonth(prev => prev !== m ? m : prev);
+                    setSelectedYear(prev => prev !== y ? y : prev);
+                    setSelectionMode(prev => prev !== 'month' ? 'month' : prev);
                 } else {
-                    setCustomStart(startSelected);
-                    setCustomEnd(endSelected);
-                    setSelectionMode('dates');
+                    setCustomStart(prev => prev !== startSelected ? startSelected : prev);
+                    setCustomEnd(prev => prev !== endSelected ? endSelected : prev);
+                    setSelectionMode(prev => prev !== 'dates' ? 'dates' : prev);
                 }
             } else {
-                setCustomStart(startSelected);
-                setCustomEnd(endSelected);
+                setCustomStart(prev => prev !== startSelected ? startSelected : prev);
+                setCustomEnd(prev => prev !== endSelected ? endSelected : prev);
             }
         }
     }, [startSelected, endSelected]);

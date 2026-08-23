@@ -593,15 +593,13 @@ export const useReportsController = () => {
     };
 
     const activeSummary = useMemo(() => {
-        if (!Array.isArray(activeData)) {
+        if (!Array.isArray(activeData) || activeData.length === 0) {
             return { count: 0, total: 0, auto: 0, autoValue: 0, manual: 0, manualValue: 0, pending: 0, pendingValue: 0 };
         }
 
         const parseNumeric = (val: any): number => {
             if (val === undefined || val === null) return 0;
-            if (typeof val === 'number') {
-                return isNaN(val) ? 0 : val;
-            }
+            if (typeof val === 'number') return isNaN(val) ? 0 : val;
             if (typeof val === 'string') {
                 let clean = val.trim();
                 clean = clean.replace(/[R$\s]/g, '');
@@ -620,7 +618,18 @@ export const useReportsController = () => {
             return 0;
         };
 
-        const getFinalAmount = (r: MatchResult) => {
+        const isChurchesCat = activeCategory === 'churches';
+        let total = 0;
+        let count = 0;
+        let auto = 0;
+        let autoValue = 0;
+        let manual = 0;
+        let manualValue = 0;
+        let pending = 0;
+        let pendingValue = 0;
+
+        for (let i = 0; i < activeData.length; i++) {
+            const r = activeData[i];
             const rawAmount = r.status === 'PENDENTE' ? r.contributorAmount : r.transaction?.amount;
             const amount = parseNumeric(rawAmount);
             const isExp = amount < 0 || 
@@ -628,26 +637,39 @@ export const useReportsController = () => {
                           r.transaction?.type?.toLowerCase() === 'saida' || 
                           r.contributionType?.toLowerCase() === 'saída' || 
                           r.contributionType?.toLowerCase() === 'saida';
-            return isExp ? -Math.abs(amount) : amount;
-        };
+            const finalAmt = isExp ? -Math.abs(amount) : amount;
+            const isIdentified = r.status === 'IDENTIFICADO';
+            const isPending = r.status === 'PENDENTE' || r.status === 'NÃO IDENTIFICADO';
 
-        const total = activeCategory === 'churches'
-            ? activeData.filter(r => r.status === 'IDENTIFICADO').reduce((sum, r) => sum + getFinalAmount(r), 0)
-            : activeData.reduce((sum, r) => sum + getFinalAmount(r), 0);
+            if (isChurchesCat) {
+                if (isIdentified) {
+                    total += finalAmt;
+                    count++;
+                }
+            } else {
+                total += finalAmt;
+                count++;
+            }
 
-        const count = activeCategory === 'churches'
-            ? activeData.filter(r => r.status === 'IDENTIFICADO').length
-            : (activeData || []).length;
-
-        const autoTxs = activeData.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'AUTOMATIC' || r.matchMethod === 'LEARNED' || !r.matchMethod || r.matchMethod === 'TEMPLATE'));
-        const manualTxs = activeData.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'MANUAL' || r.matchMethod === 'AI'));
-        const pendingTxs = activeData.filter(r => r.status === 'PENDENTE' || r.status === 'NÃO IDENTIFICADO');
+            if (isIdentified) {
+                if (r.matchMethod === 'AUTOMATIC' || r.matchMethod === 'LEARNED' || !r.matchMethod || r.matchMethod === 'TEMPLATE') {
+                    auto++;
+                    autoValue += finalAmt;
+                } else if (r.matchMethod === 'MANUAL' || r.matchMethod === 'AI') {
+                    manual++;
+                    manualValue += finalAmt;
+                }
+            } else if (isPending) {
+                pending++;
+                pendingValue += finalAmt;
+            }
+        }
 
         return { 
             count, total, 
-            auto: (autoTxs || []).length, autoValue: autoTxs.reduce((s, r) => s + getFinalAmount(r), 0),
-            manual: (manualTxs || []).length, manualValue: manualTxs.reduce((s, r) => s + getFinalAmount(r), 0),
-            pending: (pendingTxs || []).length, pendingValue: pendingTxs.reduce((s, r) => s + getFinalAmount(r), 0)
+            auto, autoValue,
+            manual, manualValue,
+            pending, pendingValue
         };
     }, [activeData, activeCategory]);
 

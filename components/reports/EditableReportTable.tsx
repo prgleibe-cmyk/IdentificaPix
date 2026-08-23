@@ -2,7 +2,7 @@ import React, { useState, useContext, memo, useCallback, useMemo, useEffect } fr
 import { MatchResult, ReconciliationStatus, MatchMethod } from '../../types';
 import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
-import { formatCurrency, formatDate, isPeriodClosed, resolvePaymentMethod, resolveContributionType, resolveTransactionSource } from '../../utils/formatters';
+import { formatCurrency, formatDate, isPeriodClosed, getClosedPeriodsSet, isDateInClosedPeriods, resolvePaymentMethod, resolveContributionType, resolveTransactionSource } from '../../utils/formatters';
 import { useAuth } from '../../contexts/AuthContext';
 import { GitFork, Printer, X, MessageCircle, CheckCircle2 } from 'lucide-react';
 import { isWhatsAppSent, getWhatsAppSentMap, sendWhatsAppDirect } from '../modals/WhatsAppReceiptModal';
@@ -602,6 +602,11 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
 
     const totalPages = Math.ceil(data.length / ITEMS_PER_PAGE);
 
+    const closedPeriodsSet = useMemo(() => {
+        if (!isSecondaryUser) return new Set<string>();
+        return getClosedPeriodsSet(matchResults);
+    }, [isSecondaryUser, matchResults]);
+
     useEffect(() => {
         setCurrentPage(1);
         setSelectedIds([]);
@@ -659,7 +664,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                     </thead>
                     <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                         {paginatedData.map(result => {
-                            const isClosedPeriod = isSecondaryUser && isPeriodClosed(result.transaction?.date || result.contributor?.date, matchResults);
+                            const isClosedPeriod = isSecondaryUser && isDateInClosedPeriods(result.transaction?.date || result.contributor?.date, closedPeriodsSet);
                             return (
                                 <IncomeRow 
                                     key={result.transaction.id}
@@ -699,7 +704,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{data.length} registros</span>
                     </div>
                     {paginatedData.map(result => {
-                        const isClosedPeriod = isSecondaryUser && isPeriodClosed(result.transaction?.date || result.contributor?.date, matchResults);
+                        const isClosedPeriod = isSecondaryUser && isDateInClosedPeriods(result.transaction?.date || result.contributor?.date, closedPeriodsSet);
                         return (
                             <MobileCard 
                                 key={result.transaction.id}
