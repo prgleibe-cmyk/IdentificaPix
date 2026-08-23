@@ -159,11 +159,13 @@ export const useReportsController = () => {
                 const churchId = (r.church?.id && r.church.id !== 'unidentified') ? r.church?.id : r._churchId!;
                 if (allowedIds && !allowedIds.includes(churchId)) return;
                 
-                // Guarantee alignment with dashboard: only count identified transactions
-                if (r.status !== 'IDENTIFICADO') return;
+                // Guarantee alignment with dashboard: count identified and confirmed transactions
+                const st = (r.status || '').toUpperCase();
+                const isIdent = st === 'IDENTIFICADO' || st === 'RESOLVIDO' || st === 'IDENTIFIED' || !!r.isConfirmed;
+                if (!isIdent) return;
                 
-                const realChurch = churchesMap.get(churchId);
-                if (!realChurch) return;
+                const realChurch = churchesMap.get(churchId) || r.church;
+                const churchName = realChurch?.name || r.church?.name || 'Igreja';
                 
                 const existing = churchMap.get(churchId);
                 if (existing) {
@@ -172,7 +174,7 @@ export const useReportsController = () => {
                 } else {
                     churchMap.set(churchId, {
                         id: churchId,
-                        name: realChurch.name,
+                        name: churchName,
                         count: 1,
                         total: r.transaction?.amount || 0
                     });
@@ -216,40 +218,17 @@ export const useReportsController = () => {
         } else if (activeCategory === 'expenses') {
             filteredData = currentResults.filter(isExpenseTx);
         } else {
-            if (isSecondary && subscription.congregationIds && subscription.congregationIds.length > 0) {
-                const activeId = selectedReportId && subscription.congregationIds.includes(selectedReportId)
-                    ? selectedReportId
-                    : subscription.congregationIds[0];
-                filteredData = reportPreviewData?.income?.[activeId] || [];
-            } else if (selectedReportId) {
-                filteredData = reportPreviewData?.income?.[selectedReportId] || [];
-            }
+            const targetChurchId = (isSecondary && subscription.congregationIds && subscription.congregationIds.length > 0)
+                ? (selectedReportId && subscription.congregationIds.includes(selectedReportId) ? selectedReportId : subscription.congregationIds[0])
+                : (selectedReportId || (churchListComputed.length > 0 ? churchListComputed[0].id : null));
 
-            if (filteredData.length > 0) {
-                filteredData = filteredData.map((r: MatchResult) => {
-                    const live = resultsMap.get(r.transaction.id);
-                    if (live) {
-                        return {
-                            ...r,
-                            status: live.status,
-                            isConfirmed: live.isConfirmed,
-                            contributor: live.contributor,
-                            church: live.church,
-                            _churchId: live._churchId,
-                            updatedAt: live.updatedAt,
-                            splits: live.splits,
-                            contributionType: live.contributionType
-                        };
-                    }
-                    return r;
+            if (targetChurchId) {
+                filteredData = currentResults.filter(r => {
+                    const cid = r.church?.id || r._churchId;
+                    return cid === targetChurchId && !isExpenseTx(r);
                 });
-
-                if (selectedReportId) {
-                    filteredData = filteredData.filter((r: MatchResult) => {
-                        const liveChurchId = r.church?.id || r._churchId;
-                        return liveChurchId === selectedReportId;
-                    });
-                }
+            } else {
+                filteredData = [];
             }
         }
 
@@ -331,11 +310,13 @@ export const useReportsController = () => {
                     const churchId = (item.church?.id && item.church.id !== 'unidentified') ? item.church?.id : item._churchId!;
                     if (allowedIds && !allowedIds.includes(churchId)) return;
                     
-                    const realChurch = churchesMap.get(churchId);
-                    if (!realChurch) return;
+                    const realChurch = churchesMap.get(churchId) || item.church;
+                    const churchName = realChurch?.name || item.church?.name || 'Igreja';
 
-                    // Guarantee alignment with dashboard: only count identified transactions
-                    if (item.status !== 'IDENTIFICADO') return;
+                    // Guarantee alignment with dashboard: count identified and confirmed transactions
+                    const st = (item.status || '').toUpperCase();
+                    const isIdent = st === 'IDENTIFICADO' || st === 'RESOLVIDO' || st === 'IDENTIFIED' || !!item.isConfirmed;
+                    if (!isIdent) return;
 
                     const idx = cacheRef.current.churchList.findIndex(c => c.id === churchId);
                     if (idx !== -1) {
@@ -358,7 +339,7 @@ export const useReportsController = () => {
                             ...cacheRef.current.churchList,
                             {
                                 id: churchId,
-                                name: realChurch.name,
+                                name: churchName,
                                 count: 1,
                                 total: item.transaction?.amount || 0
                             }
@@ -501,31 +482,17 @@ export const useReportsController = () => {
     const counts = cacheRef.current.counts;
     const activeData = cacheRef.current.activeData;
 
-    // Forçar categoria para membros
+    // Sincroniza categoria e seleção de igreja/relatório
     useEffect(() => {
         const isSecondary = (subscription.ownerId && subscription.ownerId !== user?.id) &&
             subscription.role !== 'owner' &&
             subscription.role !== 'admin' &&
             subscription.role !== 'principal';
-        if (isSecondary && subscription.congregationIds && (subscription.congregationIds || []).length > 0) {
-            setActiveCategory('churches');
-            if (!selectedReportId || !(subscription.congregationIds || []).includes(selectedReportId)) {
-                setSelectedReportId(subscription.congregationIds[0]);
-            }
-        }
-    }, [subscription, selectedReportId, user?.id]);
 
-    useEffect(() => {
-        if (!reportPreviewData) return;
-        
-        const isSecondary = (subscription.ownerId && subscription.ownerId !== user?.id) &&
-            subscription.role !== 'owner' &&
-            subscription.role !== 'admin' &&
-            subscription.role !== 'principal';
         // Se for membro, garante que está na categoria correta e com uma igreja válida
-        if (isSecondary && subscription.congregationIds && (subscription.congregationIds || []).length > 0) {
+        if (isSecondary && subscription.congregationIds && subscription.congregationIds.length > 0) {
             setActiveCategory('churches');
-            if (!selectedReportId || !(subscription.congregationIds || []).includes(selectedReportId)) {
+            if (!selectedReportId || !subscription.congregationIds.includes(selectedReportId)) {
                 setSelectedReportId(subscription.congregationIds[0]);
             }
             return;
@@ -534,21 +501,18 @@ export const useReportsController = () => {
         if (activeCategory === 'general') {
             setSelectedReportId('general_all');
         } else if (activeCategory === 'churches') {
-            const incomeData = reportPreviewData.income || {};
-            const churchIds = Object.keys(incomeData).filter(k => k !== 'unidentified').sort();
-            if ((churchIds || []).length > 0) {
-                if (!selectedReportId || !churchIds.includes(selectedReportId) || selectedReportId === 'general_all') {
-                    setSelectedReportId(churchIds[0]);
+            const currentChurchIds = churchList.map(c => c.id);
+            if (currentChurchIds.length > 0) {
+                if (!selectedReportId || !currentChurchIds.includes(selectedReportId) || selectedReportId === 'general_all') {
+                    setSelectedReportId(currentChurchIds[0]);
                 }
-            } else {
-                setSelectedReportId(null);
             }
         } else if (activeCategory === 'unidentified') {
             setSelectedReportId('unidentified');
         } else if (activeCategory === 'expenses') {
             setSelectedReportId('all_expenses_group');
         }
-    }, [activeCategory, reportPreviewData, subscription]);
+    }, [activeCategory, churchList, subscription, selectedReportId, user?.id]);
 
     const sortedData = useMemo(() => {
         const source = Array.isArray(activeData) ? activeData : [];

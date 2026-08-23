@@ -182,7 +182,9 @@ export const ReportsView: React.FC = () => {
         }
     };
 
-    if (ctrl.isHydrating || ctrl.isLoading || ctrl.isSyncing || !ctrl.reportPreviewData) {
+    const isInitialLoading = (ctrl.isHydrating || ctrl.isLoading) && (!ctrl.sortedData || ctrl.sortedData.length === 0) && (!ctrl.churchList || ctrl.churchList.length === 0);
+
+    if (isInitialLoading) {
         return (
             <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full h-full flex flex-col animate-fade-in">
                 <div className="flex flex-col gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-white/5 shadow-sm">
