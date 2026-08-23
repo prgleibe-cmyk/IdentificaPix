@@ -7,9 +7,13 @@ import { SavedReport, SearchFilters, SavingReportState, MatchResult, Spreadsheet
 const ENABLE_HEAVY_LOGS = false;
 
 const getInitialDateRange = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
     return {
-        start: '',
-        end: ''
+        start: `${year}-${month}-01`,
+        end: `${year}-${month}-${String(lastDay).padStart(2, '0')}`
     };
 };
 

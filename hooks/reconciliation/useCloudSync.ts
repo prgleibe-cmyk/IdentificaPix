@@ -232,6 +232,9 @@ export const useCloudSync = ({
 
                 const fetchContributorsPromise = (async () => {
                     if (!churches || churches.length === 0) return [];
+                    if (contributorFilesRef.current && contributorFilesRef.current.length > 0) {
+                        return contributorFilesRef.current;
+                    }
 
                     const promises = churches.map(async (church: any) => {
                         const resp = await fetch(`/api/v1/contributors?church_id=${church.id}`);
@@ -282,15 +285,13 @@ export const useCloudSync = ({
                     return newFiles;
                 })();
 
-                console.log("[CloudSync:PromiseAll] Buscando transações e contribuintes em paralelo...");
                 const [txs, contributorFilesData] = await Promise.all([
                     fetchTransactionsPromise,
                     fetchContributorsPromise
                 ]);
-                console.log("[CloudSync:PromiseAll] Downloads concluídos!");
 
                 // Atualiza os arquivos de contribuintes antes do mapeamento para garantir matching síncrono e correto
-                if (setContributorFiles) {
+                if (setContributorFiles && contributorFilesData && contributorFilesData.length > 0) {
                     setContributorFiles(contributorFilesData);
                 }
                 contributorFilesRef.current = contributorFilesData;
@@ -350,64 +351,7 @@ export const useCloudSync = ({
                 const txResults: MatchResult[] = txs.map((t: any) => {
                     const normalizedDesc = strictNormalize(t.description);
                     const assoc = assocMap.get(normalizedDesc);
-
-                    console.log("[DIAG_CHURCH][ASSOC]", {
-                        transactionId: t.id,
-                        description: t.description,
-                        normalizedDescription: normalizedDesc,
-                        assocFound: !!assoc,
-                        assocId: assoc?.id,
-                        assocChurchId: assoc?.churchId,
-                        transactionChurchId: (t as any).church_id
-                    });
-
-                    console.log("[DIAG_CHURCH][CHURCHMAP_LOOKUP]", {
-                        transactionId: t.id,
-                        lookupId: assoc?.churchId || (t as any).church_id,
-                        churchMapSize: churchMap.size,
-                        churchExists: churchMap.has(assoc?.churchId || (t as any).church_id)
-                    });
-
-                    if (assoc) {
-                        console.log("[DIAG_REAL]", {
-                            transactionId: t.id,
-                            description: t.description,
-                            normalizedDescription: normalizedDesc,
-                            assocFound: !!assoc,
-                            assocId: assoc?.id ?? null,
-                            assocChurchId: assoc?.churchId ?? null,
-                            transactionChurchId: (t as any).church_id ?? null,
-                            churchMapSize: churchMap.size,
-                            churchMapHasAssocChurch:
-                                assoc?.churchId
-                                    ? churchMap.has(assoc.churchId)
-                                    : false,
-                            churchMapHasTransactionChurch:
-                                (t as any).church_id
-                                    ? churchMap.has((t as any).church_id)
-                                    : false,
-                            resolvedChurchId:
-                                churchMap.get(
-                                    assoc?.churchId || (t as any).church_id
-                                )?.id ?? null,
-                            resolvedChurchName:
-                                churchMap.get(
-                                    assoc?.churchId || (t as any).church_id
-                                )?.name ?? null,
-                            placeholderWillBeUsed:
-                                !churchMap.get(
-                                    assoc?.churchId || (t as any).church_id
-                                )
-                        });
-                    }
-
                     const church = churchMap.get(assoc?.churchId || (t as any).church_id) || PLACEHOLDER_CHURCH;
-
-                    console.log("[DIAG_CHURCH][CHURCH_RESULT]", {
-                        transactionId: t.id,
-                        resolvedChurchId: church?.id,
-                        resolvedChurchName: church?.name
-                    });
 
                     if (ENABLE_HEAVY_LOGS) {
                         console.log("[DIAGNOSTIC:RECONSTRUCT_ROW_MAPPING]", {

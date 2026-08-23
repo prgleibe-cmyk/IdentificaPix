@@ -144,7 +144,28 @@ export const useReportsController = () => {
         currentResults.forEach(r => resultsMap.set(r.transaction.id, r));
         cacheRef.current.resultsMap = resultsMap;
 
-        // 2. Rebuild churchList
+        // Base filter by active period date range and bank selection
+        const startStr = searchFilters?.dateRange?.start ? toIsoDate(searchFilters.dateRange.start) : null;
+        const endStr = searchFilters?.dateRange?.end ? toIsoDate(searchFilters.dateRange.end) : null;
+
+        const periodResults = currentResults.filter(r => {
+            if (startStr || endStr) {
+                const dateStr = r.transaction?.date || r.contributor?.date || (r as any).date;
+                if (dateStr) {
+                    const itemIso = toIsoDate(dateStr);
+                    if (startStr && itemIso < startStr) return false;
+                    if (endStr && itemIso > endStr) return false;
+                }
+            }
+            if (selectedBankId && selectedBankId !== 'all') {
+                if (String(r.transaction?.bank_id) !== selectedBankId) return false;
+            } else if (isSecondary && subscription?.bankIds && subscription.bankIds.length > 0) {
+                if (!subscription.bankIds.includes(String(r.transaction?.bank_id))) return false;
+            }
+            return true;
+        });
+
+        // 2. Rebuild churchList scoped to period
         const allowedIds = isSecondary ? (subscription?.congregationIds || []) : null;
         const churchesMap = new Map<string, any>();
         (churches || []).forEach((c: any) => {
@@ -152,7 +173,7 @@ export const useReportsController = () => {
         });
 
         const churchMap = new Map<string, { id: string, name: string, count: number, total: number }>();
-        currentResults.forEach(r => {
+        periodResults.forEach(r => {
             const hasValidChurch = (r.church?.id && r.church.id !== 'unidentified') || 
                                  (r._churchId && r._churchId !== 'unidentified');
             if (hasValidChurch) {
@@ -184,18 +205,18 @@ export const useReportsController = () => {
         const churchListComputed = Array.from(churchMap.values()).sort((a, b) => a.name.localeCompare(b.name));
         cacheRef.current.churchList = churchListComputed;
 
-        // 3. Rebuild counts
-        let generalCount = currentResults.length;
+        // 3. Rebuild counts scoped to period
+        let generalCount = periodResults.length;
         let churchesCount = churchListComputed.length;
         let pendingCount = 0;
         let expensesCount = 0;
 
-        const countSource = isSecondary && subscription.congregationIds && subscription.congregationIds.length > 0
-            ? currentResults.filter(r => {
+        const countSource = isSecondary && subscription?.congregationIds && subscription.congregationIds.length > 0
+            ? periodResults.filter(r => {
                 const churchId = r.church?.id || r._churchId || 'unidentified';
                 return churchId === 'unidentified' || subscription.congregationIds.includes(churchId);
               })
-            : currentResults;
+            : periodResults;
 
         countSource.forEach(r => {
             if (isPendingTx(r)) pendingCount++;
@@ -212,18 +233,18 @@ export const useReportsController = () => {
         // 4. Rebuild activeData
         let filteredData: MatchResult[] = [];
         if (activeCategory === 'general') {
-            filteredData = currentResults;
+            filteredData = periodResults;
         } else if (activeCategory === 'unidentified') {
-            filteredData = currentResults.filter(isPendingTx);
+            filteredData = periodResults.filter(isPendingTx);
         } else if (activeCategory === 'expenses') {
-            filteredData = currentResults.filter(isExpenseTx);
+            filteredData = periodResults.filter(isExpenseTx);
         } else {
             const targetChurchId = (isSecondary && subscription.congregationIds && subscription.congregationIds.length > 0)
                 ? (selectedReportId && subscription.congregationIds.includes(selectedReportId) ? selectedReportId : subscription.congregationIds[0])
                 : (selectedReportId || (churchListComputed.length > 0 ? churchListComputed[0].id : null));
 
             if (targetChurchId) {
-                filteredData = currentResults.filter(r => {
+                filteredData = periodResults.filter(r => {
                     const cid = r.church?.id || r._churchId;
                     return cid === targetChurchId && !isExpenseTx(r);
                 });
@@ -240,27 +261,6 @@ export const useReportsController = () => {
             });
         }
 
-        // Apply filters
-        if (selectedBankId && selectedBankId !== 'all') {
-            filteredData = filteredData.filter(r => String(r.transaction?.bank_id) === selectedBankId);
-        } else if (isSecondary && subscription?.bankIds && subscription.bankIds.length > 0) {
-            filteredData = filteredData.filter(r => subscription.bankIds.includes(String(r.transaction?.bank_id)));
-        }
-
-        if (searchFilters.dateRange && (searchFilters.dateRange.start || searchFilters.dateRange.end)) {
-            const startStr = searchFilters.dateRange.start ? toIsoDate(searchFilters.dateRange.start) : null;
-            const endStr = searchFilters.dateRange.end ? toIsoDate(searchFilters.dateRange.end) : null;
-            
-            filteredData = filteredData.filter(r => {
-                const dateStr = r.transaction?.date || r.contributor?.date || (r as any).date;
-                if (!dateStr) return true;
-                const itemIso = toIsoDate(dateStr);
-                if (startStr && itemIso < startStr) return false;
-                if (endStr && itemIso > endStr) return false;
-                return true;
-            });
-        }
-
         if (searchFilters) {
             filteredData = applyAdvancedFilters(filteredData, searchFilters);
         }
@@ -272,10 +272,10 @@ export const useReportsController = () => {
         cacheRef.current.activeData = filteredData;
 
         // 5. Stable Key
-        const currentTotal = currentResults.length;
-        const currentIdentified = currentResults.filter(r => r.status === ReconciliationStatus.IDENTIFIED || r.status === ReconciliationStatus.RESOLVED).length;
-        const currentConfirmed = currentResults.filter(r => !!r.isConfirmed).length;
-        const currentWithChurch = currentResults.filter(r => r.church?.id && r.church.id !== 'unidentified').length;
+        const currentTotal = periodResults.length;
+        const currentIdentified = periodResults.filter(r => r.status === ReconciliationStatus.IDENTIFIED || r.status === ReconciliationStatus.RESOLVED).length;
+        const currentConfirmed = periodResults.filter(r => !!r.isConfirmed).length;
+        const currentWithChurch = periodResults.filter(r => r.church?.id && r.church.id !== 'unidentified').length;
         cacheRef.current.stableKey = `${currentTotal}-${currentIdentified}-${currentConfirmed}-${currentWithChurch}`;
 
         // Save current inputs to cache
