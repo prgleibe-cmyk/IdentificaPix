@@ -120,8 +120,17 @@ export const AppRouter: React.FC = memo(() => {
     const { activeView } = useUI();
     const { user, subscription } = useAuth();
 
+    // Preload views on-demand instead of aggressively loading all 17 heavy views concurrently on startup
     React.useEffect(() => {
-        preloadAllViews();
+        // Only preload the most likely next views if browser has idle time, avoiding memory exhaustion on mobile
+        try {
+            if (typeof window !== 'undefined' && (window as any).requestIdleCallback) {
+                (window as any).requestIdleCallback(() => {
+                    preloadView('upload');
+                    preloadView('reports');
+                }, { timeout: 2000 });
+            }
+        } catch (_) {}
     }, []);
 
     const isAdmin = user?.email?.toLowerCase().trim() === 'identificapix@gmail.com';

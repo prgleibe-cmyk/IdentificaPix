@@ -82,23 +82,14 @@ const MobileCard = memo(({
     isSelected,
     onToggleSelection,
     onGenerateReceipt,
-    isClosedPeriod
+    isClosedPeriod,
+    waSent
 }: any) => {
     const { contributionTypes, paymentMethods: sysPaymentMethods, contributionKeywords, openWhatsAppReceiptModal, contributors, churches, showToast } = useContext(AppContext);
     const row = result as MatchResult;
     const confirmed = row.isConfirmed || row.transaction.isConfirmed;
     const isGhost = row.status === 'PENDENTE';
     const isIdentified = row.status === 'IDENTIFICADO';
-
-    const [waSent, setWaSent] = useState<boolean>(() => isWhatsAppSent(row.transaction?.id));
-
-    useEffect(() => {
-        const handleUpdate = () => {
-            setWaSent(isWhatsAppSent(row.transaction?.id));
-        };
-        window.addEventListener('whatsapp_sent_updated', handleUpdate);
-        return () => window.removeEventListener('whatsapp_sent_updated', handleUpdate);
-    }, [row.transaction?.id]);
 
     const isPureNumeric = (val?: string) => {
         if (!val) return true;
@@ -290,7 +281,8 @@ const IncomeRow = memo(({
     isClosedPeriod,
     canConfirmFinal = true,
     canUndoIdentification = true,
-    canPrintReceipt = true
+    canPrintReceipt = true,
+    waSent
 }: any) => {
     const { contributionTypes, paymentMethods: sysPaymentMethods, contributionKeywords, openWhatsAppReceiptModal, contributors, churches, showToast } = useContext(AppContext);
     const row = result as MatchResult;
@@ -298,16 +290,6 @@ const IncomeRow = memo(({
     const confirmed = row.isConfirmed || row.transaction.isConfirmed;
     const isGhost = row.status === 'PENDENTE';
     const isIdentified = row.status === 'IDENTIFICADO';
-
-    const [waSent, setWaSent] = useState<boolean>(() => isWhatsAppSent(row.transaction?.id));
-
-    useEffect(() => {
-        const handleUpdate = () => {
-            setWaSent(isWhatsAppSent(row.transaction?.id));
-        };
-        window.addEventListener('whatsapp_sent_updated', handleUpdate);
-        return () => window.removeEventListener('whatsapp_sent_updated', handleUpdate);
-    }, [row.transaction?.id]);
 
     const displayAmount = row.transaction.amount;
     const isExpense = displayAmount < 0 || 
@@ -608,6 +590,16 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
     const receiptIsExpense = selectedReceipt ? (selectedReceipt.contributorAmount || selectedReceipt.contributor?.amount || selectedReceipt.transaction.amount) < 0 : false;
     const receiptRecordId = selectedReceipt ? selectedReceipt.transaction.id : '';
 
+    const [waSentMap, setWaSentMap] = useState<Record<string, string>>(() => getWhatsAppSentMap());
+
+    useEffect(() => {
+        const handleUpdate = () => {
+            setWaSentMap(getWhatsAppSentMap());
+        };
+        window.addEventListener('whatsapp_sent_updated', handleUpdate);
+        return () => window.removeEventListener('whatsapp_sent_updated', handleUpdate);
+    }, []);
+
     const totalPages = Math.ceil(data.length / ITEMS_PER_PAGE);
 
     useEffect(() => {
@@ -685,6 +677,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                                     canConfirmFinal={canConfirmFinal}
                                     canUndoIdentification={canUndoIdentification}
                                     canPrintReceipt={canPrintReceipt}
+                                    waSent={!!waSentMap[result.transaction.id]}
                                 />
                             );
                         })}
@@ -721,6 +714,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                                 onSplit={onSplit}
                                 onGenerateReceipt={setSelectedReceipt}
                                 isClosedPeriod={isClosedPeriod}
+                                waSent={!!waSentMap[result.transaction.id]}
                             />
                         );
                     })}
