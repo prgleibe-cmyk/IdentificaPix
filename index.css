@@ -41,15 +41,19 @@ body {
 }
 
 /* Tablet & Mobile Touch Kinetic Scrolling & Pinch-Zoom Engine */
-.custom-scrollbar,
-[class*="overflow-y-auto"],
-[class*="overflow-x-auto"],
-[class*="overflow-auto"],
-main,
 #main-scroll-container {
   -webkit-overflow-scrolling: touch;
   touch-action: pan-x pan-y pinch-zoom;
   overscroll-behavior: contain;
+}
+
+.custom-scrollbar,
+[class*="overflow-y-auto"],
+[class*="overflow-x-auto"],
+[class*="overflow-auto"],
+main {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y pinch-zoom;
 }
 
 [class*="overflow-x-auto"] {

@@ -66,12 +66,11 @@ export function useGlobalDragScroll() {
 
             // Fallback para o container principal da aplicação
             const mainContainer = document.getElementById('main-scroll-container');
-            if (mainContainer && (mainContainer.scrollHeight > mainContainer.clientHeight + 4 || mainContainer.scrollWidth > mainContainer.clientWidth + 4)) {
+            if (mainContainer) {
                 return mainContainer;
             }
 
-            // Fallback para scrollingElement do documento
-            if (document.scrollingElement && document.scrollingElement.scrollHeight > window.innerHeight + 4) {
+            if (document.scrollingElement) {
                 return document.scrollingElement as HTMLElement;
             }
 

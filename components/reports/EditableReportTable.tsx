@@ -626,9 +626,10 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
     return (
         <div className="flex flex-col flex-1 w-full bg-white dark:bg-slate-900 relative min-h-[350px]">
             <BulkActionToolbar selectedIds={selectedIds} results={data} onClear={() => setSelectedIds([])} />
-            <div className="flex-1 w-full overflow-x-auto overflow-y-visible md:overflow-auto custom-scrollbar relative">
-                {/* Desktop Table View */}
-                <table className="hidden md:table w-full text-left border-collapse">
+            
+            {/* Desktop Table View */}
+            <div className="hidden md:block flex-1 w-full overflow-auto custom-scrollbar relative">
+                <table className="w-full text-left border-collapse">
                     <thead className="bg-slate-200 dark:bg-slate-950 sticky top-0 z-20 shadow-sm">
                         <tr>
                             <th className="px-4 py-3 w-10 text-center">
@@ -688,42 +689,42 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                         })}
                     </tbody>
                 </table>
+            </div>
 
-                {/* Mobile Card View */}
-                <div className="md:hidden flex flex-col divide-y divide-slate-100 dark:divide-slate-800">
-                    <div className="sticky top-0 z-20 bg-slate-50 dark:bg-slate-900 px-4 py-2 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <input 
-                                type="checkbox" 
-                                onChange={toggleAll}
-                                checked={selectedIds.length > 0 && selectedIds.length === data.length}
-                                className="w-5 h-5 rounded-full border-slate-300 text-brand-blue cursor-pointer accent-blue-600"
-                            />
-                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Selecionar Todos</span>
-                        </div>
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{data.length} registros</span>
+            {/* Mobile Card View */}
+            <div className="block md:hidden flex-1 w-full flex flex-col divide-y divide-slate-100 dark:divide-slate-800">
+                <div className="sticky top-0 z-20 bg-slate-50 dark:bg-slate-900 px-4 py-2 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <input 
+                            type="checkbox" 
+                            onChange={toggleAll}
+                            checked={selectedIds.length > 0 && selectedIds.length === data.length}
+                            className="w-5 h-5 rounded-full border-slate-300 text-brand-blue cursor-pointer accent-blue-600"
+                        />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Selecionar Todos</span>
                     </div>
-                    {paginatedData.map(result => {
-                        const isClosedPeriod = isSecondaryUser && isDateInClosedPeriods(result.transaction?.date || result.contributor?.date, closedPeriodsSet);
-                        return (
-                            <MobileCard 
-                                key={result.transaction.id}
-                                result={result}
-                                language={language}
-                                isSelected={selectedIds.includes(result.transaction.id)}
-                                onToggleSelection={toggleSelection}
-                                onEdit={() => {}}
-                                onDelete={(row: MatchResult) => openDeleteConfirmation({ type: 'report-row', id: row.transaction.id, name: `Transação ${row.transaction.id}`, meta: { reportType } })}
-                                onUndo={undoIdentification}
-                                onToggleLock={(id: string, lock: boolean) => toggleConfirmation([id], lock)}
-                                onSplit={onSplit}
-                                onGenerateReceipt={setSelectedReceipt}
-                                isClosedPeriod={isClosedPeriod}
-                                waSent={!!waSentMap[result.transaction.id]}
-                            />
-                        );
-                    })}
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{data.length} registros</span>
                 </div>
+                {paginatedData.map(result => {
+                    const isClosedPeriod = isSecondaryUser && isDateInClosedPeriods(result.transaction?.date || result.contributor?.date, closedPeriodsSet);
+                    return (
+                        <MobileCard 
+                            key={result.transaction.id}
+                            result={result}
+                            language={language}
+                            isSelected={selectedIds.includes(result.transaction.id)}
+                            onToggleSelection={toggleSelection}
+                            onEdit={() => {}}
+                            onDelete={(row: MatchResult) => openDeleteConfirmation({ type: 'report-row', id: row.transaction.id, name: `Transação ${row.transaction.id}`, meta: { reportType } })}
+                            onUndo={undoIdentification}
+                            onToggleLock={(id: string, lock: boolean) => toggleConfirmation([id], lock)}
+                            onSplit={onSplit}
+                            onGenerateReceipt={setSelectedReceipt}
+                            isClosedPeriod={isClosedPeriod}
+                            waSent={!!waSentMap[result.transaction.id]}
+                        />
+                    );
+                })}
             </div>
             {data.length > ITEMS_PER_PAGE && (
                 <div className="flex-shrink-0 flex justify-between items-center px-4 py-3 bg-white border-t border-slate-200">
