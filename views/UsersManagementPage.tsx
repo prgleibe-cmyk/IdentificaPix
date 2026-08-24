@@ -296,7 +296,7 @@ export const UsersManagementPage: React.FC = () => {
     );
 
     return (
-        <div className="flex flex-col min-h-full gap-6 animate-fade-in pb-8 md:pb-4 relative">
+        <div className="flex flex-col flex-1 min-h-[calc(100dvh-5.5rem)] md:min-h-[calc(100dvh-2.5rem)] h-full w-full gap-6 animate-fade-in pb-8 md:pb-4 relative">
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-1 mt-1">
                 <div className="flex items-center gap-3">
@@ -472,8 +472,8 @@ export const UsersManagementPage: React.FC = () => {
 
             {/* Modal de Cadastro/Edição */}
             {isModalOpen && (
-                <div className="absolute inset-0 z-40 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full overflow-hidden">
-                    <form onSubmit={handleSubmitUser} className="flex flex-col h-full w-full">
+                <div className="absolute inset-0 z-40 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full min-h-[calc(100dvh-5.5rem)] md:min-h-[calc(100dvh-2.5rem)] rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                    <form onSubmit={handleSubmitUser} className="flex flex-col h-full w-full flex-1">
                         {/* Header */}
                         <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
                             <div className="flex flex-row flex-wrap items-center gap-4 md:gap-8 w-full md:w-auto">
@@ -631,7 +631,7 @@ export const UsersManagementPage: React.FC = () => {
                                         <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 ml-1">
                                             Congregações Autorizadas
                                         </label>
-                                        <div className="grid grid-cols-1 gap-2 max-h-[200px] overflow-y-auto custom-scrollbar p-1">
+                                        <div className="grid grid-cols-1 gap-2 max-h-[260px] overflow-y-auto custom-scrollbar p-1">
                                             {churches.length > 0 ? (
                                                 churches.map(church => (
                                                     <label 
@@ -667,7 +667,7 @@ export const UsersManagementPage: React.FC = () => {
                                         <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 ml-1">
                                             Bancos Autorizados
                                         </label>
-                                        <div className="grid grid-cols-1 gap-2 max-h-[200px] overflow-y-auto custom-scrollbar p-1">
+                                        <div className="grid grid-cols-1 gap-2 max-h-[260px] overflow-y-auto custom-scrollbar p-1">
                                             {banks.length > 0 ? (
                                                 banks.map(bank => (
                                                     <label 

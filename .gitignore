@@ -13,9 +13,6 @@ dist/
 dist-ssr/
 build/
 out/
-.next/
-.vercel/
-vercel.json
 
 # Environment Variables (Sua chave API está aqui, proteja este arquivo!)
 .env
