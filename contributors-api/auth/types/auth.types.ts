@@ -4,6 +4,7 @@ export interface LocalUser {
   password_hash: string;
   name?: string | null;
   role: string;
+  owner_id?: string | null;
   church_id?: string | null;
   permissions: string[];
   is_active: boolean;
@@ -24,6 +25,7 @@ export interface UserResponse {
   email: string;
   name?: string | null;
   role: string;
+  owner_id?: string | null;
   church_id?: string | null;
   permissions: string[];
   is_active: boolean;
@@ -35,6 +37,7 @@ export interface UserResponse {
 
 export interface JwtPayload {
   user_id: string;
+  owner_id?: string | null;
   church_id?: string | null;
   role: string;
   permissions: string[];
