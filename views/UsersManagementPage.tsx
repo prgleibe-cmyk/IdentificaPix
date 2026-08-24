@@ -46,10 +46,10 @@ export const UsersManagementPage: React.FC = () => {
     }
 
     const fetchUsers = useCallback(async () => {
-        if (!authUser?.id) return;
+        const effectiveOwnerId = authUser?.owner_id || subscription?.ownerId || authUser?.id;
+        if (!effectiveOwnerId) return;
         
-        const effectiveOwnerId = authUser.owner_id || authUser.id;
-        console.log("[UsersManagement] Buscando usuários para owner:", effectiveOwnerId, "authUser.id:", authUser.id, "authUser.owner_id:", authUser.owner_id);
+        console.log("[UsersManagement] Buscando usuários para owner:", effectiveOwnerId, "authUser.id:", authUser?.id, "authUser.owner_id:", authUser?.owner_id);
 
         setIsLoadingUsers(true);
         try {
@@ -72,7 +72,7 @@ export const UsersManagementPage: React.FC = () => {
         } finally {
             setIsLoadingUsers(false);
         }
-    }, [authUser?.id, authUser?.owner_id]);
+    }, [authUser?.id, authUser?.owner_id, subscription?.ownerId]);
 
     useEffect(() => {
         fetchUsers();
@@ -109,7 +109,7 @@ export const UsersManagementPage: React.FC = () => {
         };
 
         try {
-            const effectiveOwnerId = authUser?.owner_id || authUser?.id;
+            const effectiveOwnerId = authUser?.owner_id || subscription?.ownerId || authUser?.id;
             const url = editingUser ? `/api/users/update/${editingUser.id}` : '/api/users/create';
             const body = {
                 name: formData.name,
@@ -255,7 +255,7 @@ export const UsersManagementPage: React.FC = () => {
         }
 
         try {
-            const effectiveOwnerId = authUser?.owner_id || authUser?.id;
+            const effectiveOwnerId = authUser?.owner_id || subscription?.ownerId || authUser?.id;
             const token = await getAuthToken();
 
             const response = await fetch(`/api/users/delete/${userId}?ownerId=${effectiveOwnerId}`, {

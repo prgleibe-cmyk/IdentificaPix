@@ -8,8 +8,36 @@ const router = express.Router();
 
 export default () => {
     const getVpsApiUrl = () => {
-        const vpsUrl = process.env.CONTRIBUTORS_API_URL || 'http://127.0.0.1:3010';
+        const defaultPort = process.env.PORT || '3000';
+        const vpsUrl = process.env.CONTRIBUTORS_API_URL || (process.env.INTEGRATED_MODE === 'true' ? `http://127.0.0.1:${defaultPort}` : 'http://127.0.0.1:3010');
         return vpsUrl.endsWith('/') ? vpsUrl.slice(0, -1) : vpsUrl;
+    };
+
+    const fetchVps = async (endpoint, options = {}) => {
+        const baseUrl = getVpsApiUrl();
+        const primaryUrl = `${baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+        
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000);
+            
+            const response = await fetch(primaryUrl, {
+                ...options,
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            return response;
+        } catch (primaryErr) {
+            console.warn(`[Users API] Falha ao conectar em ${primaryUrl}: ${primaryErr.message}. Tentando fallback local...`);
+            
+            const fallbackPort = process.env.PORT || '3000';
+            const fallbackUrl = `http://127.0.0.1:${fallbackPort}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+            
+            if (fallbackUrl !== primaryUrl) {
+                return await fetch(fallbackUrl, options);
+            }
+            throw primaryErr;
+        }
     };
 
     // Rota de diagnóstico para verificar o ambiente
@@ -35,44 +63,61 @@ export default () => {
         validateOwnerAccess(req, ownerId);
 
         const permissionsObject = {
-            "confirmar_final": permissions.confirmar_final !== undefined ? permissions.confirmar_final : true,
-            "identificar": permissions.identificar !== undefined ? permissions.identificar : true,
-            "desfazer_identificacao": permissions.desfazer_identificacao !== undefined ? permissions.desfazer_identificacao : true,
-            "baixar_arquivo": permissions.baixar_arquivo !== undefined ? permissions.baixar_arquivo : true,
-            "imprimir": permissions.imprimir !== undefined ? permissions.imprimir : true,
-            "gestao_contas": permissions.gestao_contas !== undefined ? permissions.gestao_contas : false,
-            "carnes_propositos": permissions.carnes_propositos !== undefined ? permissions.carnes_propositos : false,
-            "patrimonio": permissions.patrimonio !== undefined ? permissions.patrimonio : false,
-            "bankIds": permissions.bankIds || [],
+            "confirmar_final": permissions?.confirmar_final !== undefined ? permissions.confirmar_final : (permissions?.confirmFinal !== undefined ? permissions.confirmFinal : true),
+            "identificar": permissions?.identificar !== undefined ? permissions.identificar : (permissions?.identifyPayments !== undefined ? permissions.identifyPayments : true),
+            "desfazer_identificacao": permissions?.desfazer_identificacao !== undefined ? permissions.desfazer_identificacao : (permissions?.undoIdentification !== undefined ? permissions.undoIdentification : true),
+            "baixar_arquivo": permissions?.baixar_arquivo !== undefined ? permissions.baixar_arquivo : (permissions?.downloadFile !== undefined ? permissions.downloadFile : true),
+            "imprimir": permissions?.imprimir !== undefined ? permissions.imprimir : (permissions?.printReport !== undefined ? permissions.printReport : true),
+            "gestao_contas": permissions?.gestao_contas !== undefined ? permissions.gestao_contas : (permissions?.manageAccounts !== undefined ? permissions.manageAccounts : false),
+            "carnes_propositos": permissions?.carnes_propositos !== undefined ? permissions.carnes_propositos : (permissions?.managePledges !== undefined ? permissions.managePledges : false),
+            "patrimonio": permissions?.patrimonio !== undefined ? permissions.patrimonio : (permissions?.managePatrimony !== undefined ? permissions.managePatrimony : false),
+            "bankIds": permissions?.bankIds || [],
             "congregationIds": churchIds
         };
 
         try {
             const userId = crypto.randomUUID();
-            const targetUrl = `${getVpsApiUrl()}/api/v1/profiles`;
             
+            // 1. Criar perfil na tabela profiles
             const profilePayload = {
                 id: userId,
                 email: email,
-                name: req.body.name,
+                name: req.body.name || null,
                 owner_id: ownerId,
                 role: 'member',
                 permissions: permissionsObject,
                 congregation: churchIds[0] || null
             };
 
-            const response = await fetch(targetUrl, {
+            const response = await fetchVps('/api/v1/profiles', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(profilePayload)
             });
 
-            const data = await response.json();
+            const data = await response.json().catch(() => null);
             if (!response.ok) {
-                throw new Error(data.message || data.error || "Falha ao criar perfil na VPS API");
+                throw new Error(data?.message || data?.error || "Falha ao criar perfil na VPS API");
             }
 
-            console.log("[Users API] Usuário e perfil criados com sucesso na VPS!");
+            // 2. Criar ou atualizar credenciais em app_users para autenticação do usuário secundário
+            try {
+                await fetchVps('/api/v1/auth/signup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: email,
+                        password: password,
+                        name: req.body.name || null,
+                        role: 'member',
+                        church_id: churchIds[0] || null
+                    })
+                });
+            } catch (authErr) {
+                console.warn("[Users API] Aviso ao cadastrar credenciais de autenticação:", authErr.message);
+            }
+
+            console.log("[Users API] Usuário e perfil criados com sucesso!");
             res.json({ success: true, message: "Usuário criado com sucesso", userId: userId });
 
         } catch (error) {
@@ -95,8 +140,7 @@ export default () => {
 
             console.log("[Users API] Listando usuários para owner:", effectiveOwnerId);
             
-            const targetUrl = `${getVpsApiUrl()}/api/v1/profiles?owner_id=${effectiveOwnerId}`;
-            const response = await fetch(targetUrl);
+            const response = await fetchVps(`/api/v1/profiles?owner_id=${effectiveOwnerId}`);
             const data = await response.json();
 
             if (!response.ok) {
@@ -129,8 +173,7 @@ export default () => {
         try {
             console.log("[Users API] Tentando excluir usuário:", userId, "solicitado por owner:", ownerId);
             
-            const targetUrl = `${getVpsApiUrl()}/api/v1/profiles/${userId}`;
-            const response = await fetch(targetUrl, { method: 'DELETE' });
+            const response = await fetchVps(`/api/v1/profiles/${userId}`, { method: 'DELETE' });
             const data = await response.json();
 
             if (!response.ok) {
@@ -148,7 +191,7 @@ export default () => {
     // Atualizar usuário
     router.post('/update/:userId', async (req, res) => {
         const { userId } = req.params;
-        const { name, churchIds, permissions, ownerId } = req.body;
+        const { name, churchIds, permissions, ownerId, password } = req.body;
 
         try {
             console.log("[Users API] Atualizando usuário:", userId, "solicitado por owner:", ownerId);
@@ -160,8 +203,7 @@ export default () => {
                 "congregationIds": churchIds
             };
             
-            const targetUrl = `${getVpsApiUrl()}/api/v1/profiles/${userId}`;
-            const response = await fetch(targetUrl, {
+            const response = await fetchVps(`/api/v1/profiles/${userId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -175,6 +217,23 @@ export default () => {
             const data = await response.json();
             if (!response.ok) {
                 throw new Error(data.message || data.error || "Erro ao atualizar perfil na VPS");
+            }
+
+            // Atualizar senha se fornecida
+            if (password && req.body.email) {
+                try {
+                    await fetchVps('/api/v1/auth/signup', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            email: req.body.email,
+                            password: password,
+                            name: name || null
+                        })
+                    });
+                } catch (pwdErr) {
+                    console.warn("[Users API] Aviso ao atualizar senha na auth:", pwdErr.message);
+                }
             }
 
             console.log("[Users API] Usuário atualizado com sucesso!");

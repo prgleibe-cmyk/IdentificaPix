@@ -3,6 +3,7 @@ import { MatchResult } from '../types';
 import { formatCurrency, formatDate, resolvePaymentMethod, resolveTransactionSource } from '../utils/formatters';
 import { useTranslation } from '../contexts/I18nContext';
 import { AppContext } from '../contexts/AppContext';
+import { useAuth } from '../contexts/AuthContext';
 import { SparklesIcon, UserPlusIcon, BrainIcon, BanknotesIcon, UserIcon, LockClosedIcon, LockOpenIcon, PencilIcon } from './Icons';
 import { BulkActionToolbar } from './BulkActionToolbar';
 import { isInvalidOrNumericName } from '../services/utils/parsingUtils';
@@ -42,6 +43,17 @@ const MatchMethodIcon: React.FC<{ method: MatchResult['matchMethod'] }> = ({ met
 export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadingAiId, currentPage, totalPages, onPageChange }) => {
     const { t, language } = useTranslation();
     const { toggleConfirmation, setBulkIdentificationTxs, openWhatsAppReceiptModal, contributionTypes, paymentMethods: sysPaymentMethods, contributionKeywords, contributors, churches, showToast } = useContext(AppContext);
+    const { subscription, user } = useAuth();
+
+    const isSecondaryUser = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
+        subscription?.role !== 'owner' &&
+        subscription?.role !== 'admin' &&
+        subscription?.role !== 'principal';
+
+    const perms = (subscription?.permissions || {}) as any;
+    const canConfirmFinal = !isSecondaryUser || (perms.confirmar_final !== false && perms.confirmFinal !== false);
+    const canIdentify = !isSecondaryUser || (perms.identificar !== false && perms.identifyPayments !== false);
+
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [, setWaSentTick] = useState<number>(0);
 
@@ -249,25 +261,33 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                                     <td className="px-4 py-2.5 text-center">
                                         <div className="flex items-center justify-center gap-1">
                                             {confirmed ? (
-                                                <button 
-                                                    onClick={() => toggleConfirmation([transaction.id], false)}
-                                                    className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all cursor-pointer"
-                                                    title="Remover Bloqueio"
-                                                >
-                                                    <LockOpenIcon className="w-3.5 h-3.5" />
-                                                </button>
+                                                canConfirmFinal ? (
+                                                    <button 
+                                                        onClick={() => toggleConfirmation([transaction.id], false)}
+                                                        className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all cursor-pointer"
+                                                        title="Remover Bloqueio"
+                                                    >
+                                                        <LockOpenIcon className="w-3.5 h-3.5" />
+                                                    </button>
+                                                ) : (
+                                                    <span className="text-slate-300 dark:text-slate-600 text-xs">-</span>
+                                                )
                                             ) : (
-                                                <button 
-                                                    onClick={() => setBulkIdentificationTxs([transaction])}
-                                                    className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                                                        status === 'IDENTIFICADO'
-                                                            ? 'bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white'
-                                                            : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white'
-                                                    }`}
-                                                    title={status === 'IDENTIFICADO' ? "Corrigir Identificação" : "Identificar Lançamento"}
-                                                >
-                                                    <PencilIcon className="w-3.5 h-3.5" />
-                                                </button>
+                                                canIdentify ? (
+                                                    <button 
+                                                        onClick={() => setBulkIdentificationTxs([transaction])}
+                                                        className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                                                            status === 'IDENTIFICADO'
+                                                                ? 'bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white'
+                                                                : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white'
+                                                        }`}
+                                                        title={status === 'IDENTIFICADO' ? "Corrigir Identificação" : "Identificar Lançamento"}
+                                                    >
+                                                        <PencilIcon className="w-3.5 h-3.5" />
+                                                    </button>
+                                                ) : (
+                                                    <span className="text-slate-300 dark:text-slate-600 text-xs">-</span>
+                                                )
                                             )}
                                         </div>
                                     </td>

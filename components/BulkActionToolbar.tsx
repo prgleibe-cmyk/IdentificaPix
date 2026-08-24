@@ -1,6 +1,7 @@
 import React, { useContext, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
+import { useAuth } from '../contexts/AuthContext';
 import { UserPlusIcon, XMarkIcon, LockClosedIcon, TrashIcon } from './Icons';
 import { formatCurrency } from '../utils/formatters';
 
@@ -13,6 +14,16 @@ interface BulkActionToolbarProps {
 export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedIds, results, onClear }) => {
     const { setBulkIdentificationTxs, toggleConfirmation, openDeleteConfirmation } = useContext(AppContext);
     const { language } = useTranslation();
+    const { subscription, user } = useAuth();
+
+    const isSecondaryUser = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
+        subscription?.role !== 'owner' &&
+        subscription?.role !== 'admin' &&
+        subscription?.role !== 'principal';
+
+    const perms = (subscription?.permissions || {}) as any;
+    const canConfirmFinal = !isSecondaryUser || (perms.confirmar_final !== false && perms.confirmFinal !== false);
+    const canIdentify = !isSecondaryUser || (perms.identificar !== false && perms.identifyPayments !== false);
 
     // ✅ PROTEÇÃO TOTAL contra undefined
     const safeResults = Array.isArray(results) ? results : [];
@@ -87,15 +98,17 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
                 </div>
 
                 <div className="flex items-center gap-1.5 flex-wrap">
-                    <button
-                        onClick={handleBulkIdentify}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-[8px] font-black uppercase tracking-widest transition-all border border-white/10 cursor-pointer"
-                    >
-                        <UserPlusIcon className="w-2.5 h-2.5" />
-                        Identificar
-                    </button>
+                    {canIdentify && (
+                        <button
+                            onClick={handleBulkIdentify}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-[8px] font-black uppercase tracking-widest transition-all border border-white/10 cursor-pointer"
+                        >
+                            <UserPlusIcon className="w-2.5 h-2.5" />
+                            Identificar
+                        </button>
+                    )}
 
-                    {canConfirm && (
+                    {canConfirm && canConfirmFinal && (
                         <button
                             onClick={handleBulkConfirm}
                             className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all border border-indigo-500/20 cursor-pointer"

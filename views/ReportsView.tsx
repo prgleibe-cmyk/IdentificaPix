@@ -44,6 +44,14 @@ export const ReportsView: React.FC = () => {
     const { loadingAiId, setMatchResults, setBulkIdentificationTxs, bulkIdentificationTxs, churches } = useContext(AppContext);
     const { subscription, user } = useAuth();
 
+    const isSecondaryUser = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
+        subscription?.role !== 'owner' &&
+        subscription?.role !== 'admin' &&
+        subscription?.role !== 'principal';
+
+    const perms = (subscription?.permissions || {}) as any;
+    const canIdentify = !isSecondaryUser || (perms.identificar !== false && perms.identifyPayments !== false);
+
     const handleManualLaunch = (type: 'entrada' | 'saida' = 'entrada') => {
         const existingGhost = bulkIdentificationTxs?.find((tx: any) => tx.id.startsWith('ghost-manual-'));
         if (existingGhost) {
@@ -79,11 +87,6 @@ export const ReportsView: React.FC = () => {
         if (setBulkIdentificationTxs) setBulkIdentificationTxs([newTx]);
         setActiveView('novo_lancamento');
     };
-
-    const isSecondaryUser = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
-        subscription?.role !== 'owner' &&
-        subscription?.role !== 'admin' &&
-        subscription?.role !== 'principal';
 
     // Estados locais para controle do período
     const [selectionMode, setSelectionMode] = useState<'month' | 'dates'>('month');
@@ -327,15 +330,17 @@ export const ReportsView: React.FC = () => {
 
                         {/* Botões Lançar e Livro Caixa (Posicionados no final à direita, debaixo dos ícones de baixar/imprimir) */}
                         <div className="flex items-center gap-1.5 ml-auto">
-                            <button
-                                type="button"
-                                onClick={() => handleManualLaunch('entrada')}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 shadow-xs transition-all cursor-pointer active:scale-95 border border-orange-400/30"
-                                title="Criar Novo Lançamento Manual"
-                            >
-                                <PlusCircleIcon className="w-3.5 h-3.5" />
-                                <span>Lançar</span>
-                            </button>
+                            {canIdentify && (
+                                <button
+                                    type="button"
+                                    onClick={() => handleManualLaunch('entrada')}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 shadow-xs transition-all cursor-pointer active:scale-95 border border-orange-400/30"
+                                    title="Criar Novo Lançamento Manual"
+                                >
+                                    <PlusCircleIcon className="w-3.5 h-3.5" />
+                                    <span>Lançar</span>
+                                </button>
+                            )}
 
                             <button
                                 type="button"

@@ -83,6 +83,9 @@ const MobileCard = memo(({
     onToggleSelection,
     onGenerateReceipt,
     isClosedPeriod,
+    canConfirmFinal = true,
+    canUndoIdentification = true,
+    canPrintReceipt = true,
     waSent
 }: any) => {
     const { contributionTypes, paymentMethods: sysPaymentMethods, contributionKeywords, openWhatsAppReceiptModal, contributors, churches, showToast } = useContext(AppContext);
@@ -232,16 +235,18 @@ const MobileCard = memo(({
                             )}
                         </button>
 
-                        <button 
-                            onClick={() => onGenerateReceipt(row)} 
-                            className="px-3.5 py-2 rounded-xl text-blue-600 bg-blue-50 hover:bg-blue-100 font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors" 
-                            title="Gerar Recibo"
-                        >
-                            <Printer className="w-3.5 h-3.5" />
-                            <span>Recibo</span>
-                        </button>
+                        {canPrintReceipt && (
+                            <button 
+                                onClick={() => onGenerateReceipt(row)} 
+                                className="px-3.5 py-2 rounded-xl text-blue-600 bg-blue-50 hover:bg-blue-100 font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors" 
+                                title="Gerar Recibo"
+                            >
+                                <Printer className="w-3.5 h-3.5" />
+                                <span>Recibo</span>
+                            </button>
+                        )}
                         {confirmed ? (
-                            !isClosedPeriod && (
+                            (!isClosedPeriod && canConfirmFinal) && (
                                 <button onClick={() => onToggleLock(row.transaction.id, false)} className="flex-1 py-2 rounded-xl text-indigo-600 bg-indigo-50 font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-2">
                                     <LockOpenIcon className="w-3.5 h-3.5" /> Abrir Registro
                                 </button>
@@ -250,7 +255,7 @@ const MobileCard = memo(({
                             !isClosedPeriod && (
                                 <>
                                     <button onClick={() => onDelete(row)} className="p-2.5 rounded-xl text-rose-600 bg-rose-50" title="Excluir"><TrashIcon className="w-4 h-4" /></button>
-                                    {isIdentified && <button onClick={() => onUndo(row.transaction.id)} className="p-2.5 rounded-xl text-amber-600 bg-amber-50" title="Desfazer auto-identificação"><ArrowUturnLeftIcon className="w-4 h-4" /></button>}
+                                    {isIdentified && canUndoIdentification && <button onClick={() => onUndo(row.transaction.id)} className="p-2.5 rounded-xl text-amber-600 bg-amber-50" title="Desfazer auto-identificação"><ArrowUturnLeftIcon className="w-4 h-4" /></button>}
                                     {onSplit && (
                                         <button 
                                             onClick={() => onSplit(row)} 
@@ -721,6 +726,9 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                             onSplit={onSplit}
                             onGenerateReceipt={setSelectedReceipt}
                             isClosedPeriod={isClosedPeriod}
+                            canConfirmFinal={canConfirmFinal}
+                            canUndoIdentification={canUndoIdentification}
+                            canPrintReceipt={canPrintReceipt}
                             waSent={!!waSentMap[result.transaction.id]}
                         />
                     );
