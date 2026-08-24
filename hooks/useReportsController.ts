@@ -176,14 +176,9 @@ export const useReportsController = () => {
         periodResults.forEach(r => {
             const hasValidChurch = (r.church?.id && r.church.id !== 'unidentified') || 
                                  (r._churchId && r._churchId !== 'unidentified');
-            if (hasValidChurch) {
+            if (hasValidChurch && !isExpenseTx(r)) {
                 const churchId = (r.church?.id && r.church.id !== 'unidentified') ? r.church?.id : r._churchId!;
                 if (allowedIds && !allowedIds.includes(churchId)) return;
-                
-                // Guarantee alignment with dashboard: count identified and confirmed transactions
-                const st = (r.status || '').toUpperCase();
-                const isIdent = st === 'IDENTIFICADO' || st === 'RESOLVIDO' || st === 'IDENTIFIED' || !!r.isConfirmed;
-                if (!isIdent) return;
                 
                 const realChurch = churchesMap.get(churchId) || r.church;
                 const churchName = realChurch?.name || r.church?.name || 'Igreja';
@@ -306,17 +301,12 @@ export const useReportsController = () => {
             const adjustChurch = (item: MatchResult, factor: 1 | -1) => {
                 const hasValidChurch = (item.church?.id && item.church.id !== 'unidentified') || 
                                      (item._churchId && item._churchId !== 'unidentified');
-                if (hasValidChurch) {
+                if (hasValidChurch && !isExpenseTx(item)) {
                     const churchId = (item.church?.id && item.church.id !== 'unidentified') ? item.church?.id : item._churchId!;
                     if (allowedIds && !allowedIds.includes(churchId)) return;
                     
                     const realChurch = churchesMap.get(churchId) || item.church;
                     const churchName = realChurch?.name || item.church?.name || 'Igreja';
-
-                    // Guarantee alignment with dashboard: count identified and confirmed transactions
-                    const st = (item.status || '').toUpperCase();
-                    const isIdent = st === 'IDENTIFICADO' || st === 'RESOLVIDO' || st === 'IDENTIFIED' || !!item.isConfirmed;
-                    if (!isIdent) return;
 
                     const idx = cacheRef.current.churchList.findIndex(c => c.id === churchId);
                     if (idx !== -1) {

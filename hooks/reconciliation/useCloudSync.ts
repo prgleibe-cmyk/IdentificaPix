@@ -119,7 +119,7 @@ export const useCloudSync = ({
 
     const isContextReady = isReady && activeReportId !== null;
 
-    const dataReadyKey = `${effectiveUserId}-${searchFilters?.dateRange?.start || ''}-${searchFilters?.dateRange?.end || ''}-${churches?.length || 0}-${learnedAssociations?.length || 0}`;
+    const dataReadyKey = `${effectiveUserId}-${churches?.length || 0}-${learnedAssociations?.length || 0}`;
 
     const lastDataReadyKeyRef = useRef<string>('');
 
@@ -192,28 +192,13 @@ export const useCloudSync = ({
             try {
                 const pendingPromotions: { id: string; churchId: string; bankId: string }[] = [];
 
-                // 1. Busca as transações que estão dentro do período selecionado em paralelo com os contribuintes
-                const startDate = searchFilters?.dateRange?.start;
-                const endDate = searchFilters?.dateRange?.end;
-
-                console.log('[RECONSTRUCT:FILTER]', {
-                    effectiveUserId,
-                    startDate,
-                    endDate
-                });
-
+                // 1. Busca todas as transações consolidadas em paralelo com os contribuintes
                 const fetchTransactionsPromise = (async () => {
                     let allTxs: any[] = [];
                     let from = 0;
                     const pageSize = 1000;
 
                     let queryParams = `user_id=${effectiveUserId}&limit=${pageSize}`;
-                    if (startDate && startDate !== 'undefined' && startDate !== 'null' && String(startDate).trim() !== '') {
-                        queryParams += `&start_date=${encodeURIComponent(startDate)}`;
-                    }
-                    if (endDate && endDate !== 'undefined' && endDate !== 'null' && String(endDate).trim() !== '') {
-                        queryParams += `&end_date=${encodeURIComponent(endDate)}`;
-                    }
 
                     while (true) {
                         const res = await fetch(`/api/v1/consolidated_transactions?${queryParams}&offset=${from}`);
@@ -557,7 +542,7 @@ export const useCloudSync = ({
         };
 
         reconstructSession();
-    }, [isReady, dataReadyKey, effectiveUserId, activeReportId, setActiveReportId, savedReports, churches, learnedAssociations, setMatchResults, setHasActiveSession, overwriteSavedReport, showToast, handleCompare, isLoading, searchFilters, realtimeRefreshKey]);
+    }, [isReady, dataReadyKey, effectiveUserId, activeReportId, setActiveReportId, savedReports, churches, learnedAssociations, setMatchResults, setHasActiveSession, overwriteSavedReport, showToast, handleCompare, isLoading, realtimeRefreshKey]);
 
     // 🚀 AUTO-PROCESSAMENTO INICIAL (Lista Viva)
     useEffect(() => {

@@ -4406,8 +4406,10 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
     }
 
     if (end_date && end_date !== 'undefined' && end_date !== 'null' && String(end_date).trim() !== '') {
+      const endStr = String(end_date).trim();
+      const formattedEnd = endStr.length === 10 ? `${endStr} 23:59:59.999` : endStr;
       query += ` AND transaction_date <= $${counter}`;
-      params.push(end_date);
+      params.push(formattedEnd);
       counter++;
     }
 
