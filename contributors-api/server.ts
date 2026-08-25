@@ -840,6 +840,7 @@ app.get('/', (req: Request, res: Response) => {
 
 export interface TenantContext {
   userId: string | null;
+  ownerId: string | null;
   churchId: string | null;
   role: string | null;
   isSuperAdmin: boolean;
@@ -862,12 +863,14 @@ export function getTenantContext(req: Request): TenantContext {
 
   if (user) {
     const userId = user.user_id || user.id || null;
+    const ownerId = user.owner_id || user.ownerId || (req.headers['x-owner-id'] as string) || null;
     const churchId = user.church_id || (req.headers['x-church-id'] as string) || null;
     const role = user.role || 'user';
     const isSuperAdmin = Boolean(user.is_superadmin || role === 'superadmin');
 
     return {
       userId,
+      ownerId,
       churchId,
       role,
       isSuperAdmin,
@@ -877,9 +880,11 @@ export function getTenantContext(req: Request): TenantContext {
 
   const headerChurchId = (req.headers['x-church-id'] as string) || null;
   const headerUserId = (req.headers['x-user-id'] as string) || null;
+  const headerOwnerId = (req.headers['x-owner-id'] as string) || null;
 
   return {
     userId: headerUserId,
+    ownerId: headerOwnerId,
     churchId: headerChurchId,
     role: null,
     isSuperAdmin: false,
@@ -943,30 +948,16 @@ app.get('/api/v1/audit-logs', async (req: Request, res: Response) => {
 // GET /api/v1/contributors
 app.get('/api/v1/contributors', async (req: Request, res: Response) => {
   try {
-    const ctx = getTenantContext(req);
     const requestedChurchId = req.query.church_id as string | undefined;
-
-    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) {
-      if (requestedChurchId && requestedChurchId !== ctx.churchId) {
-        return res.status(403).json({
-          error: 'FORBIDDEN',
-          message: 'Acesso negado: você não tem permissão para acessar os dados desta igreja.'
-        });
-      }
-    }
-
-    const effectiveChurchId = ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId
-      ? ctx.churchId
-      : (requestedChurchId || (req.headers['x-church-id'] as string) || ctx.churchId);
-
     const { status, search, q } = req.query;
     let query = 'SELECT * FROM contributors WHERE 1=1';
     const params: any[] = [];
     let paramCounter = 1;
 
-    if (effectiveChurchId) {
+    // Se houver filtro específico de igreja passado explicitamente via query param e não for 'all'
+    if (requestedChurchId && requestedChurchId !== 'all' && requestedChurchId !== 'undefined' && requestedChurchId !== 'null') {
       query += ` AND (church_id = $${paramCounter} OR is_global = TRUE)`;
-      params.push(effectiveChurchId);
+      params.push(requestedChurchId);
       paramCounter++;
     }
 
@@ -2182,18 +2173,12 @@ app.post('/api/v1/contributors', async (req: Request, res: Response) => {
       is_global, role_position, photo_url, photo
     } = req.body;
 
-    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) {
-      if (church_id && church_id !== ctx.churchId) {
-        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: você não tem permissão para criar contribuinte para outra igreja.' });
-      }
-    }
-
     const cleanPhotoUrl = photo_url !== undefined ? photo_url : (photo !== undefined ? photo : null);
 
     // UUID Pattern validation
     const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
-    let cleanChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : church_id;
+    let cleanChurchId = church_id || ctx.churchId;
     if (!cleanChurchId || typeof cleanChurchId !== 'string' || !uuidRegex.test(cleanChurchId)) {
       cleanChurchId = '00000000-0000-0000-0000-000000000001';
     }
@@ -2384,15 +2369,6 @@ app.put('/api/v1/contributors/:id', async (req: Request, res: Response) => {
     }
     const oldContrib = checkContribRes.rows[0];
 
-    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) {
-      if (oldContrib.church_id && oldContrib.church_id !== ctx.churchId) {
-        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o contribuinte pertence a outra igreja.' });
-      }
-      if (church_id && church_id !== ctx.churchId) {
-        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: não é permitido transferir o contribuinte para outra igreja.' });
-      }
-    }
-
     const updates: string[] = [];
     const params: any[] = [id];
     let counter = 2;
@@ -2537,12 +2513,6 @@ app.delete('/api/v1/contributors/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'NOT_FOUND' });
     }
 
-    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) {
-      if (oldContrib.church_id && oldContrib.church_id !== ctx.churchId) {
-        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o contribuinte pertence a outra igreja.' });
-      }
-    }
-
     let result;
     if (hardDelete) {
       // 1. Unlink in consolidated_transactions inside PostgreSQL VPS
@@ -2603,17 +2573,17 @@ app.delete('/api/v1/contributors/:id', async (req: Request, res: Response) => {
 const getReferenceDataHandler = async (req: Request, res: Response) => {
   try {
     const ctx = getTenantContext(req);
-    const paramOwnerId = req.params.ownerId || req.query.user_id;
+    const paramOwnerId = (req.params.ownerId || req.query.user_id) as string | undefined;
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
-      if (paramOwnerId && paramOwnerId !== ctx.userId && paramOwnerId !== ctx.churchId) {
+      if (paramOwnerId && paramOwnerId !== ctx.userId && paramOwnerId !== ctx.ownerId && paramOwnerId !== ctx.churchId) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado aos dados de referência de outro usuário.' });
       }
     }
 
-    const cleanUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId)
-      ? ctx.userId
-      : (typeof paramOwnerId === 'string' && paramOwnerId.trim() ? paramOwnerId.trim() : ctx.userId);
+    const cleanUserId = (paramOwnerId && typeof paramOwnerId === 'string' && paramOwnerId.trim())
+      ? paramOwnerId.trim()
+      : (ctx.ownerId || ctx.userId || null);
 
     if (!cleanUserId && !ctx.isSuperAdmin) {
       return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'ownerId é obrigatório.' });
@@ -2624,56 +2594,22 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
     const banksParams: any[] = [];
     if (cleanUserId) {
       banksParams.push(cleanUserId);
-      banksQuery += ` AND (user_id = $1 OR user_id IS NULL OR user_id = '00000000-0000-0000-0000-000000000001' OR user_id IN (SELECT id FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id = $1 LIMIT 1)))`;
+      banksQuery += ` AND (user_id = $1 OR user_id IN (SELECT id FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id = $1 LIMIT 1)))`;
     }
     banksQuery += ' ORDER BY created_at DESC';
-    let banksResult = await pool.query(banksQuery, banksParams);
-    let banks = banksResult.rows || [];
-
-    if (banks.length === 0 && cleanUserId) {
-      const defaultBanks = [
-        { name: 'Banco do Brasil', bank_key: '001' },
-        { name: 'Itaú Unibanco', bank_key: '341' },
-        { name: 'Caixa Econômica Federal', bank_key: '104' },
-        { name: 'Bradesco', bank_key: '237' },
-        { name: 'Santander', bank_key: '033' },
-        { name: 'Sicoob', bank_key: '756' },
-        { name: 'Nubank', bank_key: '260' },
-        { name: 'Banco Inter', bank_key: '077' }
-      ];
-      for (const dbank of defaultBanks) {
-        try {
-          await pool.query(
-            `INSERT INTO banks (name, user_id, bank_key, account_name) VALUES ($1, $2, $3, $4)`,
-            [dbank.name, cleanUserId, dbank.bank_key, dbank.name]
-          );
-        } catch (e) {}
-      }
-      banksResult = await pool.query(banksQuery, banksParams);
-      banks = banksResult.rows || [];
-    }
+    const banksResult = await pool.query(banksQuery, banksParams);
+    const banks = banksResult.rows || [];
 
     // 2. Fetch Churches
     let churchesQuery = 'SELECT * FROM churches WHERE 1=1';
     const churchesParams: any[] = [];
     if (cleanUserId) {
       churchesParams.push(cleanUserId);
-      churchesQuery += ` AND (user_id = $1 OR user_id IS NULL OR user_id = '00000000-0000-0000-0000-000000000001' OR user_id IN (SELECT id FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id = $1 LIMIT 1)))`;
+      churchesQuery += ` AND (user_id = $1 OR user_id IN (SELECT id FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id = $1 LIMIT 1)))`;
     }
     churchesQuery += ' ORDER BY name ASC';
-    let churchesResult = await pool.query(churchesQuery, churchesParams);
-    let churches = churchesResult.rows || [];
-
-    if (churches.length === 0 && cleanUserId) {
-      try {
-        await pool.query(
-          `INSERT INTO churches (name, address, "logoUrl", pastor, user_id) VALUES ($1, $2, $3, $4, $5)`,
-          ['Igreja Sede Central', 'Sede Central', '', 'Pr. Responsável', cleanUserId]
-        );
-      } catch (e) {}
-      churchesResult = await pool.query(churchesQuery, churchesParams);
-      churches = churchesResult.rows || [];
-    }
+    const churchesResult = await pool.query(churchesQuery, churchesParams);
+    const churches = churchesResult.rows || [];
 
     // 3. Fetch Reports
     let reportsQuery = 'SELECT id, name, user_id, church_id, record_count, created_at FROM saved_reports WHERE 1=1';
@@ -2683,8 +2619,8 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
       reportsQuery += ` AND (user_id = $1 OR user_id IS NULL)`;
     }
     reportsQuery += ' ORDER BY created_at DESC';
-    let reportsResult = await pool.query(reportsQuery, reportsParams);
-    let reports = reportsResult.rows || [];
+    const reportsResult = await pool.query(reportsQuery, reportsParams);
+    const reports = reportsResult.rows || [];
 
     // 4. Fetch Associations
     let assocQuery = 'SELECT * FROM learned_associations WHERE 1=1';
@@ -2694,8 +2630,8 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
       assocQuery += ` AND (user_id = $1 OR user_id IS NULL)`;
     }
     assocQuery += ' ORDER BY created_at DESC';
-    let assocResult = await pool.query(assocQuery, assocParams);
-    let associations = assocResult.rows || [];
+    const assocResult = await pool.query(assocQuery, assocParams);
+    const associations = assocResult.rows || [];
 
     return res.json({
       banks,
@@ -2723,14 +2659,14 @@ app.get('/api/v1/banks', async (req: Request, res: Response) => {
     const requestedUserId = req.query.user_id as string | undefined;
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
-      if (requestedUserId && requestedUserId !== ctx.userId) {
+      if (requestedUserId && requestedUserId !== ctx.userId && requestedUserId !== ctx.ownerId) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para este usuário.' });
       }
     }
 
-    const cleanUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId)
-      ? ctx.userId
-      : (requestedUserId && requestedUserId.trim() ? requestedUserId.trim() : ctx.userId);
+    const cleanUserId = (requestedUserId && requestedUserId.trim())
+      ? requestedUserId.trim()
+      : (ctx.ownerId || ctx.userId);
 
     if (!cleanUserId && !ctx.isSuperAdmin) {
       return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'user_id é obrigatório para consultar bancos.' });
@@ -2740,45 +2676,12 @@ app.get('/api/v1/banks', async (req: Request, res: Response) => {
     const params: any[] = [];
     if (cleanUserId) {
       params.push(cleanUserId);
-      query += ` AND (user_id = $1 OR user_id IS NULL OR user_id = '00000000-0000-0000-0000-000000000001' OR user_id IN (SELECT id FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id = $1 LIMIT 1)))`;
+      query += ` AND (user_id = $1 OR user_id IN (SELECT id FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id = $1 LIMIT 1)))`;
     }
     query += ' ORDER BY created_at DESC';
     const result = await pool.query(query, params);
 
-    if (result.rows && result.rows.length > 0) {
-      return res.json(result.rows);
-    }
-
-
-
-    // Fallback 2: Auto-seed standard default banks for user
-    const defaultBanks = [
-      { name: 'Banco do Brasil', bank_key: '001' },
-      { name: 'Itaú Unibanco', bank_key: '341' },
-      { name: 'Caixa Econômica Federal', bank_key: '104' },
-      { name: 'Bradesco', bank_key: '237' },
-      { name: 'Santander', bank_key: '033' },
-      { name: 'Sicoob', bank_key: '756' },
-      { name: 'Nubank', bank_key: '260' },
-      { name: 'Banco Inter', bank_key: '077' }
-    ];
-
-    const insertedRows: any[] = [];
-    for (const dbank of defaultBanks) {
-      try {
-        const ins = await pool.query(
-          `INSERT INTO banks (name, user_id, bank_key, account_name)
-           VALUES ($1, $2, $3, $4)
-           RETURNING id, name, user_id, bank_key, account_name, accepted_contribution_types, created_at`,
-          [dbank.name, cleanUserId, dbank.bank_key, dbank.name]
-        );
-        if (ins.rows[0]) insertedRows.push(ins.rows[0]);
-      } catch (e) {
-        console.error('Error auto-seeding default bank:', e);
-      }
-    }
-
-    return res.json(insertedRows.length > 0 ? insertedRows : []);
+    return res.json(result.rows || []);
   } catch (err) {
     console.error('[Contributors API] Error GET banks:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
@@ -2905,39 +2808,25 @@ app.get('/api/v1/churches', async (req: Request, res: Response) => {
     const { user_id } = req.query;
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
-      if (user_id && user_id !== ctx.userId) {
+      if (user_id && user_id !== ctx.userId && user_id !== ctx.ownerId) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para este usuário.' });
       }
     }
 
-    const cleanUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId)
-      ? ctx.userId
-      : (typeof user_id === 'string' && user_id.trim() ? user_id.trim() : ctx.userId);
+    const cleanUserId = (typeof user_id === 'string' && user_id.trim())
+      ? user_id.trim()
+      : (ctx.ownerId || ctx.userId);
 
     let query = 'SELECT * FROM churches WHERE 1=1';
     const params: any[] = [];
     if (cleanUserId) {
       params.push(cleanUserId);
-      query += ` AND (user_id = $1 OR user_id IS NULL OR user_id = '00000000-0000-0000-0000-000000000001' OR user_id IN (SELECT id FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id = $1 LIMIT 1)))`;
+      query += ` AND (user_id = $1 OR user_id IN (SELECT id FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id = $1 LIMIT 1)))`;
     }
     query += ' ORDER BY name ASC';
     const result = await pool.query(query, params);
 
-    if (result.rows && result.rows.length > 0) {
-      return res.json(result.rows);
-    }
-
-
-
-    // Fallback 2: Auto-seed default church
-    const ins = await pool.query(
-      `INSERT INTO churches (name, address, "logoUrl", pastor, user_id)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING *`,
-      ['Igreja Sede Central', 'Sede Central', '', 'Pr. Responsável', cleanUserId]
-    );
-
-    return res.json(ins.rows);
+    return res.json(result.rows || []);
   } catch (err) {
     console.error('[Contributors API] Error GET churches:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });

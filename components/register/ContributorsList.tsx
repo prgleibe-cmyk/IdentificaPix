@@ -871,59 +871,8 @@ export const ContributorsList: React.FC = () => {
 
     return (
         <div className="h-full flex-1 min-h-[550px] flex flex-col animate-fade-in relative" id="contributors-container">
-            {/* Header Area */}
-            <div className="flex-shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-100 dark:border-slate-700/50">
-                <div className="flex items-center space-x-3">
-                    <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-2xl text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-slate-800/60">
-                        <UsersIcon className="w-6 h-6" />
-                    </div>
-                    <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="font-bold text-base text-slate-800 dark:text-white leading-none">
-                                Empresas / Pessoas
-                            </h3>
-                            {/* Badges / Counters */}
-                            <div className="flex items-center gap-1.5 ml-1">
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-black bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700" title="Total de cadastros">
-                                    Total: {totalContributorsCount}
-                                </span>
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/40" title="Pessoas Físicas">
-                                    PF: {pfContributorsCount}
-                                </span>
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40" title="Empresas / Pessoa Jurídica">
-                                    PJ: {pjContributorsCount}
-                                </span>
-                            </div>
-                        </div>
-                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1">
-                            Gerenciamento de membros, congregados, parceiros, fornecedores, prestadores e favorecidos.
-                        </p>
-                    </div>
-                </div>
-                
-                {/* Buttons: Importar Lote & + Novo Contribuinte */}
-                <div className="flex-shrink-0 flex items-center gap-2">
-                    <button 
-                        onClick={() => setIsImportModalOpen(true)}
-                        className="w-full md:w-auto flex items-center justify-center space-x-1.5 px-5 py-2 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-2xl shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
-                        id="import-contributors-btn"
-                    >
-                        <Upload className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-                        <span>Importar Lote</span>
-                    </button>
-                    <button 
-                        onClick={handleNewContributorClick}
-                        className="w-full md:w-auto flex items-center justify-center space-x-1.5 px-5 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-2xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 transition-all tracking-wider uppercase cursor-pointer"
-                        id="new-contributor-btn"
-                    >
-                        <PlusCircleIcon className="w-3.5 h-3.5" />
-                        <span>+ Nova Empresa / Pessoa</span>
-                    </button>
-                </div>
-            </div>
-
-            {/* INLINE NEW / EDIT CONTRIBUTOR FORM */}
-            {isModalOpen && (
+            {isModalOpen ? (
+                /* INLINE NEW / EDIT CONTRIBUTOR FORM */
                 <div className="flex-shrink-0 bg-slate-50 dark:bg-slate-900/80 p-4 md:p-6 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-4 animate-fade-in mb-6 w-full" id="contributor-form-panel">
                     <form onSubmit={handleSave} className="space-y-4 w-full" id="contributor-inline-form">
                         
@@ -988,321 +937,233 @@ export const ContributorsList: React.FC = () => {
                         <div className="space-y-4 md:space-y-5 w-full">
                             
                             {/* BLOCO 1: DADOS DE IDENTIFICAÇÃO E FOTO/LOGO INTEGRADOS */}
-                            <div className="p-4 bg-white dark:bg-slate-900/60 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-3 shadow-xs">
+                            <div className="p-4 bg-white dark:bg-slate-900/60 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-4 shadow-xs">
                                 <div className="flex items-center space-x-2 text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider">
-                                    {personType === 'PF' ? <User className="w-4 h-4 text-blue-500" /> : <Building2 className="w-4 h-4 text-amber-500" />}
-                                    <span>{personType === 'PF' ? 'Identificação & Vínculo Pessoal' : 'Dados Fiscais & Corporativos'}</span>
+                                    <Building2 className="w-4 h-4 text-brand-blue" />
+                                    <span>Identificação Principal & Foto / Logotipo</span>
                                 </div>
 
-                                <div className="flex flex-col md:flex-row items-start gap-4">
-                                    {/* Compact Avatar / Logo Section */}
-                                    <div className="flex md:flex-col items-center gap-2.5 shrink-0 w-full md:w-28 p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200/70 dark:border-slate-700/60" id="photo-section">
-                                        <div className="relative group shadow-xs rounded-xl overflow-hidden" id="photo-avatar-wrapper">
-                                            <div className="w-16 h-16 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex items-center justify-center overflow-hidden" id="photo-avatar-container">
-                                                {photoPreview ? (
-                                                    <img 
-                                                        src={photoPreview} 
-                                                        alt="Preview do cadastrado" 
-                                                        className="w-full h-full object-cover"
-                                                        id="photo-avatar-preview"
-                                                        referrerPolicy="no-referrer"
-                                                    />
-                                                ) : personType === 'PF' ? (
-                                                    <User className="w-7 h-7 text-slate-300 dark:text-slate-600" />
-                                                ) : (
-                                                    <Building2 className="w-7 h-7 text-amber-400 dark:text-amber-600" />
-                                                )}
+                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+                                    {/* Upload Foto / Logo */}
+                                    <div className="lg:col-span-3 flex flex-col items-center justify-center p-3 bg-slate-50 dark:bg-slate-900/80 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 text-center">
+                                        <div className="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden relative group flex items-center justify-center shadow-xs mb-2">
+                                            {photoPreview ? (
+                                                <img 
+                                                    src={photoPreview} 
+                                                    alt="Foto Contribuinte" 
+                                                    className="w-full h-full object-cover" 
+                                                />
+                                            ) : (
+                                                <div className="text-slate-400 dark:text-slate-500 flex flex-col items-center">
+                                                    {personType === 'PF' ? <User className="w-8 h-8" /> : <Building2 className="w-8 h-8" />}
+                                                </div>
+                                            )}
+                                            <div 
+                                                onClick={() => fileInputRef.current?.click()}
+                                                className="absolute inset-0 bg-slate-900/60 text-white opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center cursor-pointer text-[10px] font-bold"
+                                            >
+                                                <Camera className="w-4 h-4 mb-1" />
+                                                <span>Alterar</span>
                                             </div>
                                         </div>
-
-                                        <div className="flex flex-col gap-1 w-full" id="photo-actions">
-                                            <input 
-                                                type="file" 
-                                                ref={fileInputRef} 
-                                                onChange={handleFileChange} 
-                                                accept="image/*" 
-                                                className="hidden" 
-                                                id="photo-file-input"
-                                            />
+                                        
+                                        <div className="flex items-center space-x-1">
                                             <button 
                                                 type="button" 
                                                 onClick={() => fileInputRef.current?.click()}
-                                                className="flex items-center justify-center space-x-1 px-2 py-1 text-[9px] font-bold text-slate-600 dark:text-slate-300 bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg transition-all uppercase border border-slate-200 dark:border-slate-700 cursor-pointer shadow-2xs"
-                                                id="btn-select-photo"
-                                                title="Adicionar ou alterar imagem"
+                                                className="px-2.5 py-1 text-[9px] font-black uppercase text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 rounded-lg shadow-2xs cursor-pointer"
                                             >
-                                                <Camera className="w-3 h-3" />
-                                                <span>{personType === 'PF' ? 'Foto' : 'Logo'}</span>
+                                                {photoPreview ? 'Trocar' : 'Carregar'}
                                             </button>
-                                            
                                             {photoPreview && (
                                                 <button 
                                                     type="button" 
                                                     onClick={handleRemovePhoto}
-                                                    className="flex items-center justify-center space-x-1 px-2 py-0.5 text-[8px] font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-all uppercase cursor-pointer"
-                                                    id="btn-remove-photo"
+                                                    className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-colors cursor-pointer"
+                                                    title="Remover foto"
                                                 >
-                                                    <Trash2 className="w-2.5 h-2.5" />
-                                                    <span>Remover</span>
+                                                    <Trash2 className="w-3.5 h-3.5" />
                                                 </button>
                                             )}
                                         </div>
+                                        <input 
+                                            type="file" 
+                                            ref={fileInputRef} 
+                                            onChange={handleFileChange} 
+                                            accept="image/*" 
+                                            className="hidden" 
+                                        />
                                     </div>
 
-                                    {/* Main Form Fields Grid */}
-                                    <div className="flex-1 w-full space-y-3">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                            {/* Nome / Razão Social */}
-                                            <div>
-                                                <label htmlFor="contributor-fullname" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                                    {personType === 'PF' ? 'Nome Completo' : 'Razão Social'} <span className="text-rose-500">*</span>
-                                                </label>
-                                                <input 
-                                                    type="text" 
-                                                    id="contributor-fullname" 
-                                                    value={fullName} 
-                                                    onChange={(e) => setFullName(e.target.value)} 
-                                                    placeholder={personType === 'PF' ? 'Ex: João da Silva' : 'Ex: ABC Materiais LTDA'}
-                                                    className={`block w-full rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none transition-all font-bold ${
-                                                        isNameInvalid 
-                                                            ? 'border-2 border-rose-500 focus:border-rose-500' 
-                                                            : 'border border-slate-200 dark:border-slate-700 focus:border-brand-blue'
-                                                    }`}
-                                                />
-                                                {isNameInvalid && (
-                                                    <p className="text-rose-500 text-[9px] font-bold mt-0.5">
-                                                        Campo obrigatório.
-                                                    </p>
-                                                )}
-                                            </div>
-
-                                            {/* Nome Fantasia (PJ) ou Vínculo/Cargo (PF) */}
-                                            {personType === 'PJ' ? (
-                                                <div>
-                                                    <label htmlFor="contributor-tradename" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                                        Nome Fantasia
-                                                    </label>
-                                                    <input 
-                                                        type="text" 
-                                                        id="contributor-tradename" 
-                                                        value={tradeName} 
-                                                        onChange={(e) => setTradeName(e.target.value)} 
-                                                        placeholder="Ex: Depósito ABC"
-                                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none transition-all focus:border-brand-blue font-bold"
-                                                    />
-                                                </div>
-                                            ) : (
-                                                <div>
-                                                    <label htmlFor="contributor-role-position" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                                        Vínculo / Cargo
-                                                    </label>
-                                                    <InlineRoleSelector
-                                                        value={rolePosition}
-                                                        onChange={(val) => {
-                                                            setRolePosition(val);
-                                                            setCategory(val);
-                                                        }}
-                                                        roles={customRoles}
-                                                        onAddRole={handleAddRole}
-                                                        onRenameRole={handleRenameRole}
-                                                        onDeleteRole={handleDeleteRole}
-                                                        themeColor="amber"
-                                                        itemLabel="Vínculo/Cargo"
-                                                        placeholder="Selecione o vínculo ou cargo..."
-                                                    />
-                                                </div>
+                                    {/* Campos Principais */}
+                                    <div className="lg:col-span-9 grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <div className="md:col-span-2">
+                                            <label htmlFor="contributor-name" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                                {personType === 'PF' ? 'Nome Completo / Canônico *' : 'Razão Social Completa *'}
+                                            </label>
+                                            <input 
+                                                type="text" 
+                                                id="contributor-name" 
+                                                value={fullName} 
+                                                onChange={(e) => setFullName(e.target.value)} 
+                                                placeholder={personType === 'PF' ? "Ex: JOÃO DA SILVA SANTOS" : "Ex: EMPRESA DISTRIBUIDORA LTDA"}
+                                                className={`block w-full rounded-xl border ${isNameInvalid ? 'border-red-500 focus:ring-red-500' : 'border-slate-200 dark:border-slate-700'} bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold uppercase`}
+                                                required
+                                            />
+                                            {isNameInvalid && (
+                                                <span className="text-[10px] text-red-500 font-bold mt-1 block">
+                                                    O nome é obrigatório.
+                                                </span>
                                             )}
                                         </div>
 
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                            {/* CPF / CNPJ */}
-                                            <div>
-                                                <label htmlFor="contributor-cpf" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                                    {personType === 'PF' ? 'CPF' : 'CNPJ'}
-                                                </label>
-                                                <input 
-                                                    type="text" 
-                                                    id="contributor-cpf" 
-                                                    value={cpf} 
-                                                    onChange={(e) => setCpf(e.target.value)} 
-                                                    placeholder={personType === 'PF' ? '000.000.000-00' : '00.000.000/0001-00'}
-                                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
-                                                />
-                                                {existingContributorWithCpf && (
-                                                    <div className="flex items-start space-x-1.5 mt-1 text-[10px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 p-2 rounded-lg border border-amber-200 dark:border-amber-800/80 font-medium">
-                                                        <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-500 mt-0.5" />
-                                                        <div>
-                                                            <strong>Documento já cadastrado:</strong> Pertence a <strong>{existingContributorWithCpf.canonical_name}</strong>.
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* RG / IE */}
-                                            <div>
-                                                <label htmlFor="contributor-rg-ie" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                                    {personType === 'PF' ? 'RG' : 'Inscrição Estadual (IE)'}
-                                                </label>
-                                                <input 
-                                                    type="text" 
-                                                    id="contributor-rg-ie" 
-                                                    value={rgIe} 
-                                                    onChange={(e) => setRgIe(e.target.value)} 
-                                                    placeholder={personType === 'PF' ? '00.000.000-0' : 'Isento ou número IE'}
-                                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
-                                                />
-                                            </div>
-
-                                            {/* Data Nasc (PF) ou Contato Responsável (PJ) */}
-                                            {personType === 'PF' ? (
-                                                <div>
-                                                    <label htmlFor="contributor-birth" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                                        Data de Nascimento
-                                                    </label>
-                                                    <input 
-                                                        type="date" 
-                                                        id="contributor-birth" 
-                                                        value={birthDate} 
-                                                        onChange={(e) => setBirthDate(e.target.value)} 
-                                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
-                                                    />
-                                                </div>
-                                            ) : (
-                                                <div>
-                                                    <label htmlFor="contributor-contact-person" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                                        Pessoa de Contato / Vendedor
-                                                    </label>
-                                                    <input 
-                                                        type="text" 
-                                                        id="contributor-contact-person" 
-                                                        value={contactPerson} 
-                                                        onChange={(e) => setContactPerson(e.target.value)} 
-                                                        placeholder="Ex: Carlos (Vendas)"
-                                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
-                                                    />
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* PJ: Categoria + Igreja */}
                                         {personType === 'PJ' && (
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                <div>
-                                                    <label htmlFor="contributor-pj-category" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                                        Ramo de Atuação / Categoria
-                                                    </label>
-                                                    <InlineRoleSelector
-                                                        value={category}
-                                                        onChange={(val) => setCategory(val)}
-                                                        roles={supplierCategories}
-                                                        onAddRole={handleAddSupplierCategory}
-                                                        onRenameRole={handleRenameSupplierCategory}
-                                                        onDeleteRole={handleDeleteSupplierCategory}
-                                                        themeColor="emerald"
-                                                        itemLabel="Categoria"
-                                                        placeholder="Selecione o ramo de atuação..."
-                                                    />
-                                                </div>
-
-                                                <div>
-                                                    <label htmlFor="contributor-church" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                                        Igreja <span className="text-rose-500">*</span>
-                                                    </label>
-                                                    <select 
-                                                        id="contributor-church" 
-                                                        value={selectedChurchId} 
-                                                        onChange={(e) => setSelectedChurchId(e.target.value)} 
-                                                        className={`block w-full rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold ${
-                                                            isChurchInvalid 
-                                                                ? 'border-2 border-rose-500' 
-                                                                : 'border border-slate-200 dark:border-slate-700'
-                                                        }`}
-                                                    >
-                                                        {tempChurches.map((church) => (
-                                                            <option key={church.id} value={church.id}>
-                                                                {church.name}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                </div>
+                                            <div>
+                                                <label htmlFor="contributor-tradename" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                                    Nome Fantasia / Comercial
+                                                </label>
+                                                <input 
+                                                    type="text" 
+                                                    id="contributor-tradename" 
+                                                    value={tradeName} 
+                                                    onChange={(e) => setTradeName(e.target.value)} 
+                                                    placeholder="Ex: Comercial Silva"
+                                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                                />
                                             </div>
                                         )}
 
-                                        {/* PF: Igreja + Status */}
-                                        {personType === 'PF' && (
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                <div>
-                                                    <label htmlFor="contributor-church" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                                        Igreja <span className="text-rose-500">*</span>
-                                                    </label>
-                                                    <select 
-                                                        id="contributor-church" 
-                                                        value={selectedChurchId} 
-                                                        onChange={(e) => setSelectedChurchId(e.target.value)} 
-                                                        className={`block w-full rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold ${
-                                                            isChurchInvalid 
-                                                                ? 'border-2 border-rose-500' 
-                                                                : 'border border-slate-200 dark:border-slate-700'
-                                                        }`}
-                                                    >
-                                                        {tempChurches.map((church) => (
-                                                            <option key={church.id} value={church.id}>
-                                                                {church.name}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                </div>
+                                        <div>
+                                            <label htmlFor="contributor-church" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                                Igreja / Congregação Vinculada *
+                                            </label>
+                                            <select 
+                                                id="contributor-church" 
+                                                value={selectedChurchId} 
+                                                onChange={(e) => setSelectedChurchId(e.target.value)} 
+                                                className={`block w-full rounded-xl border ${isChurchInvalid ? 'border-red-500 focus:ring-red-500' : 'border-slate-200 dark:border-slate-700'} bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold`}
+                                                required
+                                            >
+                                                {tempChurches.map((c: any) => (
+                                                    <option key={c.id} value={c.id}>
+                                                        {c.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            {isChurchInvalid && (
+                                                <span className="text-[10px] text-red-500 font-bold mt-1 block">
+                                                    Selecione uma igreja válida.
+                                                </span>
+                                            )}
+                                        </div>
 
-                                                <div>
-                                                    <label htmlFor="contributor-status" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                                        Status do Cadastro
-                                                    </label>
-                                                    <select 
-                                                        id="contributor-status" 
-                                                        value={status} 
-                                                        onChange={(e) => setStatus(e.target.value as 'Ativo' | 'Inativo')} 
-                                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
-                                                    >
-                                                        <option value="Ativo">Ativo</option>
-                                                        <option value="Inativo">Inativo</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                        )}
+                                        <div className="flex items-center space-x-2 pt-2">
+                                            <input 
+                                                type="checkbox" 
+                                                id="contributor-global" 
+                                                checked={isGlobal} 
+                                                onChange={(e) => setIsGlobal(e.target.checked)} 
+                                                className="w-4 h-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue cursor-pointer"
+                                            />
+                                            <label htmlFor="contributor-global" className="text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                                                Visível em todas as igrejas / congregações (Global)
+                                            </label>
+                                        </div>
+
+                                        {/* Status */}
+                                        <div className="flex items-center space-x-2 pt-2">
+                                            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                                Status:
+                                            </label>
+                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${status === 'Ativo' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-600'}`}>
+                                                {status}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
 
-                                {/* COMPARTILHAMENTO GLOBAL ENTRE TODAS AS IGREJAS */}
-                                <div className="p-2.5 bg-indigo-50/70 dark:bg-indigo-950/40 rounded-xl border border-indigo-200/80 dark:border-indigo-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5" id="global-share-card">
-                                    <div className="flex items-center space-x-2">
-                                        <Globe className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                                        <div>
-                                            <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block">
-                                                Disponível para todas as Igrejas (Cadastro Global)
-                                            </span>
-                                            <span className="text-[9px] text-slate-500 dark:text-slate-400 block">
-                                                {isPrincipalUser 
-                                                    ? "Permite lançar despesas, doações ou serviços desta pessoa/empresa em qualquer igreja do sistema."
-                                                    : "Recurso restrito ao Usuário Principal."}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    {isPrincipalUser ? (
-                                        <label className="relative inline-flex items-center cursor-pointer shrink-0 self-start sm:self-center">
-                                            <input 
-                                                type="checkbox" 
-                                                checked={isGlobal} 
-                                                onChange={(e) => setIsGlobal(e.target.checked)} 
-                                                className="sr-only peer"
-                                                id="chk-contributor-is-global"
-                                            />
-                                            <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-600"></div>
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+                                    <div>
+                                        <label htmlFor="contributor-cpf" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                            {personType === 'PF' ? 'CPF' : 'CNPJ'}
                                         </label>
-                                    ) : (
-                                        <span className="text-[9px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-lg shrink-0">
-                                            Usuário Principal
-                                        </span>
-                                    )}
+                                        <input 
+                                            type="text" 
+                                            id="contributor-cpf" 
+                                            value={cpf} 
+                                            onChange={(e) => setCpf(e.target.value)} 
+                                            placeholder={personType === 'PF' ? "000.000.000-00" : "00.000.000/0000-00"}
+                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-mono font-bold"
+                                        />
+                                        {existingContributorWithCpf && (
+                                            <span className="text-[9px] text-amber-500 font-bold mt-1 block">
+                                                ⚠️ Já existe cadastro ativo com este documento: {existingContributorWithCpf.canonical_name}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    <div>
+                                        <label htmlFor="contributor-rgie" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                            {personType === 'PF' ? 'RG' : 'Inscrição Estadual (IE)'}
+                                        </label>
+                                        <input 
+                                            type="text" 
+                                            id="contributor-rgie" 
+                                            value={rgIe} 
+                                            onChange={(e) => setRgIe(e.target.value)} 
+                                            placeholder={personType === 'PF' ? "00.000.000-0" : "Isento ou Nº IE"}
+                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label htmlFor="contributor-birth" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                            {personType === 'PF' ? 'Data de Nascimento' : 'Data de Fundação'}
+                                        </label>
+                                        <input 
+                                            type="date" 
+                                            id="contributor-birth" 
+                                            value={birthDate} 
+                                            onChange={(e) => setBirthDate(e.target.value)} 
+                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label htmlFor="contributor-role" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                            {personType === 'PF' ? 'Vínculo / Cargo Eclesiástico' : 'Categoria / Ramo de Atuação'}
+                                        </label>
+                                        {personType === 'PF' ? (
+                                            <InlineRoleSelector
+                                                value={rolePosition}
+                                                onChange={(val) => {
+                                                    setRolePosition(val);
+                                                    setCategory(val);
+                                                }}
+                                                roles={customRoles}
+                                                onAddRole={handleAddRole}
+                                                onRenameRole={handleRenameRole}
+                                                onDeleteRole={handleDeleteRole}
+                                                themeColor="amber"
+                                                itemLabel="Vínculo/Cargo"
+                                                placeholder="Selecione o vínculo ou cargo..."
+                                            />
+                                        ) : (
+                                            <InlineRoleSelector
+                                                value={category || 'Fornecedor'}
+                                                onChange={(val) => {
+                                                    setCategory(val);
+                                                }}
+                                                roles={supplierCategories}
+                                                onAddRole={handleAddSupplierCategory}
+                                                onRenameRole={handleRenameSupplierCategory}
+                                                onDeleteRole={handleDeleteSupplierCategory}
+                                                themeColor="amber"
+                                                itemLabel="Categoria"
+                                                placeholder="Selecione a categoria..."
+                                            />
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 
@@ -1310,13 +1171,29 @@ export const ContributorsList: React.FC = () => {
                             <div className="p-4 bg-white dark:bg-slate-900/60 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-3 shadow-xs">
                                 <div className="flex items-center space-x-2 text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider">
                                     <Phone className="w-4 h-4 text-emerald-500" />
-                                    <span>Contato & Localização</span>
+                                    <span>Contato & Endereço</span>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    {personType === 'PJ' && (
+                                        <div>
+                                            <label htmlFor="contributor-contact" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                                Pessoa de Contato / Representante
+                                            </label>
+                                            <input 
+                                                type="text" 
+                                                id="contributor-contact" 
+                                                value={contactPerson} 
+                                                onChange={(e) => setContactPerson(e.target.value)} 
+                                                placeholder="Ex: Carlos Oliveira (Gerente)"
+                                                className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                            />
+                                        </div>
+                                    )}
+
                                     <div>
                                         <label htmlFor="contributor-phone" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                            {personType === 'PF' ? 'Telefone / WhatsApp' : 'Telefone Comercial / WhatsApp'}
+                                            Telefone / WhatsApp
                                         </label>
                                         <input 
                                             type="text" 
@@ -1328,9 +1205,9 @@ export const ContributorsList: React.FC = () => {
                                         />
                                     </div>
 
-                                    <div>
+                                    <div className={personType === 'PF' ? 'md:col-span-2' : ''}>
                                         <label htmlFor="contributor-email" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                            {personType === 'PF' ? 'E-mail Pessoal' : 'E-mail Oficial / NFe'}
+                                            E-mail
                                         </label>
                                         <input 
                                             type="email" 
@@ -1525,7 +1402,58 @@ export const ContributorsList: React.FC = () => {
 
                     </form>
                 </div>
-            )}
+            ) : (
+                <>
+                    {/* Header Area */}
+                    <div className="flex-shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-100 dark:border-slate-700/50">
+                        <div className="flex items-center space-x-3">
+                            <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-2xl text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-slate-800/60">
+                                <UsersIcon className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <h3 className="font-bold text-base text-slate-800 dark:text-white leading-none">
+                                        Empresas / Pessoas
+                                    </h3>
+                                    {/* Badges / Counters */}
+                                    <div className="flex items-center gap-1.5 ml-1">
+                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-black bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700" title="Total de cadastros">
+                                            Total: {totalContributorsCount}
+                                        </span>
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/40" title="Pessoas Físicas">
+                                            PF: {pfContributorsCount}
+                                        </span>
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40" title="Empresas / Pessoa Jurídica">
+                                            PJ: {pjContributorsCount}
+                                        </span>
+                                    </div>
+                                </div>
+                                <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1">
+                                    Gerenciamento de membros, congregados, parceiros, fornecedores, prestadores e favorecidos.
+                                </p>
+                            </div>
+                        </div>
+                        
+                        {/* Buttons: Importar Lote & + Novo Contribuinte */}
+                        <div className="flex-shrink-0 flex items-center gap-2">
+                            <button 
+                                onClick={() => setIsImportModalOpen(true)}
+                                className="w-full md:w-auto flex items-center justify-center space-x-1.5 px-5 py-2 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-2xl shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                                id="import-contributors-btn"
+                            >
+                                <Upload className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                                <span>Importar Lote</span>
+                            </button>
+                            <button 
+                                onClick={handleNewContributorClick}
+                                className="w-full md:w-auto flex items-center justify-center space-x-1.5 px-5 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-2xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 transition-all tracking-wider uppercase cursor-pointer"
+                                id="new-contributor-btn"
+                            >
+                                <PlusCircleIcon className="w-3.5 h-3.5" />
+                                <span>+ Nova Empresa / Pessoa</span>
+                            </button>
+                        </div>
+                    </div>
 
             {/* INLINE BATCH IMPORT PANEL */}
             {isImportModalOpen && (
@@ -2026,6 +1954,8 @@ export const ContributorsList: React.FC = () => {
                         </div>
                     )}
                 </div>
+            )}
+            </>
             )}
         </div>
     );

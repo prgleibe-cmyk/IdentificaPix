@@ -169,8 +169,8 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                 }
 
                 if (data && !ignore) {
-                    let filteredBanks = data.banks || [];
-                    let filteredChurches = data.churches || [];
+                    let filteredBanks = Array.isArray(data.banks) ? data.banks : [];
+                    let filteredChurches = Array.isArray(data.churches) ? data.churches : [];
                     let fetchedReports = data.reports || [];
                     let fetchedAssociations = data.associations || [];
                     
@@ -182,54 +182,20 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                         
                         if (allowedBankIds.length > 0) {
                             filteredBanks = filteredBanks.filter((b: any) => allowedBankIds.includes(b.id));
+                        } else {
+                            filteredBanks = [];
                         }
+
                         if (allowedChurchIds.length > 0) {
                             filteredChurches = filteredChurches.filter((c: any) => allowedChurchIds.includes(c.id));
+                        } else {
+                            filteredChurches = [];
                         }
                     }
                     
                     if (!ignore) {
-                        if (filteredBanks.length > 0 || !banks || banks.length === 0) {
-                            setBanks(filteredBanks);
-                        }
-                        if (filteredChurches.length > 0 || !churches || churches.length === 0) {
-                            setChurches(filteredChurches);
-                        }
-
-                        if (filteredBanks.length === 0 && banks && banks.length > 0) {
-                            console.log('[useReferenceData] Sincronizando bancos locais com o servidor...');
-                            banks.forEach(async (b) => {
-                                try {
-                                    await fetch('/api/v1/banks', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({
-                                            name: b.name,
-                                            user_id: ownerId,
-                                            bank_key: (b as any).bankKey || (b as any).bank_key,
-                                            account_name: (b as any).accountName || (b as any).account_name || b.name,
-                                            accepted_contribution_types: (b as any).acceptedContributionTypes || (b as any).accepted_contribution_types
-                                        })
-                                    });
-                                } catch {}
-                            });
-                        }
-
-                        if (filteredChurches.length === 0 && churches && churches.length > 0) {
-                            console.log('[useReferenceData] Sincronizando igrejas locais com o servidor...');
-                            churches.forEach(async (c) => {
-                                try {
-                                    await fetch('/api/v1/churches', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({
-                                            ...c,
-                                            user_id: ownerId
-                                        })
-                                    });
-                                } catch {}
-                            });
-                        }
+                        setBanks(filteredBanks);
+                        setChurches(filteredChurches);
 
                         if (fetchedReports.length > 0) {
                             setReports(fetchedReports);
