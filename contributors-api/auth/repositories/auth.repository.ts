@@ -131,9 +131,9 @@ export class AuthRepository {
 
   async findUserByEmail(email: string): Promise<LocalUser | null> {
     const res = await this.pool.query(
-      `SELECT u.*, COALESCE(u.owner_id, p.owner_id) as resolved_owner_id 
+      `SELECT u.*, COALESCE(u.owner_id::text, p.owner_id::text) as resolved_owner_id 
        FROM app_users u 
-       LEFT JOIN profiles p ON (p.id = u.id OR LOWER(p.email) = LOWER(u.email))
+       LEFT JOIN profiles p ON (p.id = u.id::text OR LOWER(p.email) = LOWER(u.email))
        WHERE LOWER(u.email) = LOWER($1) AND u.deleted_at IS NULL LIMIT 1`,
       [email]
     );
@@ -160,10 +160,10 @@ export class AuthRepository {
 
   async findUserById(id: string): Promise<LocalUser | null> {
     const res = await this.pool.query(
-      `SELECT u.*, COALESCE(u.owner_id, p.owner_id) as resolved_owner_id 
+      `SELECT u.*, COALESCE(u.owner_id::text, p.owner_id::text) as resolved_owner_id 
        FROM app_users u 
-       LEFT JOIN profiles p ON (p.id = u.id OR LOWER(p.email) = LOWER(u.email))
-       WHERE u.id = $1 AND u.deleted_at IS NULL LIMIT 1`,
+       LEFT JOIN profiles p ON (p.id = u.id::text OR LOWER(p.email) = LOWER(u.email))
+       WHERE u.id::text = $1 AND u.deleted_at IS NULL LIMIT 1`,
       [id]
     );
     if (res.rows.length === 0) return null;
