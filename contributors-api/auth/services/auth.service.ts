@@ -30,12 +30,14 @@ export class AuthService {
   }
 
   private toUserResponse(user: any): UserResponse {
+    const isOwner = user.role === 'owner' || user.role === 'admin' || user.role === 'superadmin';
+    const resolvedOwnerId = user.owner_id || (isOwner ? user.id : null);
     return {
       id: user.id,
       email: user.email,
       name: user.name,
       role: user.role,
-      owner_id: user.owner_id || user.id,
+      owner_id: resolvedOwnerId,
       church_id: user.church_id,
       permissions: user.permissions || [],
       is_active: user.is_active,
@@ -386,7 +388,22 @@ export class AuthService {
     let userToAuth = existing;
     if (existing) {
       await this.repo.updateUserPassword(existing.id, passwordHash);
-      userToAuth = { ...existing, password_hash: passwordHash };
+      if (role || ownerId || name || churchId) {
+        await this.repo.updateUserMetadata(existing.id, {
+          name: name || undefined,
+          role: role || undefined,
+          owner_id: ownerId || undefined,
+          church_id: churchId || undefined
+        });
+      }
+      userToAuth = {
+        ...existing,
+        name: name || existing.name,
+        role: role || existing.role,
+        owner_id: ownerId || existing.owner_id,
+        church_id: churchId || existing.church_id,
+        password_hash: passwordHash
+      };
     } else {
       const existingProfile = await this.repo.findProfileByEmail(email);
       userToAuth = await this.repo.createUser({

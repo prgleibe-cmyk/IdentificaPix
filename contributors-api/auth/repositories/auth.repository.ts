@@ -132,7 +132,7 @@ export class AuthRepository {
   async findUserByEmail(email: string): Promise<LocalUser | null> {
     const res = await this.pool.query(
       `SELECT u.*, 
-              COALESCE(u.owner_id::text, p.owner_id::text) as resolved_owner_id,
+              COALESCE(p.owner_id::text, u.owner_id::text) as resolved_owner_id,
               COALESCE(p.role, u.role) as resolved_role,
               COALESCE(p.name, u.name) as resolved_name,
               COALESCE(p.congregation, u.church_id::text) as resolved_church_id,
@@ -168,7 +168,7 @@ export class AuthRepository {
   async findUserById(id: string): Promise<LocalUser | null> {
     const res = await this.pool.query(
       `SELECT u.*, 
-              COALESCE(u.owner_id::text, p.owner_id::text) as resolved_owner_id,
+              COALESCE(p.owner_id::text, u.owner_id::text) as resolved_owner_id,
               COALESCE(p.role, u.role) as resolved_role,
               COALESCE(p.name, u.name) as resolved_name,
               COALESCE(p.congregation, u.church_id::text) as resolved_church_id,
@@ -240,6 +240,36 @@ export class AuthRepository {
       'UPDATE app_users SET password_hash = $1, updated_at = NOW(), failed_attempts = 0, lock_until = NULL WHERE id = $2',
       [newPasswordHash, userId]
     );
+  }
+
+  async updateUserMetadata(userId: string, data: { name?: string | null; role?: string; owner_id?: string | null; church_id?: string | null }): Promise<void> {
+    const fields: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    if (data.name !== undefined) {
+      fields.push(`name = $${idx++}`);
+      values.push(data.name);
+    }
+    if (data.role !== undefined) {
+      fields.push(`role = $${idx++}`);
+      values.push(data.role);
+    }
+    if (data.owner_id !== undefined) {
+      fields.push(`owner_id = $${idx++}`);
+      values.push(data.owner_id);
+    }
+    if (data.church_id !== undefined) {
+      fields.push(`church_id = $${idx++}`);
+      values.push(data.church_id);
+    }
+
+    if (fields.length === 0) return;
+
+    fields.push(`updated_at = NOW()`);
+    values.push(userId);
+    const sql = `UPDATE app_users SET ${fields.join(', ')} WHERE id = $${idx}`;
+    await this.pool.query(sql, values);
   }
 
   async updateUserLoginSuccess(userId: string): Promise<void> {

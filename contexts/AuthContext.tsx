@@ -10,11 +10,19 @@ import { ResetPasswordModal } from '../components/auth/ResetPasswordModal';
 const AuthContext = createContext<AuthContextType>(null!);
 
 export const checkIsSecondaryUser = (user: any, subscription?: any): boolean => {
-  if (!user) return false;
-  const userEmail = String(user?.email || '').toLowerCase().trim();
+  if (!user && !subscription) return false;
+
+  let localUser: any = null;
+  try {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem('iggestor_vps_user') : null;
+    if (raw) localUser = JSON.parse(raw);
+  } catch {}
+
+  const activeUser = user || localUser;
+  const userEmail = String(activeUser?.email || '').toLowerCase().trim();
   if (userEmail === 'identificapix@gmail.com') return false;
 
-  const userRole = String(user?.role || '').toLowerCase().trim();
+  const userRole = String(activeUser?.role || '').toLowerCase().trim();
   const subRole = String(subscription?.role || '').toLowerCase().trim();
 
   if (
@@ -28,14 +36,18 @@ export const checkIsSecondaryUser = (user: any, subscription?: any): boolean => 
     return false;
   }
 
+  const activeUserId = activeUser?.id || activeUser?.userId;
+  const activeOwnerId = activeUser?.owner_id || activeUser?.ownerId;
+  const subOwnerId = subscription?.ownerId;
+
   const hasDifferentOwner = Boolean(
-    (user?.owner_id && user.owner_id !== user?.id) ||
-    (subscription?.ownerId && subscription.ownerId !== user?.id)
+    (activeOwnerId && activeUserId && activeOwnerId !== activeUserId) ||
+    (subOwnerId && activeUserId && subOwnerId !== activeUserId)
   );
 
   const isExplicitMemberRole = (
-    userRole === 'member' || userRole === 'user' || userRole === 'operador' || userRole === 'secondary' ||
-    subRole === 'member' || subRole === 'user' || subRole === 'operador' || subRole === 'secondary'
+    userRole === 'member' || userRole === 'operador' || userRole === 'secondary' || userRole === 'colaborador' ||
+    subRole === 'member' || subRole === 'operador' || subRole === 'secondary' || subRole === 'colaborador'
   );
 
   return hasDifferentOwner || isExplicitMemberRole;
