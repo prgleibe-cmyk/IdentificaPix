@@ -10,8 +10,10 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
             const rawUser = typeof window !== 'undefined' ? localStorage.getItem('iggestor_vps_user') : null;
             if (rawUser) {
                 const u = JSON.parse(rawUser);
-                const role = u?.role || 'owner';
-                const ownerId = u?.owner_id || u?.id || '';
+                const isMemberRole = u?.role === 'member' || u?.role === 'user' || u?.role === 'operador' || u?.role === 'secondary' || u?.role === 'colaborador';
+                const hasSeparateOwner = Boolean(u?.owner_id && u?.owner_id !== u?.id);
+                const role = (isMemberRole || hasSeparateOwner) ? (u?.role || 'member') : (u?.role || 'owner');
+                const ownerId = u?.owner_id || (role === 'owner' ? u?.id : '');
                 return {
                     plan: 'trial',
                     daysRemaining: 10,

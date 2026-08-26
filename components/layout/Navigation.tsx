@@ -64,11 +64,14 @@ const NavItem: React.FC<NavItemProps> = memo(({ icon, label, isActive, onClick, 
 // Main Navigation component
 export const Navigation: React.FC = memo(() => {
     const { activeView, setActiveView } = useUI();
-    const { user, isSecondaryUser } = useAuth();
+    const { user, isSecondaryUser, subscription } = useAuth();
     const { t } = useTranslation();
 
     // Robust check: Lowercase comparison to avoid mismatch
     const isAdmin = user?.email?.toLowerCase().trim() === 'identificapix@gmail.com'; 
+
+    const perms = (subscription?.permissions || {}) as Record<string, any>;
+    const canManageAccounts = !isSecondaryUser || (perms.gestao_contas !== false && perms.manageAccounts !== false);
 
     const navItems: { view: ViewType, labelKey: any, icon: React.ReactNode, special?: boolean }[] = [
         { view: 'dashboard', labelKey: 'nav.dashboard', icon: <HomeIcon className="w-4 h-4"/> },
@@ -87,10 +90,13 @@ export const Navigation: React.FC = memo(() => {
         navItems.push({ view: 'relatorios', labelKey: 'nav.relatorios', icon: <FileText className="w-4 h-4"/> });
     }
 
-    navItems.push(
-        { view: 'savedReports', labelKey: 'nav.savedReports', icon: <ChartBarIcon className="w-4 h-4"/> },
-        { view: 'financial', labelKey: 'nav.financial', icon: <CreditCardIcon className="w-4 h-4"/> }
-    );
+    if (!isSecondaryUser) {
+        navItems.push({ view: 'savedReports', labelKey: 'nav.savedReports', icon: <ChartBarIcon className="w-4 h-4"/> });
+    }
+
+    if (canManageAccounts) {
+        navItems.push({ view: 'financial', labelKey: 'nav.financial', icon: <CreditCardIcon className="w-4 h-4"/> });
+    }
 
     if (!isSecondaryUser) {
         navItems.push({ view: 'settings', labelKey: 'nav.settings', icon: <Cog6ToothIcon className="w-4 h-4"/> });

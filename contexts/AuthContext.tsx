@@ -54,9 +54,32 @@ export const checkIsSecondaryUser = (user: any, subscription?: any): boolean => 
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [session, setSession] = useState<any | null>(null);
-  const [user, setUser] = useState<any | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [session, setSession] = useState<any | null>(() => {
+    try {
+      const u = authService.getUser();
+      const token = authService.getAccessToken();
+      if (token && u) return { access_token: token, user: u };
+      return null;
+    } catch {
+      return null;
+    }
+  });
+  const [user, setUser] = useState<any | null>(() => {
+    try {
+      return authService.getUser();
+    } catch {
+      return null;
+    }
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      const token = authService.getAccessToken();
+      const u = authService.getUser();
+      return !(token && u);
+    } catch {
+      return true;
+    }
+  });
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const isSigningOut = useRef(false);
 
