@@ -97,10 +97,17 @@ export const Sidebar: React.FC = memo(() => {
         if (outcome === 'accepted') setDeferredPrompt(null);
     };
 
-    const isSecondaryUser = (subscription.ownerId && subscription.ownerId !== user?.id) &&
-        subscription.role !== 'owner' &&
-        subscription.role !== 'admin' &&
-        subscription.role !== 'principal';
+    const roleStr = String(subscription?.role || '').toLowerCase();
+    const isSecondaryUser = Boolean(
+        subscription?.ownerId &&
+        subscription.ownerId !== user?.id &&
+        roleStr !== 'owner' &&
+        roleStr !== 'admin' &&
+        roleStr !== 'principal' &&
+        roleStr !== 'superadmin' &&
+        user?.role !== 'SUPER_ADMIN' &&
+        user?.role !== 'ADMINISTRADOR_GERAL'
+    );
 
     const navItems = useMemo(() => {
         const items: { view: ViewType, labelKey: string, icon: React.ReactNode, special?: boolean }[] = [];

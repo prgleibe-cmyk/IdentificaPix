@@ -64,22 +64,49 @@ const NavItem: React.FC<NavItemProps> = memo(({ icon, label, isActive, onClick, 
 // Main Navigation component
 export const Navigation: React.FC = memo(() => {
     const { activeView, setActiveView } = useUI();
-    const { user } = useAuth();
+    const { user, subscription } = useAuth();
     const { t } = useTranslation();
+
+    const roleStr = String(subscription?.role || '').toLowerCase();
+    const isSecondaryUser = Boolean(
+        subscription?.ownerId &&
+        subscription.ownerId !== user?.id &&
+        roleStr !== 'owner' &&
+        roleStr !== 'admin' &&
+        roleStr !== 'principal' &&
+        roleStr !== 'superadmin' &&
+        user?.role !== 'SUPER_ADMIN' &&
+        user?.role !== 'ADMINISTRADOR_GERAL'
+    );
 
     // Robust check: Lowercase comparison to avoid mismatch
     const isAdmin = user?.email?.toLowerCase().trim() === 'identificapix@gmail.com'; 
 
     const navItems: { view: ViewType, labelKey: any, icon: React.ReactNode, special?: boolean }[] = [
         { view: 'dashboard', labelKey: 'nav.dashboard', icon: <HomeIcon className="w-4 h-4"/> },
-        { view: 'upload', labelKey: 'nav.upload', icon: <UploadIcon className="w-4 h-4"/> },
-        { view: 'reports', labelKey: 'nav.reports', icon: <DocumentDuplicateIcon className="w-4 h-4"/> },
-        { view: 'cadastro', labelKey: 'nav.register', icon: <PlusCircleIcon className="w-4 h-4"/> },
-        { view: 'relatorios', labelKey: 'nav.relatorios', icon: <FileText className="w-4 h-4"/> },
-        { view: 'savedReports', labelKey: 'nav.savedReports', icon: <ChartBarIcon className="w-4 h-4"/> },
-        { view: 'financial', labelKey: 'nav.financial', icon: <CreditCardIcon className="w-4 h-4"/> },
-        { view: 'settings', labelKey: 'nav.settings', icon: <Cog6ToothIcon className="w-4 h-4"/> },
     ];
+
+    if (!isSecondaryUser) {
+        navItems.push({ view: 'upload', labelKey: 'nav.upload', icon: <UploadIcon className="w-4 h-4"/> });
+    }
+
+    navItems.push(
+        { view: 'reports', labelKey: 'nav.reports', icon: <DocumentDuplicateIcon className="w-4 h-4"/> },
+        { view: 'cadastro', labelKey: 'nav.register', icon: <PlusCircleIcon className="w-4 h-4"/> }
+    );
+
+    if (!isSecondaryUser) {
+        navItems.push({ view: 'relatorios', labelKey: 'nav.relatorios', icon: <FileText className="w-4 h-4"/> });
+    }
+
+    navItems.push(
+        { view: 'savedReports', labelKey: 'nav.savedReports', icon: <ChartBarIcon className="w-4 h-4"/> },
+        { view: 'financial', labelKey: 'nav.financial', icon: <CreditCardIcon className="w-4 h-4"/> }
+    );
+
+    if (!isSecondaryUser) {
+        navItems.push({ view: 'settings', labelKey: 'nav.settings', icon: <Cog6ToothIcon className="w-4 h-4"/> });
+    }
 
     if (isAdmin) {
         navItems.push({ 
