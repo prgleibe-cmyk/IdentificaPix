@@ -3,6 +3,14 @@ import { profileService } from '../../services/profileService';
 import { SubscriptionStatus } from '../../types';
 import { SystemSettings } from './AuthContracts';
 
+const normalizeRole = (r: any, hasSeparateOwner: boolean): 'owner' | 'member' | 'admin' | 'principal' | 'secondary' => {
+    if (r === 'admin' || r === 'superadmin') return 'admin';
+    if (r === 'secondary') return 'secondary';
+    if (r === 'member' || r === 'user' || r === 'operador' || r === 'colaborador' || hasSeparateOwner) return 'secondary';
+    if (r === 'principal' || r === 'owner') return 'owner';
+    return hasSeparateOwner ? 'secondary' : 'owner';
+};
+
 // Fix: Added React to imports and typed settingsRef as React.MutableRefObject
 export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemSettings>) => {
     const [subscription, setSubscription] = useState<SubscriptionStatus>(() => {
@@ -10,9 +18,8 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
             const rawUser = typeof window !== 'undefined' ? localStorage.getItem('iggestor_vps_user') : null;
             if (rawUser) {
                 const u = JSON.parse(rawUser);
-                const isMemberRole = u?.role === 'member' || u?.role === 'user' || u?.role === 'operador' || u?.role === 'secondary' || u?.role === 'colaborador';
                 const hasSeparateOwner = Boolean(u?.owner_id && u?.owner_id !== u?.id);
-                const role = (isMemberRole || hasSeparateOwner) ? (u?.role || 'member') : (u?.role || 'owner');
+                const role = normalizeRole(u?.role, hasSeparateOwner);
                 const ownerId = u?.owner_id || (role === 'owner' ? u?.id : '');
                 return {
                     plan: 'trial',
@@ -42,7 +49,7 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
             aiUsage: 0,
             maxChurches: 2, 
             maxBanks: 2,
-            role: 'pending',
+            role: 'owner',
             ownerId: ''
         };
     });
@@ -151,25 +158,9 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
                 bankIds = permissions.bankIds;
             }
 
-            const isMemberRole = p.role === 'member' || p.role === 'user' || p.role === 'operador' || p.role === 'secondary' || p.role === 'colaborador' ||
-                                 localUser?.role === 'member' || localUser?.role === 'user' || localUser?.role === 'operador' || localUser?.role === 'secondary' || localUser?.role === 'colaborador';
             const hasSeparateOwner = Boolean((p.owner_id && p.owner_id !== userId) || (localUser?.owner_id && localUser?.owner_id !== userId));
-
-            let finalRole = 'pending';
-            if (isMemberRole || hasSeparateOwner) {
-                finalRole = (p.role && p.role !== 'owner') ? p.role : (localUser?.role && localUser.role !== 'owner' ? localUser.role : 'member');
-            } else if (p.role === 'owner' || p.role === 'admin' || p.role === 'superadmin') {
-                finalRole = p.role;
-            } else if (localUser?.role === 'owner' || localUser?.role === 'admin' || localUser?.role === 'superadmin') {
-                finalRole = localUser.role;
-            } else if (p.role) {
-                finalRole = p.role;
-            } else if (localUser?.role) {
-                finalRole = localUser.role;
-            } else {
-                finalRole = 'owner';
-            }
-
+            const rawRoleCandidate = p.role || localUser?.role;
+            const finalRole = normalizeRole(rawRoleCandidate, hasSeparateOwner);
             const finalOwnerId = p.owner_id || localUser?.owner_id || (finalRole === 'owner' ? userId : '');
 
             setSubscription({
@@ -193,16 +184,8 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
         } catch (e) {
             console.error("Erro assinatura (resgatando padrão):", e);
             if (localUser) {
-                const isMemberRole = localUser.role === 'member' || localUser.role === 'user' || localUser.role === 'operador' || localUser.role === 'secondary' || localUser.role === 'colaborador';
                 const hasSeparateOwner = Boolean(localUser.owner_id && localUser.owner_id !== userId);
-                let fallbackRole = 'pending';
-                if (isMemberRole || hasSeparateOwner) {
-                    fallbackRole = (localUser.role && localUser.role !== 'owner') ? localUser.role : 'member';
-                } else if (localUser.role) {
-                    fallbackRole = localUser.role;
-                } else {
-                    fallbackRole = 'owner';
-                }
+                const fallbackRole = normalizeRole(localUser.role, hasSeparateOwner);
                 const fallbackOwnerId = localUser.owner_id || (fallbackRole === 'owner' ? userId : '');
                 setSubscription(prev => ({
                     ...prev,

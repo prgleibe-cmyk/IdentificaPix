@@ -17,12 +17,16 @@ export function generateAccessToken(payload: {
   churchId?: string | null;
   role: string;
   permissions: string[];
+  congregationIds?: string[];
+  allowedChurchIds?: string[];
 }): { token: string; jti: string; expiresIn: number } {
   const jti = crypto.randomUUID();
   const claims: Omit<JwtPayload, 'iat' | 'exp'> = {
     user_id: payload.userId,
     owner_id: payload.ownerId || payload.userId,
     church_id: payload.churchId || null,
+    congregation_ids: payload.congregationIds || payload.allowedChurchIds || [],
+    allowed_church_ids: payload.allowedChurchIds || payload.congregationIds || [],
     role: payload.role,
     permissions: payload.permissions || [],
     iss: ISSUER,

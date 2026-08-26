@@ -27,6 +27,8 @@ export interface UserResponse {
   role: string;
   owner_id?: string | null;
   church_id?: string | null;
+  congregation_ids?: string[];
+  allowed_church_ids?: string[];
   permissions: string[];
   is_active: boolean;
   is_verified: boolean;
@@ -39,6 +41,8 @@ export interface JwtPayload {
   user_id: string;
   owner_id?: string | null;
   church_id?: string | null;
+  congregation_ids?: string[];
+  allowed_church_ids?: string[];
   role: string;
   permissions: string[];
   iss: string;

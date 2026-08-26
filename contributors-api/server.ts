@@ -873,9 +873,75 @@ export interface TenantContext {
   userId: string | null;
   ownerId: string | null;
   churchId: string | null;
+  allowedChurchIds: string[];
   role: string | null;
   isSuperAdmin: boolean;
+  isOwner: boolean;
+  isSecondaryUser: boolean;
   isAuthenticated: boolean;
+}
+
+export function extractContextAllowedChurchIds(user: any, headerChurchId?: string | null): string[] {
+  const ids = new Set<string>();
+  if (!user) {
+    return [];
+  }
+
+  // 1. Direct church_id
+  if (user.church_id && typeof user.church_id === 'string' && user.church_id.trim()) {
+    ids.add(user.church_id.trim());
+  }
+  if (user.churchId && typeof user.churchId === 'string' && user.churchId.trim()) {
+    ids.add(user.churchId.trim());
+  }
+
+  // 2. congregation_ids / allowed_church_ids
+  if (Array.isArray(user.congregation_ids)) {
+    user.congregation_ids.forEach((id: any) => {
+      if (typeof id === 'string' && id.trim()) ids.add(id.trim());
+    });
+  }
+  if (Array.isArray(user.congregationIds)) {
+    user.congregationIds.forEach((id: any) => {
+      if (typeof id === 'string' && id.trim()) ids.add(id.trim());
+    });
+  }
+  if (Array.isArray(user.allowed_church_ids)) {
+    user.allowed_church_ids.forEach((id: any) => {
+      if (typeof id === 'string' && id.trim()) ids.add(id.trim());
+    });
+  }
+  if (Array.isArray(user.allowedChurchIds)) {
+    user.allowedChurchIds.forEach((id: any) => {
+      if (typeof id === 'string' && id.trim()) ids.add(id.trim());
+    });
+  }
+
+  // 3. Permissions array / object
+  if (Array.isArray(user.permissions)) {
+    user.permissions.forEach((perm: any) => {
+      if (typeof perm === 'string') {
+        if (perm.startsWith('congregation:')) {
+          const cid = perm.split(':')[1];
+          if (cid && cid.trim()) ids.add(cid.trim());
+        } else if (perm.startsWith('church:')) {
+          const cid = perm.split(':')[1];
+          if (cid && cid.trim()) ids.add(cid.trim());
+        }
+      }
+    });
+  } else if (user.permissions && typeof user.permissions === 'object') {
+    if (Array.isArray(user.permissions.congregationIds)) {
+      user.permissions.congregationIds.forEach((id: any) => {
+        if (typeof id === 'string' && id.trim()) ids.add(id.trim());
+      });
+    }
+    if (typeof user.permissions.congregation === 'string' && user.permissions.congregation.trim()) {
+      ids.add(user.permissions.congregation.trim());
+    }
+  }
+
+  return Array.from(ids);
 }
 
 export function getTenantContext(req: Request): TenantContext {
@@ -892,34 +958,58 @@ export function getTenantContext(req: Request): TenantContext {
     }
   }
 
+  const headerChurchId = (req.headers['x-church-id'] as string) || null;
+  const headerUserId = (req.headers['x-user-id'] as string) || null;
+  const headerOwnerId = (req.headers['x-owner-id'] as string) || null;
+  const headerRole = (req.headers['x-user-role'] as string) || null;
+  const headerAllowedChurchIds = req.headers['x-allowed-church-ids']
+    ? (typeof req.headers['x-allowed-church-ids'] === 'string'
+        ? (req.headers['x-allowed-church-ids'] as string).split(',').map(s => s.trim()).filter(Boolean)
+        : [])
+    : null;
+
   if (user) {
     const userId = user.user_id || user.id || null;
-    const ownerId = user.owner_id || user.ownerId || (req.headers['x-owner-id'] as string) || null;
-    const churchId = user.church_id || (req.headers['x-church-id'] as string) || null;
-    const role = user.role || 'user';
+    const ownerId = user.owner_id || user.ownerId || headerOwnerId || userId;
+    const role = user.role || headerRole || 'user';
     const isSuperAdmin = Boolean(user.is_superadmin || role === 'superadmin');
+
+    const allowedChurchIds = headerAllowedChurchIds && headerAllowedChurchIds.length > 0
+      ? headerAllowedChurchIds
+      : extractContextAllowedChurchIds(user, headerChurchId);
+    const churchId = user.church_id || (allowedChurchIds.length > 0 ? allowedChurchIds[0] : null) || headerChurchId || null;
+
+    const hasSeparateOwner = Boolean(ownerId && userId && ownerId !== userId);
+    const isSecondaryRole = ['secondary', 'member', 'user', 'operador', 'colaborador'].includes(role);
+    const isSecondaryUser = !isSuperAdmin && (hasSeparateOwner || isSecondaryRole || Boolean(user.is_secondary));
+    const isOwner = isSuperAdmin || (!isSecondaryUser && (role === 'owner' || !hasSeparateOwner));
 
     return {
       userId,
       ownerId,
       churchId,
+      allowedChurchIds,
       role,
       isSuperAdmin,
+      isOwner,
+      isSecondaryUser,
       isAuthenticated: true
     };
   }
 
-  const headerChurchId = (req.headers['x-church-id'] as string) || null;
-  const headerUserId = (req.headers['x-user-id'] as string) || null;
-  const headerOwnerId = (req.headers['x-owner-id'] as string) || null;
+  const fallbackIsSecondary = headerRole ? ['secondary', 'member', 'user', 'operador', 'colaborador'].includes(headerRole) : Boolean(headerOwnerId && headerUserId && headerOwnerId !== headerUserId);
+  const fallbackAllowedChurchIds = headerAllowedChurchIds || (headerChurchId ? [headerChurchId] : []);
 
   return {
     userId: headerUserId,
     ownerId: headerOwnerId,
     churchId: headerChurchId,
-    role: null,
-    isSuperAdmin: false,
-    isAuthenticated: false
+    allowedChurchIds: fallbackAllowedChurchIds,
+    role: headerRole,
+    isSuperAdmin: headerRole === 'superadmin',
+    isOwner: !fallbackIsSecondary,
+    isSecondaryUser: fallbackIsSecondary,
+    isAuthenticated: Boolean(headerUserId)
   };
 }
 
@@ -979,17 +1069,41 @@ app.get('/api/v1/audit-logs', async (req: Request, res: Response) => {
 // GET /api/v1/contributors
 app.get('/api/v1/contributors', async (req: Request, res: Response) => {
   try {
+    const ctx = getTenantContext(req);
     const requestedChurchId = req.query.church_id as string | undefined;
     const { status, search, q } = req.query;
+
+    if (ctx.isSecondaryUser) {
+      if (ctx.allowedChurchIds.length === 0) {
+        return res.json([]);
+      }
+      if (requestedChurchId && requestedChurchId !== 'all' && requestedChurchId !== 'undefined' && requestedChurchId !== 'null') {
+        if (!ctx.allowedChurchIds.includes(requestedChurchId)) {
+          return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para esta congregação.' });
+        }
+      }
+    }
+
     let query = 'SELECT * FROM contributors WHERE 1=1';
     const params: any[] = [];
     let paramCounter = 1;
 
-    // Se houver filtro específico de igreja passado explicitamente via query param e não for 'all'
-    if (requestedChurchId && requestedChurchId !== 'all' && requestedChurchId !== 'undefined' && requestedChurchId !== 'null') {
-      query += ` AND (church_id = $${paramCounter} OR is_global = TRUE)`;
-      params.push(requestedChurchId);
-      paramCounter++;
+    if (ctx.isSecondaryUser) {
+      if (requestedChurchId && requestedChurchId !== 'all' && requestedChurchId !== 'undefined' && requestedChurchId !== 'null') {
+        query += ` AND (church_id = $${paramCounter} OR is_global = TRUE)`;
+        params.push(requestedChurchId);
+        paramCounter++;
+      } else {
+        query += ` AND (church_id = ANY($${paramCounter}) OR is_global = TRUE)`;
+        params.push(ctx.allowedChurchIds);
+        paramCounter++;
+      }
+    } else {
+      if (requestedChurchId && requestedChurchId !== 'all' && requestedChurchId !== 'undefined' && requestedChurchId !== 'null') {
+        query += ` AND (church_id = $${paramCounter} OR is_global = TRUE)`;
+        params.push(requestedChurchId);
+        paramCounter++;
+      }
     }
 
     if (status && typeof status === 'string') {
@@ -2637,37 +2751,55 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
     const banks = banksResult.rows || [];
 
     // 2. Fetch Churches
-    let churchesQuery = 'SELECT * FROM churches WHERE 1=1';
-    const churchesParams: any[] = [];
-    if (cleanUserId) {
-      churchesParams.push(cleanUserId);
-      churchesQuery += ` AND (
-        user_id::text = $1 
-        OR user_id::text IN (SELECT id::text FROM app_users WHERE id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
-        OR user_id::text IN (SELECT id FROM profiles WHERE id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
-        OR user_id::text IN (SELECT owner_id FROM profiles WHERE id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
-      )`;
+    let churches: any[] = [];
+    if (ctx.isSecondaryUser && ctx.allowedChurchIds.length === 0) {
+      churches = [];
+    } else {
+      let churchesQuery = 'SELECT * FROM churches WHERE 1=1';
+      const churchesParams: any[] = [];
+      if (cleanUserId) {
+        churchesParams.push(cleanUserId);
+        churchesQuery += ` AND (
+          user_id::text = $1 
+          OR user_id::text IN (SELECT id::text FROM app_users WHERE id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+          OR user_id::text IN (SELECT id FROM profiles WHERE id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+          OR user_id::text IN (SELECT owner_id FROM profiles WHERE id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+        )`;
+      }
+      if (ctx.isSecondaryUser) {
+        churchesParams.push(ctx.allowedChurchIds);
+        churchesQuery += ` AND id = ANY($${churchesParams.length})`;
+      }
+      churchesQuery += ' ORDER BY name ASC';
+      const churchesResult = await pool.query(churchesQuery, churchesParams);
+      churches = churchesResult.rows || [];
     }
-    churchesQuery += ' ORDER BY name ASC';
-    const churchesResult = await pool.query(churchesQuery, churchesParams);
-    const churches = churchesResult.rows || [];
 
     // 3. Fetch Reports
-    let reportsQuery = 'SELECT id, name, user_id, church_id, record_count, created_at FROM saved_reports WHERE 1=1';
-    const reportsParams: any[] = [];
-    if (cleanUserId) {
-      reportsParams.push(cleanUserId);
-      reportsQuery += ` AND (
-        user_id::text = $1 
-        OR user_id::text IN (SELECT id::text FROM app_users WHERE id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
-        OR user_id::text IN (SELECT id FROM profiles WHERE id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
-        OR user_id::text IN (SELECT owner_id FROM profiles WHERE id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
-        OR user_id IS NULL
-      )`;
+    let reports: any[] = [];
+    if (ctx.isSecondaryUser && ctx.allowedChurchIds.length === 0) {
+      reports = [];
+    } else {
+      let reportsQuery = 'SELECT id, name, user_id, church_id, record_count, created_at FROM saved_reports WHERE 1=1';
+      const reportsParams: any[] = [];
+      if (cleanUserId) {
+        reportsParams.push(cleanUserId);
+        reportsQuery += ` AND (
+          user_id::text = $1 
+          OR user_id::text IN (SELECT id::text FROM app_users WHERE id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+          OR user_id::text IN (SELECT id FROM profiles WHERE id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+          OR user_id::text IN (SELECT owner_id FROM profiles WHERE id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+          OR user_id IS NULL
+        )`;
+      }
+      if (ctx.isSecondaryUser) {
+        reportsParams.push(ctx.allowedChurchIds);
+        reportsQuery += ` AND (church_id = ANY($${reportsParams.length}) OR church_id IS NULL)`;
+      }
+      reportsQuery += ' ORDER BY created_at DESC';
+      const reportsResult = await pool.query(reportsQuery, reportsParams);
+      reports = reportsResult.rows || [];
     }
-    reportsQuery += ' ORDER BY created_at DESC';
-    const reportsResult = await pool.query(reportsQuery, reportsParams);
-    const reports = reportsResult.rows || [];
 
     // 4. Fetch Associations
     let assocQuery = 'SELECT * FROM learned_associations WHERE 1=1';
@@ -2871,6 +3003,10 @@ app.get('/api/v1/churches', async (req: Request, res: Response) => {
       }
     }
 
+    if (ctx.isSecondaryUser && ctx.allowedChurchIds.length === 0) {
+      return res.json([]);
+    }
+
     const cleanUserId = (typeof user_id === 'string' && user_id.trim())
       ? user_id.trim()
       : (ctx.ownerId || ctx.userId);
@@ -2885,6 +3021,10 @@ app.get('/api/v1/churches', async (req: Request, res: Response) => {
         OR user_id::text IN (SELECT id FROM profiles WHERE id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
         OR user_id::text IN (SELECT owner_id FROM profiles WHERE id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
       )`;
+    }
+    if (ctx.isSecondaryUser) {
+      params.push(ctx.allowedChurchIds);
+      query += ` AND id = ANY($${params.length})`;
     }
     query += ' ORDER BY name ASC';
     const result = await pool.query(query, params);
@@ -3051,20 +3191,29 @@ app.get('/api/v1/pastoral_messages', async (req: Request, res: Response) => {
     const ctx = getTenantContext(req);
     const { church_id, user_id } = req.query;
 
-    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) {
-      if (church_id && church_id !== ctx.churchId) {
-        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para outra igreja.' });
-      }
+    if (ctx.isSecondaryUser && ctx.allowedChurchIds.length === 0) {
+      return res.json([]);
     }
-
-    const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : church_id;
 
     let query = 'SELECT * FROM pastoral_messages WHERE 1=1';
     const params: any[] = [];
-    if (effectiveChurchId) {
-      params.push(effectiveChurchId);
+
+    if (ctx.isSecondaryUser) {
+      if (church_id && church_id !== 'all' && typeof church_id === 'string') {
+        if (!ctx.allowedChurchIds.includes(church_id)) {
+          return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para esta congregação.' });
+        }
+        params.push(church_id);
+        query += ` AND church_id = $${params.length}`;
+      } else {
+        params.push(ctx.allowedChurchIds);
+        query += ` AND church_id = ANY($${params.length})`;
+      }
+    } else if (church_id && church_id !== 'all' && typeof church_id === 'string') {
+      params.push(church_id);
       query += ` AND church_id = $${params.length}`;
     }
+
     if (user_id) {
       params.push(user_id);
       query += ` AND user_id = $${params.length}`;
@@ -3084,13 +3233,13 @@ app.post('/api/v1/pastoral_messages', async (req: Request, res: Response) => {
     const ctx = getTenantContext(req);
     const { church_id, title, type, content, start_date, end_date, is_active, user_id } = req.body;
 
-    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) {
-      if (church_id && church_id !== ctx.churchId) {
-        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para outra igreja.' });
+    const effectiveChurchId = (ctx.isSecondaryUser && ctx.churchId) ? ctx.churchId : church_id;
+
+    if (ctx.isSecondaryUser) {
+      if (!effectiveChurchId || !ctx.allowedChurchIds.includes(effectiveChurchId)) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para cadastrar mensagem nesta congregação.' });
       }
     }
-
-    const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : church_id;
 
     if (!effectiveChurchId || !title || !content) {
       return res.status(400).json({ error: 'VALIDATION_ERROR' });
@@ -3118,9 +3267,9 @@ app.put('/api/v1/pastoral_messages/:id', async (req: Request, res: Response) => 
     const oldMsg = oldRes.rows[0] || null;
     if (!oldMsg) return res.status(404).json({ error: 'NOT_FOUND' });
 
-    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) {
-      if (oldMsg.church_id && oldMsg.church_id !== ctx.churchId) {
-        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para outra igreja.' });
+    if (ctx.isSecondaryUser) {
+      if (oldMsg.church_id && !ctx.allowedChurchIds.includes(oldMsg.church_id)) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para alterar mensagem de outra igreja.' });
       }
     }
 
@@ -3152,9 +3301,9 @@ app.delete('/api/v1/pastoral_messages/:id', async (req: Request, res: Response) 
     const oldMsg = oldRes.rows[0] || null;
     if (!oldMsg) return res.status(404).json({ error: 'NOT_FOUND' });
 
-    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) {
-      if (oldMsg.church_id && oldMsg.church_id !== ctx.churchId) {
-        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para outra igreja.' });
+    if (ctx.isSecondaryUser) {
+      if (oldMsg.church_id && !ctx.allowedChurchIds.includes(oldMsg.church_id)) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para remover mensagem de outra igreja.' });
       }
     }
 
@@ -3172,20 +3321,29 @@ app.get('/api/v1/communication_logs', async (req: Request, res: Response) => {
     const ctx = getTenantContext(req);
     const { church_id, user_id, status, event_type } = req.query;
 
-    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) {
-      if (church_id && church_id !== ctx.churchId) {
-        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para outra igreja.' });
-      }
+    if (ctx.isSecondaryUser && ctx.allowedChurchIds.length === 0) {
+      return res.json([]);
     }
-
-    const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : church_id;
 
     let query = 'SELECT * FROM communication_logs WHERE 1=1';
     const params: any[] = [];
-    if (effectiveChurchId) {
-      params.push(effectiveChurchId);
+
+    if (ctx.isSecondaryUser) {
+      if (church_id && church_id !== 'all' && typeof church_id === 'string') {
+        if (!ctx.allowedChurchIds.includes(church_id)) {
+          return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para esta congregação.' });
+        }
+        params.push(church_id);
+        query += ` AND church_id = $${params.length}`;
+      } else {
+        params.push(ctx.allowedChurchIds);
+        query += ` AND church_id = ANY($${params.length})`;
+      }
+    } else if (church_id && church_id !== 'all' && typeof church_id === 'string') {
+      params.push(church_id);
       query += ` AND church_id = $${params.length}`;
     }
+
     if (user_id) {
       params.push(user_id);
       query += ` AND user_id = $${params.length}`;
@@ -3213,20 +3371,29 @@ app.get('/api/v1/communication_events', async (req: Request, res: Response) => {
     const ctx = getTenantContext(req);
     const { church_id, user_id, status, event_type } = req.query;
 
-    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) {
-      if (church_id && church_id !== ctx.churchId) {
-        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para outra igreja.' });
-      }
+    if (ctx.isSecondaryUser && ctx.allowedChurchIds.length === 0) {
+      return res.json([]);
     }
-
-    const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : church_id;
 
     let query = 'SELECT * FROM communication_events WHERE 1=1';
     const params: any[] = [];
-    if (effectiveChurchId) {
-      params.push(effectiveChurchId);
+
+    if (ctx.isSecondaryUser) {
+      if (church_id && church_id !== 'all' && typeof church_id === 'string') {
+        if (!ctx.allowedChurchIds.includes(church_id)) {
+          return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para esta congregação.' });
+        }
+        params.push(church_id);
+        query += ` AND church_id = $${params.length}`;
+      } else {
+        params.push(ctx.allowedChurchIds);
+        query += ` AND church_id = ANY($${params.length})`;
+      }
+    } else if (church_id && church_id !== 'all' && typeof church_id === 'string') {
+      params.push(church_id);
       query += ` AND church_id = $${params.length}`;
     }
+
     if (user_id) {
       params.push(user_id);
       query += ` AND user_id = $${params.length}`;
@@ -3868,13 +4035,32 @@ setInterval(() => {
 // GET /api/v1/communication_queue
 app.get('/api/v1/communication_queue', async (req: Request, res: Response) => {
   try {
+    const ctx = getTenantContext(req);
     const { church_id, status } = req.query;
+
+    if (ctx.isSecondaryUser && ctx.allowedChurchIds.length === 0) {
+      return res.json([]);
+    }
+
     let query = 'SELECT * FROM communication_queue WHERE 1=1';
     const params: any[] = [];
-    if (church_id) {
+
+    if (ctx.isSecondaryUser) {
+      if (church_id && church_id !== 'all' && typeof church_id === 'string') {
+        if (!ctx.allowedChurchIds.includes(church_id)) {
+          return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para esta congregação.' });
+        }
+        params.push(church_id);
+        query += ` AND church_id = $${params.length}`;
+      } else {
+        params.push(ctx.allowedChurchIds);
+        query += ` AND church_id = ANY($${params.length})`;
+      }
+    } else if (church_id && church_id !== 'all' && typeof church_id === 'string') {
       params.push(church_id);
       query += ` AND church_id = $${params.length}`;
     }
+
     if (status) {
       params.push(status);
       query += ` AND status = $${params.length}`;
@@ -4083,12 +4269,16 @@ app.delete('/api/v1/learned_associations/by-user/:user_id', async (req: Request,
 app.get('/api/v1/saved_reports', async (req: Request, res: Response) => {
   try {
     const ctx = getTenantContext(req);
-    const { user_id, exclude_data } = req.query;
+    const { user_id, exclude_data, church_id } = req.query;
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
       if (user_id && user_id !== ctx.userId && user_id !== ctx.ownerId) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado aos relatórios de outro usuário.' });
       }
+    }
+
+    if (ctx.isSecondaryUser && ctx.allowedChurchIds.length === 0) {
+      return res.json([]);
     }
 
     const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId)
@@ -4103,14 +4293,31 @@ app.get('/api/v1/saved_reports', async (req: Request, res: Response) => {
     const params: any[] = [];
     if (effectiveUserId) {
       query += ` AND (
-        user_id::text = $1 
-        OR user_id::text IN (SELECT id::text FROM app_users WHERE id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
-        OR user_id::text IN (SELECT id FROM profiles WHERE id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
-        OR user_id::text IN (SELECT owner_id FROM profiles WHERE id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+        user_id::text = $${params.length + 1} 
+        OR user_id::text IN (SELECT id::text FROM app_users WHERE id::text = $${params.length + 1} OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $${params.length + 1} LIMIT 1))
+        OR user_id::text IN (SELECT id FROM profiles WHERE id = $${params.length + 1} OR owner_id = $${params.length + 1} OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $${params.length + 1} LIMIT 1))
+        OR user_id::text IN (SELECT owner_id FROM profiles WHERE id = $${params.length + 1} OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $${params.length + 1} LIMIT 1))
         OR user_id IS NULL
       )`;
       params.push(effectiveUserId);
     }
+
+    if (ctx.isSecondaryUser) {
+      if (church_id && church_id !== 'all' && typeof church_id === 'string') {
+        if (!ctx.allowedChurchIds.includes(church_id)) {
+          return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para esta congregação.' });
+        }
+        query += ` AND (church_id = $${params.length + 1} OR church_id IS NULL)`;
+        params.push(church_id);
+      } else {
+        query += ` AND (church_id = ANY($${params.length + 1}) OR church_id IS NULL)`;
+        params.push(ctx.allowedChurchIds);
+      }
+    } else if (church_id && church_id !== 'all' && typeof church_id === 'string') {
+      query += ` AND church_id = $${params.length + 1}`;
+      params.push(church_id);
+    }
+
     query += ' ORDER BY created_at DESC';
     const result = await pool.query(query, params);
     return res.json(result.rows);
@@ -4316,12 +4523,10 @@ async function matchAndLinkContributionRequest(clientOrPool: any, tx: {
 app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response) => {
   try {
     const ctx = getTenantContext(req);
-    const { user_id, status, type, start_date, end_date, limit, offset, row_hash, ids } = req.query;
+    const { user_id, status, type, start_date, end_date, limit, offset, row_hash, ids, church_id } = req.query;
 
-    if (ctx.isAuthenticated && !ctx.isSuperAdmin) {
-      if (ctx.churchId) {
-        req.query.church_id = ctx.churchId;
-      }
+    if (ctx.isSecondaryUser && ctx.allowedChurchIds.length === 0) {
+      return res.json([]);
     }
 
     let query = 'SELECT id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, created_at, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id FROM consolidated_transactions WHERE 1=1';
@@ -4349,11 +4554,22 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
       counter++;
     }
 
-    const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : req.query.church_id;
-
-    if (effectiveChurchId) {
+    if (ctx.isSecondaryUser) {
+      if (church_id && church_id !== 'all' && typeof church_id === 'string') {
+        if (!ctx.allowedChurchIds.includes(church_id)) {
+          return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para esta congregação.' });
+        }
+        query += ` AND church_id = $${counter}`;
+        params.push(church_id);
+        counter++;
+      } else {
+        query += ` AND church_id = ANY($${counter})`;
+        params.push(ctx.allowedChurchIds);
+        counter++;
+      }
+    } else if (church_id && church_id !== 'all' && typeof church_id === 'string') {
       query += ` AND church_id = $${counter}`;
-      params.push(effectiveChurchId);
+      params.push(church_id);
       counter++;
     }
 
@@ -4732,6 +4948,10 @@ app.get('/api/v1/financial_records', async (req: Request, res: Response) => {
       }
     }
 
+    if (ctx.isSecondaryUser && ctx.allowedChurchIds.length === 0) {
+      return res.json([]);
+    }
+
     const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
 
     if (!effectiveUserId) {
@@ -4750,11 +4970,22 @@ app.get('/api/v1/financial_records', async (req: Request, res: Response) => {
     const params: any[] = [effectiveUserId];
     let count = 2;
 
-    const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : church_id;
-
-    if (effectiveChurchId) {
+    if (ctx.isSecondaryUser) {
+      if (church_id && church_id !== 'all' && typeof church_id === 'string') {
+        if (!ctx.allowedChurchIds.includes(church_id)) {
+          return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para esta congregação.' });
+        }
+        query += ` AND church_id = $${count}`;
+        params.push(church_id);
+        count++;
+      } else {
+        query += ` AND church_id = ANY($${count})`;
+        params.push(ctx.allowedChurchIds);
+        count++;
+      }
+    } else if (church_id && church_id !== 'all' && typeof church_id === 'string') {
       query += ` AND church_id = $${count}`;
-      params.push(effectiveChurchId);
+      params.push(church_id);
       count++;
     }
     if (type) {

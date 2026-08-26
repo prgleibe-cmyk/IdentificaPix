@@ -22,6 +22,51 @@ import { sanitizeEmail } from '../validators/auth.validators.js';
 import { UserResponse, LoginResult, AuthTokens } from '../types/auth.types.js';
 import { logAudit } from '../../services/audit.service.js';
 
+function extractAllowedChurchIds(user: any): string[] {
+  const ids = new Set<string>();
+  if (user.church_id && typeof user.church_id === 'string' && user.church_id.trim()) {
+    ids.add(user.church_id.trim());
+  }
+  if (user.churchId && typeof user.churchId === 'string' && user.churchId.trim()) {
+    ids.add(user.churchId.trim());
+  }
+  if (Array.isArray(user.congregation_ids)) {
+    user.congregation_ids.forEach((id: any) => {
+      if (typeof id === 'string' && id.trim()) ids.add(id.trim());
+    });
+  }
+  if (Array.isArray(user.congregationIds)) {
+    user.congregationIds.forEach((id: any) => {
+      if (typeof id === 'string' && id.trim()) ids.add(id.trim());
+    });
+  }
+  if (Array.isArray(user.allowed_church_ids)) {
+    user.allowed_church_ids.forEach((id: any) => {
+      if (typeof id === 'string' && id.trim()) ids.add(id.trim());
+    });
+  }
+  if (Array.isArray(user.permissions)) {
+    user.permissions.forEach((perm: any) => {
+      if (typeof perm === 'string') {
+        if (perm.startsWith('congregation:')) {
+          const cid = perm.split(':')[1];
+          if (cid && cid.trim()) ids.add(cid.trim());
+        } else if (perm.startsWith('church:')) {
+          const cid = perm.split(':')[1];
+          if (cid && cid.trim()) ids.add(cid.trim());
+        }
+      }
+    });
+  } else if (user.permissions && typeof user.permissions === 'object') {
+    if (Array.isArray(user.permissions.congregationIds)) {
+      user.permissions.congregationIds.forEach((id: any) => {
+        if (typeof id === 'string' && id.trim()) ids.add(id.trim());
+      });
+    }
+  }
+  return Array.from(ids);
+}
+
 export class AuthService {
   private repo: AuthRepository;
 
@@ -34,13 +79,16 @@ export class AuthService {
     const hasSeparateOwner = Boolean(user.owner_id && user.owner_id !== user.id);
     const resolvedRole = (isMember || hasSeparateOwner) ? (user.role && user.role !== 'owner' ? user.role : 'member') : (user.role || 'owner');
     const resolvedOwnerId = user.owner_id || (resolvedRole === 'owner' ? user.id : null);
+    const allowedChurches = extractAllowedChurchIds(user);
     return {
       id: user.id,
       email: user.email,
       name: user.name,
       role: resolvedRole,
       owner_id: resolvedOwnerId,
-      church_id: user.church_id,
+      church_id: user.church_id || (allowedChurches.length > 0 ? allowedChurches[0] : null),
+      congregation_ids: allowedChurches,
+      allowed_church_ids: allowedChurches,
       permissions: user.permissions || [],
       is_active: user.is_active,
       is_verified: user.is_verified,
@@ -136,7 +184,9 @@ export class AuthService {
       ownerId: user.owner_id || user.id,
       churchId: user.church_id,
       role: user.role,
-      permissions: user.permissions
+      permissions: user.permissions,
+      congregationIds: extractAllowedChurchIds(user),
+      allowedChurchIds: extractAllowedChurchIds(user)
     });
 
     const refreshInfo = generateRefreshToken();
@@ -230,7 +280,9 @@ export class AuthService {
       ownerId: user.owner_id || user.id,
       churchId: user.church_id,
       role: user.role,
-      permissions: user.permissions
+      permissions: user.permissions,
+      congregationIds: extractAllowedChurchIds(user),
+      allowedChurchIds: extractAllowedChurchIds(user)
     });
 
     const refreshInfo = generateRefreshToken();
@@ -427,7 +479,9 @@ export class AuthService {
       ownerId: userToAuth.owner_id || userToAuth.id,
       churchId: userToAuth.church_id,
       role: userToAuth.role,
-      permissions: userToAuth.permissions
+      permissions: userToAuth.permissions,
+      congregationIds: extractAllowedChurchIds(userToAuth),
+      allowedChurchIds: extractAllowedChurchIds(userToAuth)
     });
 
     const refreshInfo = generateRefreshToken();
@@ -519,7 +573,9 @@ export class AuthService {
       ownerId: user.owner_id || user.id,
       churchId: user.church_id,
       role: user.role,
-      permissions: user.permissions
+      permissions: user.permissions,
+      congregationIds: extractAllowedChurchIds(user),
+      allowedChurchIds: extractAllowedChurchIds(user)
     });
 
     const newRefreshInfo = generateRefreshToken();
