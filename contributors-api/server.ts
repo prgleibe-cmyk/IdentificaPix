@@ -2695,12 +2695,12 @@ app.post('/api/v1/banks', async (req: Request, res: Response) => {
     const { name, user_id, bank_key, account_name, accepted_contribution_types } = req.body;
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
-      if (user_id && user_id !== ctx.userId) {
+      if (user_id && user_id !== ctx.userId && user_id !== ctx.ownerId) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Não é permitido criar banco para outro usuário.' });
       }
     }
 
-    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? ctx.userId : user_id;
+    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
 
     if (!name || !effectiveUserId) {
       return res.status(400).json({ error: 'VALIDATION_ERROR' });
@@ -2737,7 +2737,7 @@ app.put('/api/v1/banks/:id', async (req: Request, res: Response) => {
     if (!oldBank) return res.status(404).json({ error: 'NOT_FOUND' });
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
-      if (oldBank.user_id && oldBank.user_id !== ctx.userId) {
+      if (oldBank.user_id && oldBank.user_id !== ctx.userId && oldBank.user_id !== ctx.ownerId) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o recurso pertence a outro usuário.' });
       }
     }
@@ -2775,7 +2775,7 @@ app.delete('/api/v1/banks/:id', async (req: Request, res: Response) => {
     if (!oldBank) return res.status(404).json({ error: 'NOT_FOUND' });
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
-      if (oldBank.user_id && oldBank.user_id !== ctx.userId) {
+      if (oldBank.user_id && oldBank.user_id !== ctx.userId && oldBank.user_id !== ctx.ownerId) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o recurso pertence a outro usuário.' });
       }
     }
@@ -2840,12 +2840,12 @@ app.post('/api/v1/churches', async (req: Request, res: Response) => {
     const { name, address, logoUrl, pastor, cnpj, phone, email, pixKey, cep, city, state, treasurer, pastors, treasurers, whatsapp_official, whatsapp_responsible, auto_comm_enabled, auto_send_on_confirmation, user_id } = req.body;
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
-      if (user_id && user_id !== ctx.userId) {
+      if (user_id && user_id !== ctx.userId && user_id !== ctx.ownerId) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Não é permitido criar igreja para outro usuário.' });
       }
     }
 
-    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? ctx.userId : user_id;
+    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
 
     if (!name || !effectiveUserId) {
       return res.status(400).json({ error: 'VALIDATION_ERROR' });
@@ -2914,7 +2914,7 @@ app.put('/api/v1/churches/:id', async (req: Request, res: Response) => {
     }
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin) {
-      if (ctx.churchId && id !== ctx.churchId && oldChurch.user_id !== ctx.userId) {
+      if (ctx.churchId && id !== ctx.churchId && oldChurch.user_id !== ctx.userId && oldChurch.user_id !== ctx.ownerId) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: a igreja pertence a outra organização.' });
       }
     }
@@ -3035,7 +3035,7 @@ app.post('/api/v1/pastoral_messages', async (req: Request, res: Response) => {
     const result = await pool.query(
       `INSERT INTO pastoral_messages (church_id, title, type, content, start_date, end_date, is_active, user_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [effectiveChurchId, title, type || 'texto', content, start_date || null, end_date || null, is_active !== undefined ? is_active : true, user_id || ctx.userId || null]
+      [effectiveChurchId, title, type || 'texto', content, start_date || null, end_date || null, is_active !== undefined ? is_active : true, user_id || ctx.ownerId || ctx.userId || null]
     );
     return res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -3215,7 +3215,7 @@ app.post('/api/v1/communication_events', async (req: Request, res: Response) => 
         reference_id || null,
         JSON.stringify(payloadObj),
         status || 'PENDING',
-        user_id || ctx.userId || null
+        user_id || ctx.ownerId || ctx.userId || null
       ]
     );
 
@@ -3235,7 +3235,7 @@ app.post('/api/v1/communication_events', async (req: Request, res: Response) => 
         'pendente',
         recipientPhone,
         summary,
-        user_id || ctx.userId || null
+        user_id || ctx.ownerId || ctx.userId || null
       ]
     );
 
@@ -3880,13 +3880,13 @@ app.get('/api/v1/learned_associations', async (req: Request, res: Response) => {
     const { user_id } = req.query;
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
-      if (user_id && user_id !== ctx.userId) {
+      if (user_id && user_id !== ctx.userId && user_id !== ctx.ownerId) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado aos dados de outro usuário.' });
       }
     }
 
     const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId)
-      ? ctx.userId
+      ? (ctx.ownerId || ctx.userId)
       : (typeof user_id === 'string' && user_id.trim() ? user_id.trim() : null);
 
     let query = 'SELECT id, user_id, normalized_description, contributor_normalized_name, church_id, created_at FROM learned_associations WHERE 1=1';
@@ -3910,12 +3910,12 @@ app.post('/api/v1/learned_associations', async (req: Request, res: Response) => 
     const { user_id, normalized_description, contributor_normalized_name, church_id } = req.body;
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
-      if (user_id && user_id !== ctx.userId) {
+      if (user_id && user_id !== ctx.userId && user_id !== ctx.ownerId) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Não é permitido criar associação para outro usuário.' });
       }
     }
 
-    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? ctx.userId : user_id;
+    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
 
     if (!effectiveUserId || !normalized_description || !contributor_normalized_name || !church_id) {
       return res.status(400).json({ error: 'VALIDATION_ERROR' });
@@ -3959,7 +3959,7 @@ app.delete('/api/v1/learned_associations/:id', async (req: Request, res: Respons
     if (!oldItem) return res.status(404).json({ error: 'NOT_FOUND' });
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
-      if (oldItem.user_id && oldItem.user_id !== ctx.userId) {
+      if (oldItem.user_id && oldItem.user_id !== ctx.userId && oldItem.user_id !== ctx.ownerId) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: a associação pertence a outro usuário.' });
       }
     }
@@ -3979,7 +3979,7 @@ app.delete('/api/v1/learned_associations/by-user/:user_id', async (req: Request,
     const ctx = getTenantContext(req);
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
-      if (user_id !== ctx.userId) {
+      if (user_id !== ctx.userId && user_id !== ctx.ownerId) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: não é permitido remover associações de outro usuário.' });
       }
     }
@@ -4003,13 +4003,13 @@ app.get('/api/v1/saved_reports', async (req: Request, res: Response) => {
     const { user_id, exclude_data } = req.query;
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
-      if (user_id && user_id !== ctx.userId) {
+      if (user_id && user_id !== ctx.userId && user_id !== ctx.ownerId) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado aos relatórios de outro usuário.' });
       }
     }
 
     const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId)
-      ? ctx.userId
+      ? (ctx.ownerId || ctx.userId)
       : (typeof user_id === 'string' && user_id.trim() ? user_id.trim() : null);
 
     let selectFields = 'id, name, record_count, user_id, church_id, created_at';
@@ -4038,12 +4038,12 @@ app.post('/api/v1/saved_reports', async (req: Request, res: Response) => {
     const { id, name, record_count, user_id, data, church_id } = req.body;
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
-      if (user_id && user_id !== ctx.userId) {
+      if (user_id && user_id !== ctx.userId && user_id !== ctx.ownerId) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Não é permitido criar relatório para outro usuário.' });
       }
     }
 
-    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? ctx.userId : user_id;
+    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
 
     if (!name || !effectiveUserId || !data) {
       return res.status(400).json({ error: 'VALIDATION_ERROR' });
@@ -4088,7 +4088,7 @@ app.put('/api/v1/saved_reports/:id', async (req: Request, res: Response) => {
     if (!oldReport) return res.status(404).json({ error: 'NOT_FOUND' });
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
-      if (oldReport.user_id && oldReport.user_id !== ctx.userId) {
+      if (oldReport.user_id && oldReport.user_id !== ctx.userId && oldReport.user_id !== ctx.ownerId) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o relatório pertence a outro usuário.' });
       }
     }
@@ -4146,7 +4146,7 @@ app.delete('/api/v1/saved_reports/:id', async (req: Request, res: Response) => {
     if (!oldReport) return res.status(404).json({ error: 'NOT_FOUND' });
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
-      if (oldReport.user_id && oldReport.user_id !== ctx.userId) {
+      if (oldReport.user_id && oldReport.user_id !== ctx.userId && oldReport.user_id !== ctx.ownerId) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o relatório pertence a outro usuário.' });
       }
     }
@@ -4232,8 +4232,6 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
     if (ctx.isAuthenticated && !ctx.isSuperAdmin) {
       if (ctx.churchId) {
         req.query.church_id = ctx.churchId;
-      } else if (ctx.userId) {
-        req.query.user_id = ctx.userId;
       }
     }
 
@@ -4248,7 +4246,7 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
       counter++;
     }
 
-    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? ctx.userId : user_id;
+    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
 
     if (effectiveUserId) {
       query += ` AND (user_id = $${counter} OR user_id IS NULL OR user_id IN (SELECT id FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id = $${counter} LIMIT 1)))`;
@@ -4330,7 +4328,7 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
     const ctx = getTenantContext(req);
     const { id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id } = req.body;
 
-    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? ctx.userId : user_id;
+    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
     const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : (church_id || null);
 
     if (amount === undefined || amount === null || !description || !type || !effectiveUserId || !transaction_date) {
@@ -4422,7 +4420,7 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
     for (const tx of transactions) {
       const { id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id } = tx;
       
-      const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? ctx.userId : user_id;
+      const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
       const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : (church_id || null);
 
       const finalContribReqId = await matchAndLinkContributionRequest(client, {
@@ -4492,7 +4490,7 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
     if (!oldTx) return res.status(404).json({ error: 'NOT_FOUND' });
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin) {
-      if (ctx.churchId && oldTx.church_id && oldTx.church_id !== ctx.churchId && oldTx.user_id !== ctx.userId) {
+      if (ctx.churchId && oldTx.church_id && oldTx.church_id !== ctx.churchId && oldTx.user_id !== ctx.userId && oldTx.user_id !== ctx.ownerId) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: a transação pertence a outra organização.' });
       }
     }
@@ -4563,7 +4561,7 @@ app.delete('/api/v1/consolidated_transactions/:id', async (req: Request, res: Re
     if (!oldTx) return res.status(404).json({ error: 'NOT_FOUND' });
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin) {
-      if (ctx.churchId && oldTx.church_id && oldTx.church_id !== ctx.churchId && oldTx.user_id !== ctx.userId) {
+      if (ctx.churchId && oldTx.church_id && oldTx.church_id !== ctx.churchId && oldTx.user_id !== ctx.userId && oldTx.user_id !== ctx.ownerId) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: a transação pertence a outra organização.' });
       }
     }
@@ -4600,7 +4598,7 @@ app.post('/api/v1/consolidated_transactions/bulk-delete', async (req: Request, r
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin) {
       for (const oldTx of oldTxs) {
-        if (ctx.churchId && oldTx.church_id && oldTx.church_id !== ctx.churchId && oldTx.user_id !== ctx.userId) {
+        if (ctx.churchId && oldTx.church_id && oldTx.church_id !== ctx.churchId && oldTx.user_id !== ctx.userId && oldTx.user_id !== ctx.ownerId) {
           return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: uma ou mais transações pertencem a outra organização.' });
         }
       }
@@ -4634,12 +4632,12 @@ app.get('/api/v1/financial_records', async (req: Request, res: Response) => {
     const { user_id, church_id, type, status } = req.query;
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
-      if (user_id && user_id !== ctx.userId) {
+      if (user_id && user_id !== ctx.userId && user_id !== ctx.ownerId) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado aos registros financeiros de outro usuário.' });
       }
     }
 
-    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? ctx.userId : user_id;
+    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
 
     if (!effectiveUserId) {
       return res.status(400).json({ error: 'VALIDATION_ERROR: user_id is required' });
@@ -4702,7 +4700,7 @@ app.post('/api/v1/financial_records', async (req: Request, res: Response) => {
       validation_notes
     } = req.body;
 
-    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? ctx.userId : user_id;
+    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
     const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : (church_id || null);
 
     if (!effectiveUserId || !title || amount === undefined || !type) {
@@ -4785,7 +4783,7 @@ app.put('/api/v1/financial_records/:id', async (req: Request, res: Response) => 
     if (!oldRec) return res.status(404).json({ error: 'NOT_FOUND' });
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin) {
-      if (oldRec.user_id && ctx.userId && oldRec.user_id !== ctx.userId) {
+      if (oldRec.user_id && ctx.userId && oldRec.user_id !== ctx.userId && oldRec.user_id !== ctx.ownerId) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o registro pertence a outro usuário.' });
       }
     }
@@ -4859,7 +4857,7 @@ app.delete('/api/v1/financial_records/:id', async (req: Request, res: Response) 
     if (!oldRec) return res.status(404).json({ error: 'NOT_FOUND' });
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin) {
-      if (oldRec.user_id && ctx.userId && oldRec.user_id !== ctx.userId) {
+      if (oldRec.user_id && ctx.userId && oldRec.user_id !== ctx.userId && oldRec.user_id !== ctx.ownerId) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o registro pertence a outro usuário.' });
       }
     }
@@ -4890,12 +4888,12 @@ app.get('/api/v1/pastor_automations', async (req: Request, res: Response) => {
     const { user_id } = req.query;
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
-      if (user_id && user_id !== ctx.userId) {
+      if (user_id && user_id !== ctx.userId && user_id !== ctx.ownerId) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado às automações de outro usuário.' });
       }
     }
 
-    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? ctx.userId : user_id;
+    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
 
     if (!effectiveUserId) {
       return res.status(400).json({ error: 'VALIDATION_ERROR: user_id is required' });
@@ -4929,7 +4927,7 @@ app.post('/api/v1/pastor_automations', async (req: Request, res: Response) => {
       active
     } = req.body;
 
-    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? ctx.userId : user_id;
+    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
     const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : (church_id || null);
 
     if (!effectiveUserId || !pastor_name || !pix_key) {
@@ -4986,7 +4984,7 @@ app.put('/api/v1/pastor_automations/:id', async (req: Request, res: Response) =>
     if (!oldAuto) return res.status(404).json({ error: 'NOT_FOUND' });
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin) {
-      if (oldAuto.user_id && ctx.userId && oldAuto.user_id !== ctx.userId) {
+      if (oldAuto.user_id && ctx.userId && oldAuto.user_id !== ctx.userId && oldAuto.user_id !== ctx.ownerId) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: a automação pertence a outro usuário.' });
       }
     }
@@ -5043,7 +5041,7 @@ app.delete('/api/v1/pastor_automations/:id', async (req: Request, res: Response)
     if (!oldAuto) return res.status(404).json({ error: 'NOT_FOUND' });
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin) {
-      if (oldAuto.user_id && ctx.userId && oldAuto.user_id !== ctx.userId) {
+      if (oldAuto.user_id && ctx.userId && oldAuto.user_id !== ctx.userId && oldAuto.user_id !== ctx.ownerId) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: a automação pertence a outro usuário.' });
       }
     }

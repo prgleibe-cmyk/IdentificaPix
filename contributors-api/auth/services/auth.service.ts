@@ -35,6 +35,7 @@ export class AuthService {
       email: user.email,
       name: user.name,
       role: user.role,
+      owner_id: user.owner_id || user.id,
       church_id: user.church_id,
       permissions: user.permissions || [],
       is_active: user.is_active,
@@ -128,6 +129,7 @@ export class AuthService {
 
     const accessInfo = generateAccessToken({
       userId: user.id,
+      ownerId: user.owner_id || user.id,
       churchId: user.church_id,
       role: user.role,
       permissions: user.permissions
@@ -221,6 +223,7 @@ export class AuthService {
 
     const accessInfo = generateAccessToken({
       userId: user.id,
+      ownerId: user.owner_id || user.id,
       churchId: user.church_id,
       role: user.role,
       permissions: user.permissions
@@ -366,6 +369,7 @@ export class AuthService {
     name?: string,
     role?: string,
     churchId?: string,
+    ownerId?: string,
     ip?: string,
     userAgent?: string
   ): Promise<LoginResult> {
@@ -386,11 +390,12 @@ export class AuthService {
     } else {
       const existingProfile = await this.repo.findProfileByEmail(email);
       userToAuth = await this.repo.createUser({
-        id: existingProfile?.id || existingProfile?.owner_id || undefined,
+        id: existingProfile?.id || undefined,
         email,
         password_hash: passwordHash,
         name: name || existingProfile?.name || null,
         role: role || existingProfile?.role || 'user',
+        owner_id: ownerId || existingProfile?.owner_id || null,
         church_id: churchId || null,
         permissions: [],
         is_active: true,
@@ -400,6 +405,7 @@ export class AuthService {
 
     const accessInfo = generateAccessToken({
       userId: userToAuth.id,
+      ownerId: userToAuth.owner_id || userToAuth.id,
       churchId: userToAuth.church_id,
       role: userToAuth.role,
       permissions: userToAuth.permissions
@@ -491,6 +497,7 @@ export class AuthService {
     // Generate new pair
     const accessInfo = generateAccessToken({
       userId: user.id,
+      ownerId: user.owner_id || user.id,
       churchId: user.church_id,
       role: user.role,
       permissions: user.permissions
@@ -709,6 +716,7 @@ export class AuthService {
 
     const accessInfo = generateAccessToken({
       userId: user.id,
+      ownerId: user.owner_id || user.id,
       churchId: user.church_id,
       role: user.role,
       permissions: user.permissions

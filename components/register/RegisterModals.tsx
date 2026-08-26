@@ -668,7 +668,7 @@ export const ChurchModal: React.FC<{ onCancel: () => void }> = ({ onCancel }) =>
                                     />
                                 </div>
 
-                                <div className="space-y-2">
+                                <div className="space-y-2 lg:col-span-2">
                                     <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">
                                         E-mail Oficial
                                     </label>
@@ -679,21 +679,6 @@ export const ChurchModal: React.FC<{ onCancel: () => void }> = ({ onCancel }) =>
                                         onChange={handleChange}
                                         className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-4 focus:ring-orange-500/10 py-3.5 px-4 text-xs font-bold transition-all outline-none"
                                         placeholder="contato@igreja.org"
-                                        disabled={isSubmitting}
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">
-                                        Chave Pix Principal (Ofertas/Dízimos)
-                                    </label>
-                                    <input
-                                        type="text"
-                                        name="pixKey"
-                                        value={data.pixKey || ''}
-                                        onChange={handleChange}
-                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-4 focus:ring-orange-500/10 py-3.5 px-4 text-xs font-bold transition-all outline-none"
-                                        placeholder="CNPJ, E-mail, Telefone ou Aleatória"
                                         disabled={isSubmitting}
                                     />
                                 </div>

@@ -53,10 +53,10 @@ export class AuthController {
         return res.status(400).json({ success: false, errors: validation.errors });
       }
 
-      const { email, password, name, role, church_id } = req.body;
+      const { email, password, name, role, church_id, owner_id, ownerId } = req.body;
       const { ip, userAgent } = this.getClientInfo(req);
 
-      const result = await this.service.signup(email, password, name, role, church_id, ip, userAgent);
+      const result = await this.service.signup(email, password, name, role, church_id, owner_id || ownerId, ip, userAgent);
 
       return res.status(201).json({
         success: true,

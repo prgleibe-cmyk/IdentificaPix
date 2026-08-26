@@ -13,6 +13,7 @@ const REFRESH_TOKEN_EXPIRY_DAYS = 7;
 
 export function generateAccessToken(payload: {
   userId: string;
+  ownerId?: string | null;
   churchId?: string | null;
   role: string;
   permissions: string[];
@@ -20,6 +21,7 @@ export function generateAccessToken(payload: {
   const jti = crypto.randomUUID();
   const claims: Omit<JwtPayload, 'iat' | 'exp'> = {
     user_id: payload.userId,
+    owner_id: payload.ownerId || payload.userId,
     church_id: payload.churchId || null,
     role: payload.role,
     permissions: payload.permissions || [],

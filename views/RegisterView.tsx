@@ -29,16 +29,30 @@ type RegisterTab = 'banks' | 'churches' | 'contribution' | 'payment' | 'contribu
  */
 export const RegisterView: React.FC = memo(() => {
     const { t } = useTranslation();
-    const { subscription, refreshSubscription } = useAuth(); 
+    const { user, subscription, refreshSubscription } = useAuth(); 
     const { banks, churches } = useContext(AppContext);
     
+    const isSecondaryUser = Boolean(
+        subscription?.ownerId &&
+        subscription.ownerId !== user?.id &&
+        subscription?.role !== 'owner' &&
+        subscription?.role !== 'admin' &&
+        subscription?.role !== 'principal'
+    );
+
     const [showNewBankForm, setShowNewBankForm] = useState(false);
     const [showNewChurchForm, setShowNewChurchForm] = useState(false);
-    const [activeTab, setActiveTab] = useState<RegisterTab>('banks');
+    const [activeTab, setActiveTab] = useState<RegisterTab>(() => isSecondaryUser ? 'contribution' : 'banks');
 
     useEffect(() => {
         refreshSubscription();
     }, [refreshSubscription]);
+
+    useEffect(() => {
+        if (isSecondaryUser && (activeTab === 'banks' || activeTab === 'churches')) {
+            setActiveTab('contribution');
+        }
+    }, [isSecondaryUser, activeTab]);
 
     const bankLimitReached = banks.length >= (subscription.maxBanks || 1);
     const churchLimitReached = churches.length >= (subscription.maxChurches || 1);
@@ -53,20 +67,26 @@ export const RegisterView: React.FC = memo(() => {
                 </div>
 
                 <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto flex-nowrap max-w-full md:max-w-[70%] lg:max-w-[75%] [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-xl pb-1 md:pb-1.5 lg:pb-0">
-                    <RegisterTabButton id="banks" label={t('register.manageBanks')} icon={BuildingOfficeIcon} colorTheme="blue" isActive={activeTab === 'banks'} onClick={setActiveTab} />
-                    <RegisterTabButton id="churches" label={t('register.manageChurches')} icon={UserIcon} colorTheme="violet" isActive={activeTab === 'churches'} onClick={setActiveTab} />
+                    {!isSecondaryUser && (
+                        <>
+                            <RegisterTabButton id="banks" label={t('register.manageBanks')} icon={BuildingOfficeIcon} colorTheme="blue" isActive={activeTab === 'banks'} onClick={setActiveTab} />
+                            <RegisterTabButton id="churches" label={t('register.manageChurches')} icon={UserIcon} colorTheme="violet" isActive={activeTab === 'churches'} onClick={setActiveTab} />
+                        </>
+                    )}
                     <RegisterTabButton id="contribution" label="Descrição (Entrada/Saída)" icon={BanknotesIcon} colorTheme="emerald" isActive={activeTab === 'contribution'} onClick={setActiveTab} />
                     <RegisterTabButton id="payment" label="Formas de Receb/Pagto" icon={CreditCardIcon} colorTheme="amber" isActive={activeTab === 'payment'} onClick={setActiveTab} />
                     <RegisterTabButton id="contributors" label="Empresas/Pessoas" icon={UsersIcon} colorTheme="slate" isActive={activeTab === 'contributors'} onClick={setActiveTab} />
                 </div>
 
-                <button 
-                    onClick={() => refreshSubscription()} 
-                    className="hidden md:block p-1.5 text-slate-400 hover:text-brand-blue hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors" 
-                    title="Atualizar limites"
-                >
-                    <ArrowsRightLeftIcon className="w-3.5 h-3.5" />
-                </button>
+                {!isSecondaryUser && (
+                    <button 
+                        onClick={() => refreshSubscription()} 
+                        className="hidden md:block p-1.5 text-slate-400 hover:text-brand-blue hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors" 
+                        title="Atualizar limites"
+                    >
+                        <ArrowsRightLeftIcon className="w-3.5 h-3.5" />
+                    </button>
+                )}
             </div>
             
             {/* Main Content Area */}
@@ -74,7 +94,7 @@ export const RegisterView: React.FC = memo(() => {
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-card border border-slate-100 dark:border-slate-700 min-h-[600px] flex-1 flex flex-col hover:shadow-soft transition-all duration-500 relative overflow-hidden animate-fade-in-up">
                     
                     {/* Dynamic Headers per Tab */}
-                    {activeTab === 'banks' && (
+                    {!isSecondaryUser && activeTab === 'banks' && (
                         <div className="flex justify-between items-center mb-6 flex-shrink-0 relative z-10">
                             <div className="flex items-center gap-3">
                                 <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-2xl text-brand-blue dark:text-blue-400 border border-blue-100 dark:border-blue-800"><BuildingOfficeIcon className="w-6 h-6" /></div>
@@ -91,7 +111,7 @@ export const RegisterView: React.FC = memo(() => {
                         </div>
                     )}
 
-                    {activeTab === 'churches' && (
+                    {!isSecondaryUser && activeTab === 'churches' && (
                         <div className="flex justify-between items-center mb-6 flex-shrink-0 relative z-10">
                             <div className="flex items-center gap-3">
                                 <div className="p-3 bg-slate-50 dark:bg-brand-blue/10 rounded-2xl text-brand-blue dark:text-brand-teal border border-slate-100 dark:border-slate-800"><UserIcon className="w-6 h-6" /></div>
@@ -110,8 +130,8 @@ export const RegisterView: React.FC = memo(() => {
 
                     {/* Tab Views */}
                     <div className="flex-1 min-h-0">
-                        {activeTab === 'banks' && <BanksList />}
-                        {activeTab === 'churches' && <ChurchesList />}
+                        {!isSecondaryUser && activeTab === 'banks' && <BanksList />}
+                        {!isSecondaryUser && activeTab === 'churches' && <ChurchesList />}
                         {activeTab === 'contribution' && <ContributionTypesList />}
                         {activeTab === 'payment' && <PaymentMethodsList />}
                         {activeTab === 'contributors' && <ContributorsList />}
@@ -120,8 +140,8 @@ export const RegisterView: React.FC = memo(() => {
             </div>
 
             {/* Modals */}
-            {showNewBankForm && <BankModal onCancel={() => setShowNewBankForm(false)} />}
-            {showNewChurchForm && <ChurchModal onCancel={() => setShowNewChurchForm(false)} />}
+            {!isSecondaryUser && showNewBankForm && <BankModal onCancel={() => setShowNewBankForm(false)} />}
+            {!isSecondaryUser && showNewChurchForm && <ChurchModal onCancel={() => setShowNewChurchForm(false)} />}
         </div>
     );
 });

@@ -149,22 +149,22 @@ export const AppRouter: React.FC = memo(() => {
     const renderView = () => {
         switch (activeView) {
             case 'dashboard': return <DashboardView />;
-            case 'upload': return <UploadView />;
-            case 'cadastro': return (!isSecondaryUser || isOwner) ? <RegisterView /> : <DashboardView />;
+            case 'upload': return !isSecondaryUser ? <UploadView /> : <DashboardView />;
+            case 'cadastro': return <RegisterView />;
             case 'reports': return <ReportsView />;
-            case 'relatorios': return <RelatoriosView />;
+            case 'relatorios': return !isSecondaryUser ? <RelatoriosView /> : <DashboardView />;
             case 'livro_caixa': return <LivroCaixaView />;
             case 'search': return <SearchView />;
             case 'savedReports': return <SavedReportsView />;
-            case 'settings': return <SettingsView />;
+            case 'settings': return !isSecondaryUser ? <SettingsView /> : <DashboardView />;
             case 'smart_analysis': return <SmartAnalysisView />;
             case 'launched': return <LaunchedView />;
             case 'connectors': return <ConnectorsView />;
             case 'financial': return canManageAccounts ? <FinancialView /> : <DashboardView />;
             case 'pledges': return canManagePledges ? <PledgesView /> : <DashboardView />;
-            case 'patrimonio': return canManagePatrimony ? <PatrimonyView /> : <DashboardView />;
+            case 'patrimonio': return (!isSecondaryUser && canManagePatrimony) ? <PatrimonyView /> : <DashboardView />;
             case 'novo_lancamento': return <ManualIdModal />;
-            case 'users': return isOwner ? <UsersManagementPage /> : <DashboardView />;
+            case 'users': return (isOwner && !isSecondaryUser) ? <UsersManagementPage /> : <DashboardView />;
             case 'admin': return isAdmin ? <AdminView /> : <DashboardView />;
             default: return <DashboardView />;
         }

@@ -47,11 +47,13 @@ export class AuthRepository {
         ALTER TABLE app_users ADD COLUMN IF NOT EXISTS totp_temp_secret_encrypted TEXT;
         ALTER TABLE app_users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT FALSE;
         ALTER TABLE app_users ADD COLUMN IF NOT EXISTS totp_recovery_codes JSONB DEFAULT '[]'::jsonb;
+        ALTER TABLE app_users ADD COLUMN IF NOT EXISTS owner_id UUID;
       `);
 
       // Indexes
       await client.query('CREATE INDEX IF NOT EXISTS idx_app_users_email ON app_users(email);');
       await client.query('CREATE INDEX IF NOT EXISTS idx_app_users_church_id ON app_users(church_id);');
+      await client.query('CREATE INDEX IF NOT EXISTS idx_app_users_owner_id ON app_users(owner_id);');
 
       // Table: app_refresh_tokens
       await client.query(`
@@ -129,11 +131,18 @@ export class AuthRepository {
 
   async findUserByEmail(email: string): Promise<LocalUser | null> {
     const res = await this.pool.query(
-      'SELECT * FROM app_users WHERE LOWER(email) = LOWER($1) AND deleted_at IS NULL LIMIT 1',
+      `SELECT u.*, COALESCE(u.owner_id, p.owner_id) as resolved_owner_id 
+       FROM app_users u 
+       LEFT JOIN profiles p ON (p.id = u.id OR LOWER(p.email) = LOWER(u.email))
+       WHERE LOWER(u.email) = LOWER($1) AND u.deleted_at IS NULL LIMIT 1`,
       [email]
     );
     if (res.rows.length === 0) return null;
-    return this.mapUserRow(res.rows[0]);
+    const row = res.rows[0];
+    if (row.resolved_owner_id && !row.owner_id) {
+      row.owner_id = row.resolved_owner_id;
+    }
+    return this.mapUserRow(row);
   }
 
   async findProfileByEmail(email: string): Promise<{ id: string; owner_id?: string; name?: string; role?: string } | null> {
@@ -151,11 +160,18 @@ export class AuthRepository {
 
   async findUserById(id: string): Promise<LocalUser | null> {
     const res = await this.pool.query(
-      'SELECT * FROM app_users WHERE id = $1 AND deleted_at IS NULL LIMIT 1',
+      `SELECT u.*, COALESCE(u.owner_id, p.owner_id) as resolved_owner_id 
+       FROM app_users u 
+       LEFT JOIN profiles p ON (p.id = u.id OR LOWER(p.email) = LOWER(u.email))
+       WHERE u.id = $1 AND u.deleted_at IS NULL LIMIT 1`,
       [id]
     );
     if (res.rows.length === 0) return null;
-    return this.mapUserRow(res.rows[0]);
+    const row = res.rows[0];
+    if (row.resolved_owner_id && !row.owner_id) {
+      row.owner_id = row.resolved_owner_id;
+    }
+    return this.mapUserRow(row);
   }
 
   async createUser(userData: {
@@ -164,6 +180,7 @@ export class AuthRepository {
     password_hash: string;
     name?: string | null;
     role?: string;
+    owner_id?: string | null;
     church_id?: string | null;
     permissions?: string[];
     is_active?: boolean;
@@ -172,8 +189,8 @@ export class AuthRepository {
     const permissionsJson = JSON.stringify(userData.permissions || []);
     const res = await this.pool.query(
       `INSERT INTO app_users 
-       (id, email, password_hash, name, role, church_id, permissions, is_active, is_verified)
-       VALUES (COALESCE($1, gen_random_uuid()), $2, $3, $4, COALESCE($5, 'user'), $6, $7::jsonb, COALESCE($8, true), COALESCE($9, false))
+       (id, email, password_hash, name, role, owner_id, church_id, permissions, is_active, is_verified)
+       VALUES (COALESCE($1, gen_random_uuid()), $2, $3, $4, COALESCE($5, 'user'), $6, $7, $8::jsonb, COALESCE($9, true), COALESCE($10, false))
        RETURNING *`,
       [
         userData.id || null,
@@ -181,6 +198,7 @@ export class AuthRepository {
         userData.password_hash,
         userData.name || null,
         userData.role || 'user',
+        userData.owner_id || null,
         userData.church_id || null,
         permissionsJson,
         userData.is_active !== undefined ? userData.is_active : true,
@@ -189,11 +207,13 @@ export class AuthRepository {
     );
     const createdUser = this.mapUserRow(res.rows[0]);
     try {
+      const effectiveOwnerId = userData.owner_id || createdUser.id;
+      const initialRole = userData.owner_id && userData.owner_id !== createdUser.id ? (userData.role || 'member') : 'owner';
       await this.pool.query(
         `INSERT INTO profiles (id, email, name, role, owner_id, subscription_status, created_at, updated_at)
-         VALUES ($1, $2, $3, 'owner', $1, 'trial', NOW(), NOW())
+         VALUES ($1, $2, $3, $4, $5, 'trial', NOW(), NOW())
          ON CONFLICT (id) DO NOTHING`,
-        [createdUser.id, createdUser.email, createdUser.name || null]
+        [createdUser.id, createdUser.email, createdUser.name || null, initialRole, effectiveOwnerId]
       );
     } catch {
       // Ignore if profiles table does not exist yet
@@ -468,6 +488,7 @@ export class AuthRepository {
       password_hash: row.password_hash,
       name: row.name,
       role: row.role,
+      owner_id: row.owner_id || null,
       church_id: row.church_id,
       permissions: permissionsArr,
       is_active: Boolean(row.is_active),

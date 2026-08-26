@@ -110,6 +110,7 @@ export default () => {
                         password: password,
                         name: req.body.name || null,
                         role: 'member',
+                        owner_id: ownerId,
                         church_id: churchIds[0] || null
                     })
                 });

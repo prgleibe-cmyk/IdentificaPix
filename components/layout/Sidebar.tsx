@@ -113,18 +113,20 @@ export const Sidebar: React.FC = memo(() => {
         // Financeiro
         items.push({ view: 'reports', labelKey: 'nav.reports', icon: <DocumentDuplicateIcon className="w-5 h-5"/> });
 
-        // Cadastro apenas para o proprietário (Owner)
-        if (subscription.role === 'owner') {
-            items.push({ view: 'cadastro', labelKey: 'nav.register', icon: <PlusCircleIcon className="w-5 h-5"/> });
-        }
+        // Cadastro disponível no menu (as restrições internas de Bancos e Igrejas são aplicadas dentro de RegisterView)
+        items.push({ view: 'cadastro', labelKey: 'nav.register', icon: <PlusCircleIcon className="w-5 h-5"/> });
 
         const perms = (subscription.permissions || {}) as Record<string, any>;
         const canManageAccounts = !isSecondaryUser || (perms.gestao_contas !== false && perms.manageAccounts !== false);
         const canManagePledges = !isSecondaryUser || (perms.carnes_propositos !== false && perms.managePledges !== false);
-        const canManagePatrimony = !isSecondaryUser || (perms.patrimonio !== false && perms.managePatrimony !== false);
+        const canManagePatrimony = !isSecondaryUser && (perms.patrimonio !== false && perms.managePatrimony !== false);
+
+        // Relatórios apenas para o usuário principal
+        if (!isSecondaryUser) {
+            items.push({ view: 'relatorios', labelKey: 'nav.relatorios', icon: <FileText className="w-5 h-5"/> });
+        }
 
         items.push(
-            { view: 'relatorios', labelKey: 'nav.relatorios', icon: <FileText className="w-5 h-5"/> },
             { view: 'savedReports', labelKey: 'nav.savedReports', icon: <ChartBarIcon className="w-5 h-5"/> },
             { view: 'smart_analysis', labelKey: 'nav.smart_analysis', icon: <PresentationChartLineIcon className="w-5 h-5"/> }
         );
@@ -137,6 +139,7 @@ export const Sidebar: React.FC = memo(() => {
             items.push({ view: 'pledges', labelKey: 'Carnês & Propósitos', icon: <BookmarkPlus className="w-5 h-5"/> });
         }
 
+        // Patrimônio apenas para o usuário principal com permissão
         if (canManagePatrimony) {
             items.push({ view: 'patrimonio', labelKey: 'Patrimônio', icon: <Building2 className="w-5 h-5"/> });
         }
@@ -312,26 +315,34 @@ export const Sidebar: React.FC = memo(() => {
                         )}
 
                         <div className="flex gap-2">
-                            <button onClick={() => window.open(`https://wa.me/${systemSettings.supportNumber}`, '_blank')} className={`flex items-center justify-center rounded-xl text-slate-600 dark:text-emerald-100/70 hover:text-emerald-800 dark:hover:text-white bg-white/60 dark:bg-white/5 border border-emerald-200/50 dark:border-white/10 hover:bg-emerald-500/10 transition-colors ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'flex-1 py-2.5 gap-2'}`}>
+                            <button 
+                                onClick={() => window.open(`https://wa.me/${systemSettings.supportNumber}`, '_blank')} 
+                                className={`flex items-center justify-center rounded-xl text-slate-600 dark:text-emerald-100/70 hover:text-emerald-800 dark:hover:text-white bg-white/60 dark:bg-white/5 border border-emerald-200/50 dark:border-white/10 hover:bg-emerald-500/10 transition-colors ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : isSecondaryUser ? 'w-full py-2.5 gap-2' : 'flex-1 py-2.5 gap-2'}`}
+                            >
                                 <WhatsAppIcon className="w-4 h-4" />
                                 {!isCollapsed && <span className="text-[10px] font-bold uppercase tracking-wide">Suporte</span>}
                             </button>
                             
-                            <button 
-                                onClick={isSecondaryUser ? undefined : openPaymentModal} 
-                                className={`flex items-center justify-center rounded-xl transition-all border shadow-sm ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'flex-1 py-2.5 gap-2'} ${getStatusStyle()} ${isSecondaryUser ? 'cursor-default' : ''}`}
-                            >
-                                <StatusIcon className="w-4 h-4" />
-                                {!isCollapsed && (
-                                    <span className="text-[10px] font-black uppercase tracking-wider">
-                                        {isSecondaryUser ? 'Gerenciado' : `${subscription.daysRemaining} dias`}
-                                    </span>
-                                )}
-                            </button>
+                            {!isSecondaryUser && (
+                                <button 
+                                    onClick={openPaymentModal} 
+                                    className={`flex items-center justify-center rounded-xl transition-all border shadow-sm ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'flex-1 py-2.5 gap-2'} ${getStatusStyle()}`}
+                                >
+                                    <StatusIcon className="w-4 h-4" />
+                                    {!isCollapsed && (
+                                        <span className="text-[10px] font-black uppercase tracking-wider">
+                                            {`${subscription.daysRemaining} dias`}
+                                        </span>
+                                    )}
+                                </button>
+                            )}
                         </div>
 
                         <div className="flex items-center justify-between pt-2 border-t border-emerald-200/60 dark:border-white/5">
-                            <div className={`flex items-center gap-3 min-w-0 group cursor-pointer ${isCollapsed ? 'mx-auto' : ''}`} onClick={() => !isCollapsed && setActiveView('settings')}>
+                            <div 
+                                className={`flex items-center gap-3 min-w-0 group ${!isSecondaryUser ? 'cursor-pointer' : ''} ${isCollapsed ? 'mx-auto' : ''}`} 
+                                onClick={() => (!isCollapsed && !isSecondaryUser) && setActiveView('settings')}
+                            >
                                 <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center text-xs font-black text-white shadow-md border border-white/20 group-hover:ring-2 group-hover:ring-orange-500/30 transition-all">
                                     {user?.email?.charAt(0).toUpperCase()}
                                 </div>
