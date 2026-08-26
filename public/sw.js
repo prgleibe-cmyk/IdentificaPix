@@ -1,5 +1,5 @@
-// Service Worker IdentificaPix - Versão 16
-const CACHE_NAME = 'identificapix-v16';
+// Service Worker IdentificaPix - Versão 17
+const CACHE_NAME = 'identificapix-v17';
 const ASSETS_TO_CACHE = [
   '/manifest.json',
   '/logo.png',
@@ -59,15 +59,17 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Assets (JS, CSS, Images) -> Cache First, fallback to Network
+  // Assets (JS, CSS, Images): Network First with Cache Fallback for dynamic hashed bundles
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request).then((fetchResponse) => {
-        return fetchResponse;
-      });
-    }).catch(() => {
-      // Offline fallback
-    })
+    fetch(event.request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+        }
+        return networkResponse;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
 

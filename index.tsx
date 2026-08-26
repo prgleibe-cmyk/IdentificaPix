@@ -14,8 +14,8 @@ window.addEventListener('beforeinstallprompt', (e: Event) => {
 // Registro do Service Worker com versionamento para forçar atualização de ícones no PWA
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    // Adicionado v=15 para garantir que o Chrome/Windows/iOS/Android detecte a nova versão do Service Worker e atualize ícones
-    navigator.serviceWorker.register('/sw.js?v=15').catch(err => {
+    // Adicionado v=17 para garantir que o Chrome/Windows/iOS/Android detecte a nova versão do Service Worker
+    navigator.serviceWorker.register('/sw.js?v=17').catch(err => {
       console.log('Service Worker registration failed: ', err);
     });
   });

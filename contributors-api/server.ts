@@ -49,7 +49,11 @@ class SmartPool {
     const isNetworkOrDns = err?.code === 'EAI_AGAIN' || err?.code === 'ENOTFOUND' || err?.code === 'ECONNREFUSED' || err?.code === 'ETIMEDOUT';
     if (!this.lastErrorLogTime || now - this.lastErrorLogTime > 60000) {
       this.lastErrorLogTime = now;
-      console.warn(`[Contributors API] PostgreSQL ${context} (${isNetworkOrDns ? 'Conexão/Rede temporariamente indisponível' : 'Erro'}):`, err?.message || err);
+      if (isNetworkOrDns) {
+        console.warn(`[Contributors API] PostgreSQL status: Conexão remota aguardando disponibilidade [${err?.code || 'OFFLINE'}]`);
+      } else {
+        console.warn(`[Contributors API] PostgreSQL status (${context}):`, err?.message || err);
+      }
     }
   }
 
@@ -63,7 +67,7 @@ class SmartPool {
       return client;
     } catch (err: any) {
       this.isOffline = true;
-      this.handlePoolError('connection error', err);
+      this.handlePoolError('conexão', err);
       throw err;
     }
   }
@@ -77,7 +81,7 @@ class SmartPool {
       return res;
     } catch (err: any) {
       this.isOffline = true;
-      this.handlePoolError('query error', err);
+      this.handlePoolError('consulta', err);
       throw err;
     }
   }

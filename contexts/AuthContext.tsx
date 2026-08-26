@@ -132,6 +132,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               const updatedUser = res.data.user;
               setUser(updatedUser);
               setSession({ access_token: authService.getAccessToken(), user: updatedUser });
+              calculateSubscription(updatedUser.id, true);
             }
           }).catch(() => {});
         } else {
