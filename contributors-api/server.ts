@@ -34,25 +34,50 @@ const { Pool } = pg;
 // Connection pool wrapper enforcing strict PostgreSQL persistence with no SQLite fallback
 class SmartPool {
   private pgPool: pg.Pool;
+  private lastErrorLogTime: number = 0;
+  private isOffline: boolean = false;
 
   constructor(config: pg.PoolConfig) {
     this.pgPool = new Pool(config);
+    this.pgPool.on('error', (err: any) => {
+      this.handlePoolError('Pool client error', err);
+    });
+  }
+
+  private handlePoolError(context: string, err: any) {
+    const now = Date.now();
+    const isNetworkOrDns = err?.code === 'EAI_AGAIN' || err?.code === 'ENOTFOUND' || err?.code === 'ECONNREFUSED' || err?.code === 'ETIMEDOUT';
+    if (!this.lastErrorLogTime || now - this.lastErrorLogTime > 60000) {
+      this.lastErrorLogTime = now;
+      console.warn(`[Contributors API] PostgreSQL ${context} (${isNetworkOrDns ? 'Conexão/Rede temporariamente indisponível' : 'Erro'}):`, err?.message || err);
+    }
   }
 
   async connect(): Promise<pg.PoolClient> {
     try {
-      return await this.pgPool.connect();
+      const client = await this.pgPool.connect();
+      if (this.isOffline) {
+        this.isOffline = false;
+        console.log('[Contributors API] PostgreSQL connection restored.');
+      }
+      return client;
     } catch (err: any) {
-      console.error('[Contributors API] PostgreSQL connection error:', err?.message || err);
+      this.isOffline = true;
+      this.handlePoolError('connection error', err);
       throw err;
     }
   }
 
   async query(sql: string, params?: any[]): Promise<pg.QueryResult<any>> {
     try {
-      return await this.pgPool.query(sql, params);
+      const res = await this.pgPool.query(sql, params);
+      if (this.isOffline) {
+        this.isOffline = false;
+      }
+      return res;
     } catch (err: any) {
-      console.error('[Contributors API] PostgreSQL query error:', err?.message || err);
+      this.isOffline = true;
+      this.handlePoolError('query error', err);
       throw err;
     }
   }
@@ -592,8 +617,9 @@ async function initializeDatabase() {
     // Initialize Audit Logs Database
     await initAuditDatabase(pool);
 
-  } catch (err) {
-    console.error('[Contributors API] Database initialization could not be completed:', (err as Error).message);
+  } catch (err: any) {
+    const isNetworkOrDns = err?.code === 'EAI_AGAIN' || err?.code === 'ENOTFOUND' || err?.code === 'ECONNREFUSED' || err?.code === 'ETIMEDOUT';
+    console.warn(`[Contributors API] Database initialization paused (${isNetworkOrDns ? 'Aguardando conectividade com PostgreSQL' : 'Erro'}):`, err?.message || err);
   } finally {
     if (client) client.release();
   }
@@ -604,8 +630,9 @@ initializeDatabase().then(() => {
   scheduleAutomatedBackups(pool);
   startMonitoringService(pool);
   startBackgroundScheduler(pool);
-}).catch(err => {
-  console.error('[Contributors API] Error during init/schedule:', err);
+}).catch((err: any) => {
+  const isNetworkOrDns = err?.code === 'EAI_AGAIN' || err?.code === 'ENOTFOUND' || err?.code === 'ECONNREFUSED' || err?.code === 'ETIMEDOUT';
+  console.warn(`[Contributors API] Initial database connection not ready (${isNetworkOrDns ? 'Aguardando host PostgreSQL' : 'Erro'}):`, err?.message || err);
 });
 
 // Endpoint do Agendador Automático de Tarefas (Scheduler Status)
@@ -3490,7 +3517,14 @@ export async function recoverAbandonedProcessingQueueItems(pool: pg.Pool, church
   return { recovered: recoveredCount, failed: failedCount };
 }
 
+let communicationProcessorRunning = false;
+let lastCommunicationErrorTime = 0;
+
 async function runCommunicationProcessor(churchIdFilter?: string) {
+  if (communicationProcessorRunning) {
+    return { processed_events: 0, queued_items: 0, sent_items: 0 };
+  }
+  communicationProcessorRunning = true;
   try {
     let processedCount = 0;
     let queuedCount = 0;
@@ -3809,16 +3843,23 @@ async function runCommunicationProcessor(churchIdFilter?: string) {
     }
 
     return { processed_events: processedCount, queued_items: queuedCount, sent_items: sentCount };
-  } catch (err) {
-    console.error('[CommunicationProcessor] Error running processor:', err);
-    return { processed_events: 0, queued_items: 0, sent_items: 0, error: String(err) };
+  } catch (err: any) {
+    const now = Date.now();
+    const isNetworkOrDns = err?.code === 'EAI_AGAIN' || err?.code === 'ENOTFOUND' || err?.code === 'ECONNREFUSED' || err?.code === 'ETIMEDOUT';
+    if (!lastCommunicationErrorTime || now - lastCommunicationErrorTime > 60000) {
+      lastCommunicationErrorTime = now;
+      console.warn(`[CommunicationProcessor] Processor suspended (${isNetworkOrDns ? 'Conexão com PostgreSQL indisponível' : 'Erro'}):`, err?.message || err);
+    }
+    return { processed_events: 0, queued_items: 0, sent_items: 0, error: String(err?.message || err) };
+  } finally {
+    communicationProcessorRunning = false;
   }
 }
 
-// Start periodic worker (every 15 seconds)
+// Start periodic worker (every 30 seconds)
 setInterval(() => {
-  runCommunicationProcessor().catch(err => console.error('[WorkerInterval] Error:', err));
-}, 15000);
+  runCommunicationProcessor().catch(() => {});
+}, 30000);
 
 // GET /api/v1/communication_queue
 app.get('/api/v1/communication_queue', async (req: Request, res: Response) => {

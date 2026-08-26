@@ -363,6 +363,8 @@ export async function sendAlertNotification(
  */
 export const MONITORING_ADVISORY_LOCK_ID = 88492042;
 
+let lastMonitoringErrorTime = 0;
+
 /**
  * Runs a single monitoring check cycle protected by a PostgreSQL advisory lock (pg_try_advisory_lock).
  * Holds a dedicated DB connection for the duration of the check cycle so that other instances
@@ -389,7 +391,12 @@ export async function runMonitoringCheckWithLock(pool: pg.Pool): Promise<{ execu
     return { executed: true };
   } catch (err: any) {
     const errorMsg = err?.message || String(err);
-    console.error('[MonitoringService] Error running automated monitoring check with lock:', errorMsg);
+    const now = Date.now();
+    const isNetworkOrDns = err?.code === 'EAI_AGAIN' || err?.code === 'ENOTFOUND' || err?.code === 'ECONNREFUSED' || err?.code === 'ETIMEDOUT';
+    if (!lastMonitoringErrorTime || now - lastMonitoringErrorTime > 60000) {
+      lastMonitoringErrorTime = now;
+      console.warn(`[MonitoringService] Automated monitoring check suspended (${isNetworkOrDns ? 'Conexão com PostgreSQL indisponível' : 'Erro'}):`, errorMsg);
+    }
     return { executed: false, error: errorMsg };
   } finally {
     if (client) {
@@ -397,10 +404,12 @@ export async function runMonitoringCheckWithLock(pool: pg.Pool): Promise<{ execu
         try {
           await client.query('SELECT pg_advisory_unlock($1)', [MONITORING_ADVISORY_LOCK_ID]);
         } catch (unlockErr: any) {
-          console.error('[MonitoringService] Error releasing monitoring advisory lock:', unlockErr?.message || String(unlockErr));
+          // ignore unlock error on disconnect
         }
       }
-      client.release();
+      try {
+        client.release();
+      } catch {}
     }
   }
 }
