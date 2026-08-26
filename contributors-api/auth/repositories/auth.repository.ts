@@ -131,7 +131,12 @@ export class AuthRepository {
 
   async findUserByEmail(email: string): Promise<LocalUser | null> {
     const res = await this.pool.query(
-      `SELECT u.*, COALESCE(u.owner_id::text, p.owner_id::text) as resolved_owner_id 
+      `SELECT u.*, 
+              COALESCE(u.owner_id::text, p.owner_id::text) as resolved_owner_id,
+              COALESCE(p.role, u.role) as resolved_role,
+              COALESCE(p.name, u.name) as resolved_name,
+              COALESCE(p.congregation, u.church_id::text) as resolved_church_id,
+              COALESCE(p.permissions, u.permissions) as resolved_permissions
        FROM app_users u 
        LEFT JOIN profiles p ON (p.id = u.id::text OR LOWER(p.email) = LOWER(u.email))
        WHERE LOWER(u.email) = LOWER($1) AND u.deleted_at IS NULL LIMIT 1`,
@@ -139,9 +144,11 @@ export class AuthRepository {
     );
     if (res.rows.length === 0) return null;
     const row = res.rows[0];
-    if (row.resolved_owner_id && !row.owner_id) {
-      row.owner_id = row.resolved_owner_id;
-    }
+    if (row.resolved_owner_id) row.owner_id = row.resolved_owner_id;
+    if (row.resolved_role) row.role = row.resolved_role;
+    if (row.resolved_name) row.name = row.resolved_name;
+    if (row.resolved_church_id && !row.church_id) row.church_id = row.resolved_church_id;
+    if (row.resolved_permissions) row.permissions = row.resolved_permissions;
     return this.mapUserRow(row);
   }
 
@@ -160,17 +167,24 @@ export class AuthRepository {
 
   async findUserById(id: string): Promise<LocalUser | null> {
     const res = await this.pool.query(
-      `SELECT u.*, COALESCE(u.owner_id::text, p.owner_id::text) as resolved_owner_id 
+      `SELECT u.*, 
+              COALESCE(u.owner_id::text, p.owner_id::text) as resolved_owner_id,
+              COALESCE(p.role, u.role) as resolved_role,
+              COALESCE(p.name, u.name) as resolved_name,
+              COALESCE(p.congregation, u.church_id::text) as resolved_church_id,
+              COALESCE(p.permissions, u.permissions) as resolved_permissions
        FROM app_users u 
        LEFT JOIN profiles p ON (p.id = u.id::text OR LOWER(p.email) = LOWER(u.email))
-       WHERE u.id::text = $1 AND u.deleted_at IS NULL LIMIT 1`,
+       WHERE (u.id::text = $1 OR LOWER(u.email) = LOWER($1) OR p.id = $1) AND u.deleted_at IS NULL LIMIT 1`,
       [id]
     );
     if (res.rows.length === 0) return null;
     const row = res.rows[0];
-    if (row.resolved_owner_id && !row.owner_id) {
-      row.owner_id = row.resolved_owner_id;
-    }
+    if (row.resolved_owner_id) row.owner_id = row.resolved_owner_id;
+    if (row.resolved_role) row.role = row.resolved_role;
+    if (row.resolved_name) row.name = row.resolved_name;
+    if (row.resolved_church_id && !row.church_id) row.church_id = row.resolved_church_id;
+    if (row.resolved_permissions) row.permissions = row.resolved_permissions;
     return this.mapUserRow(row);
   }
 

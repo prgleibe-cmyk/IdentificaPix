@@ -2594,7 +2594,12 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
     const banksParams: any[] = [];
     if (cleanUserId) {
       banksParams.push(cleanUserId);
-      banksQuery += ` AND (user_id = $1 OR user_id IN (SELECT id::text FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)))`;
+      banksQuery += ` AND (
+        user_id::text = $1 
+        OR user_id::text IN (SELECT id::text FROM app_users WHERE id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+        OR user_id::text IN (SELECT id FROM profiles WHERE id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+        OR user_id::text IN (SELECT owner_id FROM profiles WHERE id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+      )`;
     }
     banksQuery += ' ORDER BY created_at DESC';
     const banksResult = await pool.query(banksQuery, banksParams);
@@ -2605,7 +2610,12 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
     const churchesParams: any[] = [];
     if (cleanUserId) {
       churchesParams.push(cleanUserId);
-      churchesQuery += ` AND (user_id = $1 OR user_id IN (SELECT id::text FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)))`;
+      churchesQuery += ` AND (
+        user_id::text = $1 
+        OR user_id::text IN (SELECT id::text FROM app_users WHERE id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+        OR user_id::text IN (SELECT id FROM profiles WHERE id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+        OR user_id::text IN (SELECT owner_id FROM profiles WHERE id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+      )`;
     }
     churchesQuery += ' ORDER BY name ASC';
     const churchesResult = await pool.query(churchesQuery, churchesParams);
@@ -2616,7 +2626,13 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
     const reportsParams: any[] = [];
     if (cleanUserId) {
       reportsParams.push(cleanUserId);
-      reportsQuery += ` AND (user_id = $1 OR user_id IS NULL)`;
+      reportsQuery += ` AND (
+        user_id::text = $1 
+        OR user_id::text IN (SELECT id::text FROM app_users WHERE id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+        OR user_id::text IN (SELECT id FROM profiles WHERE id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+        OR user_id::text IN (SELECT owner_id FROM profiles WHERE id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+        OR user_id IS NULL
+      )`;
     }
     reportsQuery += ' ORDER BY created_at DESC';
     const reportsResult = await pool.query(reportsQuery, reportsParams);
@@ -2627,7 +2643,13 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
     const assocParams: any[] = [];
     if (cleanUserId) {
       assocParams.push(cleanUserId);
-      assocQuery += ` AND (user_id = $1 OR user_id IS NULL)`;
+      assocQuery += ` AND (
+        user_id::text = $1 
+        OR user_id::text IN (SELECT id::text FROM app_users WHERE id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+        OR user_id::text IN (SELECT id FROM profiles WHERE id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+        OR user_id::text IN (SELECT owner_id FROM profiles WHERE id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+        OR user_id IS NULL
+      )`;
     }
     assocQuery += ' ORDER BY created_at DESC';
     const assocResult = await pool.query(assocQuery, assocParams);
@@ -2676,7 +2698,12 @@ app.get('/api/v1/banks', async (req: Request, res: Response) => {
     const params: any[] = [];
     if (cleanUserId) {
       params.push(cleanUserId);
-      query += ` AND (user_id = $1 OR user_id IN (SELECT id::text FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)))`;
+      query += ` AND (
+        user_id::text = $1 
+        OR user_id::text IN (SELECT id::text FROM app_users WHERE id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+        OR user_id::text IN (SELECT id FROM profiles WHERE id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+        OR user_id::text IN (SELECT owner_id FROM profiles WHERE id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+      )`;
     }
     query += ' ORDER BY created_at DESC';
     const result = await pool.query(query, params);
@@ -2821,7 +2848,12 @@ app.get('/api/v1/churches', async (req: Request, res: Response) => {
     const params: any[] = [];
     if (cleanUserId) {
       params.push(cleanUserId);
-      query += ` AND (user_id = $1 OR user_id IN (SELECT id::text FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)))`;
+      query += ` AND (
+        user_id::text = $1 
+        OR user_id::text IN (SELECT id::text FROM app_users WHERE id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+        OR user_id::text IN (SELECT id FROM profiles WHERE id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+        OR user_id::text IN (SELECT owner_id FROM profiles WHERE id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+      )`;
     }
     query += ' ORDER BY name ASC';
     const result = await pool.query(query, params);
@@ -3892,7 +3924,13 @@ app.get('/api/v1/learned_associations', async (req: Request, res: Response) => {
     let query = 'SELECT id, user_id, normalized_description, contributor_normalized_name, church_id, created_at FROM learned_associations WHERE 1=1';
     const params: any[] = [];
     if (effectiveUserId) {
-      query += ` AND (user_id = $1 OR user_id IS NULL OR user_id IN (SELECT id::text FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)))`;
+      query += ` AND (
+        user_id::text = $1 
+        OR user_id::text IN (SELECT id::text FROM app_users WHERE id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+        OR user_id::text IN (SELECT id FROM profiles WHERE id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+        OR user_id::text IN (SELECT owner_id FROM profiles WHERE id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+        OR user_id IS NULL
+      )`;
       params.push(effectiveUserId);
     }
     const result = await pool.query(query, params);
@@ -4019,7 +4057,13 @@ app.get('/api/v1/saved_reports', async (req: Request, res: Response) => {
     let query = `SELECT ${selectFields} FROM saved_reports WHERE 1=1`;
     const params: any[] = [];
     if (effectiveUserId) {
-      query += ` AND (user_id = $1 OR user_id IS NULL OR user_id IN (SELECT id::text FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)))`;
+      query += ` AND (
+        user_id::text = $1 
+        OR user_id::text IN (SELECT id::text FROM app_users WHERE id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+        OR user_id::text IN (SELECT id FROM profiles WHERE id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+        OR user_id::text IN (SELECT owner_id FROM profiles WHERE id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+        OR user_id IS NULL
+      )`;
       params.push(effectiveUserId);
     }
     query += ' ORDER BY created_at DESC';
@@ -4249,7 +4293,13 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
     const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
 
     if (effectiveUserId) {
-      query += ` AND (user_id = $${counter} OR user_id IS NULL OR user_id IN (SELECT id::text FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $${counter} LIMIT 1)))`;
+      query += ` AND (
+        user_id::text = $${counter} 
+        OR user_id::text IN (SELECT id::text FROM app_users WHERE id::text = $${counter} OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $${counter} LIMIT 1))
+        OR user_id::text IN (SELECT id FROM profiles WHERE id = $${counter} OR owner_id = $${counter} OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $${counter} LIMIT 1))
+        OR user_id::text IN (SELECT owner_id FROM profiles WHERE id = $${counter} OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $${counter} LIMIT 1))
+        OR user_id IS NULL
+      )`;
       params.push(effectiveUserId);
       counter++;
     }
@@ -4643,7 +4693,15 @@ app.get('/api/v1/financial_records', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'VALIDATION_ERROR: user_id is required' });
     }
 
-    let query = 'SELECT * FROM financial_records WHERE user_id = $1';
+    let query = `
+      SELECT * FROM financial_records 
+      WHERE (
+        user_id::text = $1 
+        OR user_id::text IN (SELECT id::text FROM app_users WHERE id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+        OR user_id::text IN (SELECT id FROM profiles WHERE id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+        OR user_id::text IN (SELECT owner_id FROM profiles WHERE id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+      )
+    `;
     const params: any[] = [effectiveUserId];
     let count = 2;
 

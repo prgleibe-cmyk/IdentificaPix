@@ -39,7 +39,7 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
             
             // 🔗 HIERARCHY LOGIC: Secondary users inherit subscription from Principal
             // If the user has an owner_id different from their own ID, they are a secondary user.
-            if (p.owner_id && p.owner_id !== userId) {
+            if (p.owner_id && p.owner_id !== userId && p.owner_id !== p.id && p.role !== 'owner' && p.role !== 'admin' && p.role !== 'superadmin') {
                 const ownerData = await profileService.getProfile(p.owner_id);
                 if (ownerData) {
                     // Inherit subscription fields from the Principal user

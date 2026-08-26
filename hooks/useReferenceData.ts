@@ -174,7 +174,17 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                     let fetchedReports = data.reports || [];
                     let fetchedAssociations = data.associations || [];
                     
-                    const isSecondaryUser = Boolean(subscription.ownerId && subscription.ownerId !== user?.id);
+                    const roleStr = String(subscription.role || '').toLowerCase();
+                    const isSecondaryUser = Boolean(
+                        subscription.ownerId && 
+                        subscription.ownerId !== user?.id && 
+                        roleStr !== 'owner' && 
+                        roleStr !== 'principal' && 
+                        roleStr !== 'admin' && 
+                        roleStr !== 'superadmin' &&
+                        user?.role !== 'SUPER_ADMIN' &&
+                        user?.role !== 'ADMINISTRADOR_GERAL'
+                    );
                     
                     if (isSecondaryUser) {
                         const allowedBankIds = subscription.bankIds || [];

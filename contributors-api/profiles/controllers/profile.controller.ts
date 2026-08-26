@@ -50,7 +50,7 @@ export class ProfileController {
         return res.status(404).json({ success: false, error: 'PERFIL_NAO_ENCONTRADO', message: `Perfil "${id}" não encontrado.` });
       }
 
-      if (user && !isSuperAdmin && authenticatedUserId && profile.owner_id && profile.owner_id !== authenticatedUserId) {
+      if (user && !isSuperAdmin && authenticatedUserId && profile.owner_id && profile.owner_id !== authenticatedUserId && profile.id !== authenticatedUserId && profile.email?.toLowerCase() !== user.email?.toLowerCase()) {
         return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'Acesso negado a este perfil.' });
       }
 

@@ -73,7 +73,13 @@ export class ProfileRepository {
 
   async getById(id: string): Promise<ProfileItem | null> {
     await this.ensureTableExists();
-    const query = 'SELECT * FROM profiles WHERE id = $1 LIMIT 1';
+    const query = `
+      SELECT * FROM profiles 
+      WHERE id = $1 
+         OR LOWER(email) = LOWER($1)
+         OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
+      LIMIT 1
+    `;
     const result = await this.pool.query(query, [id]);
     if (!result.rows || result.rows.length === 0) return null;
     return this.parseRow(result.rows[0]);
@@ -81,7 +87,13 @@ export class ProfileRepository {
 
   async getByOwnerId(ownerId: string): Promise<ProfileItem[]> {
     await this.ensureTableExists();
-    const query = 'SELECT * FROM profiles WHERE owner_id = $1 ORDER BY created_at DESC';
+    const query = `
+      SELECT * FROM profiles 
+      WHERE owner_id = $1 
+         OR owner_id IN (SELECT id::text FROM app_users WHERE id::text = $1 OR owner_id::text = $1)
+         OR owner_id IN (SELECT id FROM profiles WHERE id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
+      ORDER BY created_at DESC
+    `;
     const result = await this.pool.query(query, [ownerId]);
     return (result.rows || []).map((row: any) => this.parseRow(row));
   }
@@ -185,7 +197,7 @@ export class ProfileRepository {
     if (fields.length === 0) return existing;
 
     fields.push(`updated_at = NOW()`);
-    values.push(id);
+    values.push(existing.id);
 
     const query = `
       UPDATE profiles
