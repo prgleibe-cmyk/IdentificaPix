@@ -151,8 +151,12 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
                 bankIds = permissions.bankIds;
             }
 
-            const finalRole = p.role || localUser?.role || (p.owner_id && p.owner_id !== userId ? 'member' : 'owner');
-            const finalOwnerId = p.owner_id || localUser?.owner_id || userId;
+            const isMemberRole = p.role === 'member' || p.role === 'user' || p.role === 'operador' || p.role === 'secondary' || p.role === 'colaborador' ||
+                                 localUser?.role === 'member' || localUser?.role === 'user' || localUser?.role === 'operador' || localUser?.role === 'secondary' || localUser?.role === 'colaborador';
+            const hasSeparateOwner = Boolean((p.owner_id && p.owner_id !== userId) || (localUser?.owner_id && localUser?.owner_id !== userId));
+
+            const finalRole = (isMemberRole || hasSeparateOwner) ? (p.role && p.role !== 'owner' ? p.role : (localUser?.role && localUser.role !== 'owner' ? localUser.role : 'member')) : (p.role || localUser?.role || 'owner');
+            const finalOwnerId = p.owner_id || localUser?.owner_id || (finalRole === 'owner' ? userId : '');
 
             setSubscription({
                 plan: status as any,
@@ -175,8 +179,10 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
         } catch (e) {
             console.error("Erro assinatura (resgatando padrão):", e);
             if (localUser) {
-                const fallbackRole = localUser.role || (localUser.owner_id && localUser.owner_id !== userId ? 'member' : 'owner');
-                const fallbackOwnerId = localUser.owner_id || userId;
+                const isMemberRole = localUser.role === 'member' || localUser.role === 'user' || localUser.role === 'operador' || localUser.role === 'secondary' || localUser.role === 'colaborador';
+                const hasSeparateOwner = Boolean(localUser.owner_id && localUser.owner_id !== userId);
+                const fallbackRole = (isMemberRole || hasSeparateOwner) ? (localUser.role && localUser.role !== 'owner' ? localUser.role : 'member') : (localUser.role || 'owner');
+                const fallbackOwnerId = localUser.owner_id || (fallbackRole === 'owner' ? userId : '');
                 setSubscription(prev => ({
                     ...prev,
                     role: fallbackRole,

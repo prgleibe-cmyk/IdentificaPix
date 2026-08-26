@@ -150,9 +150,9 @@ export const AppRouter: React.FC = memo(() => {
             case 'relatorios': return !isSecondaryUser ? <RelatoriosView /> : <DashboardView />;
             case 'livro_caixa': return <LivroCaixaView />;
             case 'search': return <SearchView />;
-            case 'savedReports': return <SavedReportsView />;
+            case 'savedReports': return !isSecondaryUser ? <SavedReportsView /> : <DashboardView />;
             case 'settings': return !isSecondaryUser ? <SettingsView /> : <DashboardView />;
-            case 'smart_analysis': return <SmartAnalysisView />;
+            case 'smart_analysis': return !isSecondaryUser ? <SmartAnalysisView /> : <DashboardView />;
             case 'launched': return <LaunchedView />;
             case 'connectors': return <ConnectorsView />;
             case 'financial': return canManageAccounts ? <FinancialView /> : <DashboardView />;

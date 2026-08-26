@@ -56,6 +56,7 @@ export class LocalAuthProvider implements IAuthProvider {
             email: userObj.email,
             name: userObj.name,
             role: userObj.role || 'user',
+            owner_id: userObj.owner_id || null,
             church_id: userObj.church_id,
             permissions: userObj.permissions || [],
           };
@@ -81,6 +82,7 @@ export class LocalAuthProvider implements IAuthProvider {
             email: u.email,
             name: u.name,
             role: u.role || 'user',
+            owner_id: u.owner_id || null,
             church_id: u.church_id,
             permissions: u.permissions || [],
           };

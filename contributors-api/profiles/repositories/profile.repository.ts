@@ -152,7 +152,36 @@ export class ProfileRepository {
     ];
 
     const result = await this.pool.query(query, params);
-    return this.parseRow(result.rows[0]);
+    const saved = this.parseRow(result.rows[0]);
+
+    // Sincronizar dados para app_users garantindo consistência na autenticação
+    if (saved.email) {
+      try {
+        await this.pool.query(
+          `UPDATE app_users 
+           SET name = COALESCE($1, name),
+               role = COALESCE($2, role),
+               owner_id = $3,
+               church_id = $4,
+               permissions = COALESCE($5::jsonb, permissions),
+               updated_at = NOW()
+           WHERE LOWER(email) = LOWER($6) OR id::text = $7`,
+          [
+            saved.name || null,
+            saved.role || null,
+            saved.owner_id || null,
+            saved.congregation || null,
+            saved.permissions ? JSON.stringify(saved.permissions) : null,
+            saved.email,
+            saved.id
+          ]
+        );
+      } catch (syncErr: any) {
+        console.warn('[ProfileRepository] Aviso ao sincronizar app_users no create/upsert:', syncErr?.message || syncErr);
+      }
+    }
+
+    return saved;
   }
 
   async update(id: string, dto: UpdateProfileDTO): Promise<ProfileItem | null> {
@@ -208,7 +237,36 @@ export class ProfileRepository {
 
     const result = await this.pool.query(query, values);
     if (!result.rows || result.rows.length === 0) return null;
-    return this.parseRow(result.rows[0]);
+    const updated = this.parseRow(result.rows[0]);
+
+    // Sincronizar dados para app_users garantindo consistência na autenticação
+    if (updated.email) {
+      try {
+        await this.pool.query(
+          `UPDATE app_users 
+           SET name = COALESCE($1, name),
+               role = COALESCE($2, role),
+               owner_id = $3,
+               church_id = $4,
+               permissions = COALESCE($5::jsonb, permissions),
+               updated_at = NOW()
+           WHERE LOWER(email) = LOWER($6) OR id::text = $7`,
+          [
+            updated.name || null,
+            updated.role || null,
+            updated.owner_id || null,
+            updated.congregation || null,
+            updated.permissions ? JSON.stringify(updated.permissions) : null,
+            updated.email,
+            updated.id
+          ]
+        );
+      } catch (syncErr: any) {
+        console.warn('[ProfileRepository] Aviso ao sincronizar app_users no update:', syncErr?.message || syncErr);
+      }
+    }
+
+    return updated;
   }
 
   async delete(id: string): Promise<boolean> {

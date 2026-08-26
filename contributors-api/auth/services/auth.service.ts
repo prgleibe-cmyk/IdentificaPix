@@ -30,13 +30,15 @@ export class AuthService {
   }
 
   private toUserResponse(user: any): UserResponse {
-    const isOwner = user.role === 'owner' || user.role === 'admin' || user.role === 'superadmin';
-    const resolvedOwnerId = user.owner_id || (isOwner ? user.id : null);
+    const isMember = user.role === 'member' || user.role === 'user' || user.role === 'operador' || user.role === 'secondary' || user.role === 'colaborador';
+    const hasSeparateOwner = Boolean(user.owner_id && user.owner_id !== user.id);
+    const resolvedRole = (isMember || hasSeparateOwner) ? (user.role && user.role !== 'owner' ? user.role : 'member') : (user.role || 'owner');
+    const resolvedOwnerId = user.owner_id || (resolvedRole === 'owner' ? user.id : null);
     return {
       id: user.id,
       email: user.email,
       name: user.name,
-      role: user.role,
+      role: resolvedRole,
       owner_id: resolvedOwnerId,
       church_id: user.church_id,
       permissions: user.permissions || [],

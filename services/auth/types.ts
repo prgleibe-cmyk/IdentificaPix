@@ -5,6 +5,7 @@ export interface AuthUser {
   email?: string | null;
   name?: string | null;
   role?: string;
+  owner_id?: string | null;
   church_id?: string | null;
   permissions?: string[];
   user_metadata?: Record<string, any>;
