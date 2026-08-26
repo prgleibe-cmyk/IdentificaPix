@@ -123,11 +123,7 @@ export const RelatoriosView: React.FC = memo(() => {
     const balanceteMenuRef = useRef<HTMLDivElement>(null);
     const categoryMenuRef = useRef<HTMLDivElement>(null);
 
-    const { user, subscription } = useAuth();
-    const isSecondaryUser = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
-        subscription?.role !== 'owner' &&
-        subscription?.role !== 'admin' &&
-        subscription?.role !== 'principal';
+    const { user, subscription, isSecondaryUser } = useAuth();
 
     const perms = (subscription?.permissions || {}) as Record<string, any>;
     const canDownload = !isSecondaryUser || (perms.baixar_arquivo !== false && perms.downloadFile !== false);

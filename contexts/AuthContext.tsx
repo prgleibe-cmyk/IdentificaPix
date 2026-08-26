@@ -9,6 +9,38 @@ import { ResetPasswordModal } from '../components/auth/ResetPasswordModal';
 
 const AuthContext = createContext<AuthContextType>(null!);
 
+export const checkIsSecondaryUser = (user: any, subscription?: any): boolean => {
+  if (!user) return false;
+  const userEmail = String(user?.email || '').toLowerCase().trim();
+  if (userEmail === 'identificapix@gmail.com') return false;
+
+  const userRole = String(user?.role || '').toLowerCase().trim();
+  const subRole = String(subscription?.role || '').toLowerCase().trim();
+
+  if (
+    userRole === 'super_admin' || 
+    userRole === 'administrador_geral' || 
+    userRole === 'superadmin' || 
+    userRole === 'admin' ||
+    subRole === 'superadmin' ||
+    subRole === 'admin'
+  ) {
+    return false;
+  }
+
+  const hasDifferentOwner = Boolean(
+    (user?.owner_id && user.owner_id !== user?.id) ||
+    (subscription?.ownerId && subscription.ownerId !== user?.id)
+  );
+
+  const isExplicitMemberRole = (
+    userRole === 'member' || userRole === 'user' || userRole === 'operador' || userRole === 'secondary' ||
+    subRole === 'member' || subRole === 'user' || subRole === 'operador' || subRole === 'secondary'
+  );
+
+  return hasDifferentOwner || isExplicitMemberRole;
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<any | null>(null);
   const [user, setUser] = useState<any | null>(null);
@@ -18,6 +50,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const { systemSettings, updateSystemSettings, settingsRef } = useSystemSettings();
   const { subscription, setSubscription, calculateSubscription, lastProcessedUserId } = useSubscriptionState(settingsRef);
+
+  const isSecondaryUser = useMemo(() => checkIsSecondaryUser(user, subscription), [user, subscription]);
 
   const refreshSubscription = useCallback(async () => {
     if (user) await calculateSubscription(user.id, true);
@@ -87,10 +121,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [calculateSubscription]);
 
   const value = useMemo(() => ({
-    session, user, loading, signOut, subscription, refreshSubscription,
+    session, user, loading, isSecondaryUser, signOut, subscription, refreshSubscription,
     ...authActions,
     systemSettings, updateSystemSettings
-  }), [session, user, loading, signOut, subscription, refreshSubscription, authActions, systemSettings, updateSystemSettings]);
+  }), [session, user, loading, isSecondaryUser, signOut, subscription, refreshSubscription, authActions, systemSettings, updateSystemSettings]);
 
   return (
     <AuthContext.Provider value={value}>

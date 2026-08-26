@@ -4,18 +4,13 @@ import { AppContext } from '../../contexts/AppContext';
 import { LockClosedIcon, ArrowPathIcon, CreditCardIcon } from '../Icons';
 
 export const ExpiredBlockOverlay: React.FC = () => {
-    const { subscription, user, refreshSubscription } = useAuth();
+    const { subscription, user, refreshSubscription, isSecondaryUser } = useAuth();
     const context = useContext(AppContext);
     const openPaymentModal = context?.openPaymentModal;
 
     if (!subscription || (!subscription.isExpired && !subscription.isBlocked)) {
         return null;
     }
-
-    const isSecondaryUser = (subscription.ownerId && subscription.ownerId !== user?.id) &&
-        subscription.role !== 'owner' &&
-        subscription.role !== 'admin' &&
-        subscription.role !== 'principal';
 
     return (
         <div className="fixed inset-0 z-[90] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6 animate-fade-in overflow-y-auto">

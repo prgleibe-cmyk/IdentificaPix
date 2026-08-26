@@ -14,12 +14,7 @@ interface BulkActionToolbarProps {
 export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedIds, results, onClear }) => {
     const { setBulkIdentificationTxs, toggleConfirmation, openDeleteConfirmation } = useContext(AppContext);
     const { language } = useTranslation();
-    const { subscription, user } = useAuth();
-
-    const isSecondaryUser = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
-        subscription?.role !== 'owner' &&
-        subscription?.role !== 'admin' &&
-        subscription?.role !== 'principal';
+    const { subscription, user, isSecondaryUser } = useAuth();
 
     const perms = (subscription?.permissions || {}) as any;
     const canConfirmFinal = !isSecondaryUser || (perms.confirmar_final !== false && perms.confirmFinal !== false);

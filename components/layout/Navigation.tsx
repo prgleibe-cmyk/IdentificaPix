@@ -64,20 +64,8 @@ const NavItem: React.FC<NavItemProps> = memo(({ icon, label, isActive, onClick, 
 // Main Navigation component
 export const Navigation: React.FC = memo(() => {
     const { activeView, setActiveView } = useUI();
-    const { user, subscription } = useAuth();
+    const { user, isSecondaryUser } = useAuth();
     const { t } = useTranslation();
-
-    const roleStr = String(subscription?.role || '').toLowerCase();
-    const isSecondaryUser = Boolean(
-        subscription?.ownerId &&
-        subscription.ownerId !== user?.id &&
-        roleStr !== 'owner' &&
-        roleStr !== 'admin' &&
-        roleStr !== 'principal' &&
-        roleStr !== 'superadmin' &&
-        user?.role !== 'SUPER_ADMIN' &&
-        user?.role !== 'ADMINISTRADOR_GERAL'
-    );
 
     // Robust check: Lowercase comparison to avoid mismatch
     const isAdmin = user?.email?.toLowerCase().trim() === 'identificapix@gmail.com'; 

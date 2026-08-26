@@ -33,7 +33,7 @@ import {
 export const LivroCaixaView: React.FC = memo(() => {
     const { showToast } = useUI();
     const context = useContext(AppContext);
-    const { user, subscription } = useAuth();
+    const { user, subscription, isSecondaryUser } = useAuth();
 
     const now = useMemo(() => new Date(), []);
     // Filters
@@ -84,11 +84,6 @@ export const LivroCaixaView: React.FC = memo(() => {
     const churchDropdownRef = useRef<HTMLDivElement>(null);
     const bankDropdownRef = useRef<HTMLDivElement>(null);
     const exportLivroCaixaRef = useRef<HTMLDivElement>(null);
-
-    const isSecondaryUser = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
-        subscription?.role !== 'owner' &&
-        subscription?.role !== 'admin' &&
-        subscription?.role !== 'principal';
 
     const perms = (subscription?.permissions || {}) as Record<string, any>;
     const canDownload = !isSecondaryUser || (perms.baixar_arquivo !== false && perms.downloadFile !== false);

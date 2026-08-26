@@ -88,15 +88,10 @@ const months = [
 ];
 
 export const FinancialView: React.FC = memo(() => {
-    const { user, subscription } = useAuth();
+    const { user, subscription, isSecondaryUser } = useAuth();
     const { churches, matchResults, banks } = useContext(AppContext);
     const { showToast, setActiveView } = useUI();
     const { language } = useTranslation();
-
-    const isSecondaryUser = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
-        subscription?.role !== 'owner' &&
-        subscription?.role !== 'admin' &&
-        subscription?.role !== 'principal';
 
     const allowedBankIds = useMemo(() => {
         if (!isSecondaryUser) return null;

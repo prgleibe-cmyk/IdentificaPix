@@ -43,12 +43,7 @@ const MatchMethodIcon: React.FC<{ method: MatchResult['matchMethod'] }> = ({ met
 export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadingAiId, currentPage, totalPages, onPageChange }) => {
     const { t, language } = useTranslation();
     const { toggleConfirmation, setBulkIdentificationTxs, openWhatsAppReceiptModal, contributionTypes, paymentMethods: sysPaymentMethods, contributionKeywords, contributors, churches, showToast } = useContext(AppContext);
-    const { subscription, user } = useAuth();
-
-    const isSecondaryUser = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
-        subscription?.role !== 'owner' &&
-        subscription?.role !== 'admin' &&
-        subscription?.role !== 'principal';
+    const { subscription, user, isSecondaryUser } = useAuth();
 
     const perms = (subscription?.permissions || {}) as any;
     const canConfirmFinal = !isSecondaryUser || (perms.confirmar_final !== false && perms.confirmFinal !== false);

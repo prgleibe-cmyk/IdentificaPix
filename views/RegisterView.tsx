@@ -29,20 +29,8 @@ type RegisterTab = 'banks' | 'churches' | 'contribution' | 'payment' | 'contribu
  */
 export const RegisterView: React.FC = memo(() => {
     const { t } = useTranslation();
-    const { user, subscription, refreshSubscription } = useAuth(); 
+    const { user, subscription, refreshSubscription, isSecondaryUser } = useAuth(); 
     const { banks, churches } = useContext(AppContext);
-    
-    const roleStr = String(subscription?.role || '').toLowerCase();
-    const isSecondaryUser = Boolean(
-        subscription?.ownerId &&
-        subscription.ownerId !== user?.id &&
-        roleStr !== 'owner' &&
-        roleStr !== 'admin' &&
-        roleStr !== 'principal' &&
-        roleStr !== 'superadmin' &&
-        user?.role !== 'SUPER_ADMIN' &&
-        user?.role !== 'ADMINISTRADOR_GERAL'
-    );
 
     const [showNewBankForm, setShowNewBankForm] = useState(false);
     const [showNewChurchForm, setShowNewChurchForm] = useState(false);

@@ -118,7 +118,7 @@ const ViewFallback: React.FC = () => (
 
 export const AppRouter: React.FC = memo(() => {
     const { activeView } = useUI();
-    const { user, subscription } = useAuth();
+    const { user, subscription, isSecondaryUser } = useAuth();
 
     // Preload views on-demand instead of aggressively loading all 17 heavy views concurrently on startup
     React.useEffect(() => {
@@ -135,11 +135,6 @@ export const AppRouter: React.FC = memo(() => {
 
     const isAdmin = user?.email?.toLowerCase().trim() === 'identificapix@gmail.com';
     const isOwner = subscription?.role === 'owner';
-    
-    const isSecondaryUser = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
-        subscription?.role !== 'owner' &&
-        subscription?.role !== 'admin' &&
-        subscription?.role !== 'principal';
 
     const perms = (subscription?.permissions || {}) as Record<string, any>;
     const canManageAccounts = !isSecondaryUser || (perms.gestao_contas !== false && perms.manageAccounts !== false);

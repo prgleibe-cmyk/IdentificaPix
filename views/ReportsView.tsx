@@ -42,12 +42,7 @@ export const ReportsView: React.FC = () => {
     const { setActiveView } = useUI();
     const { t, language } = useTranslation();
     const { loadingAiId, setMatchResults, setBulkIdentificationTxs, bulkIdentificationTxs, churches } = useContext(AppContext);
-    const { subscription, user } = useAuth();
-
-    const isSecondaryUser = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
-        subscription?.role !== 'owner' &&
-        subscription?.role !== 'admin' &&
-        subscription?.role !== 'principal';
+    const { subscription, user, isSecondaryUser } = useAuth();
 
     const perms = (subscription?.permissions || {}) as any;
     const canIdentify = !isSecondaryUser || (perms.identificar !== false && perms.identifyPayments !== false);

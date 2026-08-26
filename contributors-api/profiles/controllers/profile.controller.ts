@@ -13,15 +13,17 @@ export class ProfileController {
     try {
       const user = (req as any).user;
       const isSuperAdmin = Boolean(user?.isSuperAdmin || user?.role === 'SUPER_ADMIN' || user?.role === 'ADMINISTRADOR_GERAL');
-      const authenticatedUserId = user?.userId || user?.id;
+      const authenticatedUserId = user?.user_id || user?.userId || user?.id;
+      const authenticatedOwnerId = user?.owner_id || user?.ownerId;
+      const effectiveOwnerId = authenticatedOwnerId || authenticatedUserId;
 
       const { owner_id } = req.query;
 
       if (user && !isSuperAdmin && authenticatedUserId) {
-        if (owner_id && owner_id !== authenticatedUserId) {
+        if (owner_id && owner_id !== authenticatedUserId && owner_id !== effectiveOwnerId) {
           return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'Acesso negado aos perfis de outro usuário.' });
         }
-        const profiles = await this.service.getByOwnerId(authenticatedUserId);
+        const profiles = await this.service.getByOwnerId(effectiveOwnerId);
         return res.json({ success: true, data: profiles });
       }
 
@@ -43,14 +45,19 @@ export class ProfileController {
       const { id } = req.params;
       const user = (req as any).user;
       const isSuperAdmin = Boolean(user?.isSuperAdmin || user?.role === 'SUPER_ADMIN' || user?.role === 'ADMINISTRADOR_GERAL');
-      const authenticatedUserId = user?.userId || user?.id;
+      const authenticatedUserId = user?.user_id || user?.userId || user?.id;
+      const authenticatedOwnerId = user?.owner_id || user?.ownerId;
 
       const profile = await this.service.getById(id);
       if (!profile) {
         return res.status(404).json({ success: false, error: 'PERFIL_NAO_ENCONTRADO', message: `Perfil "${id}" não encontrado.` });
       }
 
-      if (user && !isSuperAdmin && authenticatedUserId && profile.owner_id && profile.owner_id !== authenticatedUserId && profile.id !== authenticatedUserId && profile.email?.toLowerCase() !== user.email?.toLowerCase()) {
+      const isOwnProfile = profile.id === authenticatedUserId || profile.email?.toLowerCase() === user?.email?.toLowerCase();
+      const isOwnerViewingMember = profile.owner_id === authenticatedUserId;
+      const isMemberViewingOwner = profile.id === authenticatedOwnerId || (authenticatedOwnerId && profile.owner_id === authenticatedOwnerId);
+
+      if (user && !isSuperAdmin && authenticatedUserId && !isOwnProfile && !isOwnerViewingMember && !isMemberViewingOwner) {
         return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'Acesso negado a este perfil.' });
       }
 

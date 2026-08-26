@@ -30,7 +30,7 @@ import {
 export const Sidebar: React.FC = memo(() => {
     const { activeView, setActiveView } = useUI();
     const { t } = useTranslation();
-    const { signOut, user, subscription, systemSettings } = useAuth();
+    const { signOut, user, subscription, systemSettings, isSecondaryUser } = useAuth();
     const { openPaymentModal, setMatchResults, setBulkIdentificationTxs, bulkIdentificationTxs, churches } = useContext(AppContext);
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -96,18 +96,6 @@ export const Sidebar: React.FC = memo(() => {
         const { outcome } = await deferredPrompt.userChoice;
         if (outcome === 'accepted') setDeferredPrompt(null);
     };
-
-    const roleStr = String(subscription?.role || '').toLowerCase();
-    const isSecondaryUser = Boolean(
-        subscription?.ownerId &&
-        subscription.ownerId !== user?.id &&
-        roleStr !== 'owner' &&
-        roleStr !== 'admin' &&
-        roleStr !== 'principal' &&
-        roleStr !== 'superadmin' &&
-        user?.role !== 'SUPER_ADMIN' &&
-        user?.role !== 'ADMINISTRADOR_GERAL'
-    );
 
     const navItems = useMemo(() => {
         const items: { view: ViewType, labelKey: string, icon: React.ReactNode, special?: boolean }[] = [];

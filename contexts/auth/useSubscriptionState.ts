@@ -5,19 +5,44 @@ import { SystemSettings } from './AuthContracts';
 
 // Fix: Added React to imports and typed settingsRef as React.MutableRefObject
 export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemSettings>) => {
-    const [subscription, setSubscription] = useState<SubscriptionStatus>({
-        plan: 'trial',
-        daysRemaining: 10,
-        totalDays: 10,
-        isExpired: false,
-        isBlocked: false,
-        isLifetime: false,
-        aiLimit: 100, 
-        aiUsage: 0,
-        maxChurches: 2, 
-        maxBanks: 2,
-        role: 'owner',
-        ownerId: ''
+    const [subscription, setSubscription] = useState<SubscriptionStatus>(() => {
+        try {
+            const rawUser = typeof window !== 'undefined' ? localStorage.getItem('iggestor_vps_user') : null;
+            if (rawUser) {
+                const u = JSON.parse(rawUser);
+                const role = u?.role || 'owner';
+                const ownerId = u?.owner_id || u?.id || '';
+                return {
+                    plan: 'trial',
+                    daysRemaining: 10,
+                    totalDays: 10,
+                    isExpired: false,
+                    isBlocked: false,
+                    isLifetime: false,
+                    aiLimit: 100, 
+                    aiUsage: 0,
+                    maxChurches: 2, 
+                    maxBanks: 2,
+                    role: role,
+                    ownerId: ownerId,
+                    permissions: u?.permissions || {}
+                };
+            }
+        } catch {}
+        return {
+            plan: 'trial',
+            daysRemaining: 10,
+            totalDays: 10,
+            isExpired: false,
+            isBlocked: false,
+            isLifetime: false,
+            aiLimit: 100, 
+            aiUsage: 0,
+            maxChurches: 2, 
+            maxBanks: 2,
+            role: 'owner',
+            ownerId: ''
+        };
     });
 
     const lastProcessedUserId = useRef<string | null>(null);
@@ -29,6 +54,13 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
         lastProcessedUserId.current = userId;
         const settings = settingsRef.current;
 
+        // Obtain fallback user metadata from localStorage
+        let localUser: any = null;
+        try {
+            const raw = localStorage.getItem('iggestor_vps_user');
+            if (raw) localUser = JSON.parse(raw);
+        } catch {}
+
         try {
             const fetchPromise = profileService.getProfile(userId);
             const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 15000));
@@ -37,22 +69,29 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
             const now = new Date();
             let p = (profileData as any) || {};
             
+            // If profileData doesn't have role/owner_id, use localUser fallback
+            if (!p.role && localUser?.role) p.role = localUser.role;
+            if (!p.owner_id && localUser?.owner_id) p.owner_id = localUser.owner_id;
+            if (!p.permissions && localUser?.permissions) p.permissions = localUser.permissions;
+
             // 🔗 HIERARCHY LOGIC: Secondary users inherit subscription from Principal
             // If the user has an owner_id different from their own ID, they are a secondary user.
             if (p.owner_id && p.owner_id !== userId && p.owner_id !== p.id && p.role !== 'owner' && p.role !== 'admin' && p.role !== 'superadmin') {
-                const ownerData = await profileService.getProfile(p.owner_id);
-                if (ownerData) {
-                    // Inherit subscription fields from the Principal user
-                    p.subscription_status = ownerData.subscription_status;
-                    p.subscription_ends_at = ownerData.subscription_ends_at;
-                    p.trial_ends_at = ownerData.trial_ends_at;
-                    p.is_lifetime = ownerData.is_lifetime;
-                    p.is_blocked = ownerData.is_blocked;
-                    p.limit_ai = ownerData.limit_ai;
-                    p.max_churches = ownerData.max_churches;
-                    p.max_banks = ownerData.max_banks;
-                    // Note: usage_ai remains individual to track each user's consumption, 
-                    // but they share the Principal's limit_ai.
+                try {
+                    const ownerData = await profileService.getProfile(p.owner_id);
+                    if (ownerData) {
+                        // Inherit subscription fields from the Principal user
+                        p.subscription_status = ownerData.subscription_status;
+                        p.subscription_ends_at = ownerData.subscription_ends_at;
+                        p.trial_ends_at = ownerData.trial_ends_at;
+                        p.is_lifetime = ownerData.is_lifetime;
+                        p.is_blocked = ownerData.is_blocked;
+                        p.limit_ai = ownerData.limit_ai;
+                        p.max_churches = ownerData.max_churches;
+                        p.max_banks = ownerData.max_banks;
+                    }
+                } catch (ownerErr) {
+                    console.warn("[useSubscriptionState] Aviso ao buscar dados do proprietário:", ownerErr);
                 }
             }
             
@@ -110,6 +149,9 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
                 bankIds = permissions.bankIds;
             }
 
+            const finalRole = p.role || localUser?.role || (p.owner_id && p.owner_id !== userId ? 'member' : 'owner');
+            const finalOwnerId = p.owner_id || localUser?.owner_id || userId;
+
             setSubscription({
                 plan: status as any,
                 daysRemaining: Math.max(0, daysRemaining),
@@ -121,8 +163,8 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
                 aiUsage: p.usage_ai || 0,
                 maxChurches: p.max_churches || settings.baseSlots,
                 maxBanks: p.max_banks || settings.baseSlots,
-                role: p.role || 'owner',
-                ownerId: p.owner_id || userId,
+                role: finalRole,
+                ownerId: finalOwnerId,
                 congregationId: congregationIds[0] || undefined,
                 congregationIds: congregationIds,
                 bankIds: bankIds,
@@ -130,6 +172,16 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
             });
         } catch (e) {
             console.error("Erro assinatura (resgatando padrão):", e);
+            if (localUser) {
+                const fallbackRole = localUser.role || (localUser.owner_id && localUser.owner_id !== userId ? 'member' : 'owner');
+                const fallbackOwnerId = localUser.owner_id || userId;
+                setSubscription(prev => ({
+                    ...prev,
+                    role: fallbackRole,
+                    ownerId: fallbackOwnerId,
+                    permissions: localUser.permissions || prev.permissions
+                }));
+            }
         }
     }, [settingsRef]);
 
