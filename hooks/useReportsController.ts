@@ -49,15 +49,22 @@ export const useReportsController = () => {
     
     const { language } = useTranslation();
     const { setActiveView } = useUI();
-    const { subscription, user } = useAuth();
+    const { subscription, user, isSecondaryUser } = useAuth();
     
-    const isSecondary = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
+    const isSecondary = isSecondaryUser ?? ((subscription?.ownerId && subscription.ownerId !== user?.id) &&
         subscription?.role !== 'owner' &&
         subscription?.role !== 'admin' &&
-        subscription?.role !== 'principal';
+        subscription?.role !== 'principal');
     
-    const [activeCategory, setActiveCategory] = useState<ReportCategory>('general');
-    const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+    const [activeCategory, setActiveCategory] = useState<ReportCategory>(() => {
+        return isSecondary ? 'churches' : 'general';
+    });
+    const [selectedReportId, setSelectedReportId] = useState<string | null>(() => {
+        if (isSecondary && subscription?.congregationIds && subscription.congregationIds.length > 0) {
+            return subscription.congregationIds[0];
+        }
+        return null;
+    });
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const syncHashRef = useRef<string>('');
@@ -474,13 +481,13 @@ export const useReportsController = () => {
 
     // Sincroniza categoria e seleção de igreja/relatório
     useEffect(() => {
-        const isSecondary = (subscription.ownerId && subscription.ownerId !== user?.id) &&
+        const isUserSecondary = isSecondaryUser ?? ((subscription.ownerId && subscription.ownerId !== user?.id) &&
             subscription.role !== 'owner' &&
             subscription.role !== 'admin' &&
-            subscription.role !== 'principal';
+            subscription.role !== 'principal');
 
-        // Se for membro, garante que está na categoria correta e com uma igreja válida
-        if (isSecondary && subscription.congregationIds && subscription.congregationIds.length > 0) {
+        // Se for usuário secundário, garante que está na categoria correta e com uma igreja válida
+        if (isUserSecondary && subscription.congregationIds && subscription.congregationIds.length > 0) {
             setActiveCategory('churches');
             if (!selectedReportId || !subscription.congregationIds.includes(selectedReportId)) {
                 setSelectedReportId(subscription.congregationIds[0]);

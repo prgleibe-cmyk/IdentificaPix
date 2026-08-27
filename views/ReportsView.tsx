@@ -222,7 +222,7 @@ export const ReportsView: React.FC = () => {
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                     <h2 className="text-lg font-black text-brand-deep dark:text-white tracking-tight leading-none">{t('reports.title')}</h2>
                     <div className="overflow-x-auto pb-1 -mx-1 px-1 custom-scrollbar scrollbar-hide">
-                        <CategoryPills activeCategory={ctrl.activeCategory} onCategoryChange={ctrl.setActiveCategory} counts={ctrl.counts} role={subscription.role} />
+                        <CategoryPills activeCategory={ctrl.activeCategory} onCategoryChange={ctrl.setActiveCategory} counts={ctrl.counts} role={subscription.role} isSecondaryUser={isSecondaryUser} />
                     </div>
                 </div>
                 {ctrl.activeCategory !== 'contributors' && (

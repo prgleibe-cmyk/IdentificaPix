@@ -8,9 +8,10 @@ interface CategoryPillsProps {
     onCategoryChange: (cat: ReportCategory) => void;
     counts: { general: number; churches: number; pending: number; expenses: number; contributors?: number };
     role?: string;
+    isSecondaryUser?: boolean;
 }
 
-export const CategoryPills: React.FC<CategoryPillsProps> = ({ activeCategory, onCategoryChange, counts, role }) => {
+export const CategoryPills: React.FC<CategoryPillsProps> = ({ activeCategory, onCategoryChange, counts, role, isSecondaryUser }) => {
     let categories: Array<{ id: ReportCategory; label: string; count?: number; icon: any; theme: string }> = [
         { id: 'general', label: 'Geral', count: counts.general, icon: RectangleStackIcon, theme: 'slate' },
         { id: 'churches', label: 'Igrejas', count: counts.churches, icon: BuildingOfficeIcon, theme: 'blue' },
@@ -18,7 +19,7 @@ export const CategoryPills: React.FC<CategoryPillsProps> = ({ activeCategory, on
         { id: 'expenses', label: 'Saídas', count: counts.expenses, icon: BanknotesIcon, theme: 'rose' }
     ];
 
-    if (role === 'member') {
+    if (isSecondaryUser || role === 'member') {
         categories = categories.filter(cat => cat.id === 'churches');
     }
 
