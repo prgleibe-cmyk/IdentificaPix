@@ -54,11 +54,18 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
         };
     });
 
+    const [isSubscriptionReady, setIsSubscriptionReady] = useState(false);
     const lastProcessedUserId = useRef<string | null>(null);
 
     const calculateSubscription = useCallback(async (userId: string | null, force: boolean = false) => {
-        if (!userId) return;
-        if (!force && lastProcessedUserId.current === userId) return;
+        if (!userId) {
+            setIsSubscriptionReady(true);
+            return;
+        }
+        if (!force && lastProcessedUserId.current === userId) {
+            setIsSubscriptionReady(true);
+            return;
+        }
         
         lastProcessedUserId.current = userId;
         const settings = settingsRef.current;
@@ -194,6 +201,8 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
                     permissions: localUser.permissions || prev.permissions
                 }));
             }
+        } finally {
+            setIsSubscriptionReady(true);
         }
     }, [settingsRef]);
 
@@ -210,5 +219,5 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
         return () => clearInterval(interval);
     }, [subscription.isExpired, calculateSubscription]);
 
-    return { subscription, setSubscription, calculateSubscription, lastProcessedUserId };
+    return { subscription, setSubscription, calculateSubscription, lastProcessedUserId, isSubscriptionReady };
 };

@@ -31,15 +31,16 @@ const DEFAULT_SEARCH_FILTERS: SearchFilters = {
 const MAX_REPORTS_PER_USER = 60;
 
 export const useReportManager = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void, initialReports?: any[], realtimeRefreshKey?: number) => {
-    const { subscription } = useAuth();
+    const { subscription, isSubscriptionReady } = useAuth();
     const effectiveUserId = subscription?.ownerId || user?.id;
     const executionId = useRef(Math.random().toString(36).substring(7));
     const userSuffix = user ? `-${user.id}` : '-guest';
     const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
+    const [isReportsReady, setIsReportsReady] = useState<boolean>(false);
     const [searchFilters, setSearchFilters] = usePersistentState<SearchFilters>(`identificapix-search-filters${userSuffix}`, DEFAULT_SEARCH_FILTERS);
     const hasHydratedRef = useRef(false);
     const savedReportsRef = useRef<SavedReport[]>([]);
-    const lastEffectiveUserIdRef = useRef<string | null>(null);
+    const lastSyncKeyRef = useRef<string | null>(null);
 
     useEffect(() => {
         savedReportsRef.current = savedReports;
@@ -48,6 +49,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     useEffect(() => {
         if (realtimeRefreshKey && realtimeRefreshKey > 0) {
             hasHydratedRef.current = false;
+            lastSyncKeyRef.current = null;
         }
     }, [realtimeRefreshKey]);
 
@@ -57,34 +59,47 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const lastSavedPayloadRef = useRef<string>('');
 
     /**
-     * 📥 CARGA INICIAL
+     * 📥 CARGA INICIAL ATÔMICA E SINCRONIZADA DOS RELATÓRIOS
      */
     useEffect(() => {
-        if (ENABLE_HEAVY_LOGS) {
-            console.log("[AUDIT][USE_EFFECT_TRIGGER]", {
-                userId: user?.id,
-                effectiveUserId,
-                hasInitialReports: !!initialReports?.length,
-                executionId: executionId.current,
-                timestamp: Date.now()
-            });
-        }
-
         let ignore = false;
+
         if (!user || !effectiveUserId) {
             setSavedReports([]);
+            lastSyncKeyRef.current = null;
+            setIsReportsReady(true);
             return;
         }
 
-        if (lastEffectiveUserIdRef.current !== effectiveUserId) {
-            hasHydratedRef.current = false;
-            lastEffectiveUserIdRef.current = effectiveUserId;
+        // Aguarda resolução da assinatura / permissões
+        if (isSubscriptionReady === false) {
+            return;
         }
+
+        const roleStr = String(subscription?.role || '').toLowerCase();
+        const allowedChurchKey = (subscription?.congregationIds || []).join(',');
+        const syncKey = `${user.id}:${effectiveUserId}:${roleStr}:${allowedChurchKey}:${realtimeRefreshKey || 0}:${initialReports?.length || 0}`;
+
+        if (lastSyncKeyRef.current === syncKey && hasHydratedRef.current) {
+            return;
+        }
+
+        const isSecondaryUser = Boolean(
+            subscription?.ownerId && 
+            subscription?.ownerId !== user?.id && 
+            roleStr !== 'owner' && 
+            roleStr !== 'principal' && 
+            roleStr !== 'admin' && 
+            roleStr !== 'superadmin' &&
+            user?.role !== 'SUPER_ADMIN' &&
+            user?.role !== 'ADMINISTRADOR_GERAL'
+        );
+        const allowedChurchIds = subscription?.congregationIds || [];
 
         // Se já recebemos relatórios iniciais (ex: via useReferenceData no AppContext),
         // evitamos a chamada duplicada ao endpoint /api/reference/data/:ownerId
         if (initialReports && initialReports.length > 0) {
-            const hydrated: SavedReport[] = initialReports.map((r: any) => ({
+            let hydrated: SavedReport[] = initialReports.map((r: any) => ({
                 id: r.id,
                 name: r.name,
                 createdAt: r.created_at || r.createdAt,
@@ -94,49 +109,27 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                 data: r.data || { results: [], spreadsheet: null }
             }));
 
-            if (ENABLE_HEAVY_LOGS) {
-                console.log("[AUDIT][SET_REPORTS]", {
-                    userId: user?.id,
-                    effectiveUserId,
-                    total: hydrated.length,
-                    source: 'initialReports',
-                    executionId: executionId.current,
-                    timestamp: Date.now()
-                });
+            if (isSecondaryUser) {
+                if (allowedChurchIds.length > 0) {
+                    hydrated = hydrated.filter(r => Boolean(r.church_id && allowedChurchIds.includes(r.church_id)));
+                } else {
+                    hydrated = [];
+                }
             }
 
-            // Atualiza se estiver vazio ou se o tamanho/conteúdo mudou
-            if (savedReportsRef.current.length === 0 || savedReportsRef.current.length !== hydrated.length) {
-                setSavedReports(hydrated);
-            }
+            setSavedReports(hydrated);
             hasHydratedRef.current = true;
+            lastSyncKeyRef.current = syncKey;
+            setIsReportsReady(true);
             return;
         }
 
         const fetchReports = async () => {
-            // Evita buscar duplicado se já foi hidratado e não houve alteração por refresh key
-            if (hasHydratedRef.current && savedReportsRef.current.length > 0 && (!realtimeRefreshKey || realtimeRefreshKey === 0)) {
-                if (ENABLE_HEAVY_LOGS) {
-                    console.log('[ReportManager] Já hidratado. Ignorando fetchReports redundante.');
-                }
-                return;
-            }
-            // Para a API, precisamos do ownerId para passar na validação de permissão
             const apiOwnerId = effectiveUserId;
             let data: any[] = [];
             
             try {
-                // Agora sempre buscamos via API para centralizar a lógica no ReportService.js do backend
                 const token = await getAuthToken();
-
-                if (ENABLE_HEAVY_LOGS) {
-                    console.log("[AUDIT][FETCH_START]", {
-                        userId: user?.id,
-                        effectiveUserId,
-                        executionId: executionId.current,
-                        timestamp: Date.now()
-                    });
-                }
 
                 const response = await fetch(`/api/v1/saved_reports?user_id=${apiOwnerId}&exclude_data=true`, {
                     method: 'GET',
@@ -146,17 +139,6 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
                 if (response.ok) {
                     const resData = await response.json();
-
-                    if (ENABLE_HEAVY_LOGS) {
-                        console.log("[AUDIT][FETCH_END]", {
-                            userId: user?.id,
-                            effectiveUserId,
-                            reports: resData?.length,
-                            executionId: executionId.current,
-                            timestamp: Date.now()
-                        });
-                    }
-
                     if (ignore) return;
                     data = resData || [];
                 } else {
@@ -164,7 +146,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                 }
 
                 if (data && !ignore) {
-                    const hydrated: SavedReport[] = data.map((r: any) => ({
+                    let hydrated: SavedReport[] = data.map((r: any) => ({
                         id: r.id,
                         name: r.name,
                         createdAt: r.created_at || r.createdAt,
@@ -174,17 +156,15 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                         data: r.data || { results: [], spreadsheet: null }
                     }));
 
-                    if (ENABLE_HEAVY_LOGS) {
-                        console.log("[AUDIT][SET_REPORTS]", {
-                            userId: user?.id,
-                            effectiveUserId,
-                            total: hydrated.length,
-                            source: 'fetchReports',
-                            executionId: executionId.current,
-                            timestamp: Date.now()
-                        });
+                    if (isSecondaryUser) {
+                        if (allowedChurchIds.length > 0) {
+                            hydrated = hydrated.filter(r => Boolean(r.church_id && allowedChurchIds.includes(r.church_id)));
+                        } else {
+                            hydrated = [];
+                        }
                     }
 
+                    // 🛡️ Carga inicial atômica dos relatórios autorizados
                     setSavedReports(hydrated);
                     hasHydratedRef.current = true;
                 }
@@ -192,12 +172,17 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                 if (!ignore) {
                     console.error("[ReportManager] Erro ao carregar relatórios históricos:", err);
                 }
+            } finally {
+                if (!ignore) {
+                    lastSyncKeyRef.current = syncKey;
+                    setIsReportsReady(true);
+                }
             }
         };
 
         fetchReports();
         return () => { ignore = true; };
-    }, [user, effectiveUserId, initialReports, realtimeRefreshKey]);
+    }, [user, effectiveUserId, subscription?.role, subscription?.ownerId, subscription?.congregationIds, isSubscriptionReady, initialReports, realtimeRefreshKey]);
 
     /**
      * 🔴 TEMPO REAL (APENAS ASSINATURA)
@@ -466,6 +451,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
     return useMemo(() => ({
         savedReports, setSavedReports,
+        isReportsReady, isReady: isReportsReady,
         maxSavedReports: MAX_REPORTS_PER_USER,
         searchFilters, setSearchFilters,
         isSearchFiltersOpen, openSearchFilters, closeSearchFilters, clearSearchFilters,
@@ -474,7 +460,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         deleteReport, deleteOldReports,
         allHistoricalResults
     }), [
-        savedReports, searchFilters, isSearchFiltersOpen, savingReportState, allHistoricalResults,
+        savedReports, isReportsReady, searchFilters, isSearchFiltersOpen, savingReportState, allHistoricalResults,
         setSavedReports, setSearchFilters, openSearchFilters, closeSearchFilters, clearSearchFilters,
         openSaveReportModal, closeSaveReportModal, confirmSaveReport, updateSavedReportName, saveFilteredReport, overwriteSavedReport,
         deleteReport, deleteOldReports

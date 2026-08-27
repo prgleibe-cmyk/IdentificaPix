@@ -10,7 +10,7 @@ import { fetchWithMemoryCache } from '../services/clientDataCache';
 const DEFAULT_PAYMENT_METHODS = ['PIX', 'DINHEIRO'];
 
 export const useReferenceData = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void, realtimeRefreshKey?: number) => {
-    const { subscription, systemSettings } = useAuth();
+    const { subscription, systemSettings, isSubscriptionReady } = useAuth();
     const effectiveUserId = subscription?.ownerId || user?.owner_id || user?.id;
     const userSuffix = user ? `-${user.id}` : '-guest';
 
@@ -105,12 +105,13 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const [editingChurch, setEditingChurch] = useState<Church | null>(null);
     const isBatchUpdating = batchState.isBatchUpdating;
 
-    // ✅ CONTROLE DE EXECUÇÃO (NOVO - mínimo necessário)
-    const lastOwnerIdRef = useRef<string | null>(null);
+    // ✅ CONTROLE DE EXECUÇÃO E CARGA ATÔMICA
+    const [isReady, setIsReady] = useState(false);
+    const lastSyncKeyRef = useRef<string | null>(null);
 
     useEffect(() => {
         if (realtimeRefreshKey && realtimeRefreshKey > 0) {
-            lastOwnerIdRef.current = null;
+            lastSyncKeyRef.current = null;
         }
     }, [realtimeRefreshKey]);
 
@@ -118,17 +119,29 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         let ignore = false;
 
         if (!user?.id) {
-            lastOwnerIdRef.current = null;
+            lastSyncKeyRef.current = null;
+            setIsReady(true);
             return;
         }
 
-        // ✅ evita múltiplas execuções desnecessárias
-        if (lastOwnerIdRef.current === user.id) return;
+        // Aguarda a resolução completa das permissões e assinatura antes de buscar
+        if (isSubscriptionReady === false) {
+            return;
+        }
+
+        const roleStr = String(subscription?.role || '').toLowerCase();
+        const effectiveOwnerId = subscription?.ownerId || user.id;
+        const allowedChurchKey = (subscription?.congregationIds || []).join(',');
+        const syncKey = `${user.id}:${effectiveOwnerId}:${roleStr}:${allowedChurchKey}:${realtimeRefreshKey || 0}`;
+
+        if (lastSyncKeyRef.current === syncKey) {
+            return;
+        }
 
         const syncData = async () => {
             try {
                 const token = await getAuthToken();
-                const ownerId = subscription.ownerId || user.id;
+                const ownerId = effectiveOwnerId;
 
                 let response = await fetch(`/api/v1/reference/data/${ownerId}?limit=50&offset=0`, {
                     method: 'GET',
@@ -174,7 +187,6 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                     let fetchedReports = data.reports || [];
                     let fetchedAssociations = data.associations || [];
                     
-                    const roleStr = String(subscription.role || '').toLowerCase();
                     const isSecondaryUser = Boolean(
                         subscription.ownerId && 
                         subscription.ownerId !== user?.id && 
@@ -198,8 +210,10 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
                         if (allowedChurchIds.length > 0) {
                             filteredChurches = filteredChurches.filter((c: any) => allowedChurchIds.includes(c.id));
+                            fetchedReports = fetchedReports.filter((r: any) => Boolean(r.church_id && allowedChurchIds.includes(r.church_id)));
                         } else {
                             filteredChurches = [];
+                            fetchedReports = [];
                         }
                     }
                     
@@ -228,18 +242,19 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                 if (!ignore) {
                     console.error("[useReferenceData] Erro ao buscar dados via API:", error);
                 }
+            } finally {
+                if (!ignore) {
+                    lastSyncKeyRef.current = syncKey;
+                    setIsReady(true);
+                }
             }
-
-            // ✅ marca como executado
-            lastOwnerIdRef.current = user.id;
         };
 
         syncData();
 
         return () => { ignore = true; };
 
-    // ✅ dependências corrigidas (cirúrgico)
-    }, [user?.id, subscription?.role, subscription?.ownerId, realtimeRefreshKey]);
+    }, [user?.id, subscription?.role, subscription?.ownerId, subscription?.congregationIds, isSubscriptionReady, realtimeRefreshKey]);
 
     // ✅ REAL-TIME SYNC PARA METADADOS (Bancos, Igrejas, Associações)
     useEffect(() => {
@@ -536,7 +551,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     }, [showToast]);
 
     return useMemo(() => ({
-        banks, churches, reports, similarityLevel, setSimilarityLevel, dayTolerance, setDayTolerance,
+        banks, churches, reports, isReady, similarityLevel, setSimilarityLevel, dayTolerance, setDayTolerance,
         contributionKeywords, addContributionKeyword, removeContributionKeyword,
         paymentMethods, addPaymentMethod, removePaymentMethod, updatePaymentMethod,
         contributionTypes, fetchContributionTypes, addContributionType, updateContributionType, removeContributionType,
@@ -545,7 +560,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         editingChurch, openEditChurch, closeEditChurch, updateChurch, addChurch,
         setBanks, setChurches, setLearnedAssociations
     }), [
-        banks, churches, reports, similarityLevel, dayTolerance, 
+        banks, churches, reports, isReady, similarityLevel, dayTolerance, 
         contributionKeywords, paymentMethods, contributionTypes, fetchContributionTypes, addContributionType, updateContributionType, removeContributionType, learnedAssociations, learnAssociation, 
         editingBank, editingChurch, setBanks, setChurches, setSimilarityLevel, 
         setDayTolerance, openEditBank, closeEditBank, updateBank, addBank, 

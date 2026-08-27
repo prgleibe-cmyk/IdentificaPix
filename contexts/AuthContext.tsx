@@ -84,9 +84,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isSigningOut = useRef(false);
 
   const { systemSettings, updateSystemSettings, settingsRef } = useSystemSettings();
-  const { subscription, setSubscription, calculateSubscription, lastProcessedUserId } = useSubscriptionState(settingsRef);
+  const { subscription, setSubscription, calculateSubscription, lastProcessedUserId, isSubscriptionReady } = useSubscriptionState(settingsRef);
 
   const isSecondaryUser = useMemo(() => checkIsSecondaryUser(user, subscription), [user, subscription]);
+  const isAuthReady = useMemo(() => !loading && (!user || isSubscriptionReady), [loading, user, isSubscriptionReady]);
 
   const refreshSubscription = useCallback(async () => {
     if (user) await calculateSubscription(user.id, true);
@@ -157,10 +158,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [calculateSubscription]);
 
   const value = useMemo(() => ({
-    session, user, loading, isSecondaryUser, signOut, subscription, refreshSubscription,
+    session, user, loading, isSecondaryUser, signOut, subscription, isSubscriptionReady, isAuthReady, refreshSubscription,
     ...authActions,
     systemSettings, updateSystemSettings
-  }), [session, user, loading, isSecondaryUser, signOut, subscription, refreshSubscription, authActions, systemSettings, updateSystemSettings]);
+  }), [session, user, loading, isSecondaryUser, signOut, subscription, isSubscriptionReady, isAuthReady, refreshSubscription, authActions, systemSettings, updateSystemSettings]);
 
   return (
     <AuthContext.Provider value={value}>

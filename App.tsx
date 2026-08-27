@@ -29,8 +29,7 @@ import { PinchZoomControl } from './components/layout/PinchZoomControl';
 
 // --- Main Application Layout ---
 const MainLayout: React.FC = () => {
-    const { isLoading, initialDataLoaded, toast, savedReports } = useContentController();
-    const hasCachedData = !!savedReports?.length;
+    const { isLoading, initialDataLoaded, toast } = useContentController();
     const scrollContainerRef = React.useRef<HTMLDivElement>(null);
     const pinchState = usePinchZoom(scrollContainerRef);
 
@@ -38,7 +37,7 @@ const MainLayout: React.FC = () => {
     const bulkIdentificationTxs = context?.bulkIdentificationTxs;
     const isManualLaunch = bulkIdentificationTxs?.some((tx: any) => tx.id.startsWith('ghost-manual-'));
 
-    if (!initialDataLoaded && !hasCachedData) {
+    if (!initialDataLoaded) {
         return (
             <div className="h-[100dvh] w-screen flex items-center justify-center bg-brand-deep">
                 <div className="flex flex-col items-center">

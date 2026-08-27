@@ -35,6 +35,8 @@ export interface AuthContextType {
   user: any | null;
   loading: boolean;
   isSecondaryUser: boolean;
+  isSubscriptionReady?: boolean;
+  isAuthReady?: boolean;
   signOut: () => Promise<void>;
   subscription: SubscriptionStatus;
   refreshSubscription: () => Promise<void>;

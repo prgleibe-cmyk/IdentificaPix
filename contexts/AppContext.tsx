@@ -28,10 +28,9 @@ export const AppContext = createContext<any>(null!);
  * 4. Jamais remover os filtros de segurança (isSecondary check) que garantem multi-tenancy.
  */
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { user, subscription } = useAuth();
+    const { user, subscription, isSubscriptionReady } = useAuth();
     const { showToast, setIsLoading, setActiveView, isLoading } = useUI();
 
-    const [initialDataLoaded, setInitialDataLoaded] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
 
@@ -59,6 +58,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const modalController = useModalController();
     const referenceData = useReferenceData(user, showToast, realtimeRefreshKey);
     const reportManager = useReportManager(user, showToast, referenceData.reports, realtimeRefreshKey);
+
+    const initialDataLoaded = Boolean(
+        !user || (isSubscriptionReady && referenceData.isReady && reportManager.isReportsReady)
+    );
 
     const reconciliation = useReconciliation({
         user: user,
@@ -388,10 +391,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         return list.sort((a: any, b: any) => a.name.localeCompare(b.name));
     }, [referenceData.banks, subscription, user?.id]);
-
-    useEffect(() => {
-        if (user !== undefined) setInitialDataLoaded(true);
-    }, [user]);
 
     // 📊 DADOS CONSOLIDADOS PARA RELATÓRIOS E LIVRO CAIXA
     const reportData = useMemo(() => {

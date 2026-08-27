@@ -39,7 +39,7 @@ export const useSavedReportsController = () => {
             subscription?.role !== 'admin' &&
             subscription?.role !== 'principal';
         if (isSecondary && subscription?.congregationIds && (subscription.congregationIds || []).length > 0) {
-            result = result.filter(r => !r.church_id || (subscription.congregationIds || []).includes(r.church_id));
+            result = result.filter(r => Boolean(r.church_id && (subscription.congregationIds || []).includes(r.church_id)));
         }
 
         if (searchQuery) {
