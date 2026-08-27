@@ -430,7 +430,12 @@ export async function executeBackupWithLock(pool: pg.Pool): Promise<BackupResult
     return await executeBackup(pool);
   } catch (err: any) {
     const errorMsg = err?.message || String(err);
-    console.error(`[BackupService] Error during advisory lock or backup execution:`, errorMsg);
+    const isNetworkOrDns = err?.code === 'EAI_AGAIN' || err?.code === 'ENOTFOUND' || err?.code === 'ECONNREFUSED' || err?.code === 'ETIMEDOUT' || errorMsg.includes('EAI_AGAIN') || errorMsg.includes('ENOTFOUND') || errorMsg.includes('ECONNREFUSED');
+    if (isNetworkOrDns) {
+      console.warn(`[BackupService] PostgreSQL status: Conexão remota aguardando disponibilidade [${err?.code || 'OFFLINE'}]. Execução de backup adiada.`);
+    } else {
+      console.error(`[BackupService] Error during advisory lock or backup execution:`, errorMsg);
+    }
     return {
       success: false,
       filename: '',

@@ -147,7 +147,12 @@ export async function initAuditDatabase(pool: pg.Pool): Promise<void> {
     `);
     console.log('[AuditService] Centralized audit_logs table and indices initialized successfully.');
   } catch (err: any) {
-    console.error('[AuditService] Error initializing audit_logs database:', err?.message || err);
+    const isNetworkOrDns = err?.code === 'EAI_AGAIN' || err?.code === 'ENOTFOUND' || err?.code === 'ECONNREFUSED' || err?.code === 'ETIMEDOUT' || (err?.message && (err.message.includes('EAI_AGAIN') || err.message.includes('ENOTFOUND') || err.message.includes('ECONNREFUSED')));
+    if (isNetworkOrDns) {
+      console.warn(`[AuditService] PostgreSQL status: Conexão remota aguardando disponibilidade [${err?.code || 'OFFLINE'}]. Inicialização adiada.`);
+    } else {
+      console.error('[AuditService] Error initializing audit_logs database:', err?.message || err);
+    }
   } finally {
     client.release();
   }
@@ -204,7 +209,10 @@ export async function logAudit(pool: pg.Pool, params: AuditLogParams): Promise<b
     return true;
   } catch (err: any) {
     // Fail safe: document audit logging error without disrupting business flow
-    console.error('[AuditService] WARNING: Audit logging failed safely:', err?.message || err);
+    const isNetworkOrDns = err?.code === 'EAI_AGAIN' || err?.code === 'ENOTFOUND' || err?.code === 'ECONNREFUSED' || err?.code === 'ETIMEDOUT' || (err?.message && (err.message.includes('EAI_AGAIN') || err.message.includes('ENOTFOUND') || err.message.includes('ECONNREFUSED')));
+    if (!isNetworkOrDns) {
+      console.warn('[AuditService] WARNING: Audit logging failed safely:', err?.message || err);
+    }
     return false;
   }
 }

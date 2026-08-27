@@ -547,7 +547,7 @@ export const ExportService = {
      */
     downloadOfx: (data: MatchResult[], filename: string = 'relatorio_conciliacao.ofx') => {
         const now = new Date();
-        const timestamp = now.toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+        const timestamp = now.toISOString().replace(/\D/g, '').slice(0, 14);
 
         let dtStart = '99999999';
         let dtEnd = '00000000';
@@ -1036,7 +1036,7 @@ ${transactionsOfx}
     downloadContributorsOfx: (contributors: any[], churches: any[], filename: string = 'cadastros_contribuintes.ofx') => {
         const getChurchName = (cId: string) => churches.find(c => c.id === cId)?.name || 'Igreja Geral';
         const now = new Date();
-        const timestamp = now.toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+        const timestamp = now.toISOString().replace(/\D/g, '').slice(0, 14);
 
         const itemsOfx = contributors.map((c, i) => {
             const name = String(c.name || c.fullName || 'CONTRIBUINTE').replace(/[<>&]/g, '').toUpperCase();
@@ -1611,7 +1611,7 @@ ${itemsOfx}
     downloadLivroCaixaOfx: (transactions: any[], churches: any[], filename: string = 'livro_caixa.ofx') => {
         const getChurchName = (item: any) => item.church || churches.find(c => c.id === item.churchId)?.name || 'Igreja Sede';
         const now = new Date();
-        const timestamp = now.toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+        const timestamp = now.toISOString().replace(/\D/g, '').slice(0, 14);
 
         const ofxTrns = transactions.map((tx, idx) => {
             const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
@@ -1993,7 +1993,7 @@ ${ofxTrns}
      */
     downloadBalanceteOfx: (totals: { income: number; expenses: number; balance: number; pending: number }, expenseCategories: any[], filename: string = 'balancete_sintetico.ofx') => {
         const now = new Date();
-        const timestamp = now.toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+        const timestamp = now.toISOString().replace(/\D/g, '').slice(0, 14);
 
         const itemsOfx = [
             `<STMTTRN><TRNTYPE>CREDIT</TRNTYPE><DTPOSTED>${timestamp.slice(0, 8)}120000</DTPOSTED><TRNAMT>${totals.income.toFixed(2)}</TRNAMT><FITID>BAL-INC-01</FITID><MEMO>TOTAL ENTRADAS BRUTAS</MEMO></STMTTRN>`,
