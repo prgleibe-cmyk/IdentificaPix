@@ -196,7 +196,7 @@ export const useCloudSync = ({
                 const fetchTransactionsPromise = (async () => {
                     let allTxs: any[] = [];
                     let from = 0;
-                    const pageSize = 1000;
+                    const pageSize = 5000;
 
                     let queryParams = `user_id=${effectiveUserId}&limit=${pageSize}`;
 
@@ -221,17 +221,17 @@ export const useCloudSync = ({
                         return contributorFilesRef.current;
                     }
 
-                    const promises = churches.map(async (church: any) => {
-                        const resp = await fetch(`/api/v1/contributors?church_id=${church.id}`);
+                    // Busca todos os contribuintes em uma única requisição veloz
+                    let data: any[] = [];
+                    try {
+                        const resp = await fetch(`/api/v1/contributors`);
                         if (resp.ok) {
                             const list = await resp.json();
-                            return Array.isArray(list) ? list : [];
+                            data = Array.isArray(list) ? list : [];
                         }
-                        return [];
-                    });
-
-                    const results = await Promise.all(promises);
-                    const data = results.flat();
+                    } catch (err) {
+                        console.error('[CloudSync:Contributors] Falha ao carregar lista unificada de contribuintes:', err);
+                    }
 
                     const allowedChurchIds = new Set((churches || []).map((ch: any) => ch.id));
 
@@ -516,26 +516,25 @@ export const useCloudSync = ({
                 }
 
                 if (pendingPromotions.length > 0) {
-                    console.log(`[CloudSync] Agendando auto-promoção sequencial de ${pendingPromotions.length} transações...`);
+                    console.log(`[CloudSync] Agendando auto-promoção veloz em lote de ${pendingPromotions.length} transações...`);
                     (async () => {
-                        for (let i = 0; i < pendingPromotions.length; i++) {
-                            const p = pendingPromotions[i];
-                            try {
-                                await consolidationService.updateTransactionStatus(
+                        const BATCH_SIZE = 10;
+                        for (let i = 0; i < pendingPromotions.length; i += BATCH_SIZE) {
+                            const chunk = pendingPromotions.slice(i, i + BATCH_SIZE);
+                            await Promise.allSettled(chunk.map(p => 
+                                consolidationService.updateTransactionStatus(
                                     p.id,
                                     'identified',
                                     p.churchId,
                                     p.bankId,
                                     undefined,
                                     false
-                                );
-                                // Espera 100ms entre as requisições para espalhar a carga de IO
-                                await new Promise(resolve => setTimeout(resolve, 100));
-                            } catch (err) {
-                                console.error(`[Auto-promote] Erro ao salvar transação ${p.id}:`, err);
-                            }
+                                )
+                            ));
                         }
-                    })();
+                    })().catch(err => {
+                        console.error('[Auto-promote] Erro no lote de auto-promoção:', err);
+                    });
                 }
             } catch (e) {
                 console.error("[CloudSync:ATOM_RECONSTRUCT_FAIL]", e);
