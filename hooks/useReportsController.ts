@@ -180,6 +180,31 @@ export const useReportsController = () => {
         });
 
         const churchMap = new Map<string, { id: string, name: string, count: number, total: number }>();
+
+        // Inicializa todas as congregações cadastradas/permitidas para que o usuário sempre tenha acesso instantâneo a cada relatório
+        if (allowedIds && allowedIds.length > 0) {
+            allowedIds.forEach((cid: string) => {
+                const realChurch = churchesMap.get(cid);
+                churchMap.set(cid, {
+                    id: cid,
+                    name: realChurch?.name || 'Igreja',
+                    count: 0,
+                    total: 0
+                });
+            });
+        } else if (!isSecondary && churches && churches.length > 0) {
+            churches.forEach((c: any) => {
+                if (c.id && c.id !== 'unidentified') {
+                    churchMap.set(c.id, {
+                        id: c.id,
+                        name: c.name || 'Igreja',
+                        count: 0,
+                        total: 0
+                    });
+                }
+            });
+        }
+
         periodResults.forEach(r => {
             const hasValidChurch = (r.church?.id && r.church.id !== 'unidentified') || 
                                  (r._churchId && r._churchId !== 'unidentified');
@@ -318,19 +343,15 @@ export const useReportsController = () => {
                     const idx = cacheRef.current.churchList.findIndex(c => c.id === churchId);
                     if (idx !== -1) {
                         const existing = cacheRef.current.churchList[idx];
-                        const newCount = existing.count + factor;
-                        const newTotal = existing.total + factor * (item.transaction?.amount || 0);
-                        if (newCount <= 0) {
-                            cacheRef.current.churchList = cacheRef.current.churchList.filter(c => c.id !== churchId);
-                        } else {
-                            const updatedList = [...cacheRef.current.churchList];
-                            updatedList[idx] = {
-                                ...existing,
-                                count: newCount,
-                                total: newTotal
-                            };
-                            cacheRef.current.churchList = updatedList;
-                        }
+                        const newCount = Math.max(0, existing.count + factor);
+                        const newTotal = Math.max(0, existing.total + factor * (item.transaction?.amount || 0));
+                        const updatedList = [...cacheRef.current.churchList];
+                        updatedList[idx] = {
+                            ...existing,
+                            count: newCount,
+                            total: newTotal
+                        };
+                        cacheRef.current.churchList = updatedList;
                     } else if (factor === 1) {
                         cacheRef.current.churchList = [
                             ...cacheRef.current.churchList,
