@@ -12,6 +12,7 @@ import { useAiAutoIdentify } from '../hooks/useAiAutoIdentify';
 import { useSummaryData } from '../hooks/useSummaryData';
 import { getAuthToken, getAuthSession } from '../services/auth/authAdapter';
 import { PLACEHOLDER_CHURCH } from '../services/processingService';
+import { resolveContributionType } from '../utils/formatters';
 const ENABLE_HEAVY_LOGS = false;
 
 export const AppContext = createContext<any>(null!);
@@ -431,8 +432,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
             const desc = tx.description || tx.rawDescription || contrib.name || 'Lançamento de Caixa';
             const payer = contrib.name || (r.status === 'IDENTIFICADO' ? (contrib.cleanedName || contrib.name) : null) || 'NÃO IDENTIFICADO';
-            const category = r.contributionType || tx.contributionType || 'Geral';
-            const paymentMethod = r.paymentMethod || tx.paymentMethod || 'PIX';
+            const resolvedType = resolveContributionType(r, referenceData.contributionTypes, referenceData.contributionKeywords);
+            const category = r.contributionType || tx.contributionType || contrib.contributionType || resolvedType || 'Geral';
+            const paymentMethod = r.paymentMethod || tx.paymentMethod || contrib.paymentMethod || 'PIX';
             const churchName = churchObj.name || (typeof churchObj === 'string' ? churchObj : 'Igreja Sede');
             const churchId = churchObj.id || r._churchId || tx.church_id || '';
 
@@ -454,6 +456,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 nome: payer,
                 category: category,
                 categoria: category,
+                contributionType: category,
+                categoryName: category,
                 paymentMethod: paymentMethod,
                 forma: paymentMethod,
                 church: churchName,
@@ -468,7 +472,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 raw: r
             };
         });
-    }, [reconciliation.fullMatchResults, reconciliation.matchResults, reportManager.savedReports, referenceData.churches, referenceData.banks]);
+    }, [reconciliation.fullMatchResults, reconciliation.matchResults, reportManager.savedReports, referenceData.churches, referenceData.banks, referenceData.contributionTypes, referenceData.contributionKeywords]);
 
     const value = useMemo(() => ({
         ...referenceData,

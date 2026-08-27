@@ -351,6 +351,9 @@ export const useCloudSync = ({
                         });
                     }
 
+                    const savedContribType = t.contribution_type || assoc?.contributionType || undefined;
+                    const savedPaymentMethod = t.payment_method || assoc?.paymentMethod || undefined;
+
                     const transaction: Transaction = {
                         id: t.id,
                         date: t.transaction_date,
@@ -362,7 +365,9 @@ export const useCloudSync = ({
                         type: t.type,
                         source: t.source,
                         pix_key: t.pix_key,
-                        row_hash: t.row_hash
+                        row_hash: t.row_hash,
+                        contributionType: savedContribType,
+                        paymentMethod: savedPaymentMethod
                     };
 
                     const regName = t.contributor_id ? getRegisteredContributorName(t.contributor_id) : null;
@@ -373,7 +378,9 @@ export const useCloudSync = ({
                         id: t.contributor_id || undefined,
                         name: validContribName,
                         amount: t.amount,
-                        cleanedName: validContribName
+                        cleanedName: validContribName,
+                        contributionType: savedContribType,
+                        paymentMethod: savedPaymentMethod
                     } : null;
 
                     let status = ReconciliationStatus.UNIDENTIFIED;
@@ -401,6 +408,8 @@ export const useCloudSync = ({
                         isConfirmed: t.is_confirmed,
                         matchMethod: assoc ? MatchMethod.LEARNED : MatchMethod.MANUAL,
                         similarity: 100,
+                        contributionType: savedContribType,
+                        paymentMethod: savedPaymentMethod,
                         updatedAt: t.updated_at
                     };
 
@@ -420,10 +429,14 @@ export const useCloudSync = ({
                             ...saved,
                             transaction: {
                                 ...saved.transaction,
-                                ...r.transaction, // Campos autênticos do banco sobrensaem sempre
+                                ...r.transaction, // Campos autênticos do banco sobressaem sempre
                                 date: r.transaction.date, // Garantia imutável da data do banco
-                                source: r.transaction.source || saved.transaction?.source // Garantia da origem do banco
+                                source: r.transaction.source || saved.transaction?.source, // Garantia da origem do banco
+                                contributionType: r.transaction.contributionType || saved.transaction?.contributionType,
+                                paymentMethod: r.transaction.paymentMethod || saved.transaction?.paymentMethod
                             },
+                            contributionType: r.contributionType || saved.contributionType,
+                            paymentMethod: r.paymentMethod || saved.paymentMethod,
                             updatedAt: r.updatedAt || saved.updatedAt
                         });
                     } else {

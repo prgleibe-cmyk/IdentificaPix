@@ -31,6 +31,7 @@ export const ManualIdModal: React.FC = () => {
         confirmBulkManualIdentification,
         closeManualIdentify,
         findMatchResult,
+        contributionTypes,
         contributionKeywords,
         paymentMethods,
         contributorFiles,
@@ -58,6 +59,7 @@ export const ManualIdModal: React.FC = () => {
     const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
     const [manualDescription, setManualDescription] = useState<string>('');
     const [manualAmount, setManualAmount] = useState<string>('');
+    const [manualType, setManualType] = useState<'entrada' | 'saida'>('entrada');
     const [isSaving, setIsSaving] = useState(false);
 
     // Auto-busca de contribuintes cadastrados ao digitar
@@ -90,6 +92,70 @@ export const ManualIdModal: React.FC = () => {
         }
         return list;
     }, [paymentMethods]);
+
+    // --- OPÇÕES DINÂMICAS DE DESCRIÇÃO / CATEGORIA (CADASTRADAS NO SISTEMA) ---
+    const defaultEntradaType = useMemo(() => {
+        const active = (contributionTypes || []).find((ct: any) => (ct.type === 'entrada' || !ct.type) && ct.is_active !== false);
+        return active?.name || contributionKeywords?.[0] || 'Dízimo';
+    }, [contributionTypes, contributionKeywords]);
+
+    const defaultSaidaType = useMemo(() => {
+        const active = (contributionTypes || []).find((ct: any) => ct.type === 'saida' && ct.is_active !== false);
+        return active?.name || 'Despesa Geral';
+    }, [contributionTypes]);
+
+    const typeOptions = useMemo(() => {
+        if (manualType === 'saida') {
+            const registeredSaidas = (contributionTypes || [])
+                .filter((ct: any) => ct.type === 'saida' && ct.is_active !== false)
+                .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0) || (a.name || '').localeCompare(b.name || ''))
+                .map((ct: any) => ct.name)
+                .filter(Boolean);
+
+            if (registeredSaidas.length > 0) {
+                return registeredSaidas;
+            }
+
+            return [
+                'Despesa Geral',
+                'Fatura / Conta',
+                'Adiantamento',
+                'Fornecedor / Compra',
+                'Manutenção',
+                'Aluguel',
+                'Energia / Água',
+                'Folha / Preletor',
+                'Outros'
+            ];
+        }
+
+        const registeredEntradas = (contributionTypes || [])
+            .filter((ct: any) => (ct.type === 'entrada' || !ct.type) && ct.is_active !== false)
+            .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0) || (a.name || '').localeCompare(b.name || ''))
+            .map((ct: any) => ct.name)
+            .filter(Boolean);
+
+        if (registeredEntradas.length > 0) {
+            return registeredEntradas;
+        }
+
+        const list = Array.isArray(contributionKeywords) && contributionKeywords.length > 0 
+            ? [...contributionKeywords] 
+            : ['Dízimo', 'Oferta'];
+        if (!list.includes('Dízimo')) list.unshift('Dízimo');
+        if (!list.includes('Oferta')) list.push('Oferta');
+        return list;
+    }, [manualType, contributionTypes, contributionKeywords]);
+
+    // --- FUNÇÃO PARA ALTERNAR ENTRE ENTRADA E SAÍDA ---
+    const handleTypeSwitch = (type: 'entrada' | 'saida') => {
+        setManualType(type);
+        if (type === 'saida') {
+            setSelectedType(defaultSaidaType);
+        } else {
+            setSelectedType(defaultEntradaType);
+        }
+    };
 
     const allContributors = useMemo(() => {
         if (!contributorFiles) return [];
@@ -201,7 +267,6 @@ export const ManualIdModal: React.FC = () => {
         }
     }, [bulkIdentificationTxs, contributorFiles]);
 
-    const [manualType, setManualType] = useState<'entrada' | 'saida'>('entrada');
     const activeTxId = bulkIdentificationTxs?.[0]?.id;
     const initializedTxIdRef = React.useRef<string | null>(null);
 
@@ -271,9 +336,9 @@ export const ManualIdModal: React.FC = () => {
             if (matchedResult?.contributionType) {
                 setSelectedType(matchedResult.contributionType);
             } else if (initType === 'saida') {
-                setSelectedType('Despesa Geral');
+                setSelectedType(defaultSaidaType);
             } else {
-                setSelectedType(contributionKeywords?.[0] || 'Dízimo');
+                setSelectedType(defaultEntradaType);
             }
 
             // 7. Payment Method
@@ -303,7 +368,7 @@ export const ManualIdModal: React.FC = () => {
             if (matchedResult?.contributionType) {
                 setSelectedType(matchedResult.contributionType);
             } else {
-                setSelectedType(contributionKeywords?.[0] || 'Dízimo');
+                setSelectedType(defaultEntradaType);
             }
 
             if (matchedResult?.church?.id) {
@@ -320,42 +385,7 @@ export const ManualIdModal: React.FC = () => {
                 setSelectedBankId(availableBanks[0].id);
             }
         }
-    }, [activeTxId, bulkIdentificationTxs, findMatchResult, churches, contributionKeywords, availableBanks]);
-
-    // --- FUNÇÃO PARA ALTERNAR ENTRE ENTRADA E SAÍDA ---
-    const handleTypeSwitch = (type: 'entrada' | 'saida') => {
-        setManualType(type);
-        if (type === 'saida') {
-            if (!selectedType || (contributionKeywords && contributionKeywords.includes(selectedType))) {
-                setSelectedType('Despesa Geral');
-            }
-        } else {
-            if (!selectedType || selectedType === 'Despesa Geral' || selectedType === 'Fatura / Conta') {
-                setSelectedType(contributionKeywords?.[0] || 'Dízimo');
-            }
-        }
-    };
-
-    // --- OPÇÕES DINÂMICAS DE TIPO / CATEGORIA ---
-    const typeOptions = useMemo(() => {
-        if (manualType === 'saida') {
-            return [
-                'Despesa Geral',
-                'Fatura / Conta',
-                'Adiantamento',
-                'Fornecedor / Compra',
-                'Manutenção',
-                'Aluguel',
-                'Energia / Água',
-                'Folha / Preletor',
-                'Outros'
-            ];
-        }
-        const list = Array.isArray(contributionKeywords) ? [...contributionKeywords] : ['Dízimo', 'Oferta'];
-        if (!list.includes('Dízimo')) list.unshift('Dízimo');
-        if (!list.includes('Oferta')) list.push('Oferta');
-        return list;
-    }, [manualType, contributionKeywords]);
+    }, [activeTxId, bulkIdentificationTxs, findMatchResult, churches, defaultEntradaType, defaultSaidaType, availableBanks]);
 
     // --- ATALHOS DE TECLADO ---
     useEffect(() => {
@@ -431,28 +461,28 @@ export const ManualIdModal: React.FC = () => {
         return (
             <div className="absolute inset-0 z-40 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full overflow-hidden">
                 {/* Header */}
-                <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div className="flex flex-row flex-wrap items-center gap-4 md:gap-8 w-full md:w-auto">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 rounded-2xl bg-brand-blue text-white shadow-lg shadow-blue-500/20">
-                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <div className="px-6 py-4.5 border-b border-slate-100 dark:border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shrink-0">
+                    <div className="flex flex-row flex-wrap items-center gap-3 sm:gap-6 w-full sm:w-auto">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 rounded-xl bg-brand-blue text-white shadow-md shadow-blue-500/20">
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             </div>
                             <div>
-                                <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight uppercase">
+                                <h3 className="text-base sm:text-lg font-black text-slate-800 dark:text-white tracking-tight uppercase">
                                     Novo Lançamento
                                 </h3>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">
                                     Lançamento Manual
                                 </p>
                             </div>
                         </div>
 
-                        {/* Selector buttons right in front of the name, matching exact size and style of Cadastros top buttons */}
+                        {/* Selector buttons right in front of the name */}
                         <div className="inline-flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 text-[10px]">
                             <button
                                 type="button"
                                 onClick={() => handleTypeSwitch('entrada')}
-                                className={`px-3.5 py-1.5 rounded-lg text-[10px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
+                                className={`px-3 py-1.5 rounded-lg text-[10px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
                                     manualType === 'entrada'
                                         ? 'bg-emerald-600 text-white shadow-xs'
                                         : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
@@ -466,7 +496,7 @@ export const ManualIdModal: React.FC = () => {
                             <button
                                 type="button"
                                 onClick={() => handleTypeSwitch('saida')}
-                                className={`px-3.5 py-1.5 rounded-lg text-[10px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
+                                className={`px-3 py-1.5 rounded-lg text-[10px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
                                     manualType === 'saida'
                                         ? 'bg-rose-600 text-white shadow-xs'
                                         : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
@@ -479,61 +509,63 @@ export const ManualIdModal: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2 self-end md:self-auto">
-                        <span className="text-[7px] font-black text-slate-400 uppercase border border-slate-200 dark:border-slate-800 px-1 rounded">Esc</span>
-                        <button type="button" onClick={closeManualIdentify} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors">
-                            <XMarkIcon className="w-6 h-6" />
+                    <div className="flex items-center gap-2 self-end sm:self-auto">
+                        <span className="text-[8px] font-black text-slate-400 uppercase border border-slate-200 dark:border-slate-800 px-1.5 py-0.5 rounded">Esc</span>
+                        <button type="button" onClick={closeManualIdentify} className="p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors">
+                            <XMarkIcon className="w-5 h-5" />
                         </button>
                     </div>
                 </div>
 
-                {/* Form fields in full width container for elegant layout */}
-                <div className="p-8 flex-1 overflow-y-auto w-full">
-                    <div className="space-y-6 w-full">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-3">
-                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                {/* Form fields */}
+                <div className="p-5 sm:p-6 flex-1 overflow-y-auto w-full custom-scrollbar">
+                    <div className="space-y-4 max-w-5xl mx-auto">
+                        {/* Linha 1: Data e Valor */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
                                     Data
                                 </label>
                                 <div className="relative group">
-                                    <Calendar className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
+                                    <Calendar className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
                                     <input
                                         type="date"
                                         value={selectedDate}
                                         onChange={e => setSelectedDate(e.target.value)}
-                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold"
+                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 pl-10 pr-3 transition-all outline-none text-xs font-bold"
                                     />
                                 </div>
                             </div>
 
-                            <div className="space-y-3">
-                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                            <div className="space-y-1.5">
+                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
                                     Valor (R$)
                                 </label>
                                 <div className="relative group">
-                                    <DollarSign className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
+                                    <DollarSign className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
                                     <input
                                         type="text"
                                         value={manualAmount}
                                         onChange={e => setManualAmount(e.target.value)}
                                         placeholder="0,00"
-                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 pl-10 pr-3 transition-all outline-none text-xs font-bold font-mono placeholder:text-slate-400 dark:placeholder:text-slate-600"
                                     />
                                 </div>
                             </div>
                         </div>
 
-                        <div className="space-y-3" id="manual-description-container">
+                        {/* Linha 2: Busca de Contribuinte */}
+                        <div className="space-y-1.5" id="manual-description-container">
                             <div className="flex items-center justify-between flex-wrap gap-1">
-                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
                                     Buscar Contribuinte Cadastrado / Nome
                                 </label>
-                                <span className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                                     ⚡ Selecionar preenche a igreja automaticamente
                                 </span>
                             </div>
                             <div className="relative group">
-                                <FileText className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
+                                <FileText className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
                                 <input
                                     type="text"
                                     value={manualDescription}
@@ -542,7 +574,6 @@ export const ManualIdModal: React.FC = () => {
                                         setManualDescription(val);
                                         setShowSuggestions(true);
                                         
-                                        // Se o usuário digitou algo diferente do cadastro unificado selecionado, desfaz unificação automática
                                         if (selectedAssociationType === 'unify') {
                                             const matchedCol = allContributors.find(c => c.id === selectedUnifiedField);
                                             if (matchedCol && matchedCol.name !== val) {
@@ -553,11 +584,11 @@ export const ManualIdModal: React.FC = () => {
                                     }}
                                     onFocus={() => setShowSuggestions(true)}
                                     placeholder="Digite o nome ou CPF do contribuinte..."
-                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 pl-10 pr-3 transition-all outline-none text-xs font-bold placeholder:text-slate-400 dark:placeholder:text-slate-600"
                                 />
                                 {showSuggestions && filteredContributors.length > 0 && (
-                                    <div className="absolute left-0 right-0 top-[105%] z-50 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden max-h-60 overflow-y-auto custom-scrollbar">
-                                        <div className="p-2 border-b border-slate-100 dark:border-white/5 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider px-4 py-2 flex justify-between items-center">
+                                    <div className="absolute left-0 right-0 top-[105%] z-50 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl overflow-hidden max-h-56 overflow-y-auto custom-scrollbar">
+                                        <div className="p-2 border-b border-slate-100 dark:border-white/5 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider px-3 py-1.5 flex justify-between items-center bg-slate-50 dark:bg-slate-900/80">
                                             <span>🔍 Pessoas / Empresas Cadastradas</span>
                                             <span className="text-[8px] font-semibold text-emerald-600 dark:text-emerald-400">Preenche a Igreja</span>
                                         </div>
@@ -574,7 +605,7 @@ export const ManualIdModal: React.FC = () => {
                                                     setSelectedUnifiedField(col.id);
                                                     setShowSuggestions(false);
                                                 }}
-                                                className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-800 dark:text-slate-200 text-sm font-semibold transition-colors flex justify-between items-center border-b border-slate-50 dark:border-white/5 last:border-none cursor-pointer"
+                                                className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-800 dark:text-slate-200 text-xs font-semibold transition-colors flex justify-between items-center border-b border-slate-50 dark:border-white/5 last:border-none cursor-pointer"
                                             >
                                                 <div className="flex flex-col min-w-0 pr-2">
                                                     <span className="font-bold text-slate-800 dark:text-slate-200 truncate">{col.name}</span>
@@ -584,7 +615,7 @@ export const ManualIdModal: React.FC = () => {
                                                         </span>
                                                     )}
                                                 </div>
-                                                <span className="text-[9px] font-black bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 px-2.5 py-1 rounded-lg border border-emerald-200/50 dark:border-emerald-800/50 shrink-0 max-w-[170px] truncate">
+                                                <span className="text-[9px] font-black bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded border border-emerald-200/50 dark:border-emerald-800/50 shrink-0 max-w-[170px] truncate">
                                                     🏛️ {col._churchName}
                                                 </span>
                                             </button>
@@ -595,10 +626,10 @@ export const ManualIdModal: React.FC = () => {
 
                             {/* Feedback de Vínculo Automático */}
                             {selectedAssociationType === 'unify' && selectedUnifiedField && (
-                                <div className="flex items-center justify-between gap-2 p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl text-xs text-emerald-800 dark:text-emerald-300 animate-fade-in">
+                                <div className="flex items-center justify-between gap-2 p-2.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl text-xs text-emerald-800 dark:text-emerald-300 animate-fade-in">
                                     <div className="flex items-center gap-2 min-w-0">
                                         <CheckBadgeIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                                        <span className="truncate">
+                                        <span className="truncate text-xs">
                                             Contribuinte vinculado: <strong className="font-extrabold">{manualDescription}</strong>
                                             {churches.find(c => c.id === selectedChurchId) && (
                                                 <span className="ml-1 text-[11px] font-medium opacity-90">
@@ -623,10 +654,10 @@ export const ManualIdModal: React.FC = () => {
 
                         {/* SELEÇÃO DE ANÁLISE DE SIMILARIDADE E UNIFICAÇÃO DE CONTRIBUINTES */}
                         {similarMatches.length > 0 && (
-                            <div className="bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 p-6 rounded-[2.25rem] space-y-4">
+                            <div className="bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 p-4 rounded-2xl space-y-3">
                                 <div className="flex items-center gap-2">
                                     <div className="p-1 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-600">
-                                        <SparklesIcon className="w-4 h-4" />
+                                        <SparklesIcon className="w-3.5 h-3.5" />
                                     </div>
                                     <h4 className="text-xs font-black text-blue-800 dark:text-blue-300 uppercase tracking-wider">
                                         {similarMatches[0].score >= 80 ? '🎯 Contribuinte Correspondente Encontrado' : '⚡ Semelhança Possível Detectada'}
@@ -637,7 +668,7 @@ export const ManualIdModal: React.FC = () => {
                                     Identificamos contribuintes similares cadastrados na VPS. Quer unificar com um existente ou cadastrar como NOVO?
                                 </p>
 
-                                <div className="grid grid-cols-2 gap-2 bg-slate-100/50 dark:bg-black/30 p-1 rounded-2xl">
+                                <div className="grid grid-cols-2 gap-2 bg-slate-100/50 dark:bg-black/30 p-1 rounded-xl">
                                     <button
                                         type="button"
                                         onClick={() => {
@@ -648,9 +679,9 @@ export const ManualIdModal: React.FC = () => {
                                                 setSelectedChurchId(churches[0].id);
                                             }
                                         }}
-                                        className={`py-2 text-[9px] font-black uppercase tracking-wider rounded-xl transition-all ${
+                                        className={`py-1.5 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${
                                             selectedAssociationType === 'create_new'
-                                                ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm'
+                                                ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-xs'
                                                 : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
                                         }`}
                                     >
@@ -667,9 +698,9 @@ export const ManualIdModal: React.FC = () => {
                                                 if (chId) setSelectedChurchId(chId);
                                             }
                                         }}
-                                        className={`py-2 text-[9px] font-black uppercase tracking-wider rounded-xl transition-all ${
+                                        className={`py-1.5 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${
                                             selectedAssociationType === 'unify'
-                                                ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm'
+                                                ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-xs'
                                                 : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
                                         }`}
                                     >
@@ -678,11 +709,11 @@ export const ManualIdModal: React.FC = () => {
                                 </div>
 
                                 {selectedAssociationType === 'unify' && (
-                                    <div className="space-y-3 pt-2">
+                                    <div className="space-y-2 pt-1">
                                         <label className="block text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
                                             Selecione o Contribuinte VPS Correspondente:
                                         </label>
-                                        <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1">
+                                        <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1 custom-scrollbar">
                                             {similarMatches.map((m, idx) => {
                                                 const chId = m.contributor._churchId || m.contributor.church_id || m.church?.id;
                                                 const churchName = m.church?.name || 'Igreja Desconhecida';
@@ -695,7 +726,7 @@ export const ManualIdModal: React.FC = () => {
                                                             setSelectedUnifiedField(m.contributor.id);
                                                             if (chId) setSelectedChurchId(chId);
                                                         }}
-                                                        className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${
+                                                        className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
                                                             isSelected
                                                                 ? 'border-blue-500/85 bg-blue-100/30 dark:bg-blue-950/40 text-blue-900 dark:text-blue-100'
                                                                 : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300'
@@ -707,7 +738,7 @@ export const ManualIdModal: React.FC = () => {
                                                                 Score: {m.score}%
                                                             </span>
                                                         </div>
-                                                        <div className="flex gap-2 text-[9px] text-slate-400 font-semibold mt-1 uppercase">
+                                                        <div className="flex gap-2 text-[9px] text-slate-400 font-semibold mt-0.5 uppercase">
                                                             <span>Igreja: {churchName}</span>
                                                             {m.contributor.cpf && (
                                                                 <>
@@ -725,24 +756,25 @@ export const ManualIdModal: React.FC = () => {
                             </div>
                         )}
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-3">
+                        {/* Linha 3: Igreja e Conta / Caixa */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
                                 <div className="flex items-center justify-between flex-wrap gap-1">
-                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
                                         Escolha a Igreja de Destino
                                     </label>
                                     {selectedAssociationType === 'unify' && selectedChurchId && (
-                                        <span className="text-[10px] font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-900/50 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
+                                        <span className="text-[9px] font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-900/50 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
                                             ✓ Auto-preenchida
                                         </span>
                                     )}
                                 </div>
                                 <div className="relative group">
-                                    <BuildingOfficeIcon className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
+                                    <BuildingOfficeIcon className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
                                     <select
                                         value={selectedChurchId}
                                         onChange={e => setSelectedChurchId(e.target.value)}
-                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold appearance-none cursor-pointer"
+                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 pl-10 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer"
                                     >
                                         <option value="">-- Clique para ver as igrejas --</option>
                                         {churches.map(church => (
@@ -751,29 +783,29 @@ export const ManualIdModal: React.FC = () => {
                                             </option>
                                         ))}
                                     </select>
-                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                        <ChevronDownIcon className="w-4 h-4" />
+                                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                        <ChevronDownIcon className="w-3.5 h-3.5" />
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="space-y-3">
+                            <div className="space-y-1.5">
                                 <div className="flex items-center justify-between flex-wrap gap-1">
-                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
                                         Conta / Caixa de Destino
                                     </label>
-                                    <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded-md border border-blue-200/50 dark:border-blue-800/50">
+                                    <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 rounded border border-blue-200/50 dark:border-blue-800/50">
                                         🏦 Destino do Lançamento
                                     </span>
                                 </div>
                                 <div className="relative group">
-                                    <svg className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <svg className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                                     </svg>
                                     <select
                                         value={selectedBankId}
                                         onChange={e => setSelectedBankId(e.target.value)}
-                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold appearance-none cursor-pointer"
+                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 pl-10 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer"
                                     >
                                         <option value="">-- Sem Conta / Caixa Principal --</option>
                                         {availableBanks.map((bank: any) => (
@@ -782,17 +814,18 @@ export const ManualIdModal: React.FC = () => {
                                             </option>
                                         ))}
                                     </select>
-                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                        <ChevronDownIcon className="w-4 h-4" />
+                                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                        <ChevronDownIcon className="w-3.5 h-3.5" />
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-3">
-                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
-                                    Tipo
+                        {/* Linha 4: Descrição e Forma de Pagamento */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
+                                    Descrição
                                 </label>
                                 {isCustomType ? (
                                     <div className="flex gap-2 items-center">
@@ -800,17 +833,17 @@ export const ManualIdModal: React.FC = () => {
                                             type="text"
                                             value={selectedType}
                                             onChange={e => setSelectedType(e.target.value)}
-                                            placeholder="Digite o tipo (ex: Dízimo, Oferta)"
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-4 transition-all outline-none text-sm font-bold"
+                                            placeholder="Digite a descrição (ex: Dízimo, Oferta, Manutenção)"
+                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 px-3 transition-all outline-none text-xs font-bold"
                                             autoFocus
                                         />
                                         <button
                                             type="button"
                                             onClick={() => {
                                                 setIsCustomType(false);
-                                                setSelectedType(contributionKeywords?.[0] || 'Dízimo');
+                                                setSelectedType(manualType === 'saida' ? defaultSaidaType : defaultEntradaType);
                                             }}
-                                            className="py-4 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold rounded-2xl text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-pointer transition-all"
+                                            className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[10px] font-bold rounded-xl text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-pointer transition-all shrink-0"
                                         >
                                             Lista
                                         </button>
@@ -828,26 +861,26 @@ export const ManualIdModal: React.FC = () => {
                                                     setSelectedType(val);
                                                 }
                                             }}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-4 transition-all outline-none text-sm font-bold appearance-none cursor-pointer"
+                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 px-3 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer"
                                         >
                                             {typeOptions.map((type: string) => (
                                                 <option key={type} value={type}>{type}</option>
                                             ))}
                                             <option value="__CUSTOM__">✍️ Outro (Digitar manual...)</option>
                                         </select>
-                                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                            <ChevronDownIcon className="w-4 h-4" />
+                                        <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                            <ChevronDownIcon className="w-3.5 h-3.5" />
                                         </div>
                                     </div>
                                 )}
                             </div>
 
-                            <div className="space-y-3">
+                            <div className="space-y-1.5">
                                 <div className="flex items-center justify-between flex-wrap gap-1">
-                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
                                         Forma de Pagamento
                                     </label>
-                                    <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-md border border-amber-200/50 dark:border-amber-800/50">
+                                    <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200/50 dark:border-amber-800/50">
                                         💵 Padrão Dinheiro (Lançamento Manual)
                                     </span>
                                 </div>
@@ -858,7 +891,7 @@ export const ManualIdModal: React.FC = () => {
                                             value={selectedPaymentMethod}
                                             onChange={e => setSelectedPaymentMethod(e.target.value.toUpperCase())}
                                             placeholder="Digite a forma (ex: DINHEIRO, PIX)"
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-4 transition-all outline-none text-sm font-bold"
+                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 px-3 transition-all outline-none text-xs font-bold"
                                             autoFocus
                                         />
                                         <button
@@ -867,7 +900,7 @@ export const ManualIdModal: React.FC = () => {
                                                 setIsCustomPaymentMethod(false);
                                                 setSelectedPaymentMethod('DINHEIRO');
                                             }}
-                                            className="py-4 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold rounded-2xl text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-pointer transition-all"
+                                            className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[10px] font-bold rounded-xl text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-pointer transition-all shrink-0"
                                         >
                                             Lista
                                         </button>
@@ -885,15 +918,15 @@ export const ManualIdModal: React.FC = () => {
                                                     setSelectedPaymentMethod(val);
                                                 }
                                             }}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-4 transition-all outline-none text-sm font-bold appearance-none cursor-pointer"
+                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 px-3 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer"
                                         >
                                             {paymentMethodsOptions.map((method: string) => (
                                                 <option key={method} value={method}>{method}</option>
                                             ))}
                                             <option value="__CUSTOM__">✍️ Outro (Digitar manual...)</option>
                                         </select>
-                                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                            <ChevronDownIcon className="w-4 h-4" />
+                                        <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                            <ChevronDownIcon className="w-3.5 h-3.5" />
                                         </div>
                                     </div>
                                 )}
@@ -903,11 +936,11 @@ export const ManualIdModal: React.FC = () => {
                 </div>
 
                 {/* Footer */}
-                <div className="px-8 py-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-white/5 flex justify-end gap-3">
+                <div className="px-6 py-3.5 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-white/5 flex justify-end gap-3 shrink-0">
                     <button 
                         type="button" 
                         onClick={closeManualIdentify} 
-                        className="px-6 py-2.5 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-2xl shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                        className="px-5 py-2 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-xl shadow-xs hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
                     >
                         {t('common.cancel')}
                     </button>
@@ -915,7 +948,7 @@ export const ManualIdModal: React.FC = () => {
                         type="button" 
                         onClick={handleConfirm} 
                         disabled={!selectedChurchId || isSaving} 
-                        className="px-8 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-2xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
+                        className="px-6 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
                     >
                          {isSaving ? 'Processando...' : 'Salvar Lançamento'}
                          {!isSaving && selectedChurchId && <span className="ml-1 text-[8px] opacity-70 bg-white/20 px-1 rounded">Enter</span>}
@@ -927,40 +960,39 @@ export const ManualIdModal: React.FC = () => {
 
     return (
         <div className="glass-overlay animate-fade-in">
-            <div className="glass-modal animate-scale-in">
+            <div className="glass-modal animate-scale-in max-w-2xl">
                 
-                <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center">
-                    <div className="flex items-center gap-4">
-                        <div className={`p-3 rounded-2xl ${isManualLaunch ? 'bg-brand-blue text-white shadow-lg shadow-blue-500/20' : isBulk ? 'bg-blue-600 text-white shadow-lg' : 'bg-brand-blue text-white shadow-lg shadow-blue-500/20'}`}>
-                            {isManualLaunch ? <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> : isBulk ? <CheckBadgeIcon className="w-6 h-6" /> : <BuildingOfficeIcon className="w-6 h-6" />}
+                <div className="px-6 py-4.5 border-b border-slate-100 dark:border-white/5 flex justify-between items-center shrink-0">
+                    <div className="flex items-center gap-3">
+                        <div className={`p-2.5 rounded-xl ${isManualLaunch ? 'bg-brand-blue text-white shadow-md shadow-blue-500/20' : isBulk ? 'bg-blue-600 text-white shadow-md' : 'bg-brand-blue text-white shadow-md shadow-blue-500/20'}`}>
+                            {isManualLaunch ? <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> : isBulk ? <CheckBadgeIcon className="w-5 h-5" /> : <BuildingOfficeIcon className="w-5 h-5" />}
                         </div>
                         <div>
-                            <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight uppercase">
+                            <h3 className="text-base sm:text-lg font-black text-slate-800 dark:text-white tracking-tight uppercase">
                                 {isManualLaunch ? 'Novo Lançamento' : isBulk ? 'Destinar Lote' : 'Escolher Destino'}
                             </h3>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">
                                 {isManualLaunch ? 'Lançamento Manual' : 'Identificação Pendente'}
                             </p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        <span className="text-[7px] font-black text-slate-400 uppercase border border-slate-200 dark:border-slate-800 px-1 rounded">Esc</span>
-                        <button type="button" onClick={closeManualIdentify} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors">
-                            <XMarkIcon className="w-6 h-6" />
+                        <span className="text-[8px] font-black text-slate-400 uppercase border border-slate-200 dark:border-slate-800 px-1.5 py-0.5 rounded">Esc</span>
+                        <button type="button" onClick={closeManualIdentify} className="p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors">
+                            <XMarkIcon className="w-5 h-5" />
                         </button>
                     </div>
                 </div>
 
-                <div className="p-8 space-y-8 flex-1 overflow-y-auto w-full">
+                <div className="p-5 sm:p-6 space-y-4 flex-1 overflow-y-auto w-full custom-scrollbar">
                     {isManualLaunch ? (
-                        /* Selector buttons matching exact size and style of Cadastros top buttons */
                         <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
                             <button
                                 type="button"
                                 onClick={() => handleTypeSwitch('entrada')}
-                                className={`relative flex-shrink-0 flex items-center gap-2 px-5 py-2 rounded-xl transition-all duration-300 text-[10px] font-bold uppercase tracking-wide cursor-pointer ${
+                                className={`relative flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all duration-300 text-[10px] font-bold uppercase tracking-wide cursor-pointer ${
                                     manualType === 'entrada'
-                                        ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/30 transform scale-105 z-10 border-transparent'
+                                        ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-xs z-10 border-transparent'
                                         : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'
                                 }`}
                                 id="modal-btn-entrada"
@@ -974,9 +1006,9 @@ export const ManualIdModal: React.FC = () => {
                             <button
                                 type="button"
                                 onClick={() => handleTypeSwitch('saida')}
-                                className={`relative flex-shrink-0 flex items-center gap-2 px-5 py-2 rounded-xl transition-all duration-300 text-[10px] font-bold uppercase tracking-wide cursor-pointer ${
+                                className={`relative flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all duration-300 text-[10px] font-bold uppercase tracking-wide cursor-pointer ${
                                     manualType === 'saida'
-                                        ? 'bg-gradient-to-r from-rose-500 to-red-600 text-white shadow-md shadow-rose-500/30 transform scale-105 z-10 border-transparent'
+                                        ? 'bg-gradient-to-r from-rose-500 to-red-600 text-white shadow-xs z-10 border-transparent'
                                         : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'
                                 }`}
                                 id="modal-btn-saida"
@@ -988,27 +1020,27 @@ export const ManualIdModal: React.FC = () => {
                             </button>
                         </div>
                     ) : (
-                        <div className="bg-slate-50 dark:bg-black/20 p-6 rounded-[2rem] border border-slate-100 dark:border-white/5">
+                        <div className="bg-slate-50 dark:bg-black/20 p-4 rounded-2xl border border-slate-100 dark:border-white/5">
                             <div className="flex justify-between items-center">
                                 <div>
-                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Registros Selecionados</span>
-                                    <span className="text-2xl font-black text-slate-800 dark:text-white leading-none">{count} <span className="text-xs font-medium text-slate-400">ítens</span></span>
+                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Registros Selecionados</span>
+                                    <span className="text-xl font-black text-slate-800 dark:text-white leading-none">{count} <span className="text-xs font-medium text-slate-400">ítens</span></span>
                                 </div>
                                 <div className="text-right">
-                                    <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest block mb-1">Montante do Lote</span>
-                                    <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono">{formatCurrency(totalAmount, language)}</span>
+                                    <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest block mb-0.5">Montante do Lote</span>
+                                    <span className="text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono">{formatCurrency(totalAmount, language)}</span>
                                 </div>
                             </div>
                         </div>
                     )}
 
                     {count === 1 && !isManualLaunch && (
-                        <div className="space-y-4">
-                            <div className="bg-slate-50 dark:bg-black/25 p-5 rounded-[2rem] border border-slate-100 dark:border-white/5 space-y-3">
+                        <div className="space-y-3">
+                            <div className="bg-slate-50 dark:bg-black/25 p-3.5 rounded-2xl border border-slate-100 dark:border-white/5 space-y-2.5">
                                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
                                     Dados Recebidos do Banco
                                 </h4>
-                                <div className="grid grid-cols-3 gap-4">
+                                <div className="grid grid-cols-3 gap-3">
                                     <div className="col-span-2">
                                         <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider block">Descrição</span>
                                         <span className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase break-all block">
@@ -1027,7 +1059,7 @@ export const ManualIdModal: React.FC = () => {
                                     const matchedResult = findMatchResult ? findMatchResult(bulkIdentificationTxs[0].id) : null;
                                     if (matchedResult && matchedResult.contributor) {
                                         return (
-                                            <div className="pt-2 border-t border-slate-200/50 dark:border-white/5 flex flex-col gap-1">
+                                            <div className="pt-2 border-t border-slate-200/50 dark:border-white/5 flex flex-col gap-0.5">
                                                 <span className="text-[8px] font-black text-indigo-400 uppercase tracking-wider">
                                                     Lançamento Atual (Pode Corrigir abaixo)
                                                 </span>
@@ -1044,12 +1076,12 @@ export const ManualIdModal: React.FC = () => {
                                 })()}
                             </div>
 
-                            <div className="space-y-3" id="manual-description-container">
-                                <label className="block text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-[0.25em] ml-1">
+                            <div className="space-y-1.5" id="manual-description-container">
+                                <label className="block text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-[0.2em] ml-1">
                                     Identificar Verdadeiro Contribuinte
                                 </label>
                                 <div className="relative group">
-                                    <FileText className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-indigo-500 transition-colors pointer-events-none" />
+                                    <FileText className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-indigo-500 transition-colors pointer-events-none" />
                                     <input
                                         type="text"
                                         value={manualDescription}
@@ -1059,11 +1091,11 @@ export const ManualIdModal: React.FC = () => {
                                         }}
                                         onFocus={() => setShowSuggestions(true)}
                                         placeholder="Digite o nome do verdadeiro contribuinte"
-                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-indigo-500/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 py-2.5 pl-10 pr-3 transition-all outline-none text-xs font-bold placeholder:text-slate-400 dark:placeholder:text-slate-600"
                                     />
                                     {showSuggestions && filteredContributors.length > 0 && (
-                                        <div className="absolute left-0 right-0 top-[105%] z-50 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden max-h-60 overflow-y-auto custom-scrollbar">
-                                            <div className="p-2 border-b border-slate-100 dark:border-white/5 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider px-4 py-2">
+                                        <div className="absolute left-0 right-0 top-[105%] z-50 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl overflow-hidden max-h-56 overflow-y-auto custom-scrollbar">
+                                            <div className="p-2 border-b border-slate-100 dark:border-white/5 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider px-3 py-1.5 bg-slate-50 dark:bg-slate-900/80">
                                                 Contribuintes VPS Cadastrados
                                             </div>
                                             {filteredContributors.map((col, cIdx) => (
@@ -1079,10 +1111,10 @@ export const ManualIdModal: React.FC = () => {
                                                         setSelectedUnifiedField(col.id);
                                                         setShowSuggestions(false);
                                                     }}
-                                                    className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-800 dark:text-slate-200 text-sm font-semibold transition-colors flex justify-between items-center border-b border-slate-50 dark:border-white/5 last:border-none"
+                                                    className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-800 dark:text-slate-200 text-xs font-semibold transition-colors flex justify-between items-center border-b border-slate-50 dark:border-white/5 last:border-none cursor-pointer"
                                                 >
                                                     <span className="truncate">{col.name}</span>
-                                                    <span className="text-[9px] font-black bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-md truncate max-w-[150px]">
+                                                    <span className="text-[9px] font-black bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded truncate max-w-[150px]">
                                                         {col._churchName}
                                                     </span>
                                                 </button>
@@ -1090,100 +1122,19 @@ export const ManualIdModal: React.FC = () => {
                                         </div>
                                     )}
                                 </div>
-                                <p className="text-[10px] text-slate-400 font-semibold mt-1">
+                                <p className="text-[10px] text-slate-400 font-medium ml-1">
                                     Se o PIX recebido está no nome de um terceiro, altere ou selecione o nome do verdadeiro contribuinte acima. Ambos os registros serão mantidos.
                                 </p>
                             </div>
                         </div>
                     )}
 
-                    {isManualLaunch && (
-                        <>
-                            <div className="space-y-3">
-                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
-                                    Data
-                                </label>
-                                <div className="relative group">
-                                    <Calendar className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
-                                    <input
-                                        type="date"
-                                        value={selectedDate}
-                                        onChange={e => setSelectedDate(e.target.value)}
-                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-3" id="manual-description-container">
-                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
-                                    Nome / Descrição
-                                </label>
-                                <div className="relative group">
-                                    <FileText className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
-                                    <input
-                                        type="text"
-                                        value={manualDescription}
-                                        onChange={e => {
-                                            setManualDescription(e.target.value);
-                                            setShowSuggestions(true);
-                                        }}
-                                        onFocus={() => setShowSuggestions(true)}
-                                        placeholder="Ex: Doação / Oferta Especial"
-                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold placeholder:text-slate-400 dark:placeholder:text-slate-600"
-                                    />
-                                    {showSuggestions && filteredContributors.length > 0 && (
-                                        <div className="absolute left-0 right-0 top-[105%] z-50 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden max-h-60 overflow-y-auto custom-scrollbar">
-                                            <div className="p-2 border-b border-slate-100 dark:border-white/5 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider px-4 py-2">
-                                                Contribuintes VPS Cadastrados
-                                            </div>
-                                            {filteredContributors.map((col, cIdx) => (
-                                                <button
-                                                    key={col.id || cIdx}
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setManualDescription(col.name);
-                                                        if (col._churchId) {
-                                                            setSelectedChurchId(col._churchId);
-                                                        }
-                                                        setShowSuggestions(false);
-                                                    }}
-                                                    className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-800 dark:text-slate-200 text-sm font-semibold transition-colors flex justify-between items-center border-b border-slate-50 dark:border-white/5 last:border-none"
-                                                >
-                                                    <span className="truncate">{col.name}</span>
-                                                    <span className="text-[9px] font-black bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-md truncate max-w-[150px]">
-                                                        {col._churchName}
-                                                    </span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="space-y-3">
-                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
-                                    Valor (R$)
-                                </label>
-                                <div className="relative group">
-                                    <DollarSign className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
-                                    <input
-                                        type="text"
-                                        value={manualAmount}
-                                        onChange={e => setManualAmount(e.target.value)}
-                                        placeholder="0,00"
-                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold placeholder:text-slate-400 dark:placeholder:text-slate-600"
-                                    />
-                                </div>
-                            </div>
-                        </>
-                    )}
-
                     {/* SELEÇÃO DE ANÁLISE DE SIMILARIDADE E UNIFICAÇÃO DE CONTRIBUINTES */}
                     {similarMatches.length > 0 && (
-                        <div className="bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 p-6 rounded-[2.25rem] space-y-4">
+                        <div className="bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 p-4 rounded-2xl space-y-3">
                             <div className="flex items-center gap-2">
                                 <div className="p-1 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-600">
-                                    <SparklesIcon className="w-4 h-4" />
+                                    <SparklesIcon className="w-3.5 h-3.5" />
                                 </div>
                                 <h4 className="text-xs font-black text-blue-800 dark:text-blue-300 uppercase tracking-wider">
                                     {similarMatches[0].score >= 80 ? '🎯 Contribuinte Correspondente Encontrado' : '⚡ Semelhança Possível Detectada'}
@@ -1194,7 +1145,7 @@ export const ManualIdModal: React.FC = () => {
                                 Identificamos contribuintes similares cadastrados na VPS. Quer unificar com um existente ou cadastrar como NOVO?
                             </p>
 
-                            <div className="grid grid-cols-2 gap-2 bg-slate-100/50 dark:bg-black/30 p-1 rounded-2xl">
+                            <div className="grid grid-cols-2 gap-2 bg-slate-100/50 dark:bg-black/30 p-1 rounded-xl">
                                 <button
                                     type="button"
                                     onClick={() => {
@@ -1205,9 +1156,9 @@ export const ManualIdModal: React.FC = () => {
                                             setSelectedChurchId(churches[0].id);
                                         }
                                     }}
-                                    className={`py-2 text-[9px] font-black uppercase tracking-wider rounded-xl transition-all ${
+                                    className={`py-1.5 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${
                                         selectedAssociationType === 'create_new'
-                                            ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm'
+                                            ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-xs'
                                             : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
                                     }`}
                                 >
@@ -1224,9 +1175,9 @@ export const ManualIdModal: React.FC = () => {
                                             if (chId) setSelectedChurchId(chId);
                                         }
                                     }}
-                                    className={`py-2 text-[9px] font-black uppercase tracking-wider rounded-xl transition-all ${
+                                    className={`py-1.5 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${
                                         selectedAssociationType === 'unify'
-                                            ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm'
+                                            ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-xs'
                                             : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
                                     }`}
                                 >
@@ -1235,11 +1186,11 @@ export const ManualIdModal: React.FC = () => {
                             </div>
 
                             {selectedAssociationType === 'unify' && (
-                                <div className="space-y-3 pt-2">
+                                <div className="space-y-2 pt-1">
                                     <label className="block text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
                                         Selecione o Contribuinte VPS Correspondente:
                                     </label>
-                                    <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1">
+                                    <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1 custom-scrollbar">
                                         {similarMatches.map((m, idx) => {
                                             const chId = m.contributor._churchId || m.contributor.church_id || m.church?.id;
                                             const churchName = m.church?.name || 'Igreja Desconhecida';
@@ -1252,7 +1203,7 @@ export const ManualIdModal: React.FC = () => {
                                                         setSelectedUnifiedField(m.contributor.id);
                                                         if (chId) setSelectedChurchId(chId);
                                                     }}
-                                                    className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${
+                                                    className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
                                                         isSelected
                                                             ? 'border-blue-500/85 bg-blue-100/30 dark:bg-blue-950/40 text-blue-900 dark:text-blue-100'
                                                             : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300'
@@ -1264,7 +1215,7 @@ export const ManualIdModal: React.FC = () => {
                                                             Score: {m.score}%
                                                         </span>
                                                     </div>
-                                                    <div className="flex gap-2 text-[9px] text-slate-400 font-semibold mt-1 uppercase">
+                                                    <div className="flex gap-2 text-[9px] text-slate-400 font-semibold mt-0.5 uppercase">
                                                         <span>Igreja: {churchName}</span>
                                                         {m.contributor.cpf && (
                                                             <>
@@ -1282,17 +1233,17 @@ export const ManualIdModal: React.FC = () => {
                         </div>
                     )}
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-3">
-                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
                                Escolha a Igreja de Destino
                             </label>
                             <div className="relative group">
-                                <BuildingOfficeIcon className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
+                                <BuildingOfficeIcon className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
                                 <select
                                     value={selectedChurchId}
                                     onChange={e => setSelectedChurchId(e.target.value)}
-                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold appearance-none"
+                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 pl-10 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer"
                                 >
                                     <option value="">-- Clique para ver as igrejas --</option>
                                     {churches.map(church => (
@@ -1301,24 +1252,24 @@ export const ManualIdModal: React.FC = () => {
                                         </option>
                                     ))}
                                 </select>
-                                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                    <ChevronDownIcon className="w-4 h-4" />
+                                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                    <ChevronDownIcon className="w-3.5 h-3.5" />
                                 </div>
                             </div>
                         </div>
 
-                        <div className="space-y-3">
-                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                        <div className="space-y-1.5">
+                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
                                Conta / Caixa de Destino
                             </label>
                             <div className="relative group">
-                                <svg className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <svg className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                                 </svg>
                                 <select
                                     value={selectedBankId}
                                     onChange={e => setSelectedBankId(e.target.value)}
-                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold appearance-none cursor-pointer"
+                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 pl-10 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer"
                                 >
                                     <option value="">-- Sem Conta / Caixa Principal --</option>
                                     {availableBanks.map((bank: any) => (
@@ -1327,17 +1278,17 @@ export const ManualIdModal: React.FC = () => {
                                         </option>
                                     ))}
                                 </select>
-                                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                    <ChevronDownIcon className="w-4 h-4" />
+                                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                    <ChevronDownIcon className="w-3.5 h-3.5" />
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-3">
-                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
-                                Tipo
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
+                                Descrição
                             </label>
                             {isCustomType ? (
                                 <div className="flex gap-2 items-center">
@@ -1345,17 +1296,17 @@ export const ManualIdModal: React.FC = () => {
                                         type="text"
                                         value={selectedType}
                                         onChange={e => setSelectedType(e.target.value)}
-                                        placeholder="Digite o tipo (ex: Dízimo, Oferta)"
-                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-4 transition-all outline-none text-sm font-bold"
+                                        placeholder="Digite a descrição (ex: Dízimo, Oferta, Manutenção)"
+                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 px-3 transition-all outline-none text-xs font-bold"
                                         autoFocus
                                     />
                                     <button
                                         type="button"
                                         onClick={() => {
                                             setIsCustomType(false);
-                                            setSelectedType(contributionKeywords?.[0] || 'Dízimo');
+                                            setSelectedType(defaultEntradaType);
                                         }}
-                                        className="py-4 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold rounded-2xl text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-pointer transition-all"
+                                        className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[10px] font-bold rounded-xl text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-pointer transition-all shrink-0"
                                     >
                                         Lista
                                     </button>
@@ -1373,26 +1324,26 @@ export const ManualIdModal: React.FC = () => {
                                                 setSelectedType(val);
                                             }
                                         }}
-                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-4 transition-all outline-none text-sm font-bold appearance-none"
+                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 px-3 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer"
                                     >
                                         {typeOptions.map((type: string) => (
                                             <option key={type} value={type}>{type}</option>
                                         ))}
                                         <option value="__CUSTOM__">✍️ Outro (Digitar manual...)</option>
                                     </select>
-                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                        <ChevronDownIcon className="w-4 h-4" />
+                                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                        <ChevronDownIcon className="w-3.5 h-3.5" />
                                     </div>
                                 </div>
                             )}
                         </div>
 
-                        <div className="space-y-3">
+                        <div className="space-y-1.5">
                             <div className="flex items-center justify-between flex-wrap gap-1">
-                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
                                     Forma de Pagamento
                                 </label>
-                                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-200/50 dark:border-emerald-800/50">
+                                <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-200/50 dark:border-emerald-800/50">
                                     ⚡ Padrão Pix (Extrato / Relatório)
                                 </span>
                             </div>
@@ -1403,7 +1354,7 @@ export const ManualIdModal: React.FC = () => {
                                         value={selectedPaymentMethod}
                                         onChange={e => setSelectedPaymentMethod(e.target.value.toUpperCase())}
                                         placeholder="Digite a forma (ex: PIX, DINHEIRO)"
-                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-4 transition-all outline-none text-sm font-bold"
+                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 px-3 transition-all outline-none text-xs font-bold"
                                         autoFocus
                                     />
                                     <button
@@ -1412,7 +1363,7 @@ export const ManualIdModal: React.FC = () => {
                                             setIsCustomPaymentMethod(false);
                                             setSelectedPaymentMethod('PIX');
                                         }}
-                                        className="py-4 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold rounded-2xl text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-pointer transition-all"
+                                        className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[10px] font-bold rounded-xl text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-pointer transition-all shrink-0"
                                     >
                                         Lista
                                     </button>
@@ -1430,15 +1381,15 @@ export const ManualIdModal: React.FC = () => {
                                                 setSelectedPaymentMethod(val);
                                             }
                                         }}
-                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-4 transition-all outline-none text-sm font-bold appearance-none cursor-pointer"
+                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 px-3 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer"
                                     >
                                         {paymentMethodsOptions.map((method: string) => (
                                             <option key={method} value={method}>{method}</option>
                                         ))}
                                         <option value="__CUSTOM__">✍️ Outro (Digitar manual...)</option>
                                     </select>
-                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                        <ChevronDownIcon className="w-4 h-4" />
+                                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                        <ChevronDownIcon className="w-3.5 h-3.5" />
                                     </div>
                                 </div>
                             )}
@@ -1446,11 +1397,11 @@ export const ManualIdModal: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="px-8 py-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-white/5 flex justify-end gap-3 rounded-b-[2.5rem]">
+                <div className="px-6 py-3.5 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-white/5 flex justify-end gap-3 rounded-b-[2rem] shrink-0">
                     <button 
                         type="button" 
                         onClick={closeManualIdentify} 
-                        className="px-6 py-2.5 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-2xl shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                        className="px-5 py-2 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-xl shadow-xs hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
                     >
                         {t('common.cancel')}
                     </button>
@@ -1458,7 +1409,7 @@ export const ManualIdModal: React.FC = () => {
                         type="button" 
                         onClick={handleConfirm} 
                         disabled={!selectedChurchId || isSaving} 
-                        className="px-8 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-2xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
+                        className="px-6 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
                     >
                          {isSaving ? 'Processando...' : isManualLaunch ? 'Salvar Lançamento' : 'Confirmar Lote'}
                          {!isSaving && selectedChurchId && <span className="ml-1 text-[8px] opacity-70 bg-white/20 px-1 rounded">Enter</span>}
