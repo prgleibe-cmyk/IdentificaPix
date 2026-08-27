@@ -2794,7 +2794,7 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
       }
       if (ctx.isSecondaryUser) {
         reportsParams.push(ctx.allowedChurchIds);
-        reportsQuery += ` AND (church_id = ANY($${reportsParams.length}) OR church_id IS NULL)`;
+        reportsQuery += ` AND church_id = ANY($${reportsParams.length})`;
       }
       reportsQuery += ' ORDER BY created_at DESC';
       const reportsResult = await pool.query(reportsQuery, reportsParams);
@@ -4307,10 +4307,10 @@ app.get('/api/v1/saved_reports', async (req: Request, res: Response) => {
         if (!ctx.allowedChurchIds.includes(church_id)) {
           return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para esta congregação.' });
         }
-        query += ` AND (church_id = $${params.length + 1} OR church_id IS NULL)`;
+        query += ` AND church_id = $${params.length + 1}`;
         params.push(church_id);
       } else {
-        query += ` AND (church_id = ANY($${params.length + 1}) OR church_id IS NULL)`;
+        query += ` AND church_id = ANY($${params.length + 1})`;
         params.push(ctx.allowedChurchIds);
       }
     } else if (church_id && church_id !== 'all' && typeof church_id === 'string') {
