@@ -157,7 +157,9 @@ export default () => {
 
             console.log("[Users API] Listando usuários para owner:", effectiveOwnerId);
             
-            const response = await fetchVps(`/api/v1/profiles?owner_id=${effectiveOwnerId}`);
+            const authHeader = req.headers.authorization;
+            const fetchOptions = authHeader ? { headers: { 'Authorization': authHeader } } : {};
+            const response = await fetchVps(`/api/v1/profiles?owner_id=${effectiveOwnerId}`, fetchOptions);
             const data = await response.json();
 
             if (!response.ok) {

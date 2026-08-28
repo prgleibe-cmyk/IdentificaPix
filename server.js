@@ -322,7 +322,7 @@ try {
     app.use('/api', authMiddleware);
     
     // Rotas protegidas
-    app.use('/api/gmail', gmailRoutes(ai));
+    app.use('/api/gmail', gmailRoutes(null));
     app.use('/api/users', usersRoutes());
     app.use('/api/reference', referenceRoutes());
 } catch (error) {

@@ -12,27 +12,44 @@ export class ProfileController {
   getAll = async (req: Request, res: Response) => {
     try {
       const user = (req as any).user;
-      const isSuperAdmin = Boolean(user?.isSuperAdmin || user?.role === 'SUPER_ADMIN' || user?.role === 'ADMINISTRADOR_GERAL');
+      const userRole = String(user?.role || '').toLowerCase();
+      const userEmail = String(user?.email || '').toLowerCase().trim();
+      const isSuperAdmin = Boolean(
+        user?.isSuperAdmin || 
+        userRole === 'super_admin' || 
+        userRole === 'administrador_geral' ||
+        userRole === 'superadmin' ||
+        userRole === 'admin' ||
+        userRole === 'owner' ||
+        userEmail === 'identificapix@gmail.com'
+      );
       const authenticatedUserId = user?.user_id || user?.userId || user?.id;
       const authenticatedOwnerId = user?.owner_id || user?.ownerId;
       const effectiveOwnerId = authenticatedOwnerId || authenticatedUserId;
 
       const { owner_id } = req.query;
 
-      if (user && !isSuperAdmin && authenticatedUserId) {
-        if (owner_id && owner_id !== authenticatedUserId && owner_id !== effectiveOwnerId) {
-          return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'Acesso negado aos perfis de outro usuário.' });
-        }
-        const profiles = await this.service.getByOwnerId(effectiveOwnerId);
-        return res.json({ success: true, data: profiles });
-      }
-
+      // Se foi solicitado um owner_id específico (ex: listagem de secundários de um owner)
       if (typeof owner_id === 'string' && owner_id.trim() !== '') {
-        const profiles = await this.service.getByOwnerId(owner_id);
+        // Se for usuário autenticado comum tentando ver de outro owner sem permissão
+        if (user && !isSuperAdmin && authenticatedUserId) {
+          if (owner_id !== authenticatedUserId && owner_id !== effectiveOwnerId) {
+            return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'Acesso negado aos perfis de outro usuário.' });
+          }
+        }
+        const profiles = await this.service.getByOwnerId(owner_id.trim());
         return res.json({ success: true, data: profiles });
       }
 
-      const profiles = await this.service.getAll();
+      // Se não passou owner_id:
+      // Se for SuperAdmin / Admin Owner / email identificapix@gmail.com ou sem usuário => Retorna TODOS os perfis
+      if (isSuperAdmin || !user) {
+        const profiles = await this.service.getAll();
+        return res.json({ success: true, data: profiles });
+      }
+
+      // Se for usuário comum sem passar owner_id => Retorna apenas os seus secundários
+      const profiles = await this.service.getByOwnerId(effectiveOwnerId);
       return res.json({ success: true, data: profiles });
     } catch (err: any) {
       console.error('[ProfileController] Erro ao buscar perfis:', err);
