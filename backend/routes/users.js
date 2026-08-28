@@ -151,15 +151,17 @@ export default () => {
         const { ownerId } = req.params;
 
         try {
-            const effectiveOwnerId = (req.user && (req.user.owner_id || req.user.id)) || ownerId;
+            const targetOwnerId = (ownerId && ownerId !== 'undefined' && ownerId !== 'null') 
+                ? ownerId 
+                : ((req.user && (req.user.owner_id || req.user.id)) || '');
 
-            validateOwnerAccess(req, effectiveOwnerId);
+            validateOwnerAccess(req, targetOwnerId);
 
-            console.log("[Users API] Listando usuários para owner:", effectiveOwnerId);
+            console.log("[Users API] Listando usuários para owner:", targetOwnerId);
             
             const authHeader = req.headers.authorization;
             const fetchOptions = authHeader ? { headers: { 'Authorization': authHeader } } : {};
-            const response = await fetchVps(`/api/v1/profiles?owner_id=${effectiveOwnerId}`, fetchOptions);
+            const response = await fetchVps(`/api/v1/profiles?owner_id=${encodeURIComponent(targetOwnerId)}`, fetchOptions);
             const data = await response.json();
 
             if (!response.ok) {

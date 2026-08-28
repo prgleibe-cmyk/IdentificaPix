@@ -181,6 +181,7 @@ export class AuthService {
 
     const accessInfo = generateAccessToken({
       userId: user.id,
+      email: user.email,
       ownerId: user.owner_id || user.id,
       churchId: user.church_id,
       role: user.role,
@@ -277,6 +278,7 @@ export class AuthService {
 
     const accessInfo = generateAccessToken({
       userId: user.id,
+      email: user.email,
       ownerId: user.owner_id || user.id,
       churchId: user.church_id,
       role: user.role,
@@ -476,6 +478,7 @@ export class AuthService {
 
     const accessInfo = generateAccessToken({
       userId: userToAuth.id,
+      email: userToAuth.email,
       ownerId: userToAuth.owner_id || userToAuth.id,
       churchId: userToAuth.church_id,
       role: userToAuth.role,
@@ -570,6 +573,7 @@ export class AuthService {
     // Generate new pair
     const accessInfo = generateAccessToken({
       userId: user.id,
+      email: user.email,
       ownerId: user.owner_id || user.id,
       churchId: user.church_id,
       role: user.role,
@@ -791,6 +795,7 @@ export class AuthService {
 
     const accessInfo = generateAccessToken({
       userId: user.id,
+      email: user.email,
       ownerId: user.owner_id || user.id,
       churchId: user.church_id,
       role: user.role,

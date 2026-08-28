@@ -39,6 +39,7 @@ export interface UserResponse {
 
 export interface JwtPayload {
   user_id: string;
+  email?: string;
   owner_id?: string | null;
   church_id?: string | null;
   congregation_ids?: string[];

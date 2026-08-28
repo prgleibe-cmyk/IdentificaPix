@@ -145,18 +145,50 @@ export class ProfileRepository {
   async getByOwnerId(ownerId: string): Promise<ProfileItem[]> {
     await this.ensureTableExists();
     const query = `
-      WITH owner_identifiers AS (
-        SELECT id::text AS uid, email FROM app_users 
+      WITH target_identities AS (
+        SELECT id::text AS uid, email, owner_id::text AS owner_ref FROM app_users 
         WHERE id::text = $1 
            OR (email IS NOT NULL AND LOWER(TRIM(email)) = LOWER(TRIM($1)))
            OR (email IS NOT NULL AND LOWER(TRIM(email)) = (SELECT LOWER(TRIM(email)) FROM profiles WHERE id = $1 LIMIT 1))
         UNION
-        SELECT id AS uid, email FROM profiles 
+        SELECT id AS uid, email, owner_id AS owner_ref FROM profiles 
         WHERE id = $1 
            OR (email IS NOT NULL AND LOWER(TRIM(email)) = LOWER(TRIM($1)))
            OR (email IS NOT NULL AND LOWER(TRIM(email)) = (SELECT LOWER(TRIM(email)) FROM app_users WHERE id::text = $1 LIMIT 1))
         UNION
-        SELECT $1 AS uid, NULL AS email
+        SELECT $1 AS uid, NULL AS email, NULL AS owner_ref
+      ),
+      all_owner_keys AS (
+        SELECT uid AS key_val FROM target_identities WHERE uid IS NOT NULL
+        UNION
+        SELECT LOWER(TRIM(uid)) AS key_val FROM target_identities WHERE uid IS NOT NULL
+        UNION
+        SELECT email AS key_val FROM target_identities WHERE email IS NOT NULL
+        UNION
+        SELECT LOWER(TRIM(email)) AS key_val FROM target_identities WHERE email IS NOT NULL
+        UNION
+        SELECT split_part(LOWER(TRIM(email)), '@', 1) AS key_val FROM target_identities WHERE email IS NOT NULL
+        UNION
+        SELECT owner_ref AS key_val FROM target_identities WHERE owner_ref IS NOT NULL
+        UNION
+        SELECT LOWER(TRIM(owner_ref)) AS key_val FROM target_identities WHERE owner_ref IS NOT NULL
+        UNION
+        SELECT $1 AS key_val
+        UNION
+        SELECT LOWER(TRIM($1)) AS key_val
+      ),
+      owner_self_identities AS (
+        SELECT uid AS id_val FROM target_identities WHERE uid IS NOT NULL
+        UNION
+        SELECT LOWER(TRIM(uid)) AS id_val FROM target_identities WHERE uid IS NOT NULL
+        UNION
+        SELECT email AS id_val FROM target_identities WHERE email IS NOT NULL
+        UNION
+        SELECT LOWER(TRIM(email)) AS id_val FROM target_identities WHERE email IS NOT NULL
+        UNION
+        SELECT $1 AS id_val
+        UNION
+        SELECT LOWER(TRIM($1)) AS id_val
       ),
       combined_users AS (
         -- 1. Usuários secundários de app_users (fonte primária autoritativa) complementados por profiles
@@ -184,9 +216,12 @@ export class ProfileRepository {
         LEFT JOIN profiles p ON (p.id = u.id::text OR (p.email IS NOT NULL AND u.email IS NOT NULL AND LOWER(TRIM(p.email)) = LOWER(TRIM(u.email))))
         WHERE u.deleted_at IS NULL
           AND (
-            u.owner_id::text = $1
-            OR u.owner_id::text IN (SELECT uid FROM owner_identifiers WHERE uid IS NOT NULL)
-            OR (p.owner_id IS NOT NULL AND (p.owner_id = $1 OR p.owner_id IN (SELECT uid FROM owner_identifiers WHERE uid IS NOT NULL)))
+            u.owner_id::text IN (SELECT key_val FROM all_owner_keys WHERE key_val IS NOT NULL)
+            OR LOWER(TRIM(u.owner_id::text)) IN (SELECT key_val FROM all_owner_keys WHERE key_val IS NOT NULL)
+            OR (p.owner_id IS NOT NULL AND (
+                p.owner_id IN (SELECT key_val FROM all_owner_keys WHERE key_val IS NOT NULL)
+                OR LOWER(TRIM(p.owner_id)) IN (SELECT key_val FROM all_owner_keys WHERE key_val IS NOT NULL)
+            ))
           )
 
         UNION ALL
@@ -214,8 +249,8 @@ export class ProfileRepository {
           p.updated_at
         FROM profiles p
         WHERE (
-          p.owner_id = $1
-          OR p.owner_id IN (SELECT uid FROM owner_identifiers WHERE uid IS NOT NULL)
+          p.owner_id IN (SELECT key_val FROM all_owner_keys WHERE key_val IS NOT NULL)
+          OR LOWER(TRIM(p.owner_id)) IN (SELECT key_val FROM all_owner_keys WHERE key_val IS NOT NULL)
         )
         AND p.id NOT IN (SELECT u.id::text FROM app_users u WHERE u.deleted_at IS NULL)
         AND (p.email IS NULL OR LOWER(TRIM(p.email)) NOT IN (SELECT LOWER(TRIM(u.email)) FROM app_users u WHERE u.deleted_at IS NULL))
@@ -223,8 +258,8 @@ export class ProfileRepository {
       SELECT * FROM (
         SELECT DISTINCT ON (COALESCE(LOWER(TRIM(email)), id)) *
         FROM combined_users
-        WHERE (id IS NULL OR id NOT IN (SELECT uid FROM owner_identifiers WHERE uid IS NOT NULL))
-          AND (email IS NULL OR LOWER(TRIM(email)) NOT IN (SELECT LOWER(TRIM(email)) FROM owner_identifiers WHERE email IS NOT NULL))
+        WHERE (id IS NULL OR id NOT IN (SELECT id_val FROM owner_self_identities WHERE id_val IS NOT NULL))
+          AND (email IS NULL OR LOWER(TRIM(email)) NOT IN (SELECT id_val FROM owner_self_identities WHERE id_val IS NOT NULL))
         ORDER BY COALESCE(LOWER(TRIM(email)), id), created_at DESC
       ) final_deduplicated
       ORDER BY created_at DESC;
