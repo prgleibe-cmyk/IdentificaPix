@@ -12,7 +12,6 @@ console.log(`[Server] ASAAS_URL: ${process.env.ASAAS_URL || process.env.ASAAS_AP
 import express from 'express';
 import cors from 'cors';
 import compression from 'compression';
-import { GoogleGenAI } from "@google/genai";
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -181,25 +180,12 @@ app.get('/api/version', (req, res) => {
     });
 });
 
-// Inicialização da IA Gemini
-let ai = null;
-const geminiKey = process.env.API_KEY || process.env.VITE_GEMINI_API_KEY;
-
-if (geminiKey) {
-    try {
-        ai = new GoogleGenAI({ apiKey: geminiKey });
-        console.log("[IdentificaPix] Gemini AI Initialized.");
-    } catch (e) {
-        console.error("[IdentificaPix] AI Init Error:", e.message);
-    }
-}
-
 // Registro de Rotas
 try {
     // Rotas públicas ou de webhook (devem vir ANTES do authMiddleware)
     app.use('/api/payment', paymentRoutes);
-    app.use('/api/inbox', inboxRoutes(ai));
-    app.use('/api/ai', aiRoutes(ai));
+    app.use('/api/inbox', inboxRoutes(null));
+    app.use('/api/ai', aiRoutes(null));
 
     // Endpoint de depuração do microserviço Contributors API
     app.get('/api/admin/debug-contributors-api', async (req, res) => {

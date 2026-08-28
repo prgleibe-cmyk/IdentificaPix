@@ -218,7 +218,7 @@ export async function getMonitoringStatus(
     try {
       const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
       const res = await pool.query(
-        `SELECT COUNT(*) as fail_count FROM audit_logs 
+        `SELECT COUNT(*) as fail_count FROM app_auth_audit_logs 
          WHERE event IN ('LOGIN_FAILED', '2FA_AUTH_FAILED', 'LOGIN_LOCKED') 
          AND created_at >= $1`,
         [oneHourAgo]
