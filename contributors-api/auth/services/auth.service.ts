@@ -114,7 +114,7 @@ export class AuthService {
         ip_address: ip,
         user_agent: userAgent
       });
-      throw new Error('Credenciais inválidas. Se sua conta é da migração do Supabase, clique em "Criar conta" com este e-mail para cadastrar sua senha.');
+      throw new Error('Credenciais inválidas. Verifique seu e-mail e senha.');
     }
 
     if (!user.is_active) {

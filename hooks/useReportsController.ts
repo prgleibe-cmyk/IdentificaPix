@@ -206,10 +206,11 @@ export const useReportsController = () => {
         }
 
         periodResults.forEach(r => {
-            const hasValidChurch = (r.church?.id && r.church.id !== 'unidentified') || 
-                                 (r._churchId && r._churchId !== 'unidentified');
+            const churchId = (r.church?.id && r.church.id !== 'unidentified') 
+                ? r.church.id 
+                : (r._churchId && r._churchId !== 'unidentified' ? r._churchId : (r.transaction as any)?.church_id);
+            const hasValidChurch = churchId && churchId !== 'unidentified';
             if (hasValidChurch && !isExpenseTx(r)) {
-                const churchId = (r.church?.id && r.church.id !== 'unidentified') ? r.church?.id : r._churchId!;
                 if (allowedIds && !allowedIds.includes(churchId)) return;
                 
                 const realChurch = churchesMap.get(churchId) || r.church;
@@ -240,7 +241,9 @@ export const useReportsController = () => {
 
         const countSource = isSecondary && subscription?.congregationIds && subscription.congregationIds.length > 0
             ? periodResults.filter(r => {
-                const churchId = r.church?.id || r._churchId || 'unidentified';
+                const churchId = (r.church?.id && r.church.id !== 'unidentified')
+                    ? r.church.id
+                    : (r._churchId && r._churchId !== 'unidentified' ? r._churchId : (r.transaction as any)?.church_id || 'unidentified');
                 return churchId === 'unidentified' || subscription.congregationIds.includes(churchId);
               })
             : periodResults;
@@ -252,7 +255,7 @@ export const useReportsController = () => {
 
         cacheRef.current.counts = {
             general: isSecondary ? countSource.length : generalCount,
-            churches: isSecondary ? (subscription.congregationIds || []).length : churchesCount,
+            churches: churchListComputed.length,
             pending: pendingCount,
             expenses: expensesCount
         };
@@ -268,11 +271,15 @@ export const useReportsController = () => {
         } else {
             const targetChurchId = (isSecondary && subscription.congregationIds && subscription.congregationIds.length > 0)
                 ? (selectedReportId && subscription.congregationIds.includes(selectedReportId) ? selectedReportId : subscription.congregationIds[0])
-                : (selectedReportId || (churchListComputed.length > 0 ? churchListComputed[0].id : null));
+                : ((selectedReportId && selectedReportId !== 'general_all' && selectedReportId !== 'unidentified' && selectedReportId !== 'all_expenses_group' && churchListComputed.some(c => c.id === selectedReportId))
+                    ? selectedReportId 
+                    : (churchListComputed.length > 0 ? churchListComputed[0].id : null));
 
             if (targetChurchId) {
                 filteredData = periodResults.filter(r => {
-                    const cid = r.church?.id || r._churchId;
+                    const cid = (r.church?.id && r.church.id !== 'unidentified')
+                        ? r.church.id
+                        : (r._churchId && r._churchId !== 'unidentified' ? r._churchId : (r.transaction as any)?.church_id);
                     return cid === targetChurchId && !isExpenseTx(r);
                 });
             } else {
@@ -283,7 +290,9 @@ export const useReportsController = () => {
         // Secondary user church isolation guard for general, unidentified, expenses
         if (isSecondary && subscription?.congregationIds && subscription.congregationIds.length > 0) {
             filteredData = filteredData.filter(r => {
-                const churchId = r.church?.id || r._churchId || 'unidentified';
+                const churchId = (r.church?.id && r.church.id !== 'unidentified')
+                    ? r.church.id
+                    : (r._churchId && r._churchId !== 'unidentified' ? r._churchId : (r.transaction as any)?.church_id || 'unidentified');
                 return churchId === 'unidentified' || subscription.congregationIds.includes(churchId);
             });
         }
@@ -331,10 +340,11 @@ export const useReportsController = () => {
             });
 
             const adjustChurch = (item: MatchResult, factor: 1 | -1) => {
-                const hasValidChurch = (item.church?.id && item.church.id !== 'unidentified') || 
-                                     (item._churchId && item._churchId !== 'unidentified');
+                const churchId = (item.church?.id && item.church.id !== 'unidentified') 
+                    ? item.church.id 
+                    : (item._churchId && item._churchId !== 'unidentified' ? item._churchId : (item.transaction as any)?.church_id);
+                const hasValidChurch = churchId && churchId !== 'unidentified';
                 if (hasValidChurch && !isExpenseTx(item)) {
-                    const churchId = (item.church?.id && item.church.id !== 'unidentified') ? item.church?.id : item._churchId!;
                     if (allowedIds && !allowedIds.includes(churchId)) return;
                     
                     const realChurch = churchesMap.get(churchId) || item.church;
@@ -376,7 +386,9 @@ export const useReportsController = () => {
             
             const matchesCountFilters = (item: MatchResult) => {
                 if (!isSecondary) return true;
-                const churchId = item.church?.id || item._churchId || 'unidentified';
+                const churchId = (item.church?.id && item.church.id !== 'unidentified') 
+                    ? item.church.id 
+                    : (item._churchId && item._churchId !== 'unidentified' ? item._churchId : (item.transaction as any)?.church_id || 'unidentified');
                 return churchId === 'unidentified' || (subscription.congregationIds || []).includes(churchId);
             };
 
@@ -393,7 +405,7 @@ export const useReportsController = () => {
                 ...cacheRef.current.counts,
                 pending: cacheRef.current.counts.pending + countsDelta.pending,
                 expenses: cacheRef.current.counts.expenses + countsDelta.expenses,
-                churches: isSecondary ? (subscription.congregationIds || []).length : cacheRef.current.churchList.length
+                churches: cacheRef.current.churchList.length
             };
 
             // 4. Update activeData incrementally
@@ -406,8 +418,15 @@ export const useReportsController = () => {
                 } else if (activeCategory === 'expenses') {
                     matchesCat = isExpenseTx(item);
                 } else {
-                    const churchId = item.church?.id || item._churchId;
-                    matchesCat = churchId === selectedReportId;
+                    const targetChurchId = (isSecondary && subscription.congregationIds && subscription.congregationIds.length > 0)
+                        ? (selectedReportId && subscription.congregationIds.includes(selectedReportId) ? selectedReportId : subscription.congregationIds[0])
+                        : ((selectedReportId && selectedReportId !== 'general_all' && selectedReportId !== 'unidentified' && selectedReportId !== 'all_expenses_group' && cacheRef.current.churchList.some(c => c.id === selectedReportId))
+                            ? selectedReportId 
+                            : (cacheRef.current.churchList.length > 0 ? cacheRef.current.churchList[0].id : null));
+                    const churchId = (item.church?.id && item.church.id !== 'unidentified') 
+                        ? item.church.id 
+                        : (item._churchId && item._churchId !== 'unidentified' ? item._churchId : (item.transaction as any)?.church_id);
+                    matchesCat = churchId === targetChurchId && !isExpenseTx(item);
                 }
 
                 if (!matchesCat) return false;
@@ -521,7 +540,7 @@ export const useReportsController = () => {
         } else if (activeCategory === 'churches') {
             const currentChurchIds = churchList.map(c => c.id);
             if (currentChurchIds.length > 0) {
-                if (!selectedReportId || !currentChurchIds.includes(selectedReportId) || selectedReportId === 'general_all') {
+                if (!selectedReportId || !currentChurchIds.includes(selectedReportId) || selectedReportId === 'general_all' || selectedReportId === 'unidentified' || selectedReportId === 'all_expenses_group') {
                     setSelectedReportId(currentChurchIds[0]);
                 }
             }

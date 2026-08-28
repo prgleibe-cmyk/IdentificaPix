@@ -76,9 +76,25 @@ export default () => {
         };
 
         try {
-            const userId = crypto.randomUUID();
+            // Resolver se já existe profile ou user cadastrado com este e-mail para manter a mesma identidade canônica
+            let userId = null;
+            try {
+                const checkRes = await fetchVps(`/api/v1/profiles/${encodeURIComponent(email)}`);
+                if (checkRes.ok) {
+                    const checkData = await checkRes.json();
+                    if (checkData?.data?.id) {
+                        userId = checkData.data.id;
+                    }
+                }
+            } catch (checkErr) {
+                console.warn("[Users API] Aviso ao verificar perfil existente:", checkErr.message);
+            }
+
+            if (!userId) {
+                userId = crypto.randomUUID();
+            }
             
-            // 1. Criar perfil na tabela profiles
+            // 1. Criar ou atualizar perfil na tabela profiles com o ID canônico
             const profilePayload = {
                 id: userId,
                 email: email,
@@ -100,7 +116,7 @@ export default () => {
                 throw new Error(data?.message || data?.error || "Falha ao criar perfil na VPS API");
             }
 
-            // 2. Criar ou atualizar credenciais em app_users para autenticação do usuário secundário
+            // 2. Criar ou atualizar credenciais em app_users para autenticação do usuário secundário garantindo mesmo ID
             try {
                 await fetchVps('/api/v1/auth/signup', {
                     method: 'POST',
@@ -118,7 +134,7 @@ export default () => {
                 console.warn("[Users API] Aviso ao cadastrar credenciais de autenticação:", authErr.message);
             }
 
-            console.log("[Users API] Usuário e perfil criados com sucesso!");
+            console.log("[Users API] Usuário e perfil vinculados com sucesso! ID:", userId);
             res.json({ success: true, message: "Usuário criado com sucesso", userId: userId });
 
         } catch (error) {
