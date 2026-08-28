@@ -88,11 +88,80 @@ export class ProfileRepository {
   async getByOwnerId(ownerId: string): Promise<ProfileItem[]> {
     await this.ensureTableExists();
     const query = `
-      SELECT * FROM profiles 
-      WHERE owner_id = $1 
-         OR owner_id IN (SELECT id::text FROM app_users WHERE id::text = $1 OR owner_id::text = $1)
-         OR owner_id IN (SELECT id FROM profiles WHERE id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1))
-      ORDER BY created_at DESC
+      WITH owner_identifiers AS (
+        SELECT id::text AS uid, email FROM app_users WHERE id::text = $1 OR (email IS NOT NULL AND LOWER(TRIM(email)) = (SELECT LOWER(TRIM(email)) FROM app_users WHERE id::text = $1 LIMIT 1))
+        UNION
+        SELECT id AS uid, email FROM profiles WHERE id = $1 OR (email IS NOT NULL AND LOWER(TRIM(email)) = (SELECT LOWER(TRIM(email)) FROM profiles WHERE id = $1 LIMIT 1))
+      ),
+      combined_users AS (
+        -- 1. Usuários de app_users (fonte primária autoritativa) complementados por profiles
+        SELECT 
+          COALESCE(p.id, u.id::text) AS id,
+          COALESCE(u.email, p.email) AS email,
+          COALESCE(p.name, u.name, split_part(COALESCE(u.email, p.email, ''), '@', 1)) AS name,
+          COALESCE(p.role, u.role::text, 'member') AS role,
+          COALESCE(p.owner_id, u.owner_id::text, $1) AS owner_id,
+          p.subscription_status,
+          p.subscription_ends_at,
+          p.trial_ends_at,
+          p.limit_ai,
+          p.usage_ai,
+          p.max_churches,
+          p.max_banks,
+          p.custom_price,
+          COALESCE(p.is_blocked, NOT COALESCE(u.is_active, true), false) AS is_blocked,
+          p.is_lifetime,
+          COALESCE(p.permissions, u.permissions, '{}'::jsonb) AS permissions,
+          COALESCE(p.congregation, u.church_id::text, '') AS congregation,
+          COALESCE(p.created_at, u.created_at, NOW()) AS created_at,
+          COALESCE(p.updated_at, u.updated_at, NOW()) AS updated_at
+        FROM app_users u
+        LEFT JOIN profiles p ON (p.id = u.id::text OR (p.email IS NOT NULL AND u.email IS NOT NULL AND LOWER(TRIM(p.email)) = LOWER(TRIM(u.email))))
+        WHERE u.deleted_at IS NULL
+          AND (
+            u.owner_id::text = $1
+            OR u.owner_id::text IN (SELECT uid FROM owner_identifiers)
+          )
+
+        UNION ALL
+
+        -- 2. Perfis históricos legítimos em profiles que ainda não possuem registro correspondente em app_users
+        SELECT 
+          p.id,
+          p.email,
+          p.name,
+          p.role,
+          p.owner_id,
+          p.subscription_status,
+          p.subscription_ends_at,
+          p.trial_ends_at,
+          p.limit_ai,
+          p.usage_ai,
+          p.max_churches,
+          p.max_banks,
+          p.custom_price,
+          p.is_blocked,
+          p.is_lifetime,
+          p.permissions,
+          p.congregation,
+          p.created_at,
+          p.updated_at
+        FROM profiles p
+        WHERE (
+          p.owner_id = $1
+          OR p.owner_id IN (SELECT uid FROM owner_identifiers)
+        )
+        AND p.id NOT IN (SELECT u.id::text FROM app_users u WHERE u.deleted_at IS NULL)
+        AND (p.email IS NULL OR LOWER(TRIM(p.email)) NOT IN (SELECT LOWER(TRIM(u.email)) FROM app_users u WHERE u.deleted_at IS NULL))
+      )
+      SELECT * FROM (
+        SELECT DISTINCT ON (COALESCE(LOWER(TRIM(email)), id)) *
+        FROM combined_users
+        WHERE id NOT IN (SELECT uid FROM owner_identifiers)
+          AND (email IS NULL OR LOWER(TRIM(email)) NOT IN (SELECT LOWER(TRIM(email)) FROM owner_identifiers WHERE email IS NOT NULL))
+        ORDER BY COALESCE(LOWER(TRIM(email)), id), created_at DESC
+      ) final_deduplicated
+      ORDER BY created_at DESC;
     `;
     const result = await this.pool.query(query, [ownerId]);
     return (result.rows || []).map((row: any) => this.parseRow(row));

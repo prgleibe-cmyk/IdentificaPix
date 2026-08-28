@@ -166,9 +166,16 @@ export default () => {
 
             const profilesList = data.data || (Array.isArray(data) ? data : []);
             const currentUserId = req.user ? req.user.id : null;
-            const filteredData = profilesList.filter(p => p.id !== currentUserId);
+            const currentUserEmail = req.user ? req.user.email?.toLowerCase().trim() : null;
+
+            // Filtro de segurança para excluir o próprio administrador solicitante
+            const filteredData = profilesList.filter(p => {
+                if (currentUserId && p.id === currentUserId) return false;
+                if (currentUserEmail && p.email && p.email.toLowerCase().trim() === currentUserEmail) return false;
+                return true;
+            });
             
-            console.log("[Users API] Total após filtro:", filteredData.length);
+            console.log("[Users API] Total de usuários secundários retornados:", filteredData.length);
             res.json(filteredData);
         } catch (error) {
             console.error("[Users API] Erro ao listar usuários:", error);
