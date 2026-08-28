@@ -60,9 +60,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const referenceData = useReferenceData(user, showToast, realtimeRefreshKey);
     const reportManager = useReportManager(user, showToast, referenceData.reports, realtimeRefreshKey);
 
-    const initialDataLoaded = Boolean(
-        !user || (isSubscriptionReady && referenceData.isReady && reportManager.isReportsReady)
-    );
+    const isReferenceReady = Boolean(isSubscriptionReady && referenceData.isReady);
 
     const reconciliation = useReconciliation({
         user: user,
@@ -81,8 +79,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveView,
         searchFilters: reportManager.searchFilters,
         setSearchFilters: reportManager.setSearchFilters,
-        realtimeRefreshKey
+        realtimeRefreshKey,
+        isReferenceReady
     });
+
+    const initialDataLoaded = Boolean(
+        !user || (isSubscriptionReady && referenceData.isReady && reportManager.isReportsReady && (reconciliation.hasCompletedInitialHydration || !isReferenceReady))
+    );
 
     const viewSavedReport = useCallback(async (reportId: string) => {
         const report = reportManager.savedReports.find(r => r.id === reportId);

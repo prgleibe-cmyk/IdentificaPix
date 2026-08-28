@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { MatchResult, ReconciliationStatus, MatchMethod, Transaction, Contributor } from '../../types';
 import { PLACEHOLDER_CHURCH, strictNormalize, isInvalidOrNumericName } from '../../services/processingService';
 import { consolidationService } from '../../services/ConsolidationService';
+import { getAuthToken } from '../../services/auth/authAdapter';
 
 interface UseCloudSyncProps {
     user: any;
@@ -26,6 +27,7 @@ interface UseCloudSyncProps {
     contributorFiles?: any[];
     setContributorFiles?: (files: any[]) => void;
     setIsLoading?: (loading: boolean) => void;
+    isReferenceReady?: boolean;
 }
 
 export const batchState = { isBatchUpdating: false, isAtomicUpdate: false };
@@ -67,11 +69,14 @@ export const useCloudSync = ({
     realtimeRefreshKey,
     contributorFiles,
     setContributorFiles,
-    setIsLoading
+    setIsLoading,
+    isReferenceReady
 }: UseCloudSyncProps) => {
     const lastCloudSyncRef = useRef<string>('');
     const isHydratingFromCloud = useRef<boolean>(false);
     const [isHydrating, setIsHydrating] = useState<boolean>(false);
+    const [hasCompletedInitialHydration, setHasCompletedInitialHydration] = useState<boolean>(false);
+    const reconstructSessionRef = useRef<() => Promise<void>>();
     const needsRetry = useRef<boolean>(false);
     const lastValidatedHash = useRef<string>('');
     const isValidating = useRef<boolean>(false);
@@ -114,12 +119,13 @@ export const useCloudSync = ({
     // 🚀 CONTROLE DE PRONTIDÃO PARA HIDRATAÇÃO
     const isReady =
         !!effectiveUserId &&
+        (isReferenceReady === undefined || isReferenceReady === true) &&
         Array.isArray(churches) &&
         Array.isArray(learnedAssociations);
 
     const isContextReady = isReady && activeReportId !== null;
 
-    const dataReadyKey = `${effectiveUserId}-${churches?.length || 0}-${learnedAssociations?.length || 0}`;
+    const dataReadyKey = `${effectiveUserId}-${churches?.length || 0}-${learnedAssociations?.length || 0}-${isReferenceReady !== false ? 'ready' : 'loading'}`;
 
     const lastDataReadyKeyRef = useRef<string>('');
 
@@ -145,93 +151,76 @@ export const useCloudSync = ({
 
     const lastSignatureRef = useRef<string | null>(null);
 
-    // 🔄 HIDRATAÇÃO ATÔMICA (Reconstrói a sessão a partir dos dados individuais)
-    useEffect(() => {
-        const currentSignature = JSON.stringify({
-            activeReportId,
-            dataReadyKey,
-            realtimeRefreshKey
-        });
+    // 🔄 RECONSTRUÇÃO ATÔMICA DA SESSÃO
+    const reconstructSession = useCallback(async () => {
+        if (!effectiveUserId) return;
 
-        if (lastSignatureRef.current === currentSignature) {
+        // Se já estamos hidratando, marcamos que precisamos de outra rodada ao terminar
+        if (isHydratingFromCloud.current) {
+            needsRetry.current = true;
             return;
         }
 
-        lastSignatureRef.current = currentSignature;
+        console.log("[CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...");
+        const hasDataAlready = Array.isArray(matchResults) && matchResults.length > 0;
+        isHydratingFromCloud.current = true;
+        setIsHydrating(true);
+        if (setIsLoading && !hasDataAlready) setIsLoading(true);
+        needsRetry.current = false;
 
-        console.log('[CloudSync:ATOM_EFFECT_TRIGGER]', {
-            isReady,
-            activeReportId,
-            effectiveUserId,
-            churchesCount: churches?.length,
-            assocCount: learnedAssociations?.length,
-            lastDataReadyKey: lastDataReadyKeyRef.current,
-            dataReadyKey
-        });
+        try {
+            const pendingPromotions: { id: string; churchId: string; bankId: string }[] = [];
 
-        if (!isReady || activeReportId) return;
+            // 1. Busca todas as transações consolidadas em paralelo com os contribuintes
+            const fetchTransactionsPromise = (async () => {
+                let allTxs: any[] = [];
+                let from = 0;
+                const pageSize = 5000;
 
-        // 🛡️ Evita reconstrução com dados incompletos repetidos
-        if (lastDataReadyKeyRef.current === dataReadyKey) return;
-        lastDataReadyKeyRef.current = dataReadyKey;
+                const token = await getAuthToken();
+                const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
+                let queryParams = `user_id=${encodeURIComponent(effectiveUserId)}&limit=${pageSize}`;
 
-        const reconstructSession = async () => {
-            // Se já estamos hidratando, marcamos que precisamos de outra rodada ao terminar
-            if (isHydratingFromCloud.current) {
-                needsRetry.current = true;
-                return;
-            }
-
-            console.log("[CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...");
-            const hasDataAlready = Array.isArray(matchResults) && matchResults.length > 0;
-            isHydratingFromCloud.current = true;
-            setIsHydrating(true);
-            if (setIsLoading && !hasDataAlready) setIsLoading(true);
-            needsRetry.current = false;
-
-            try {
-                const pendingPromotions: { id: string; churchId: string; bankId: string }[] = [];
-
-                // 1. Busca todas as transações consolidadas em paralelo com os contribuintes
-                const fetchTransactionsPromise = (async () => {
-                    let allTxs: any[] = [];
-                    let from = 0;
-                    const pageSize = 5000;
-
-                    let queryParams = `user_id=${effectiveUserId}&limit=${pageSize}`;
-
-                    while (true) {
-                        const res = await fetch(`/api/v1/consolidated_transactions?${queryParams}&offset=${from}`);
-                        if (!res.ok) {
-                            throw new Error(`Erro ao buscar transações consolidadas do VPS: ${res.statusText}`);
-                        }
-                        const data = await res.json();
-                        if (!data || data.length === 0) break;
-
-                        allTxs = [...allTxs, ...data];
-                        if (data.length < pageSize) break;
-                        from += pageSize;
+                while (true) {
+                    const res = await fetch(`/api/v1/consolidated_transactions?${queryParams}&offset=${from}`, {
+                        headers,
+                        cache: 'no-store'
+                    });
+                    if (!res.ok) {
+                        throw new Error(`Erro ao buscar transações consolidadas do VPS: ${res.statusText}`);
                     }
-                    return allTxs;
-                })();
+                    const data = await res.json();
+                    if (!data || data.length === 0) break;
 
-                const fetchContributorsPromise = (async () => {
-                    if (!churches || churches.length === 0) return [];
-                    if (contributorFilesRef.current && contributorFilesRef.current.length > 0) {
-                        return contributorFilesRef.current;
-                    }
+                    allTxs = [...allTxs, ...data];
+                    if (data.length < pageSize) break;
+                    from += pageSize;
+                }
+                return allTxs;
+            })();
 
-                    // Busca todos os contribuintes em uma única requisição veloz
-                    let data: any[] = [];
-                    try {
-                        const resp = await fetch(`/api/v1/contributors`);
-                        if (resp.ok) {
-                            const list = await resp.json();
-                            data = Array.isArray(list) ? list : [];
-                        }
-                    } catch (err) {
-                        console.error('[CloudSync:Contributors] Falha ao carregar lista unificada de contribuintes:', err);
+            const fetchContributorsPromise = (async () => {
+                if (!churches || churches.length === 0) return [];
+                if (contributorFilesRef.current && contributorFilesRef.current.length > 0) {
+                    return contributorFilesRef.current;
+                }
+
+                // Busca todos os contribuintes em uma única requisição veloz
+                let data: any[] = [];
+                try {
+                    const token = await getAuthToken();
+                    const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
+                    const resp = await fetch(`/api/v1/contributors`, {
+                        headers,
+                        cache: 'no-store'
+                    });
+                    if (resp.ok) {
+                        const list = await resp.json();
+                        data = Array.isArray(list) ? list : [];
                     }
+                } catch (err) {
+                    console.error('[CloudSync:Contributors] Falha ao carregar lista unificada de contribuintes:', err);
+                }
 
                     const allowedChurchIds = new Set((churches || []).map((ch: any) => ch.id));
 
@@ -543,18 +532,71 @@ export const useCloudSync = ({
             } finally {
                 isHydratingFromCloud.current = false;
                 setIsHydrating(false);
+                setHasCompletedInitialHydration(true);
                 if (setIsLoading) setIsLoading(false);
                 setTimeout(() => {
                     console.log('[Hydration:FINISHED]');
                 }, 0);
                 if (needsRetry.current) {
                     needsRetry.current = false;
+                    lastDataReadyKeyRef.current = '';
+                    lastSignatureRef.current = null;
+                    setTimeout(() => {
+                        reconstructSessionRef.current?.();
+                    }, 50);
                 }
             }
-        };
+        }, [
+            effectiveUserId,
+            matchResults,
+            setIsLoading,
+            churches,
+            learnedAssociations,
+            savedReports,
+            activeReportId,
+            searchFilters,
+            setMatchResults,
+            overwriteSavedReport,
+            setHasActiveSession,
+            showToast
+        ]);
 
-        reconstructSession();
-    }, [isReady, dataReadyKey, effectiveUserId, activeReportId, setActiveReportId, savedReports, churches, learnedAssociations, setMatchResults, setHasActiveSession, overwriteSavedReport, showToast, handleCompare, isLoading, realtimeRefreshKey]);
+        useEffect(() => {
+            reconstructSessionRef.current = reconstructSession;
+        }, [reconstructSession]);
+
+        // 🔄 HIDRATAÇÃO ATÔMICA (Reconstrói a sessão a partir dos dados individuais)
+        useEffect(() => {
+            const currentSignature = JSON.stringify({
+                activeReportId,
+                dataReadyKey,
+                realtimeRefreshKey
+            });
+
+            if (lastSignatureRef.current === currentSignature) {
+                return;
+            }
+
+            lastSignatureRef.current = currentSignature;
+
+            console.log('[CloudSync:ATOM_EFFECT_TRIGGER]', {
+                isReady,
+                activeReportId,
+                effectiveUserId,
+                churchesCount: churches?.length,
+                assocCount: learnedAssociations?.length,
+                lastDataReadyKey: lastDataReadyKeyRef.current,
+                dataReadyKey
+            });
+
+            if (!isReady || activeReportId) return;
+
+            // 🛡️ Evita reconstrução com dados incompletos repetidos
+            if (lastDataReadyKeyRef.current === dataReadyKey) return;
+            lastDataReadyKeyRef.current = dataReadyKey;
+
+            reconstructSession();
+        }, [isReady, dataReadyKey, activeReportId, reconstructSession, realtimeRefreshKey]);
 
     // 🚀 AUTO-PROCESSAMENTO INICIAL (Lista Viva)
     useEffect(() => {
@@ -737,6 +779,9 @@ export const useCloudSync = ({
     return {
         syncToCloud,
         isHydratingFromCloud,
-        isHydrating
+        isHydrating,
+        hasCompletedInitialHydration,
+        isReady,
+        reconstructSession
     };
 };

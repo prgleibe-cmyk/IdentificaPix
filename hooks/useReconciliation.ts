@@ -161,7 +161,8 @@ export const useReconciliation = (props: any) => {
         showToast,
         handleCompare: matcher.handleCompare,
         isLoading,
-        overwriteSavedReport
+        overwriteSavedReport,
+        isReferenceReady: props.isReferenceReady
     });
 
     const { persistTransactions, clearRemoteList, hydrate: liveListHydrate } = useLiveListSync({
@@ -176,8 +177,11 @@ export const useReconciliation = (props: any) => {
         if (typeof triggerSync === 'function') {
             triggerSync();
         }
-        await liveListHydrate(forceClearUI);
-    }, [liveListHydrate, triggerSync]);
+        await Promise.allSettled([
+            liveListHydrate(forceClearUI),
+            cloud.reconstructSession ? cloud.reconstructSession() : Promise.resolve()
+        ]);
+    }, [liveListHydrate, triggerSync, cloud.reconstructSession]);
 
     const files = useFileProcessor({ ...params, persistTransactions, clearRemoteList, hydrate });
 
@@ -212,7 +216,7 @@ export const useReconciliation = (props: any) => {
     const filteredMatchResults = useMemo(() => applySecurityFilters(matchResults), [matchResults, applySecurityFilters]);
     const filteredLaunchedResults = useMemo(() => applySecurityFilters(launchedResults), [launchedResults, applySecurityFilters]);
 
-    const { syncToCloud, isHydratingFromCloud, isHydrating } = cloud;
+    const { syncToCloud, isHydratingFromCloud, isHydrating, hasCompletedInitialHydration, reconstructSession } = cloud;
     const { handleStatementUpload, importGmailTransactions, removeBankStatementFile, handleContributorsUpload, removeContributorFile, toggleBankSelection } = files;
     const {
         handleCompare,
@@ -298,11 +302,15 @@ export const useReconciliation = (props: any) => {
         setReportPreviewData,
         activeSpreadsheetData,
         setActiveSpreadsheetData,
-        fetchContributorsToFiles
+        fetchContributorsToFiles,
+        hasCompletedInitialHydration,
+        reconstructSession
     }), [
         syncToCloud,
         isHydratingFromCloud,
         isHydrating,
+        hasCompletedInitialHydration,
+        reconstructSession,
         handleStatementUpload,
         importGmailTransactions,
         removeBankStatementFile,

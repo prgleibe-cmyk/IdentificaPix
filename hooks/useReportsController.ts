@@ -112,11 +112,17 @@ export const useReportsController = () => {
     const isExpenseTx = useCallback((r: MatchResult) => {
         const amount = r.status === 'PENDENTE' ? r.contributorAmount : r.transaction?.amount;
         const displayAmount = amount !== undefined ? amount : (r.transaction?.amount || 0);
+        const desc = (r.transaction?.description || r.transaction?.rawDescription || '').toLowerCase();
+        const cat = (r.contributionType || (r.transaction as any)?.contributionType || '').toLowerCase();
+        const txType = (r.transaction?.type || '').toLowerCase();
+
         return displayAmount < 0 || 
-               r.transaction?.type?.toLowerCase() === 'expense' || 
-               r.transaction?.type?.toLowerCase() === 'saida' || 
-               r.contributionType?.toLowerCase() === 'saída' || 
-               r.contributionType?.toLowerCase() === 'saida';
+               txType === 'expense' || 
+               txType === 'saida' || 
+               cat.includes('saída') || 
+               cat.includes('saida') ||
+               desc.includes('lançamento manual saída') ||
+               desc.includes('lancamento manual saida');
     }, []);
 
     // ⚡ Executa a sincronização incremental ou o rebuild completo do cache
@@ -210,22 +216,27 @@ export const useReportsController = () => {
                 ? r.church.id 
                 : (r._churchId && r._churchId !== 'unidentified' ? r._churchId : (r.transaction as any)?.church_id);
             const hasValidChurch = churchId && churchId !== 'unidentified';
-            if (hasValidChurch && !isExpenseTx(r)) {
+            if (hasValidChurch) {
                 if (allowedIds && !allowedIds.includes(churchId)) return;
                 
                 const realChurch = churchesMap.get(churchId) || r.church;
                 const churchName = realChurch?.name || r.church?.name || 'Igreja';
                 
+                const isExp = isExpenseTx(r);
+                const rawAmount = r.status === 'PENDENTE' ? r.contributorAmount : r.transaction?.amount;
+                const amount = Math.abs(Number(rawAmount) || 0);
+                const effectiveAmount = isExp ? -amount : amount;
+
                 const existing = churchMap.get(churchId);
                 if (existing) {
                     existing.count++;
-                    existing.total += (r.transaction?.amount || 0);
+                    existing.total += effectiveAmount;
                 } else {
                     churchMap.set(churchId, {
                         id: churchId,
                         name: churchName,
                         count: 1,
-                        total: r.transaction?.amount || 0
+                        total: effectiveAmount
                     });
                 }
             }
@@ -280,7 +291,7 @@ export const useReportsController = () => {
                     const cid = (r.church?.id && r.church.id !== 'unidentified')
                         ? r.church.id
                         : (r._churchId && r._churchId !== 'unidentified' ? r._churchId : (r.transaction as any)?.church_id);
-                    return cid === targetChurchId && !isExpenseTx(r);
+                    return cid === targetChurchId;
                 });
             } else {
                 filteredData = [];
@@ -344,17 +355,21 @@ export const useReportsController = () => {
                     ? item.church.id 
                     : (item._churchId && item._churchId !== 'unidentified' ? item._churchId : (item.transaction as any)?.church_id);
                 const hasValidChurch = churchId && churchId !== 'unidentified';
-                if (hasValidChurch && !isExpenseTx(item)) {
+                if (hasValidChurch) {
                     if (allowedIds && !allowedIds.includes(churchId)) return;
                     
                     const realChurch = churchesMap.get(churchId) || item.church;
                     const churchName = realChurch?.name || item.church?.name || 'Igreja';
+                    const isExp = isExpenseTx(item);
+                    const rawAmount = item.status === 'PENDENTE' ? item.contributorAmount : item.transaction?.amount;
+                    const amount = Math.abs(Number(rawAmount) || 0);
+                    const effectiveAmount = isExp ? -amount : amount;
 
                     const idx = cacheRef.current.churchList.findIndex(c => c.id === churchId);
                     if (idx !== -1) {
                         const existing = cacheRef.current.churchList[idx];
                         const newCount = Math.max(0, existing.count + factor);
-                        const newTotal = Math.max(0, existing.total + factor * (item.transaction?.amount || 0));
+                        const newTotal = existing.total + factor * effectiveAmount;
                         const updatedList = [...cacheRef.current.churchList];
                         updatedList[idx] = {
                             ...existing,
@@ -369,7 +384,7 @@ export const useReportsController = () => {
                                 id: churchId,
                                 name: churchName,
                                 count: 1,
-                                total: item.transaction?.amount || 0
+                                total: effectiveAmount
                             }
                         ].sort((a, b) => a.name.localeCompare(b.name));
                     }
@@ -426,7 +441,7 @@ export const useReportsController = () => {
                     const churchId = (item.church?.id && item.church.id !== 'unidentified') 
                         ? item.church.id 
                         : (item._churchId && item._churchId !== 'unidentified' ? item._churchId : (item.transaction as any)?.church_id);
-                    matchesCat = churchId === targetChurchId && !isExpenseTx(item);
+                    matchesCat = churchId === targetChurchId;
                 }
 
                 if (!matchesCat) return false;
