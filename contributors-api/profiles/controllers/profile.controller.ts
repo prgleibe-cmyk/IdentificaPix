@@ -38,6 +38,10 @@ export class ProfileController {
           }
         }
         const profiles = await this.service.getByOwnerId(owner_id.trim());
+        if (profiles.length === 0 && isSuperAdmin) {
+          const allProfiles = await this.service.getAll();
+          return res.json({ success: true, data: allProfiles });
+        }
         return res.json({ success: true, data: profiles });
       }
 
