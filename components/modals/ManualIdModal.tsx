@@ -391,11 +391,11 @@ export const ManualIdModal: React.FC = () => {
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') closeManualIdentify();
-            if (e.key === 'Enter' && selectedChurchId && !isSaving) handleConfirm();
+            if (e.key === 'Enter' && selectedChurchId && (!isManualLaunch || selectedBankId) && !isSaving) handleConfirm();
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [closeManualIdentify, selectedChurchId, isSaving]);
+    }, [closeManualIdentify, selectedChurchId, selectedBankId, isManualLaunch, isSaving]);
 
     useEffect(() => {
         if (churches.length === 1 && !selectedChurchId) {
@@ -413,6 +413,11 @@ export const ManualIdModal: React.FC = () => {
     
     const handleConfirm = async () => {
         if (!selectedChurchId) return;
+
+        if (isManualLaunch && !selectedBankId) {
+            alert("Por favor, selecione uma Conta / Caixa de Destino para direcionar o lançamento.");
+            return;
+        }
 
         const targetDate = selectedDate || (bulkIdentificationTxs && bulkIdentificationTxs[0]?.date) || new Date().toISOString().split('T')[0];
         if (isSecondaryUser && isPeriodClosed(targetDate, matchResults)) {
@@ -791,11 +796,15 @@ export const ManualIdModal: React.FC = () => {
 
                             <div className="space-y-1.5">
                                 <div className="flex items-center justify-between flex-wrap gap-1">
-                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
-                                        Conta / Caixa de Destino
+                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-1">
+                                        Conta / Caixa de Destino <span className="text-amber-500 font-bold">*</span>
                                     </label>
-                                    <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 rounded border border-blue-200/50 dark:border-blue-800/50">
-                                        🏦 Destino do Lançamento
+                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border transition-colors ${
+                                        !selectedBankId 
+                                            ? 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 animate-pulse' 
+                                            : 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200/60 dark:border-emerald-800/60'
+                                    }`}>
+                                        {!selectedBankId ? '⚠️ Seleção Obrigatória' : '✓ Destino Selecionado'}
                                     </span>
                                 </div>
                                 <div className="relative group">
@@ -805,9 +814,13 @@ export const ManualIdModal: React.FC = () => {
                                     <select
                                         value={selectedBankId}
                                         onChange={e => setSelectedBankId(e.target.value)}
-                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 pl-10 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer"
+                                        className={`block w-full rounded-xl border ${
+                                            !selectedBankId 
+                                                ? 'border-amber-300/80 dark:border-amber-700/80 bg-amber-50/30 dark:bg-amber-950/20' 
+                                                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'
+                                        } text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 pl-10 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer`}
                                     >
-                                        <option value="">-- Sem Conta / Caixa Principal --</option>
+                                        <option value="">-- Selecione a Conta / Caixa (Obrigatório) --</option>
                                         {availableBanks.map((bank: any) => (
                                             <option key={bank.id} value={bank.id}>
                                                 {bank.account_name || bank.name || 'Conta Bancária / Caixa'}
@@ -947,11 +960,11 @@ export const ManualIdModal: React.FC = () => {
                     <button 
                         type="button" 
                         onClick={handleConfirm} 
-                        disabled={!selectedChurchId || isSaving} 
+                        disabled={!selectedChurchId || !selectedBankId || isSaving} 
                         className="px-6 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
                     >
                          {isSaving ? 'Processando...' : 'Salvar Lançamento'}
-                         {!isSaving && selectedChurchId && <span className="ml-1 text-[8px] opacity-70 bg-white/20 px-1 rounded">Enter</span>}
+                         {!isSaving && selectedChurchId && selectedBankId && <span className="ml-1 text-[8px] opacity-70 bg-white/20 px-1 rounded">Enter</span>}
                     </button>
                 </div>
             </div>
@@ -1259,9 +1272,20 @@ export const ManualIdModal: React.FC = () => {
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
-                               Conta / Caixa de Destino
-                            </label>
+                            <div className="flex items-center justify-between flex-wrap gap-1">
+                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-1">
+                                   Conta / Caixa de Destino {isManualLaunch && <span className="text-amber-500 font-bold">*</span>}
+                                </label>
+                                {isManualLaunch && (
+                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border transition-colors ${
+                                        !selectedBankId 
+                                            ? 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 animate-pulse' 
+                                            : 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200/60 dark:border-emerald-800/60'
+                                    }`}>
+                                        {!selectedBankId ? '⚠️ Obrigatório' : '✓ Selecionado'}
+                                    </span>
+                                )}
+                            </div>
                             <div className="relative group">
                                 <svg className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
@@ -1269,9 +1293,13 @@ export const ManualIdModal: React.FC = () => {
                                 <select
                                     value={selectedBankId}
                                     onChange={e => setSelectedBankId(e.target.value)}
-                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 pl-10 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer"
+                                    className={`block w-full rounded-xl border ${
+                                        isManualLaunch && !selectedBankId 
+                                            ? 'border-amber-300/80 dark:border-amber-700/80 bg-amber-50/30 dark:bg-amber-950/20' 
+                                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'
+                                    } text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 pl-10 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer`}
                                 >
-                                    <option value="">-- Sem Conta / Caixa Principal --</option>
+                                    <option value="">{isManualLaunch ? '-- Selecione a Conta / Caixa (Obrigatório) --' : '-- Sem Conta / Caixa Principal --'}</option>
                                     {availableBanks.map((bank: any) => (
                                         <option key={bank.id} value={bank.id}>
                                             {bank.account_name || bank.name || 'Conta Bancária / Caixa'}
@@ -1408,11 +1436,11 @@ export const ManualIdModal: React.FC = () => {
                     <button 
                         type="button" 
                         onClick={handleConfirm} 
-                        disabled={!selectedChurchId || isSaving} 
+                        disabled={!selectedChurchId || (isManualLaunch && !selectedBankId) || isSaving} 
                         className="px-6 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
                     >
                          {isSaving ? 'Processando...' : isManualLaunch ? 'Salvar Lançamento' : 'Confirmar Lote'}
-                         {!isSaving && selectedChurchId && <span className="ml-1 text-[8px] opacity-70 bg-white/20 px-1 rounded">Enter</span>}
+                         {!isSaving && selectedChurchId && (!isManualLaunch || selectedBankId) && <span className="ml-1 text-[8px] opacity-70 bg-white/20 px-1 rounded">Enter</span>}
                     </button>
                 </div>
             </div>
