@@ -94,7 +94,7 @@ main {
 }
 
 .glass-overlay {
-  @apply absolute inset-0 z-40 bg-slate-900/30 dark:bg-black/40 backdrop-blur-[2px] flex justify-end overflow-hidden;
+  @apply fixed inset-0 z-50 bg-slate-900/40 dark:bg-black/60 backdrop-blur-[2px] flex justify-end overflow-hidden;
 }
 
 .bg-noise {
