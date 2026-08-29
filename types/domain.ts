@@ -190,6 +190,12 @@ export interface TransactionSplit {
   amount: number;
   contributionType: string;
   description?: string;
+  contributorId?: string;
+  contributorName?: string;
+  churchId?: string;
+  churchName?: string;
+  paymentMethod?: string;
+  date?: string;
 }
 
 export interface MatchResult {

@@ -75,6 +75,17 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
 
     const canConfirm = selectedData.some((r: any) => !(r.transaction?.isConfirmed ?? r.isConfirmed ?? false));
 
+    const hasBankTransactions = selectedData.some((r: any) => {
+        const isManual = r.isManual || 
+            r.transaction?.source === 'manual' || 
+            r.transaction?.isManual === true || 
+            r.matchMethod === 'MANUAL' || 
+            String(r.transaction?.id ?? r.id ?? '').startsWith('ghost-manual-') || 
+            (r.transaction?.row_hash && r.transaction?.row_hash.includes('|bmanual|'));
+        return !isManual;
+    });
+    const canBulkDelete = !isSecondaryUser || !hasBankTransactions;
+
     return (
         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] animate-fade-in-up">
             <div className="bg-brand-deep/95 text-white px-4 py-2.5 rounded-2xl shadow-[0_15px_40px_rgba(0,0,0,0.6)] border border-white/10 flex items-center gap-3 backdrop-blur-xl ring-1 ring-white/10 max-w-[720px]">
@@ -113,13 +124,15 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
                         </button>
                     )}
 
-                    <button
-                        onClick={handleBulkDelete}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all border border-rose-500/20 cursor-pointer"
-                    >
-                        <TrashIcon className="w-2.5 h-2.5" />
-                        Excluir
-                    </button>
+                    {canBulkDelete && (
+                        <button
+                            onClick={handleBulkDelete}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all border border-rose-500/20 cursor-pointer"
+                        >
+                            <TrashIcon className="w-2.5 h-2.5" />
+                            Excluir
+                        </button>
+                    )}
 
                     <button
                         onClick={onClear}

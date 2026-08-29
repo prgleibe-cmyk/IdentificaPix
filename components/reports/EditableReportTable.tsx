@@ -86,7 +86,8 @@ const MobileCard = memo(({
     canConfirmFinal = true,
     canUndoIdentification = true,
     canPrintReceipt = true,
-    waSent
+    waSent,
+    isSecondaryUser = false
 }: any) => {
     const { contributionTypes, paymentMethods: sysPaymentMethods, contributionKeywords, openWhatsAppReceiptModal, contributors, churches, showToast } = useContext(AppContext);
     const row = result as MatchResult;
@@ -127,6 +128,7 @@ const MobileCard = memo(({
         row.matchMethod === 'MANUAL' || 
         String(row.transaction?.id).startsWith('ghost-manual-') || 
         (row.transaction?.row_hash && row.transaction?.row_hash.includes('|bmanual|'));
+    const canDeleteRow = !isSecondaryUser || isManualRow;
 
     return (
         <div className={`p-4 border-b border-slate-200 dark:border-slate-700 transition-colors ${
@@ -175,15 +177,32 @@ const MobileCard = memo(({
                             </div>
                         )}
                         {row.splits && row.splits.length > 0 && (
-                            <div className="mt-1.5 text-[10px] text-slate-500 dark:text-slate-400 font-semibold bg-slate-50 dark:bg-slate-800/50 p-1.5 rounded-lg border border-slate-100 dark:border-slate-700">
-                                <span className="font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider text-[8px]">Distribuição:</span>
-                                <ul className="list-disc list-inside mt-0.5 space-y-0.5">
+                            <div className="mt-2 text-[10px] bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80 space-y-1.5">
+                                <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-700/60 pb-1">
+                                    <span className="font-black text-orange-600 dark:text-orange-400 uppercase tracking-wider text-[8px] flex items-center gap-1">
+                                        Distribuição do Rateio ({row.splits.length} Destinos):
+                                    </span>
+                                </div>
+                                <div className="space-y-1.5">
                                     {row.splits.map((s, idx) => (
-                                        <li key={s.id || idx}>
-                                            <span className="uppercase text-slate-600 dark:text-slate-300">{s.contributionType}</span>: <span className="font-bold text-slate-900 dark:text-white tabular-nums">{formatCurrency(s.amount, language)}</span> {s.description ? `(${s.description})` : ''}
-                                        </li>
+                                        <div key={s.id || idx} className="flex flex-col gap-0.5 bg-white dark:bg-slate-900/60 p-1.5 rounded-lg border border-slate-100 dark:border-slate-800 text-[10px]">
+                                            <div className="flex items-center justify-between font-bold">
+                                                <span className="uppercase text-slate-800 dark:text-slate-200 truncate">
+                                                    {s.contributorName && s.contributorName !== displayName ? s.contributorName : s.contributionType}
+                                                </span>
+                                                <span className="font-black text-slate-900 dark:text-white tabular-nums shrink-0">
+                                                    {formatCurrency(s.amount, language)}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center flex-wrap gap-1 text-[9px] text-slate-500 dark:text-slate-400 font-semibold">
+                                                <span className="bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 px-1 py-0.2 rounded font-bold uppercase">{s.contributionType}</span>
+                                                {s.churchName && <span className="bg-slate-100 dark:bg-slate-800 px-1 py-0.2 rounded truncate">{s.churchName}</span>}
+                                                {s.paymentMethod && <span className="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 px-1 py-0.2 rounded uppercase">{s.paymentMethod}</span>}
+                                                {s.description && <span className="italic text-slate-400">({s.description})</span>}
+                                            </div>
+                                        </div>
                                     ))}
-                                </ul>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -281,7 +300,9 @@ const MobileCard = memo(({
                         ) : (
                             !isClosedPeriod && (
                                 <>
-                                    <button onClick={() => onDelete(row)} className="p-2.5 rounded-xl text-rose-600 bg-rose-50" title="Excluir"><TrashIcon className="w-4 h-4" /></button>
+                                    {canDeleteRow && (
+                                        <button onClick={() => onDelete(row)} className="p-2.5 rounded-xl text-rose-600 bg-rose-50" title="Excluir"><TrashIcon className="w-4 h-4" /></button>
+                                    )}
                                     {isIdentified && canUndoIdentification && <button onClick={() => onUndo(row.transaction.id)} className="p-2.5 rounded-xl text-amber-600 bg-amber-50" title="Desfazer auto-identificação"><ArrowUturnLeftIcon className="w-4 h-4" /></button>}
                                     {onSplit && (
                                         <button 
@@ -314,7 +335,8 @@ const IncomeRow = memo(({
     canConfirmFinal = true,
     canUndoIdentification = true,
     canPrintReceipt = true,
-    waSent
+    waSent,
+    isSecondaryUser = false
 }: any) => {
     const { contributionTypes, paymentMethods: sysPaymentMethods, contributionKeywords, openWhatsAppReceiptModal, contributors, churches, showToast } = useContext(AppContext);
     const row = result as MatchResult;
@@ -351,6 +373,7 @@ const IncomeRow = memo(({
         row.matchMethod === 'MANUAL' || 
         String(row.transaction?.id).startsWith('ghost-manual-') || 
         (row.transaction?.row_hash && row.transaction?.row_hash.includes('|bmanual|'));
+    const canDeleteRow = !isSecondaryUser || isManualRow;
 
     return (
         <tr className={`group transition-colors border-b border-slate-200 dark:border-slate-700 ${
@@ -434,15 +457,30 @@ const IncomeRow = memo(({
                         </div>
                     )}
                     {row.splits && row.splits.length > 0 && (
-                        <div className="mt-1 text-[10px] text-slate-500 dark:text-slate-400 font-semibold bg-slate-50 dark:bg-slate-800/50 p-1.5 rounded-lg border border-slate-100 dark:border-slate-700">
-                            <span className="font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider text-[8px]">Distribuição:</span>
-                            <ul className="list-disc list-inside mt-0.5 space-y-0.5">
+                        <div className="mt-1.5 text-[10px] bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80 space-y-1.5 max-w-xl">
+                            <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-700/60 pb-1">
+                                <span className="font-black text-orange-600 dark:text-orange-400 uppercase tracking-wider text-[8px]">
+                                    Distribuição do Rateio ({row.splits.length} Destinos):
+                                </span>
+                            </div>
+                            <div className="space-y-1.5">
                                 {row.splits.map((s, idx) => (
-                                    <li key={s.id || idx}>
-                                        <span className="uppercase text-slate-600 dark:text-slate-300">{s.contributionType}</span>: <span className="font-bold text-slate-900 dark:text-white tabular-nums">{formatCurrency(s.amount, language)}</span> {s.description ? `(${s.description})` : ''}
-                                    </li>
+                                    <div key={s.id || idx} className="flex items-center justify-between gap-2 bg-white dark:bg-slate-900/60 px-2 py-1 rounded-lg border border-slate-100 dark:border-slate-800 text-[10px]">
+                                        <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                                            <span className="font-bold text-slate-800 dark:text-slate-200 uppercase truncate">
+                                                {s.contributorName && s.contributorName !== displayName ? s.contributorName : displayName}
+                                            </span>
+                                            <span className="bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.2 rounded text-[8px] font-bold uppercase">{s.contributionType}</span>
+                                            {s.churchName && <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-1.5 py-0.2 rounded text-[8px] font-bold truncate">{s.churchName}</span>}
+                                            {s.paymentMethod && <span className="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.2 rounded text-[8px] font-bold uppercase">{s.paymentMethod}</span>}
+                                            {s.description && <span className="italic text-slate-400 text-[9px]">({s.description})</span>}
+                                        </div>
+                                        <span className="font-black text-slate-900 dark:text-white tabular-nums shrink-0 ml-auto pl-2">
+                                            {formatCurrency(s.amount, language)}
+                                        </span>
+                                    </div>
                                 ))}
-                            </ul>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -518,7 +556,9 @@ const IncomeRow = memo(({
                             !isClosedPeriod && (
                                 <>
                                     {isIdentified && canUndoIdentification && <button onClick={() => onUndo(row.transaction.id)} className="p-1.5 rounded-lg text-amber-600 bg-amber-50 hover:bg-amber-100 cursor-pointer" title="Desfazer auto-identificação"><ArrowUturnLeftIcon className="w-3.5 h-3.5" /></button>}
-                                    <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg text-rose-600 bg-rose-50 hover:bg-rose-100 cursor-pointer" title="Excluir"><TrashIcon className="w-3.5 h-3.5" /></button>
+                                    {canDeleteRow && (
+                                        <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg text-rose-600 bg-rose-50 hover:bg-rose-100 cursor-pointer" title="Excluir"><TrashIcon className="w-3.5 h-3.5" /></button>
+                                    )}
                                     {onSplit && (
                                         <button 
                                             onClick={() => onSplit(row)} 
@@ -745,6 +785,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                                     canUndoIdentification={canUndoIdentification}
                                     canPrintReceipt={canPrintReceipt}
                                     waSent={!!waSentMap[result.transaction.id]}
+                                    isSecondaryUser={isSecondaryUser}
                                 />
                             );
                         })}
@@ -786,6 +827,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                             canUndoIdentification={canUndoIdentification}
                             canPrintReceipt={canPrintReceipt}
                             waSent={!!waSentMap[result.transaction.id]}
+                            isSecondaryUser={isSecondaryUser}
                         />
                     );
                 })}

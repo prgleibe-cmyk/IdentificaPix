@@ -3,6 +3,7 @@ import React, { useContext, useMemo, useState } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { useUI } from '../contexts/UIContext';
+import { useAuth } from '../contexts/AuthContext';
 import { EmptyState } from '../components/EmptyState';
 import { 
     CheckCircleIcon, 
@@ -25,6 +26,7 @@ export const LaunchedView: React.FC = () => {
     const { launchedResults, deleteLaunchedItem, undoLaunch, hydrate, openSaveReportModal } = useContext(AppContext);
     const { setActiveView } = useUI();
     const { t, language } = useTranslation();
+    const { isSecondaryUser } = useAuth();
     const [searchTerm, setSearchTerm] = useState('');
 
     const filtered = useMemo(() => {
@@ -191,22 +193,35 @@ export const LaunchedView: React.FC = () => {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 text-center">
-                                        <div className="flex items-center justify-center gap-2">
-                                            <button 
-                                                onClick={() => undoLaunch(item.transaction.id)}
-                                                className="p-2 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                                                title="Desfazer lançamento"
-                                            >
-                                                <ArrowUturnLeftIcon className="w-4 h-4" />
-                                            </button>
-                                            <button 
-                                                onClick={() => deleteLaunchedItem(item.transaction.id)}
-                                                className="p-2 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                                                title="Remover do histórico"
-                                            >
-                                                <TrashIcon className="w-4 h-4" />
-                                            </button>
-                                        </div>
+                                        {(() => {
+                                            const isManualRow = item.transaction?.source === 'manual' || 
+                                                item.transaction?.isManual === true || 
+                                                item.matchMethod === 'MANUAL' || 
+                                                String(item.transaction?.id).startsWith('ghost-manual-') || 
+                                                (item.transaction?.row_hash && item.transaction?.row_hash.includes('|bmanual|'));
+                                            const canDelete = !isSecondaryUser || isManualRow;
+
+                                            return (
+                                                <div className="flex items-center justify-center gap-2">
+                                                    <button 
+                                                        onClick={() => undoLaunch(item.transaction.id)}
+                                                        className="p-2 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                                        title="Desfazer lançamento"
+                                                    >
+                                                        <ArrowUturnLeftIcon className="w-4 h-4" />
+                                                    </button>
+                                                    {canDelete && (
+                                                        <button 
+                                                            onClick={() => deleteLaunchedItem(item.transaction.id)}
+                                                            className="p-2 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                                            title="Remover do histórico"
+                                                        >
+                                                            <TrashIcon className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
                                     </td>
                                 </tr>
                             ))}
