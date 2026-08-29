@@ -280,13 +280,24 @@ export const useReconciliationActions = ({
           reconciliation.triggerSync(updatedMatchResult);
         }
 
-        // Remove ghost-manual do estado da UI para que seja mapeado pelo realtime naturalmente quando chegar do BD
+        // Substitui o ghost-manual pelo MatchResult com ID real no estado da UI, preservando todos os itens existentes
         batchState.isAtomicUpdate = true;
         reconciliation.setMatchResults((prev: MatchResult[]) => {
-          const final = prev.filter(r => !txIds.includes(r.transaction.id));
+          const withoutGhostsAndReal = prev.filter(r => !txIds.includes(r.transaction.id) && r.transaction.id !== realId);
+          const final = [...withoutGhostsAndReal, updatedMatchResult];
           if (onAfterAction) onAfterAction(final);
           return final;
         });
+
+        // Mantém [SESSÃO_ATIVA] sincronizada com a lista completa combinada
+        if (reportManager?.savedReports && reportManager?.overwriteSavedReport) {
+          const liveReport = reportManager.savedReports.find((r: any) => r.name === '[SESSÃO_ATIVA]');
+          if (liveReport) {
+            const currentList = reconciliation.matchResults || [];
+            const withoutGhostsAndReal = currentList.filter((r: MatchResult) => !txIds.includes(r.transaction.id) && r.transaction.id !== realId);
+            reportManager.overwriteSavedReport(liveReport.id, [...withoutGhostsAndReal, updatedMatchResult]);
+          }
+        }
 
         affectedCount = 1;
       } catch (error: any) {

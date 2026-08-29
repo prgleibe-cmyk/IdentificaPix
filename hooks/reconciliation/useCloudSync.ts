@@ -456,11 +456,6 @@ export const useCloudSync = ({
                 const reconstructed = Array.from(reconstructedMap.values());
 
                 setMatchResults(prev => {
-                    // Na Lista Viva (!activeReportId), 'reconstructed' contém a lista autêntica e atualizada de registros do banco de dados.
-                    if (!activeReportId) {
-                        return reconstructed;
-                    }
-
                     const map = new Map(prev.map(p => [p.transaction.id, p]));
                     let hasChanges = false;
 
@@ -479,8 +474,39 @@ export const useCloudSync = ({
                             return;
                         }
 
+                        // Se current já existia e está IDENTIFIED ou RESOLVED no estado local (ex: identificado via lista viva ou lançamento manual),
+                        // mas o registro vindo da reconstrução veio UNIDENTIFIED (ex: tx pendente sem associação gravada ainda no banco),
+                        // DEVEMOS PRESERVAR o status IDENTIFIED, contribuinte e congregação do estado local (prev)
+                        if (current && 
+                            (current.status === ReconciliationStatus.IDENTIFIED || current.status === ReconciliationStatus.RESOLVED) && 
+                            r.status === ReconciliationStatus.UNIDENTIFIED
+                        ) {
+                            map.set(r.transaction.id, {
+                                ...r,
+                                status: current.status,
+                                contributor: current.contributor || r.contributor,
+                                church: (current.church?.id && current.church.id !== 'unidentified') ? current.church : r.church,
+                                _churchId: current._churchId || r._churchId,
+                                matchMethod: current.matchMethod || r.matchMethod,
+                                similarity: current.similarity ?? r.similarity,
+                                contributionType: current.contributionType || r.contributionType,
+                                paymentMethod: current.paymentMethod || r.paymentMethod,
+                                isConfirmed: current.isConfirmed ?? r.isConfirmed
+                            });
+                            hasChanges = true;
+                            return;
+                        }
+
                         map.set(r.transaction.id, r);
                         hasChanges = true;
+                    });
+
+                    // Preserva itens locais válidos que já estavam em prev (como lançamentos manuais recém-criados ou da sessão ativa)
+                    prev.forEach(p => {
+                        if (!map.has(p.transaction.id) && !p.transaction.id.startsWith('ghost-manual-')) {
+                            map.set(p.transaction.id, p);
+                            hasChanges = true;
+                        }
                     });
 
                     const final = Array.from(map.values());
