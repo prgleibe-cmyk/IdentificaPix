@@ -161,7 +161,8 @@ export const useReconciliationActions = ({
           transaction_date: finalDate,
           description: finalDescription,
           bank_id: selectedBankId || null,
-          row_hash: globalHash
+          row_hash: globalHash,
+          source: 'manual'
         };
 
         const result = await consolidationService.addTransactions([newTxPayload]);
@@ -179,11 +180,13 @@ export const useReconciliationActions = ({
             id: realId,
             date: finalDate,
             description: finalDescription,
-            rawDescription: finalDescription,
+            rawDescription: '',
             amount: finalAmount,
             isConfirmed: false,
             cleanedDescription: finalDescription,
-            bank_id: selectedBankId || undefined
+            bank_id: selectedBankId || undefined,
+            source: 'manual',
+            isManual: true
           },
           contributor: null,
           status: ReconciliationStatus.PENDING,

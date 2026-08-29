@@ -161,14 +161,15 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                             const isIdentifiedStatus = statusStr === 'IDENTIFIED' || statusStr === 'RESOLVED' || statusStr === 'IDENTIFICADO' || statusStr === 'RESOLVIDO';
                             const rawIdentifiedName = isIdentifiedStatus ? (contributor?.name || contributor?.cleanedName) : null;
                             const identifiedName = (rawIdentifiedName && !isInvalidOrNumericName(rawIdentifiedName, bankDescription)) ? rawIdentifiedName : null;
-                            const sourceInfo = resolveTransactionSource(transaction, { transaction, contributor, status });
+                            const sourceInfo = resolveTransactionSource(transaction, { transaction, contributor, status, matchMethod });
+                            const isManualTx = sourceInfo.isManual || transaction.source === 'manual' || transaction.isManual;
 
                             return (
                                 <tr
                                     key={transaction.id}
                                     className={`group hover:bg-slate-50/80 transition-all 
                                         ${isSelected ? 'bg-blue-50/30' : ''} 
-                                        ${confirmed ? 'bg-indigo-50/10 grayscale-[0.3]' : ''}`
+                                        ${confirmed ? 'bg-indigo-50/10 grayscale-[0.3]' : isManualTx ? 'bg-amber-50/40 dark:bg-amber-950/20 border-l-4 border-l-amber-500' : ''}`
                                     }
                                 >
                                     <td className="px-4 py-2.5 text-center">
@@ -227,12 +228,25 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                                                 <span className={`text-xs font-bold uppercase truncate max-w-[200px] ${confirmed ? 'text-indigo-900/60 dark:text-white/60' : 'text-slate-800 dark:text-white'}`}>
                                                     {identifiedName || bankDescription}
                                                 </span>
+                                                {isManualTx && (
+                                                    <span className="text-[8px] font-bold px-1.5 py-0.2 bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 rounded border border-amber-200 dark:border-amber-800 uppercase tracking-wider">
+                                                        Manual
+                                                    </span>
+                                                )}
                                             </div>
-                                            {identifiedName && <span className="text-[9px] text-slate-400 font-medium uppercase tracking-tight truncate max-w-[200px] mt-0.5">{bankDescription}</span>}
+                                            {!isManualTx && identifiedName && bankDescription && identifiedName !== bankDescription && (
+                                                <span className="text-[9px] text-slate-400 font-medium uppercase tracking-tight truncate max-w-[200px] mt-0.5">{bankDescription}</span>
+                                            )}
                                         </div>
                                     </td>
                                     <td className="px-4 py-2.5 text-center">
-                                        <span className={`inline-block text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wide border ${sourceInfo.isSms ? 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border-sky-200 dark:border-sky-800' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700'}`}>
+                                        <span className={`inline-block text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wide border ${
+                                            sourceInfo.isManual
+                                                ? 'bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border-amber-300/80 dark:border-amber-700/60 shadow-2xs'
+                                                : sourceInfo.isSms 
+                                                    ? 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border-sky-200 dark:border-sky-800' 
+                                                    : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                                        }`}>
                                             {sourceInfo.label}
                                         </span>
                                     </td>

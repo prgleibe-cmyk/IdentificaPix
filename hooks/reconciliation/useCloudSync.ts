@@ -343,16 +343,21 @@ export const useCloudSync = ({
                     const savedContribType = t.contribution_type || assoc?.contributionType || undefined;
                     const savedPaymentMethod = t.payment_method || assoc?.paymentMethod || undefined;
 
+                    const isManualTx = t.source === 'manual' || 
+                        (t.row_hash && t.row_hash.includes('|bmanual|')) || 
+                        (t.id && typeof t.id === 'string' && t.id.startsWith('ghost-manual-'));
+
                     const transaction: Transaction = {
                         id: t.id,
                         date: t.transaction_date,
                         description: t.description,
-                        rawDescription: t.description,
+                        rawDescription: isManualTx ? '' : t.description,
                         amount: t.amount,
                         bank_id: t.bank_id,
                         isConfirmed: t.is_confirmed,
                         type: t.type,
-                        source: t.source,
+                        source: isManualTx ? 'manual' : t.source,
+                        isManual: isManualTx,
                         pix_key: t.pix_key,
                         row_hash: t.row_hash,
                         contributionType: savedContribType,

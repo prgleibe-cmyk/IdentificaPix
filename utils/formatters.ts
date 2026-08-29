@@ -225,13 +225,13 @@ export const resolveContributionType = (
 };
 
 /**
- * Resolves the source of a transaction (e.g. 'SMS / Notif' vs 'Arquivo').
+ * Resolves the source of a transaction (e.g. 'Manual', 'SMS / Notif' vs 'Arquivo').
  */
 export const resolveTransactionSource = (
     transaction?: any,
     parentRow?: any
-): { label: string; isSms: boolean } => {
-    if (!transaction && !parentRow) return { label: 'Arquivo', isSms: false };
+): { label: string; isSms: boolean; isManual: boolean } => {
+    if (!transaction && !parentRow) return { label: 'Arquivo', isSms: false, isManual: false };
 
     const tx = transaction || parentRow?.transaction || parentRow || {};
     const row = parentRow || {};
@@ -240,6 +240,24 @@ export const resolveTransactionSource = (
     const pixKey = (tx.pix_key || tx.pixKey || row.pix_key || row.pixKey || '').toString().toUpperCase();
     const desc = (tx.description || tx.rawDescription || tx.cleanedDescription || row.description || '').toString().toLowerCase();
     const rowHash = (tx.row_hash || tx.rowHash || row.row_hash || row.rowHash || '').toString().toLowerCase();
+    const txId = (tx.id || row.id || '').toString();
+
+    const isManualSource = 
+        src === 'manual' || 
+        src === 'manual_entry' || 
+        src === 'lancamento_manual' ||
+        tx.isManual === true || 
+        tx.is_manual === true || 
+        row.isManual === true || 
+        row.is_manual === true ||
+        txId.startsWith('ghost-manual-') ||
+        rowHash.startsWith('manual_') ||
+        rowHash.includes('|bmanual|') ||
+        ((row.matchMethod === 'MANUAL' || row.matchMethod === 'manual') && (!src || src === 'manual' || src === 'none' || src === 'file'));
+
+    if (isManualSource) {
+        return { label: 'Manual', isSms: false, isManual: true };
+    }
 
     const isSmsSource = 
         src === 'sms' || src === 'inbox' || src === 'auto_sms' || src === 'notification' || src === 'push' || src === 'extensão' || src === 'extension' || src === 'android' ||
@@ -249,8 +267,8 @@ export const resolveTransactionSource = (
         desc.includes('notificacao sms') || desc.includes('notificação sms') || desc.includes('sms_') || desc.includes('auto_sms');
 
     if (isSmsSource) {
-        return { label: 'SMS / Notif', isSms: true };
+        return { label: 'SMS / Notif', isSms: true, isManual: false };
     }
-    return { label: 'Arquivo', isSms: false };
+    return { label: 'Arquivo', isSms: false, isManual: false };
 };
 
