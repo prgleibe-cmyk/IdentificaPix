@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ContributorMockProfile, PortalChurch } from '../types/portal';
 import { checkProfileCompleteness } from '../utils/portalProfileCompleteness';
 import { formatCpf, formatPhone, validateCpfVisual, validatePhoneVisual, validateEmailVisual } from '../utils/portalFormatters';
+import { invalidateContributorsCache } from '../../services/contributorsCache';
 import { 
     X, 
     Save, 
@@ -166,11 +167,12 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
         setApiError(null);
 
         try {
-            const cleanCpfDigits = cpf.replace(/\D/g, '');
-            const cleanPhoneDigits = phone.replace(/\D/g, '');
+            const cleanCpfDigits = cpf.replace(/\D/g, '') || null;
+            const cleanPhoneDigits = phone.replace(/\D/g, '') || null;
             const targetChurchId = church?.id || contributor?.church_id || '00000000-0000-0000-0000-000000000001';
 
             const payload: any = {
+                id: contributor?.id || undefined,
                 canonical_name: name.trim().toUpperCase(),
                 name: name.trim(),
                 cpf: cleanCpfDigits,
@@ -189,48 +191,66 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
             };
 
             let updatedId = contributor?.id;
+            let success = false;
 
-            if (contributor?.id) {
-                // Update existing contributor record
-                const response = await fetch(`/api/v1/contributors/${contributor.id}`, {
+            // 1. Tenta endpoint de atualização de perfil do portal
+            let response = await fetch('/api/v1/contributors/update-profile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+                const resData = await response.json().catch(() => null);
+                if (resData && resData.id) updatedId = resData.id;
+                success = true;
+            } else if (contributor?.id) {
+                // 2. Fallback para PUT /api/v1/contributors/:id
+                response = await fetch(`/api/v1/contributors/${contributor.id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-
-                if (!response.ok) {
-                    const errJson = await response.json().catch(() => ({}));
-                    throw new Error(errJson.message || errJson.error || 'Falha ao salvar dados no servidor.');
+                if (response.ok) {
+                    const resData = await response.json().catch(() => null);
+                    if (resData && resData.id) updatedId = resData.id;
+                    success = true;
                 }
-                const resData = await response.json();
-                if (resData && resData.id) updatedId = resData.id;
-            } else {
-                // Register/create new contributor record
-                const response = await fetch('/api/v1/contributors', {
+            }
+
+            if (!success) {
+                // 3. Fallback para criação direta se ainda não cadastrado
+                response = await fetch('/api/v1/contributors', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-
-                if (!response.ok) {
+                if (response.ok) {
+                    const resData = await response.json().catch(() => null);
+                    if (resData && resData.id) updatedId = resData.id;
+                    success = true;
+                } else {
                     const errJson = await response.json().catch(() => ({}));
-                    throw new Error(errJson.message || errJson.error || 'Falha ao cadastrar contribuinte.');
+                    throw new Error(errJson.message || errJson.error || 'Falha ao salvar dados no servidor.');
                 }
-                const resData = await response.json();
-                if (resData && resData.id) updatedId = resData.id;
             }
 
             const updatedProfileObj: ContributorMockProfile = {
                 ...liveProfile,
                 id: updatedId || contributor?.id || 'contrib_' + Date.now(),
                 isExisting: true,
-                church_id: targetChurchId
+                church_id: targetChurchId,
+                updated_at: new Date().toISOString()
             };
+
+            // Invalida cache de contribuintes para atualizar todos os relatórios e telas do sistema
+            invalidateContributorsCache();
 
             // Save to localStorage
             try {
                 localStorage.setItem('iggestor_portal_contributor', JSON.stringify(updatedProfileObj));
                 window.dispatchEvent(new Event('storage'));
+                window.dispatchEvent(new CustomEvent('contributor-profile-updated', { detail: updatedProfileObj }));
             } catch (_) {}
 
             onProfileUpdated(updatedProfileObj);

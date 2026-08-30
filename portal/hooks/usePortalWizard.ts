@@ -6,6 +6,7 @@ import {
     IdentificationType 
 } from '../types/portal';
 import { generateMockReferenceNumber } from '../utils/portalFormatters';
+import { invalidateContributorsCache } from '../../services/contributorsCache';
 
 const DEFAULT_CONTRIBUTION_CATEGORIES: ContributionItemMock[] = [
     { id: 'dizimo', label: 'Dízimo', description: 'Contribuição regular de dízimo senhorial', selected: true, amount: 100 },
@@ -365,41 +366,93 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
         setApiError(null);
 
         try {
-            if (merged.id) {
-                const res = await fetch(`/api/v1/contributors/${merged.id}`, {
+            const cleanCpfDigits = merged.cpf ? String(merged.cpf).replace(/\D/g, '') : null;
+            const cleanPhoneDigits = merged.phone ? String(merged.phone).replace(/\D/g, '') : (merged.whatsapp ? String(merged.whatsapp).replace(/\D/g, '') : null);
+            const targetChurchId = churchId || merged.church_id || '00000000-0000-0000-0000-000000000001';
+
+            const payload = {
+                id: merged.id || undefined,
+                church_id: targetChurchId,
+                canonical_name: (merged.name || merged.canonical_name || '').trim().toUpperCase(),
+                name: (merged.name || merged.canonical_name || '').trim(),
+                cpf: cleanCpfDigits,
+                phone: cleanPhoneDigits,
+                whatsapp: cleanPhoneDigits,
+                email: merged.email ? String(merged.email).trim() : null,
+                birth_date: merged.birth_date || null,
+                address_cep: merged.address_cep || null,
+                address_street: merged.address_street || null,
+                address_number: merged.address_number || null,
+                address_city: merged.address_city || merged.city || null,
+                address_state: merged.address_state || merged.state || null,
+                role_position: merged.role_position || 'Membro',
+                status: 'active'
+            };
+
+            let finalId = merged.id;
+            let success = false;
+
+            // 1. Tenta POST /api/v1/contributors/update-profile
+            let res = await fetch('/api/v1/contributors/update-profile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                const resData = await res.json().catch(() => null);
+                if (resData?.id) finalId = resData.id;
+                success = true;
+            } else if (merged.id) {
+                // 2. Fallback para PUT /api/v1/contributors/:id
+                res = await fetch(`/api/v1/contributors/${merged.id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        canonical_name: merged.name || merged.canonical_name,
-                        name: merged.name,
-                        cpf: merged.cpf,
-                        phone: merged.phone,
-                        whatsapp: merged.whatsapp || merged.phone,
-                        email: merged.email,
-                        birth_date: merged.birth_date,
-                        address_cep: merged.address_cep,
-                        address_street: merged.address_street,
-                        address_number: merged.address_number,
-                        address_city: merged.address_city || merged.city,
-                        address_state: merged.address_state || merged.state,
-                        role_position: merged.role_position
-                    })
+                    body: JSON.stringify(payload)
                 });
+                if (res.ok) {
+                    const resData = await res.json().catch(() => null);
+                    if (resData?.id) finalId = resData.id;
+                    success = true;
+                }
+            }
 
-                if (!res.ok) {
+            if (!success) {
+                // 3. Fallback para criação se não existir
+                res = await fetch('/api/v1/contributors', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) {
+                    const resData = await res.json().catch(() => null);
+                    if (resData?.id) finalId = resData.id;
+                    success = true;
+                } else {
                     const errData = await res.json().catch(() => ({}));
                     throw new Error(errData.message || 'Falha ao atualizar dados.');
                 }
             }
 
+            const updatedObj: ContributorMockProfile = {
+                ...merged,
+                id: finalId || merged.id,
+                church_id: targetChurchId,
+                updated_at: new Date().toISOString()
+            };
+
+            // Invalida cache de contribuintes do sistema
+            invalidateContributorsCache();
+
             try {
-                localStorage.setItem('iggestor_portal_contributor', JSON.stringify(merged));
+                localStorage.setItem('iggestor_portal_contributor', JSON.stringify(updatedObj));
                 window.dispatchEvent(new Event('storage'));
+                window.dispatchEvent(new CustomEvent('contributor-profile-updated', { detail: updatedObj }));
             } catch (_) {}
 
             setWizardState(prev => ({
                 ...prev,
-                contributor: merged
+                contributor: updatedObj
             }));
 
             setIsSaving(false);
@@ -410,7 +463,7 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
             setIsSaving(false);
             return false;
         }
-    }, [wizardState.contributor]);
+    }, [wizardState.contributor, churchId]);
 
     // 1-Click Periodic Confirmation (6 months)
     const confirmContributorProfileOnServer = useCallback(async (): Promise<boolean> => {
