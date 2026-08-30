@@ -63,7 +63,7 @@ const MainLayout: React.FC = () => {
                 >
                     <div 
                         className="max-w-[1920px] mx-auto min-h-full flex flex-col relative z-10 pb-8 md:pb-4 transition-[zoom] duration-150 origin-top-left"
-                        style={{ zoom: pinchState.zoom }}
+                        style={pinchState.zoom !== 1 ? { zoom: pinchState.zoom } : undefined}
                     >
                         <div className={`min-h-full flex-1 flex flex-col transition-opacity duration-150 ${isLoading ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
                             <AppRouter />

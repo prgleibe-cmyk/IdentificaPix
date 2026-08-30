@@ -33,7 +33,7 @@ export function useGlobalDragScroll() {
             if (el.isContentEditable) return true;
             
             const interactiveParent = el.closest(
-                'input, textarea, select, [contenteditable="true"], [role="slider"], [role="switch"], [data-no-drag-scroll]'
+                'input, textarea, select, [contenteditable="true"], [role="slider"], [role="switch"], [data-no-drag-scroll], aside[aria-label="Controle de Zoom da Tela"]'
             );
             if (interactiveParent) return true;
 
@@ -85,11 +85,11 @@ export function useGlobalDragScroll() {
         };
 
         const handlePointerDown = (e: PointerEvent) => {
-            // Em dispositivos touch (celulares/tablets), permitir 100% a rolagem nativa por toque ultra-fluida do navegador
-            if (e.pointerType === 'touch' || e.pointerType === 'pen') return;
+            // Ignorar ponteiros secundários (como segundo dedo no pinch-zoom)
+            if (e.isPrimary === false) return;
 
-            // Para mouse/desktop, permitir arrastar para rolar
-            if (e.button !== 0 || (e.isPrimary === false)) return;
+            // Para mouse/desktop, aceitar apenas botão esquerdo (0)
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
 
             const target = e.target as HTMLElement | null;
             if (isFormInputElement(target)) return;
