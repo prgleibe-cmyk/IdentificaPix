@@ -70,39 +70,19 @@ export const PortalReportsPage: React.FC<PortalReportsPageProps> = ({ church, on
     const [receiptRecord, setReceiptRecord] = useState<ContributionRecord | null>(null);
     const [isEditProfileOpen, setIsEditProfileOpen] = useState<boolean>(false);
 
-    // Load stored contributor from localStorage & listen for updates
+    // Load stored contributor from localStorage
     useEffect(() => {
-        const loadContributor = () => {
-            try {
-                const raw = localStorage.getItem('iggestor_portal_contributor');
-                if (raw) {
-                    const parsed = JSON.parse(raw);
-                    if (parsed && (parsed.id || parsed.name || parsed.cpf)) {
-                        setContributor(parsed);
-                    }
+        try {
+            const raw = localStorage.getItem('iggestor_portal_contributor');
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (parsed && (parsed.id || parsed.name || parsed.cpf)) {
+                    setContributor(parsed);
                 }
-            } catch (err) {
-                console.error('[PortalReportsPage] Erro ao carregar perfil do contribuinte:', err);
             }
-        };
-
-        loadContributor();
-
-        const handleCustomUpdate = (e: any) => {
-            if (e?.detail) {
-                setContributor(e.detail);
-            } else {
-                loadContributor();
-            }
-        };
-
-        window.addEventListener('storage', loadContributor);
-        window.addEventListener('contributor-profile-updated', handleCustomUpdate);
-
-        return () => {
-            window.removeEventListener('storage', loadContributor);
-            window.removeEventListener('contributor-profile-updated', handleCustomUpdate);
-        };
+        } catch (err) {
+            console.error('[PortalReportsPage] Erro ao carregar perfil do contribuinte:', err);
+        }
     }, []);
 
     const handleConfirmPeriodicProfile = async () => {

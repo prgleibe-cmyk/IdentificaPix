@@ -1532,7 +1532,7 @@ export const RelatoriosView: React.FC = memo(() => {
                                 </div>
 
                                 <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
-                                    <div className="overflow-x-auto custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}>
+                                    <div className="overflow-x-auto">
                                         <table className="w-full text-left border-collapse">
                                             <thead>
                                                 <tr className="bg-slate-100 dark:bg-slate-800/80 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
@@ -1643,8 +1643,7 @@ export const RelatoriosView: React.FC = memo(() => {
                                 </div>
 
                                 <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
-                                    <div className="overflow-x-auto custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}>
-                                        <table className="w-full text-left border-collapse">
+                                    <table className="w-full text-left border-collapse">
                                         <thead>
                                             <tr className="bg-slate-900 text-white text-[10px] font-black uppercase tracking-wider">
                                                 <th className="py-2.5 px-3">Código</th>
@@ -1711,7 +1710,6 @@ export const RelatoriosView: React.FC = memo(() => {
                                             </tr>
                                         </tbody>
                                     </table>
-                                    </div>
                                 </div>
                             </div>
                         )}
@@ -2179,7 +2177,7 @@ export const RelatoriosView: React.FC = memo(() => {
                                                     </div>
 
                                                     <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
-                                                        <div className="overflow-x-auto max-h-60 custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}>
+                                                        <div className="overflow-x-auto max-h-60 custom-scrollbar">
                                                             <table className="w-full text-left border-collapse">
                                                                 <thead>
                                                                     <tr className="bg-slate-100 dark:bg-slate-800 text-[10px] font-black text-slate-500 uppercase tracking-wider">

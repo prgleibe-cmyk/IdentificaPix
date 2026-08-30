@@ -1418,109 +1418,25 @@ app.post('/api/v1/contributors/update-profile', async (req: Request, res: Respon
 
     const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
     
-    let targetId: string | null = null;
-
-    // 1. Try finding by ID if valid UUID
-    if (id && typeof id === 'string' && uuidRegex.test(id)) {
-      const idRes = await pool.query("SELECT id FROM contributors WHERE id = $1 LIMIT 1", [id]);
-      if (idRes.rows.length > 0) {
-        targetId = idRes.rows[0].id;
+    let targetId = id;
+    if (!targetId || !uuidRegex.test(targetId)) {
+      // If no ID provided, try finding by CPF
+      const cleanCpf = cpf ? String(cpf).replace(/\D/g, '') : null;
+      if (cleanCpf) {
+        const findRes = await pool.query(
+          "SELECT id FROM contributors WHERE status = 'active' AND (cpf = $1 OR REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), '/', '') = $1) LIMIT 1",
+          [cleanCpf]
+        );
+        if (findRes.rows.length > 0) {
+          targetId = findRes.rows[0].id;
+        }
       }
     }
 
-    // 2. If not found by ID, try finding by clean CPF
-    const cleanCpf = cpf ? String(cpf).replace(/\D/g, '') : null;
-    if (!targetId && cleanCpf && cleanCpf.length >= 8) {
-      const findRes = await pool.query(
-        "SELECT id FROM contributors WHERE (status ILIKE 'ativ%' OR status = 'active' OR status IS NULL) AND (cpf = $1 OR REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), '/', '') = $1) LIMIT 1",
-        [cleanCpf]
-      );
-      if (findRes.rows.length > 0) {
-        targetId = findRes.rows[0].id;
-      }
-    }
-
-    // 3. If not found, try finding by Phone / WhatsApp
-    const rawPhone = phone || whatsapp;
-    const cleanPhoneDigits = rawPhone ? String(rawPhone).replace(/\D/g, '') : null;
-    if (!targetId && cleanPhoneDigits && cleanPhoneDigits.length >= 8) {
-      const phoneRes = await pool.query(
-        "SELECT id FROM contributors WHERE (status ILIKE 'ativ%' OR status = 'active' OR status IS NULL) AND (phone = $1 OR whatsapp = $1 OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, '(', ''), ')', ''), '-', ''), ' ', ''), '+', '') = $1 OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(whatsapp, '(', ''), ')', ''), '-', ''), ' ', ''), '+', '') = $1) LIMIT 1",
-        [cleanPhoneDigits]
-      );
-      if (phoneRes.rows.length > 0) {
-        targetId = phoneRes.rows[0].id;
-      }
-    }
-
-    // 4. If not found, try finding by exact canonical name in church
-    const chosenName = canonical_name || name;
-    if (!targetId && chosenName && typeof chosenName === 'string' && chosenName.trim()) {
-      const cleanUpperName = chosenName.trim().replace(/\s+/g, ' ').toUpperCase();
-      const nameRes = await pool.query(
-        "SELECT id FROM contributors WHERE (status ILIKE 'ativ%' OR status = 'active' OR status IS NULL) AND (canonical_name = $1 OR UPPER(name) = $1) LIMIT 1",
-        [cleanUpperName]
-      );
-      if (nameRes.rows.length > 0) {
-        targetId = nameRes.rows[0].id;
-      }
-    }
-
-    let defaultChurchId = '00000000-0000-0000-0000-000000000001';
-    if (church_id && typeof church_id === 'string' && uuidRegex.test(church_id)) {
-      defaultChurchId = church_id;
-    }
-
-    // If contributor does not exist yet, CREATE (UPSERT)
     if (!targetId) {
-      const finalName = (chosenName && typeof chosenName === 'string' && chosenName.trim()) ? chosenName.trim() : 'Contribuinte Portal';
-      const finalCanonicalName = finalName.replace(/\s+/g, ' ').toUpperCase();
-      const cleanPhone = rawPhone && typeof rawPhone === 'string' ? rawPhone.trim() : null;
-
-      const insertRes = await pool.query(
-        `INSERT INTO contributors (
-          church_id, canonical_name, name, cpf, email, phone, whatsapp, status,
-          person_type, trade_name, rg_ie, birth_date, contact_person, category,
-          pix_key, bank_name, bank_agency, bank_account, address_cep, address_street,
-          address_number, address_city, address_state, notes, role_position, created_at, updated_at
-        ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, 'active',
-          $8, $9, $10, $11, $12, $13,
-          $14, $15, $16, $17, $18, $19,
-          $20, $21, $22, $23, $24, NOW(), NOW()
-        ) RETURNING *`,
-        [
-          defaultChurchId,
-          finalCanonicalName,
-          finalName,
-          cleanCpf || null,
-          email && typeof email === 'string' ? email.trim() : null,
-          cleanPhone,
-          cleanPhone,
-          person_type || 'PF',
-          trade_name ? String(trade_name).trim() : null,
-          rg_ie ? String(rg_ie).trim() : null,
-          birth_date ? String(birth_date).trim() : null,
-          contact_person ? String(contact_person).trim() : null,
-          category ? String(category).trim() : null,
-          pix_key ? String(pix_key).trim() : null,
-          bank_name ? String(bank_name).trim() : null,
-          bank_agency ? String(bank_agency).trim() : null,
-          bank_account ? String(bank_account).trim() : null,
-          address_cep ? String(address_cep).trim() : null,
-          address_street ? String(address_street).trim() : null,
-          address_number ? String(address_number).trim() : null,
-          address_city ? String(address_city).trim() : null,
-          address_state ? String(address_state).trim() : null,
-          notes ? String(notes).trim() : null,
-          role_position ? String(role_position).trim() : 'Membro'
-        ]
-      );
-
-      return res.status(201).json(insertRes.rows[0]);
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'ID ou CPF do contribuinte não localizado.' });
     }
 
-    // UPDATE existing record
     const updates: string[] = ['updated_at = NOW()'];
     const params: any[] = [targetId];
     let counter = 2;
@@ -1534,6 +1450,7 @@ app.post('/api/v1/contributors/update-profile', async (req: Request, res: Respon
     };
 
     if (canonical_name !== undefined || name !== undefined) {
+      const chosenName = canonical_name || name;
       if (typeof chosenName === 'string' && chosenName.trim()) {
         addField('canonical_name', chosenName.trim().replace(/\s+/g, ' ').toUpperCase());
         addField('name', chosenName.trim());
@@ -1541,6 +1458,7 @@ app.post('/api/v1/contributors/update-profile', async (req: Request, res: Respon
     }
 
     if (cpf !== undefined) {
+      const cleanCpf = cpf ? String(cpf).replace(/\D/g, '') : null;
       addField('cpf', cleanCpf);
     }
 
