@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PortalContainer } from '../components/PortalContainer';
 import { PortalChurch, ContributorMockProfile } from '../types/portal';
-import { formatCpf, formatPhone, validateEmailVisual, validateCpfVisual } from '../utils/portalFormatters';
+import { formatCpf, formatPhone, validateEmailVisual } from '../utils/portalFormatters';
 import { invalidateContributorsCache } from '../../services/contributorsCache';
 import { 
     Building2, 
@@ -14,11 +14,12 @@ import {
     Sparkles, 
     ArrowRight, 
     Loader2, 
-    Search,
-    Edit3,
     Check,
     UserCheck,
-    AlertCircle
+    AlertCircle,
+    MapPin,
+    Landmark,
+    FileText
 } from 'lucide-react';
 
 interface PortalRegisterPageProps {
@@ -35,15 +36,41 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
     const [selectedChurchId, setSelectedChurchId] = useState<string>(church?.id || '');
     const [selectedChurch, setSelectedChurch] = useState<PortalChurch | null>(church || null);
     
-    // Form fields
+    // 1. Tipo de Pessoa & Identificação
+    const [personType, setPersonType] = useState<'PF' | 'PJ'>('PF');
     const [cpf, setCpf] = useState('');
     const [name, setName] = useState('');
+    const [tradeName, setTradeName] = useState('');
+    const [rgIe, setRgIe] = useState('');
+    const [birthDate, setBirthDate] = useState('');
+    const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+
+    // 2. Contato & Representante
     const [phone, setPhone] = useState('');
     const [email, setEmail] = useState('');
-    const [birthDate, setBirthDate] = useState('');
-    const [congregation, setCongregation] = useState('Sede Central');
+    const [contactPerson, setContactPerson] = useState('');
+
+    // 3. Endereço
+    const [addressCep, setAddressCep] = useState('');
+    const [addressStreet, setAddressStreet] = useState('');
+    const [addressNumber, setAddressNumber] = useState('');
     const [city, setCity] = useState('');
     const [state, setState] = useState('SP');
+    const [isSearchingCep, setIsSearchingCep] = useState(false);
+    const [cepError, setCepError] = useState<string | null>(null);
+
+    // 4. Congregação & Vínculo
+    const [congregation, setCongregation] = useState('Sede Central');
+    const [rolePosition, setRolePosition] = useState('Membro');
+
+    // 5. Dados Bancários & Pix
+    const [pixKey, setPixKey] = useState('');
+    const [bankName, setBankName] = useState('');
+    const [bankAgency, setBankAgency] = useState('');
+    const [bankAccount, setBankAccount] = useState('');
+
+    // 6. Observações
+    const [notes, setNotes] = useState('');
 
     // Existing Contributor lookup states
     const [contributorId, setContributorId] = useState<string | null>(null);
@@ -99,10 +126,41 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
         return () => { isMounted = false; };
     }, [selectedChurchId, church]);
 
+    // Fill form from a found contributor record
+    const populateFromContributor = (c: any) => {
+        setContributorId(c.id);
+        setIsExisting(true);
+        const rawType = c.person_type === 'PJ' || (c.cpf && String(c.cpf).replace(/\D/g, '').length === 14) ? 'PJ' : 'PF';
+        setPersonType(rawType);
+        setName(c.name || c.canonical_name || '');
+        setTradeName(c.trade_name || '');
+        if (c.cpf) setCpf(formatCpf(c.cpf));
+        setRgIe(c.rg_ie || '');
+        if (c.phone || c.whatsapp) setPhone(formatPhone(c.phone || c.whatsapp));
+        if (c.email) setEmail(c.email);
+        setContactPerson(c.contact_person || '');
+        if (c.birth_date) {
+            setBirthDate(String(c.birth_date).split('T')[0]);
+        }
+        setPhotoPreview(c.photo_url || null);
+        if (c.address_cep) setAddressCep(c.address_cep);
+        if (c.address_street) setAddressStreet(c.address_street);
+        if (c.address_number) setAddressNumber(c.address_number);
+        if (c.address_city || c.city) setCity(c.address_city || c.city);
+        if (c.address_state || c.state) setState(c.address_state || c.state);
+        if (c.congregation) setCongregation(c.congregation);
+        if (c.role_position || c.category) setRolePosition(c.role_position || c.category);
+        if (c.pix_key) setPixKey(c.pix_key);
+        if (c.bank_name) setBankName(c.bank_name);
+        if (c.bank_agency) setBankAgency(c.bank_agency);
+        if (c.bank_account) setBankAccount(c.bank_account);
+        if (c.notes) setNotes(c.notes);
+    };
+
     // Lookup contributor by CPF automatically
     const checkCpfIdentification = async (rawCpfValue: string) => {
         const cleanCpf = rawCpfValue.replace(/\D/g, '');
-        if (cleanCpf.length !== 11) return;
+        if (cleanCpf.length !== 11 && cleanCpf.length !== 14) return;
         if (cleanCpf === cpfCheckedValue) return;
 
         setIsCheckingCpf(true);
@@ -125,27 +183,8 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                 const data = await response.json();
                 if (data.found && data.contributor) {
                     const c = data.contributor;
-                    setContributorId(c.id);
-                    setIsExisting(true);
+                    populateFromContributor(c);
                     setLookupMessage(`Cadastro de "${c.name || c.canonical_name}" localizado! Você pode conferir ou atualizar seus dados abaixo.`);
-                    
-                    // Auto-fill fields if not already filled with custom changes
-                    setName(c.name || c.canonical_name || '');
-                    if (c.phone || c.whatsapp) {
-                        setPhone(formatPhone(c.phone || c.whatsapp));
-                    }
-                    if (c.email) {
-                        setEmail(c.email);
-                    }
-                    if (c.birth_date) {
-                        // Format to YYYY-MM-DD for date input
-                        const bDate = String(c.birth_date).split('T')[0];
-                        setBirthDate(bDate);
-                    }
-                    if (c.address_city) setCity(c.address_city);
-                    if (c.address_state) setState(c.address_state);
-                    if (c.congregation) setCongregation(c.congregation);
-
                     setIsCheckingCpf(false);
                     return;
                 }
@@ -154,19 +193,8 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
             // If not found via identify endpoint, check local loaded contributors array
             const localFound = allContributors.find(item => item.cpf && String(item.cpf).replace(/\D/g, '') === cleanCpf);
             if (localFound) {
-                setContributorId(localFound.id);
-                setIsExisting(true);
+                populateFromContributor(localFound);
                 setLookupMessage(`Cadastro de "${localFound.name || localFound.canonical_name}" localizado! Você pode conferir ou atualizar seus dados abaixo.`);
-                setName(localFound.name || localFound.canonical_name || '');
-                if (localFound.phone || localFound.whatsapp) {
-                    setPhone(formatPhone(localFound.phone || localFound.whatsapp));
-                }
-                if (localFound.email) setEmail(localFound.email);
-                if (localFound.birth_date) {
-                    setBirthDate(String(localFound.birth_date).split('T')[0]);
-                }
-                if (localFound.address_city) setCity(localFound.address_city);
-                if (localFound.address_state) setState(localFound.address_state);
                 setIsCheckingCpf(false);
                 return;
             }
@@ -180,6 +208,38 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
             setIsExisting(false);
         } finally {
             setIsCheckingCpf(false);
+        }
+    };
+
+    // Auto CEP lookup via ViaCEP
+    const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const raw = e.target.value.replace(/\D/g, '');
+        let formatted = raw;
+        if (raw.length > 5) {
+            formatted = `${raw.slice(0, 5)}-${raw.slice(5, 8)}`;
+        }
+        setAddressCep(formatted);
+        setCepError(null);
+
+        if (raw.length === 8) {
+            setIsSearchingCep(true);
+            try {
+                const res = await fetch(`https://viacep.com.br/ws/${raw}/json/`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (!data.erro) {
+                        if (data.logradouro) setAddressStreet(data.logradouro);
+                        if (data.localidade) setCity(data.localidade);
+                        if (data.uf) setState(data.uf);
+                    } else {
+                        setCepError('CEP não encontrado.');
+                    }
+                }
+            } catch (err) {
+                console.error('Erro ao consultar CEP:', err);
+            } finally {
+                setIsSearchingCep(false);
+            }
         }
     };
 
@@ -199,7 +259,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
         }
 
         const raw = formatted.replace(/\D/g, '');
-        if (raw.length === 11) {
+        if (raw.length === 11 || raw.length === 14) {
             checkCpfIdentification(formatted);
         } else {
             if (isExisting !== null) {
@@ -267,16 +327,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
 
     // When selecting a contributor from name suggestions
     const handleSelectSuggestion = (c: any) => {
-        setContributorId(c.id);
-        setIsExisting(true);
-        setName(c.name || c.canonical_name || '');
-        if (c.cpf) setCpf(formatCpf(c.cpf));
-        if (c.phone || c.whatsapp) setPhone(formatPhone(c.phone || c.whatsapp));
-        if (c.email) setEmail(c.email);
-        if (c.birth_date) setBirthDate(String(c.birth_date).split('T')[0]);
-        if (c.address_city) setCity(c.address_city);
-        if (c.address_state) setState(c.address_state);
-        
+        populateFromContributor(c);
         setShowNameSuggestions(false);
         setLookupMessage(`Cadastro de "${c.name || c.canonical_name}" carregado! Você pode conferir ou atualizar seus dados abaixo.`);
     };
@@ -300,14 +351,14 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
 
         const rawCpf = cleanCpf.replace(/\D/g, '');
         if (!rawCpf) {
-            newErrors.cpf = 'Informe seu CPF para identificação.';
-        } else if (rawCpf.length !== 11) {
-            newErrors.cpf = 'CPF incompleto (deve conter 11 dígitos).';
+            newErrors.cpf = personType === 'PF' ? 'Informe seu CPF para identificação.' : 'Informe o CNPJ da empresa.';
+        } else if (rawCpf.length !== 11 && rawCpf.length !== 14) {
+            newErrors.cpf = personType === 'PF' ? 'CPF incompleto (deve conter 11 dígitos).' : 'CNPJ incompleto (deve conter 14 dígitos).';
         }
 
         if (!cleanName) {
-            newErrors.name = 'Nome completo é obrigatório.';
-        } else if (cleanName.split(' ').length < 2) {
+            newErrors.name = personType === 'PF' ? 'Nome completo é obrigatório.' : 'Razão social é obrigatória.';
+        } else if (personType === 'PF' && cleanName.split(' ').length < 2) {
             newErrors.name = 'Por favor, informe seu nome e sobrenome.';
         }
 
@@ -338,157 +389,117 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
         try {
             let finalId = contributorId;
 
-            // If already existing contributor, perform UPDATE
-            if (isExisting && contributorId) {
-                const updatePayload = {
-                    id: contributorId,
-                    church_id: activeChurchId,
-                    canonical_name: cleanName,
-                    name: cleanName,
-                    cpf: cleanCpf,
-                    phone: cleanPhone,
-                    whatsapp: cleanPhone,
-                    email: cleanEmail || null,
-                    birth_date: birthDate || null,
-                    address_city: city || null,
-                    address_state: state || null,
-                    role_position: 'Membro'
-                };
+            const fullPayload: any = {
+                id: contributorId || undefined,
+                church_id: activeChurchId,
+                canonical_name: cleanName.toUpperCase(),
+                name: cleanName,
+                person_type: personType,
+                trade_name: tradeName.trim() || null,
+                cpf: rawCpf,
+                rg_ie: rgIe.trim() || null,
+                phone: rawPhone,
+                whatsapp: rawPhone,
+                email: cleanEmail || null,
+                contact_person: contactPerson.trim() || null,
+                birth_date: birthDate || null,
+                photo_url: photoPreview || null,
+                address_cep: addressCep.trim() || null,
+                address_street: addressStreet.trim() || null,
+                address_number: addressNumber.trim() || null,
+                address_city: city.trim() || null,
+                address_state: state.trim() || null,
+                role_position: rolePosition.trim() || 'Membro',
+                category: rolePosition.trim() || null,
+                pix_key: pixKey.trim() || null,
+                bank_name: bankName.trim() || null,
+                bank_agency: bankAgency.trim() || null,
+                bank_account: bankAccount.trim() || null,
+                notes: notes.trim() || null,
+                status: 'active'
+            };
 
-                let updateRes = await fetch('/api/v1/contributors/update-profile', {
-                    method: 'POST',
+            // 1. Tenta endpoint centralizado update-profile (UPSERT unificado)
+            let updateRes = await fetch('/api/v1/contributors/update-profile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(fullPayload)
+            });
+
+            if (updateRes.ok) {
+                const updateData = await updateRes.json().catch(() => null);
+                if (updateData?.id) finalId = updateData.id;
+            } else if (isExisting && contributorId) {
+                // Fallback para PUT /api/v1/contributors/:id
+                updateRes = await fetch(`/api/v1/contributors/${contributorId}`, {
+                    method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(updatePayload)
+                    body: JSON.stringify(fullPayload)
                 });
-
-                if (!updateRes.ok) {
-                    // Fallback to PUT /api/v1/contributors/:id
-                    updateRes = await fetch(`/api/v1/contributors/${contributorId}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(updatePayload)
-                    });
-                }
-
                 if (updateRes.ok) {
                     const updateData = await updateRes.json().catch(() => null);
                     if (updateData?.id) finalId = updateData.id;
                 }
-
-                invalidateContributorsCache();
-
-                const updatedProfile: ContributorMockProfile = {
-                    id: finalId || contributorId,
-                    name: cleanName,
-                    canonical_name: cleanName,
-                    cpf: cleanCpf,
-                    phone: cleanPhone,
-                    whatsapp: cleanPhone,
-                    email: cleanEmail,
-                    church_id: activeChurchId,
-                    congregation: congregation || selectedChurch?.name || 'Sede Central',
-                    city: city,
-                    state: state,
-                    birth_date: birthDate,
-                    isExisting: true
-                };
-
-                localStorage.setItem('iggestor_portal_contributor', JSON.stringify(updatedProfile));
-                localStorage.setItem('iggestor_just_registered', 'true');
-                window.dispatchEvent(new Event('storage'));
-
-                setIsSaving(false);
-                const churchSlug = selectedChurch?.slug || selectedChurch?.id || 'igreja';
-                onNavigate('church', { churchSlug });
-                return;
-            }
-
-            // If new contributor, perform CREATE (POST /api/v1/contributors)
-            const payload = {
-                church_id: activeChurchId,
-                canonical_name: cleanName,
-                name: cleanName,
-                cpf: cleanCpf,
-                phone: cleanPhone,
-                whatsapp: cleanPhone,
-                email: cleanEmail || null,
-                birth_date: birthDate || null,
-                address_city: city || null,
-                address_state: state || null,
-                role_position: 'Membro',
-                status: 'active'
-            };
-
-            const response = await fetch('/api/v1/contributors', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            let responseData: any = {};
-            try {
-                responseData = await response.json();
-            } catch (_) {}
-
-            // Handle already registered gracefully (HTTP 409)
-            if (response.status === 409) {
-                invalidateContributorsCache();
-                const existingObj: ContributorMockProfile = {
-                    id: responseData.existingId || responseData.id || contributorId || 'existing-contributor',
-                    name: cleanName,
-                    canonical_name: cleanName,
-                    cpf: cleanCpf,
-                    phone: cleanPhone,
-                    whatsapp: cleanPhone,
-                    email: cleanEmail,
-                    church_id: activeChurchId,
-                    congregation: congregation || selectedChurch?.name || 'Sede Central',
-                    city: city,
-                    state: state,
-                    birth_date: birthDate,
-                    isExisting: true
-                };
-
-                localStorage.setItem('iggestor_portal_contributor', JSON.stringify(existingObj));
-                localStorage.setItem('iggestor_just_registered', 'true');
-                window.dispatchEvent(new Event('storage'));
-
-                setIsSaving(false);
-                const churchSlug = selectedChurch?.slug || selectedChurch?.id || 'igreja';
-                onNavigate('church', { churchSlug });
-                return;
-            }
-
-            if (!response.ok) {
-                throw new Error(responseData.message || responseData.error || 'Não foi possível concluir o cadastro no momento.');
+            } else {
+                // Fallback para POST /api/v1/contributors
+                const createRes = await fetch('/api/v1/contributors', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(fullPayload)
+                });
+                if (createRes.ok) {
+                    const createData = await createRes.json().catch(() => null);
+                    if (createData?.id) finalId = createData.id;
+                } else if (createRes.status !== 409) {
+                    const errData = await createRes.json().catch(() => ({}));
+                    throw new Error(errData.message || errData.error || 'Falha ao salvar cadastro.');
+                }
             }
 
             invalidateContributorsCache();
 
-            // Successfully created new contributor record
-            const newContributor: ContributorMockProfile = {
-                id: responseData.id || `contrib-${Date.now()}`,
+            const savedProfile: ContributorMockProfile = {
+                id: finalId || contributorId || 'contrib_' + Date.now(),
                 name: cleanName,
-                canonical_name: cleanName,
+                canonical_name: cleanName.toUpperCase(),
+                person_type: personType,
+                trade_name: tradeName,
                 cpf: cleanCpf,
+                rg_ie: rgIe,
                 phone: cleanPhone,
                 whatsapp: cleanPhone,
                 email: cleanEmail,
+                contact_person: contactPerson,
                 church_id: activeChurchId,
                 congregation: congregation || selectedChurch?.name || 'Sede Central',
+                address_cep: addressCep,
+                address_street: addressStreet,
+                address_number: addressNumber,
+                address_city: city,
+                address_state: state,
                 city: city,
                 state: state,
                 birth_date: birthDate,
+                photo_url: photoPreview || undefined,
+                role_position: rolePosition,
+                category: rolePosition,
+                pix_key: pixKey,
+                bank_name: bankName,
+                bank_agency: bankAgency,
+                bank_account: bankAccount,
+                notes: notes,
                 isExisting: true
             };
 
-            localStorage.setItem('iggestor_portal_contributor', JSON.stringify(newContributor));
+            localStorage.setItem('iggestor_portal_contributor', JSON.stringify(savedProfile));
             localStorage.setItem('iggestor_just_registered', 'true');
             window.dispatchEvent(new Event('storage'));
+            window.dispatchEvent(new CustomEvent('contributor-profile-updated', { detail: savedProfile }));
 
             setIsSaving(false);
             const churchSlug = selectedChurch?.slug || selectedChurch?.id || 'igreja';
             onNavigate('church', { churchSlug });
+
         } catch (err: any) {
             console.error('[PortalRegisterPage] Erro ao cadastrar:', err);
             setApiError(err.message || 'Ocorreu um erro ao salvar o cadastro. Tente novamente.');
@@ -496,11 +507,11 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
         }
     };
 
-    const churchName = selectedChurch?.name || 'Igreja Local';
+    const churchName = selectedChurch?.name || 'Igreja';
 
     return (
         <PortalContainer maxWidth="7xl">
-            <div className="max-w-xl mx-auto py-4 sm:py-8 px-2">
+            <div className="max-w-2xl mx-auto py-4 sm:py-8 px-2">
                 
                 {/* Header Card with Church Identity */}
                 <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden mb-6 text-center">
@@ -524,22 +535,50 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
 
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 mb-2 border border-emerald-200 dark:border-emerald-800">
                             <Sparkles className="w-3 h-3 text-emerald-500" />
-                            Auto-Cadastro & Identificação de Membro
+                            Auto-Cadastro &amp; Identificação Oficial
                         </span>
 
                         <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
                             {churchName}
                         </h1>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm">
-                            Digite seu CPF ou Nome para localizar seu cadastro ou se cadastrar em menos de 1 minuto.
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md">
+                            Informe seu CPF/CNPJ ou Nome para localizar seu cadastro ou realizar seu cadastro unificado em menos de 1 minuto.
                         </p>
                     </div>
                 </div>
 
                 {/* Form Body */}
                 <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl">
-                    <form onSubmit={handleSubmit} className="space-y-4 text-slate-800 dark:text-slate-100">
+                    <form onSubmit={handleSubmit} className="space-y-5 text-slate-800 dark:text-slate-100">
                         
+                        {/* SELECTOR: PF / PJ */}
+                        <div className="flex items-center gap-2 p-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
+                            <button
+                                type="button"
+                                onClick={() => setPersonType('PF')}
+                                className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                                    personType === 'PF'
+                                        ? 'bg-white dark:bg-slate-900 text-brand-blue dark:text-blue-400 shadow-xs'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                                }`}
+                            >
+                                <User className="w-4 h-4" />
+                                <span>Pessoa Física (Membro / Doador)</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setPersonType('PJ')}
+                                className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                                    personType === 'PJ'
+                                        ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-xs'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                                }`}
+                            >
+                                <Building2 className="w-4 h-4" />
+                                <span>Pessoa Jurídica (Empresa / Fornecedor)</span>
+                            </button>
+                        </div>
+
                         {/* Church Selector (if multiple available) */}
                         {churchesList.length > 1 && (
                             <div>
@@ -567,7 +606,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                             <div className="flex items-center justify-between">
                                 <label className="block text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                                     <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                                    <span>1. Digite seu CPF *</span>
+                                    <span>1. Digite seu {personType === 'PF' ? 'CPF' : 'CNPJ'} *</span>
                                 </label>
                                 {isCheckingCpf && (
                                     <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
@@ -582,8 +621,8 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                                     type="text"
                                     value={cpf}
                                     onChange={(e) => handleCpfChange(e.target.value)}
-                                    maxLength={14}
-                                    placeholder="000.000.000-00"
+                                    maxLength={personType === 'PF' ? 14 : 18}
+                                    placeholder={personType === 'PF' ? "000.000.000-00" : "00.000.000/0000-00"}
                                     className={`w-full px-4 py-3.5 rounded-2xl border font-mono text-base font-bold bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 transition-all ${
                                         isExisting === true
                                             ? 'border-emerald-500 ring-2 ring-emerald-500/20'
@@ -625,72 +664,121 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                             {errors.cpf && <p className="text-xs text-rose-500 font-semibold">{errors.cpf}</p>}
                         </div>
 
-                        {/* STEP 2: MEMBER NAME WITH AUTOCOMPLETE SUGGESTIONS */}
-                        <div className="relative">
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
-                                <User className="w-4 h-4 text-emerald-600" />
-                                <span>Nome Completo *</span>
-                            </label>
-                            <input
-                                ref={nameInputRef}
-                                type="text"
-                                value={name}
-                                onChange={(e) => handleNameChange(e.target.value)}
-                                onFocus={() => {
-                                    if (name.trim().length >= 2 && nameSuggestions.length > 0 && !isExisting) {
-                                        setShowNameSuggestions(true);
-                                    }
-                                }}
-                                placeholder="Ex: João da Silva Santos"
-                                className={`w-full px-4 py-3 rounded-2xl border bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 transition-all ${
-                                    errors.name 
-                                        ? 'border-rose-400 focus:ring-rose-500/20' 
-                                        : 'border-slate-200 dark:border-slate-700 focus:ring-emerald-500/20'
-                                }`}
-                            />
+                        {/* STEP 2: NOME / RAZÃO SOCIAL & NOME FANTASIA */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                            <div className={`relative ${personType === 'PJ' ? 'sm:col-span-1' : 'sm:col-span-2'}`}>
+                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+                                    <User className="w-4 h-4 text-emerald-600" />
+                                    <span>{personType === 'PF' ? 'Nome Completo *' : 'Razão Social Completa *'}</span>
+                                </label>
+                                <input
+                                    ref={nameInputRef}
+                                    type="text"
+                                    value={name}
+                                    onChange={(e) => handleNameChange(e.target.value)}
+                                    onFocus={() => {
+                                        if (name.trim().length >= 2 && nameSuggestions.length > 0 && !isExisting) {
+                                            setShowNameSuggestions(true);
+                                        }
+                                    }}
+                                    placeholder={personType === 'PF' ? "Ex: João da Silva Santos" : "Ex: Empresa Distribuidora Ltda"}
+                                    className={`w-full px-4 py-3 rounded-2xl border bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 transition-all uppercase font-bold ${
+                                        errors.name 
+                                            ? 'border-rose-400 focus:ring-rose-500/20' 
+                                            : 'border-slate-200 dark:border-slate-700 focus:ring-emerald-500/20'
+                                    }`}
+                                />
 
-                            {/* Name Suggestions Dropdown */}
-                            {showNameSuggestions && nameSuggestions.length > 0 && (
-                                <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl overflow-hidden text-xs">
-                                    <div className="p-2 bg-slate-100 dark:bg-slate-800/80 text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center justify-between">
-                                        <span>Cadastros Encontrados (Clique para carregar dados)</span>
-                                        <button 
-                                            type="button" 
-                                            onClick={() => setShowNameSuggestions(false)}
-                                            className="text-slate-400 hover:text-slate-600"
-                                        >
-                                            ✕
-                                        </button>
-                                    </div>
-                                    <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
-                                        {nameSuggestions.map((item) => (
-                                            <button
-                                                key={item.id}
-                                                type="button"
-                                                onClick={() => handleSelectSuggestion(item)}
-                                                className="w-full text-left p-3 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors flex items-center justify-between gap-2"
+                                {/* Name Suggestions Dropdown */}
+                                {showNameSuggestions && nameSuggestions.length > 0 && (
+                                    <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl overflow-hidden text-xs">
+                                        <div className="p-2 bg-slate-100 dark:bg-slate-800/80 text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center justify-between">
+                                            <span>Cadastros Encontrados (Clique para carregar dados)</span>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setShowNameSuggestions(false)}
+                                                className="text-slate-400 hover:text-slate-600 cursor-pointer"
                                             >
-                                                <div>
-                                                    <p className="font-bold text-slate-900 dark:text-white">{item.name || item.canonical_name}</p>
-                                                    <p className="text-[10px] text-slate-400">
-                                                        {item.cpf ? `CPF: ${formatCpf(item.cpf)}` : 'CPF não informado'} 
-                                                        {item.phone ? ` • Tel: ${formatPhone(item.phone)}` : ''}
-                                                    </p>
-                                                </div>
-                                                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 dark:bg-emerald-950 px-2 py-1 rounded-lg shrink-0">
-                                                    Selecionar
-                                                </span>
+                                                ✕
                                             </button>
-                                        ))}
+                                        </div>
+                                        <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                                            {nameSuggestions.map((item) => (
+                                                <button
+                                                    key={item.id}
+                                                    type="button"
+                                                    onClick={() => handleSelectSuggestion(item)}
+                                                    className="w-full text-left p-3 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors flex items-center justify-between gap-2 cursor-pointer"
+                                                >
+                                                    <div>
+                                                        <p className="font-bold text-slate-900 dark:text-white">{item.name || item.canonical_name}</p>
+                                                        <p className="text-[10px] text-slate-400">
+                                                            {item.cpf ? `Documento: ${formatCpf(item.cpf)}` : ''} 
+                                                            {item.phone ? ` • Tel: ${formatPhone(item.phone)}` : ''}
+                                                        </p>
+                                                    </div>
+                                                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 dark:bg-emerald-950 px-2 py-1 rounded-lg shrink-0">
+                                                        Selecionar
+                                                    </span>
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
+                                )}
+
+                                {errors.name && <p className="text-xs text-rose-500 mt-1 font-semibold">{errors.name}</p>}
+                            </div>
+
+                            {/* Nome Fantasia (PJ) */}
+                            {personType === 'PJ' && (
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+                                        <Building2 className="w-4 h-4 text-slate-400" />
+                                        <span>Nome Fantasia / Comercial</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={tradeName}
+                                        onChange={(e) => setTradeName(e.target.value)}
+                                        placeholder="Ex: Comercial Silva"
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 font-bold"
+                                    />
                                 </div>
                             )}
+                        </div>
 
-                            {errors.name && <p className="text-xs text-rose-500 mt-1 font-semibold">{errors.name}</p>}
+                        {/* RG / IE & Data de Nascimento */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+                                    <FileText className="w-4 h-4 text-slate-400" />
+                                    <span>{personType === 'PF' ? 'RG (Registro Geral)' : 'Inscrição Estadual (IE)'}</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    value={rgIe}
+                                    onChange={(e) => setRgIe(e.target.value)}
+                                    placeholder={personType === 'PF' ? "00.000.000-0" : "Isento ou Nº IE"}
+                                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 font-semibold"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+                                    <Calendar className="w-4 h-4 text-slate-400" />
+                                    <span>{personType === 'PF' ? 'Data de Nascimento' : 'Data de Fundação'}</span>
+                                </label>
+                                <input
+                                    type="date"
+                                    value={birthDate}
+                                    onChange={(e) => setBirthDate(e.target.value)}
+                                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 font-semibold"
+                                />
+                            </div>
                         </div>
 
                         {/* WhatsApp and Email Row */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                             <div>
                                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
                                     <Phone className="w-4 h-4 text-emerald-600" />
@@ -702,7 +790,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                                     onChange={(e) => handlePhoneChange(e.target.value)}
                                     maxLength={15}
                                     placeholder="(00) 00000-0000"
-                                    className={`w-full px-4 py-3 rounded-2xl border font-mono bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 transition-all ${
+                                    className={`w-full px-4 py-3 rounded-2xl border font-mono bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm font-bold focus:outline-none focus:ring-2 transition-all ${
                                         errors.phone 
                                             ? 'border-rose-400 focus:ring-rose-500/20' 
                                             : 'border-slate-200 dark:border-slate-700 focus:ring-emerald-500/20'
@@ -724,7 +812,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                                         if (errors.email) setErrors(prev => ({ ...prev, email: '' }));
                                     }}
                                     placeholder="seuemail@exemplo.com"
-                                    className={`w-full px-4 py-3 rounded-2xl border bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 transition-all ${
+                                    className={`w-full px-4 py-3 rounded-2xl border bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 transition-all ${
                                         errors.email 
                                             ? 'border-rose-400 focus:ring-rose-500/20' 
                                             : 'border-slate-200 dark:border-slate-700 focus:ring-emerald-500/20'
@@ -732,26 +820,113 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                                 />
                                 {errors.email && <p className="text-xs text-rose-500 mt-1 font-semibold">{errors.email}</p>}
                             </div>
+
+                            {/* Pessoa de Contato / Representante PJ */}
+                            {personType === 'PJ' && (
+                                <div className="sm:col-span-2">
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+                                        <User className="w-4 h-4 text-slate-400" />
+                                        <span>Pessoa de Contato / Representante Legal</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={contactPerson}
+                                        onChange={(e) => setContactPerson(e.target.value)}
+                                        placeholder="Ex: Carlos Oliveira (Gerente / Representante)"
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 font-semibold"
+                                    />
+                                </div>
+                            )}
                         </div>
 
-                        {/* Birth Date and Congregation Row */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
-                                    <Calendar className="w-4 h-4 text-slate-400" />
-                                    <span>Data de Nascimento (Opcional)</span>
-                                </label>
-                                <input
-                                    type="date"
-                                    value={birthDate}
-                                    onChange={(e) => setBirthDate(e.target.value)}
-                                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                                />
+                        {/* Endereço Completo */}
+                        <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/80 space-y-3">
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                                <MapPin className="w-4 h-4 text-amber-500" />
+                                <span>Endereço Residencial / Comercial</span>
                             </div>
 
+                            <div className="grid grid-cols-1 sm:grid-cols-6 gap-3">
+                                <div className="sm:col-span-2">
+                                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                                        CEP
+                                    </label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            value={addressCep}
+                                            onChange={handleCepChange}
+                                            maxLength={9}
+                                            placeholder="00000-000"
+                                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                        />
+                                        {isSearchingCep && (
+                                            <Loader2 className="w-3.5 h-3.5 text-brand-blue animate-spin absolute right-3 top-1/2 -translate-y-1/2" />
+                                        )}
+                                    </div>
+                                    {cepError && <p className="text-[10px] font-bold text-rose-500 mt-0.5">{cepError}</p>}
+                                </div>
+
+                                <div className="sm:col-span-4">
+                                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                                        Logradouro / Rua
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={addressStreet}
+                                        onChange={(e) => setAddressStreet(e.target.value)}
+                                        placeholder="Ex: Rua das Flores"
+                                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                    />
+                                </div>
+
+                                <div className="sm:col-span-2">
+                                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                                        Número / Bairro
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={addressNumber}
+                                        onChange={(e) => setAddressNumber(e.target.value)}
+                                        placeholder="Ex: 123, Centro"
+                                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                    />
+                                </div>
+
+                                <div className="sm:col-span-3">
+                                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                                        Cidade
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={city}
+                                        onChange={(e) => setCity(e.target.value)}
+                                        placeholder="Ex: São Paulo"
+                                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                    />
+                                </div>
+
+                                <div className="sm:col-span-1">
+                                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                                        UF
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={state}
+                                        onChange={(e) => setState(e.target.value.toUpperCase())}
+                                        placeholder="SP"
+                                        maxLength={2}
+                                        className="w-full px-2 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs font-bold uppercase text-center focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Congregação & Vínculo */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                             <div>
                                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
-                                    <Building2 className="w-4 h-4 text-slate-400" />
+                                    <Building2 className="w-4 h-4 text-indigo-500" />
                                     <span>Congregação / Setor</span>
                                 </label>
                                 <input
@@ -759,9 +934,100 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                                     value={congregation}
                                     onChange={(e) => setCongregation(e.target.value)}
                                     placeholder="Ex: Sede Central"
-                                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                                 />
                             </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+                                    <User className="w-4 h-4 text-indigo-500" />
+                                    <span>{personType === 'PF' ? 'Vínculo / Cargo Eclesiástico' : 'Categoria / Ramo de Atuação'}</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    value={rolePosition}
+                                    onChange={(e) => setRolePosition(e.target.value)}
+                                    placeholder={personType === 'PF' ? "Ex: Membro, Diácono, Obreiro, Pastor, Doador..." : "Ex: Prestador de Serviços, Fornecedor, Tecnologia..."}
+                                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Dados Bancários & Pix (Opcional) */}
+                        <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/80 space-y-3">
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                                <Landmark className="w-4 h-4 text-cyan-500" />
+                                <span>Dados Bancários &amp; Chave Pix (Opcional)</span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                                        Chave Pix Principal
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={pixKey}
+                                        onChange={(e) => setPixKey(e.target.value)}
+                                        placeholder="CPF, CNPJ, E-mail, Telefone ou Aleatória"
+                                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                                        Banco / Instituição
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={bankName}
+                                        onChange={(e) => setBankName(e.target.value)}
+                                        placeholder="Ex: Nubank, Itaú, Banco do Brasil..."
+                                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                                        Agência
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={bankAgency}
+                                        onChange={(e) => setBankAgency(e.target.value)}
+                                        placeholder="0000"
+                                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                                        Conta Corrente / Poupança
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={bankAccount}
+                                        onChange={(e) => setBankAccount(e.target.value)}
+                                        placeholder="00000-0"
+                                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Observações / Anotações */}
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+                                <FileText className="w-4 h-4 text-slate-400" />
+                                <span>Observações / Anotações Adicionais</span>
+                            </label>
+                            <textarea
+                                value={notes}
+                                onChange={(e) => setNotes(e.target.value)}
+                                rows={2}
+                                placeholder="Informações adicionais para a congregação ou tesouraria..."
+                                className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 resize-none"
+                            />
                         </div>
 
                         {/* Error Alert */}

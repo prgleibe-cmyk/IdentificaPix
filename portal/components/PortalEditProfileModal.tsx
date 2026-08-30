@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ContributorMockProfile, PortalChurch } from '../types/portal';
 import { checkProfileCompleteness } from '../utils/portalProfileCompleteness';
 import { formatCpf, formatPhone, validateCpfVisual, validatePhoneVisual, validateEmailVisual } from '../utils/portalFormatters';
@@ -18,7 +18,12 @@ import {
     Search, 
     Loader2,
     ShieldCheck,
-    RefreshCw
+    RefreshCw,
+    Building2,
+    Landmark,
+    FileText,
+    Camera,
+    Trash2
 } from 'lucide-react';
 
 interface PortalEditProfileModalProps {
@@ -36,18 +41,39 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
     church,
     onProfileUpdated
 }) => {
+    // 1. Tipo de Pessoa & Identificação
+    const [personType, setPersonType] = useState<'PF' | 'PJ'>('PF');
     const [name, setName] = useState('');
+    const [tradeName, setTradeName] = useState('');
     const [cpf, setCpf] = useState('');
+    const [rgIe, setRgIe] = useState('');
+    const [birthDate, setBirthDate] = useState('');
+    const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+
+    // 2. Contato & Representante
     const [phone, setPhone] = useState('');
     const [email, setEmail] = useState('');
-    const [birthDate, setBirthDate] = useState('');
+    const [contactPerson, setContactPerson] = useState('');
+
+    // 3. Endereço
     const [addressCep, setAddressCep] = useState('');
     const [addressStreet, setAddressStreet] = useState('');
     const [addressNumber, setAddressNumber] = useState('');
     const [addressCity, setAddressCity] = useState('');
     const [addressState, setAddressState] = useState('');
+
+    // 4. Congregação & Vínculo
     const [congregation, setCongregation] = useState('');
     const [rolePosition, setRolePosition] = useState('');
+
+    // 5. Dados Bancários & Pix
+    const [pixKey, setPixKey] = useState('');
+    const [bankName, setBankName] = useState('');
+    const [bankAgency, setBankAgency] = useState('');
+    const [bankAccount, setBankAccount] = useState('');
+
+    // 6. Observações
+    const [notes, setNotes] = useState('');
 
     const [isSearchingCep, setIsSearchingCep] = useState(false);
     const [cepError, setCepError] = useState<string | null>(null);
@@ -56,25 +82,44 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
     const [formErrors, setFormErrors] = useState<Record<string, string>>({});
     const [apiError, setApiError] = useState<string | null>(null);
 
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
     // Initialize or reset form state when modal opens
     useEffect(() => {
         if (isOpen && contributor) {
+            const rawType = contributor.person_type === 'PJ' || (contributor.cpf && contributor.cpf.replace(/\D/g, '').length === 14) ? 'PJ' : 'PF';
+            setPersonType(rawType);
             setName(contributor.name || contributor.canonical_name || '');
+            setTradeName(contributor.trade_name || '');
             setCpf(contributor.cpf ? formatCpf(contributor.cpf) : '');
+            setRgIe(contributor.rg_ie || '');
+            setBirthDate(contributor.birth_date ? String(contributor.birth_date).split('T')[0] : '');
+            setPhotoPreview(contributor.photo_url || contributor.avatarUrl || null);
+
             setPhone(contributor.phone || contributor.whatsapp ? formatPhone(contributor.phone || contributor.whatsapp || '') : '');
             setEmail(contributor.email || '');
-            setBirthDate(contributor.birth_date || '');
+            setContactPerson(contributor.contact_person || '');
+
             setAddressCep(contributor.address_cep || '');
             setAddressStreet(contributor.address_street || '');
             setAddressNumber(contributor.address_number || '');
             setAddressCity(contributor.address_city || contributor.city || '');
             setAddressState(contributor.address_state || contributor.state || '');
+
             setCongregation(
                 (contributor.congregation && contributor.congregation !== 'Sede Central') 
                     ? contributor.congregation 
                     : (church?.name || '')
             );
-            setRolePosition(contributor.role_position || '');
+            setRolePosition(contributor.role_position || contributor.category || '');
+
+            setPixKey(contributor.pix_key || '');
+            setBankName(contributor.bank_name || '');
+            setBankAgency(contributor.bank_agency || '');
+            setBankAccount(contributor.bank_account || '');
+
+            setNotes(contributor.notes || '');
+
             setFormErrors({});
             setApiError(null);
             setSaveSuccess(false);
@@ -89,11 +134,16 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
         id: contributor?.id || '',
         name,
         canonical_name: name.trim().toUpperCase(),
+        person_type: personType,
+        trade_name: tradeName,
         cpf,
+        rg_ie: rgIe,
         phone,
         whatsapp: phone,
         email,
+        contact_person: contactPerson,
         birth_date: birthDate,
+        photo_url: photoPreview || undefined,
         address_cep: addressCep,
         address_street: addressStreet,
         address_number: addressNumber,
@@ -103,10 +153,59 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
         state: addressState,
         congregation,
         role_position: rolePosition,
+        category: rolePosition,
+        pix_key: pixKey,
+        bank_name: bankName,
+        bank_agency: bankAgency,
+        bank_account: bankAccount,
+        notes,
         isExisting: contributor?.isExisting ?? true
     };
 
     const completeness = checkProfileCompleteness(liveProfile);
+
+    // Photo selection handler with resize optimization
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    const maxDim = 500;
+
+                    if (width > maxDim || height > maxDim) {
+                        if (width > height) {
+                            height = Math.round((height * maxDim) / width);
+                            width = maxDim;
+                        } else {
+                            width = Math.round((width * maxDim) / height);
+                            height = maxDim;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        ctx.drawImage(img, 0, 0, width, height);
+                        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                        setPhotoPreview(dataUrl);
+                    } else {
+                        setPhotoPreview(ev.target?.result as string);
+                    }
+                };
+                img.onerror = () => {
+                    setPhotoPreview(ev.target?.result as string);
+                };
+                img.src = ev.target?.result as string;
+            };
+            reader.readAsDataURL(file);
+        }
+    };
 
     // Auto CEP lookup via ViaCEP
     const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -145,10 +244,10 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
 
         const errors: Record<string, string> = {};
         if (!name.trim() || name.trim().length < 3) {
-            errors.name = 'Nome completo é obrigatório.';
+            errors.name = personType === 'PF' ? 'Nome completo é obrigatório.' : 'Razão social é obrigatória.';
         }
         if (!cpf.trim() || !validateCpfVisual(cpf)) {
-            errors.cpf = 'CPF válido é obrigatório.';
+            errors.cpf = personType === 'PF' ? 'CPF válido é obrigatório.' : 'CNPJ válido é obrigatório.';
         }
         if (!phone.trim() || !validatePhoneVisual(phone)) {
             errors.phone = 'Telefone/WhatsApp válido é obrigatório.';
@@ -173,20 +272,31 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
 
             const payload: any = {
                 id: contributor?.id || undefined,
+                church_id: targetChurchId,
                 canonical_name: name.trim().toUpperCase(),
                 name: name.trim(),
+                person_type: personType,
+                trade_name: tradeName.trim() || null,
                 cpf: cleanCpfDigits,
+                rg_ie: rgIe.trim() || null,
+                birth_date: birthDate.trim() || null,
+                photo_url: photoPreview || null,
                 phone: cleanPhoneDigits,
                 whatsapp: cleanPhoneDigits,
                 email: email.trim() || null,
-                birth_date: birthDate.trim() || null,
+                contact_person: contactPerson.trim() || null,
+                role_position: rolePosition.trim() || 'Membro',
+                category: rolePosition.trim() || null,
                 address_cep: addressCep.trim() || null,
                 address_street: addressStreet.trim() || null,
                 address_number: addressNumber.trim() || null,
                 address_city: addressCity.trim() || null,
                 address_state: addressState.trim() || null,
-                role_position: rolePosition.trim() || null,
-                church_id: targetChurchId,
+                pix_key: pixKey.trim() || null,
+                bank_name: bankName.trim() || null,
+                bank_agency: bankAgency.trim() || null,
+                bank_account: bankAccount.trim() || null,
+                notes: notes.trim() || null,
                 status: 'active'
             };
 
@@ -277,13 +387,39 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                 {/* Modal Header */}
                 <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-r from-blue-50/80 via-white to-amber-50/80 dark:from-slate-800/80 dark:via-slate-900 dark:to-slate-800/80 flex items-start justify-between gap-4 shrink-0">
                     <div className="flex items-center gap-3.5">
-                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-blue to-amber-500 text-white flex items-center justify-center font-black text-xl shadow-md shrink-0">
-                            {name ? name.charAt(0).toUpperCase() : <User className="w-6 h-6" />}
+                        <div className="relative group w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-blue to-amber-500 text-white flex items-center justify-center font-black text-xl shadow-md shrink-0 overflow-hidden">
+                            {photoPreview ? (
+                                <img 
+                                    src={photoPreview} 
+                                    alt={name} 
+                                    className="w-full h-full object-cover" 
+                                />
+                            ) : name ? (
+                                name.charAt(0).toUpperCase()
+                            ) : (
+                                <User className="w-6 h-6" />
+                            )}
+                            
+                            <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer"
+                                title="Alterar foto de perfil"
+                            >
+                                <Camera className="w-5 h-5" />
+                            </button>
                         </div>
+                        <input 
+                            type="file" 
+                            ref={fileInputRef} 
+                            onChange={handleFileChange} 
+                            accept="image/*" 
+                            className="hidden" 
+                        />
                         <div>
                             <div className="flex items-center gap-2">
                                 <h3 className="text-lg sm:text-xl font-black text-slate-800 dark:text-white">
-                                    Atualizar Meus Dados
+                                    Atualizar Dados Cadastrais
                                 </h3>
                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
                                     completeness.score >= 90
@@ -294,7 +430,7 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                                 </span>
                             </div>
                             <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                                Mantenha seus dados completos para recebimento de comprovantes no WhatsApp e relatórios.
+                                Cadastro unificado da igreja — recebimento de comprovantes no WhatsApp, relatórios e tesouraria.
                             </p>
                         </div>
                     </div>
@@ -354,26 +490,66 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                         </div>
                     )}
 
-                    {/* SECTION 1: DADOS PESSOAIS */}
+                    {/* SELECTOR: PF / PJ */}
+                    <div className="flex items-center gap-2 p-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
+                        <button
+                            type="button"
+                            onClick={() => setPersonType('PF')}
+                            className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                                personType === 'PF'
+                                    ? 'bg-white dark:bg-slate-900 text-brand-blue dark:text-blue-400 shadow-xs'
+                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                            }`}
+                        >
+                            <User className="w-4 h-4" />
+                            <span>Pessoa Física (Membro / Doador)</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setPersonType('PJ')}
+                            className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                                personType === 'PJ'
+                                    ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-xs'
+                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                            }`}
+                        >
+                            <Building2 className="w-4 h-4" />
+                            <span>Pessoa Jurídica (Empresa / Fornecedor)</span>
+                        </button>
+                    </div>
+
+                    {/* SECTION 1: IDENTIFICAÇÃO PESSOAL / EMPRESARIAL */}
                     <div className="space-y-3.5">
-                        <div className="flex items-center gap-2 text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-800 pb-2">
-                            <User className="w-4 h-4 text-brand-blue dark:text-blue-400" />
-                            <h4 className="text-xs font-black uppercase tracking-wider">
-                                1. Identificação Pessoal
-                            </h4>
+                        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                            <div className="flex items-center gap-2 text-slate-800 dark:text-white">
+                                <User className="w-4 h-4 text-brand-blue dark:text-blue-400" />
+                                <h4 className="text-xs font-black uppercase tracking-wider">
+                                    1. Identificação {personType === 'PF' ? 'Pessoal' : 'Empresarial'}
+                                </h4>
+                            </div>
+                            {photoPreview && (
+                                <button
+                                    type="button"
+                                    onClick={() => setPhotoPreview(null)}
+                                    className="text-[11px] font-bold text-rose-500 hover:text-rose-600 flex items-center gap-1 cursor-pointer"
+                                >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    Remover foto
+                                </button>
+                            )}
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                            {/* Nome Completo */}
-                            <div className="sm:col-span-2">
+                            {/* Nome Completo / Razão Social */}
+                            <div className={personType === 'PJ' ? 'sm:col-span-1' : 'sm:col-span-2'}>
                                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                    Nome Completo *
+                                    {personType === 'PF' ? 'Nome Completo *' : 'Razão Social Completa *'}
                                 </label>
                                 <input
                                     type="text"
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
-                                    placeholder="Ex: João da Silva Santos"
+                                    placeholder={personType === 'PF' ? 'Ex: João da Silva Santos' : 'Ex: Empresa Distribuidora Ltda'}
                                     className={`w-full px-3.5 py-2.5 rounded-xl border bg-white dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 ${
                                         formErrors.name ? 'border-rose-500 focus:ring-rose-500/20' : 'border-slate-200 dark:border-slate-700 focus:ring-blue-500/20'
                                     }`}
@@ -381,16 +557,32 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                                 {formErrors.name && <p className="text-[11px] font-bold text-rose-500 mt-1">{formErrors.name}</p>}
                             </div>
 
-                            {/* CPF */}
+                            {/* Nome Fantasia (PJ) */}
+                            {personType === 'PJ' && (
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                        Nome Fantasia / Comercial
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={tradeName}
+                                        onChange={(e) => setTradeName(e.target.value)}
+                                        placeholder="Ex: Comercial Silva"
+                                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                    />
+                                </div>
+                            )}
+
+                            {/* CPF / CNPJ */}
                             <div>
                                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                    CPF / CNPJ *
+                                    {personType === 'PF' ? 'CPF *' : 'CNPJ *'}
                                 </label>
                                 <input
                                     type="text"
                                     value={cpf}
                                     onChange={(e) => setCpf(formatCpf(e.target.value))}
-                                    placeholder="000.000.000-00"
+                                    placeholder={personType === 'PF' ? '000.000.000-00' : '00.000.000/0000-00'}
                                     className={`w-full px-3.5 py-2.5 rounded-xl border bg-white dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 ${
                                         formErrors.cpf ? 'border-rose-500 focus:ring-rose-500/20' : 'border-slate-200 dark:border-slate-700 focus:ring-blue-500/20'
                                     }`}
@@ -398,25 +590,46 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                                 {formErrors.cpf && <p className="text-[11px] font-bold text-rose-500 mt-1">{formErrors.cpf}</p>}
                             </div>
 
-                            {/* Data de Nascimento */}
+                            {/* RG / IE */}
                             <div>
                                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                    Data de Nascimento
+                                    {personType === 'PF' ? 'RG (Registro Geral)' : 'Inscrição Estadual (IE)'}
                                 </label>
                                 <input
                                     type="text"
-                                    value={birthDate}
-                                    onChange={(e) => {
-                                        let val = e.target.value.replace(/\D/g, '');
-                                        if (val.length > 2) val = `${val.slice(0, 2)}/${val.slice(2)}`;
-                                        if (val.length > 5) val = `${val.slice(0, 5)}/${val.slice(5, 9)}`;
-                                        setBirthDate(val);
-                                    }}
-                                    placeholder="DD/MM/AAAA"
-                                    maxLength={10}
+                                    value={rgIe}
+                                    onChange={(e) => setRgIe(e.target.value)}
+                                    placeholder={personType === 'PF' ? '00.000.000-0' : 'Isento ou Nº IE'}
                                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                                 />
-                                <span className="text-[10px] text-slate-400 block mt-0.5">Para orações e comemoração de aniversário.</span>
+                            </div>
+
+                            {/* Data de Nascimento / Fundação */}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                    {personType === 'PF' ? 'Data de Nascimento' : 'Data de Fundação'}
+                                </label>
+                                <input
+                                    type="date"
+                                    value={birthDate}
+                                    onChange={(e) => setBirthDate(e.target.value)}
+                                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                />
+                            </div>
+
+                            {/* Foto de Perfil / Logo */}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                    Foto de Perfil / Logo
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="w-full px-3.5 py-2 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-brand-blue bg-slate-50 dark:bg-slate-800/50 text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center justify-center gap-2 cursor-pointer transition-colors"
+                                >
+                                    <Camera className="w-4 h-4 text-brand-blue" />
+                                    <span>{photoPreview ? 'Alterar Imagem' : 'Selecionar Imagem'}</span>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -468,6 +681,22 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                                 {formErrors.email && <p className="text-[11px] font-bold text-rose-500 mt-1">{formErrors.email}</p>}
                                 <span className="text-[10px] text-slate-400 block mt-0.5">Para envio de relatórios e extratos anuais.</span>
                             </div>
+
+                            {/* Representante / Contato PJ */}
+                            {personType === 'PJ' && (
+                                <div className="sm:col-span-2">
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                        Pessoa de Contato / Representante Legal
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={contactPerson}
+                                        onChange={(e) => setContactPerson(e.target.value)}
+                                        placeholder="Ex: Carlos Oliveira (Gerente / Responsável)"
+                                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                    />
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -476,7 +705,7 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                         <div className="flex items-center gap-2 text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-800 pb-2">
                             <MapPin className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                             <h4 className="text-xs font-black uppercase tracking-wider">
-                                3. Endereço Residencial
+                                3. Endereço Residencial / Comercial
                             </h4>
                         </div>
 
@@ -519,7 +748,7 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                             {/* Número */}
                             <div className="sm:col-span-2">
                                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                    Número / Apto
+                                    Número / Bairro
                                 </label>
                                 <input
                                     type="text"
@@ -566,14 +795,14 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                         <div className="flex items-center gap-2 text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-800 pb-2">
                             <Church className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                             <h4 className="text-xs font-black uppercase tracking-wider">
-                                4. Congregação &amp; Vínculo
+                                4. Congregação &amp; Vínculo Ministerial
                             </h4>
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                             <div>
                                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                    Congregação / Igreja
+                                    Congregação / Setor
                                 </label>
                                 <input
                                     type="text"
@@ -586,16 +815,100 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
 
                             <div>
                                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                    Cargo / Função / Vínculo
+                                    {personType === 'PF' ? 'Vínculo / Cargo Eclesiástico' : 'Categoria / Ramo de Atuação'}
                                 </label>
                                 <input
                                     type="text"
                                     value={rolePosition}
                                     onChange={(e) => setRolePosition(e.target.value)}
-                                    placeholder="Ex: Membro, Diácono, Obreiro, Visitante..."
+                                    placeholder={personType === 'PF' ? "Ex: Membro, Diácono, Obreiro, Pastor, Doador..." : "Ex: Prestador de Serviços, Fornecedor, Tecnologia..."}
                                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                                 />
                             </div>
+                        </div>
+                    </div>
+
+                    {/* SECTION 5: DADOS BANCÁRIOS & CHAVE PIX */}
+                    <div className="space-y-3.5">
+                        <div className="flex items-center gap-2 text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-800 pb-2">
+                            <Landmark className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+                            <h4 className="text-xs font-black uppercase tracking-wider">
+                                5. Dados Bancários &amp; Chave Pix (Opcional)
+                            </h4>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                    Chave Pix Principal
+                                </label>
+                                <input
+                                    type="text"
+                                    value={pixKey}
+                                    onChange={(e) => setPixKey(e.target.value)}
+                                    placeholder="CPF, CNPJ, E-mail, Telefone ou Chave Aleatória"
+                                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                    Banco / Instituição Financeira
+                                </label>
+                                <input
+                                    type="text"
+                                    value={bankName}
+                                    onChange={(e) => setBankName(e.target.value)}
+                                    placeholder="Ex: Nubank, Itaú, Banco do Brasil, Bradesco..."
+                                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                    Agência Bancária
+                                </label>
+                                <input
+                                    type="text"
+                                    value={bankAgency}
+                                    onChange={(e) => setBankAgency(e.target.value)}
+                                    placeholder="0000"
+                                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                    Conta Corrente / Poupança
+                                </label>
+                                <input
+                                    type="text"
+                                    value={bankAccount}
+                                    onChange={(e) => setBankAccount(e.target.value)}
+                                    placeholder="00000-0"
+                                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* SECTION 6: OBSERVAÇÕES */}
+                    <div className="space-y-3.5">
+                        <div className="flex items-center gap-2 text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-800 pb-2">
+                            <FileText className="w-4 h-4 text-slate-500" />
+                            <h4 className="text-xs font-black uppercase tracking-wider">
+                                6. Observações / Anotações
+                            </h4>
+                        </div>
+
+                        <div>
+                            <textarea
+                                value={notes}
+                                onChange={(e) => setNotes(e.target.value)}
+                                rows={2}
+                                placeholder="Informações adicionais para a secretaria ou tesouraria..."
+                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none"
+                            />
                         </div>
                     </div>
                 </form>
@@ -634,3 +947,4 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
         </div>
     );
 };
+
