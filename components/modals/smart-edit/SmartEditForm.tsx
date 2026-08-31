@@ -63,32 +63,30 @@ export const SmartEditForm: React.FC<SmartEditFormProps> = ({
             )}
             <div className="grid grid-cols-2 gap-2">
                 <div>
-                    <label className={`block text-[8px] font-bold uppercase tracking-widest mb-1 flex items-center gap-1 ${isAiProposed ? 'text-purple-600 dark:text-purple-400' : 'text-indigo-500'}`}>
-                        <TagIcon className="w-2.5 h-2.5" /> Descrição / Tipo
-                    </label>
-                    <div className="relative flex items-center">
-                        <input 
-                            type="text" 
-                            value={manualType} 
-                            onChange={(e) => setManualType(e.target.value)}
-                            placeholder="Digite ou selecione..." 
-                            className={`w-full bg-white dark:bg-slate-950 border rounded-lg py-1 pl-2 pr-16 text-[10px] font-bold focus:ring-2 focus:ring-brand-blue outline-none transition-all ${isAiProposed ? 'border-purple-300 dark:border-purple-700 text-purple-900 dark:text-purple-100' : 'border-indigo-200 dark:border-indigo-800 text-slate-700 dark:text-slate-200'}`}
-                        />
-                        <div className="absolute right-1">
-                            <select
-                                value=""
-                                onChange={(e) => {
-                                    if (e.target.value) setManualType(e.target.value);
-                                }}
-                                className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[8px] font-bold py-0.5 px-1 rounded border border-slate-200 dark:border-slate-700 cursor-pointer outline-none"
-                                title="Escolher modelo"
-                            >
-                                <option value="" disabled>📋 Modelos</option>
-                                {contributionKeywords.map((k: string) => <option key={k} value={k}>{k}</option>)}
-                                <option value="OUTROS">OUTROS</option>
-                            </select>
-                        </div>
+                    <div className="flex items-center justify-between mb-1">
+                        <label className={`text-[8px] font-bold uppercase tracking-widest flex items-center gap-1 ${isAiProposed ? 'text-purple-600 dark:text-purple-400' : 'text-indigo-500'}`}>
+                            <TagIcon className="w-2.5 h-2.5" /> Descrição
+                        </label>
+                        <select
+                            value=""
+                            onChange={(e) => {
+                                if (e.target.value) setManualType(e.target.value);
+                            }}
+                            className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[8px] font-bold py-0.5 px-1.5 rounded border border-slate-200 dark:border-slate-700 cursor-pointer outline-none"
+                            title="Escolher modelo"
+                        >
+                            <option value="" disabled>📋 Modelos</option>
+                            {contributionKeywords.map((k: string) => <option key={k} value={k}>{k}</option>)}
+                            <option value="OUTROS">OUTROS</option>
+                        </select>
                     </div>
+                    <input 
+                        type="text" 
+                        value={manualType} 
+                        onChange={(e) => setManualType(e.target.value)}
+                        placeholder="Digite a descrição..." 
+                        className={`w-full bg-white dark:bg-slate-950 border rounded-lg py-1 px-2 text-[10px] font-bold focus:ring-2 focus:ring-brand-blue outline-none transition-all ${isAiProposed ? 'border-purple-300 dark:border-purple-700 text-purple-900 dark:text-purple-100' : 'border-indigo-200 dark:border-indigo-800 text-slate-700 dark:text-slate-200'}`}
+                    />
                 </div>
                 <div>
                     <label className={`block text-[8px] font-bold uppercase tracking-widest mb-1.5 flex items-center gap-1 ${isAiProposed ? 'text-purple-600 dark:text-purple-400' : 'text-blue-500'}`}><CreditCardIcon className="w-2.5 h-2.5" /> Forma</label>

@@ -913,23 +913,11 @@ export const ManualIdModal: React.FC = () => {
                         {/* Linha 4: Descrição e Forma de Pagamento */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="space-y-1.5">
-                                <div className="flex items-center justify-between flex-wrap gap-1">
+                                <div className="flex items-center justify-between flex-wrap gap-1.5">
                                     <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
                                         Descrição / Categoria
                                     </label>
-                                    <span className="text-[9px] font-semibold text-indigo-600 dark:text-indigo-400">
-                                        ✏️ Digite para detalhar ou renomear
-                                    </span>
-                                </div>
-                                <div className="relative flex items-center group">
-                                    <input
-                                        type="text"
-                                        value={selectedType}
-                                        onChange={e => setSelectedType(e.target.value)}
-                                        placeholder="Selecione na lista ou digite para renomear..."
-                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 pl-3 pr-28 transition-all outline-none text-xs font-bold"
-                                    />
-                                    <div className="absolute right-1.5 flex items-center">
+                                    <div className="flex items-center gap-1.5">
                                         <select
                                             value=""
                                             onChange={e => {
@@ -937,19 +925,28 @@ export const ManualIdModal: React.FC = () => {
                                                     setSelectedType(e.target.value);
                                                 }
                                             }}
-                                            className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold py-1 px-2 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer outline-none transition-colors"
+                                            className="bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold py-0.5 px-2 rounded-lg border border-indigo-200/70 dark:border-indigo-800/70 cursor-pointer outline-none transition-colors"
                                             title="Escolher modelo ou categoria pré-definida"
                                         >
-                                            <option value="" disabled>📋 Modelos...</option>
+                                            <option value="" disabled>📋 Carregar Modelo...</option>
                                             {typeOptions.map((type: string) => (
                                                 <option key={type} value={type}>{type}</option>
                                             ))}
                                         </select>
                                     </div>
                                 </div>
+                                <div className="relative w-full">
+                                    <input
+                                        type="text"
+                                        value={selectedType}
+                                        onChange={e => setSelectedType(e.target.value)}
+                                        placeholder="Digite a descrição detalhada ou selecione um modelo..."
+                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 px-3.5 transition-all outline-none text-xs font-bold"
+                                    />
+                                </div>
                                 {/* Atalhos rápidos de modelos mais frequentes */}
                                 <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 custom-scrollbar">
-                                    {typeOptions.slice(0, 5).map((type: string) => (
+                                    {typeOptions.slice(0, 6).map((type: string) => (
                                         <button
                                             key={type}
                                             type="button"
@@ -1050,67 +1047,34 @@ export const ManualIdModal: React.FC = () => {
     }
 
     return (
-        <div className="glass-overlay animate-fade-in">
-            <div className="glass-modal animate-scale-in max-w-2xl">
-                
-                <div className="px-6 py-4.5 border-b border-slate-100 dark:border-white/5 flex justify-between items-center shrink-0">
-                    <div className="flex items-center gap-3">
-                        <div className={`p-2.5 rounded-xl ${isManualLaunch ? 'bg-brand-blue text-white shadow-md shadow-blue-500/20' : isBulk ? 'bg-blue-600 text-white shadow-md' : 'bg-brand-blue text-white shadow-md shadow-blue-500/20'}`}>
-                            {isManualLaunch ? <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> : isBulk ? <CheckBadgeIcon className="w-5 h-5" /> : <BuildingOfficeIcon className="w-5 h-5" />}
-                        </div>
-                        <div>
-                            <h3 className="text-base sm:text-lg font-black text-slate-800 dark:text-white tracking-tight uppercase">
-                                {isManualLaunch ? 'Novo Lançamento' : isBulk ? 'Destinar Lote' : 'Escolher Destino'}
-                            </h3>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">
-                                {isManualLaunch ? 'Lançamento Manual' : 'Identificação Pendente'}
-                            </p>
-                        </div>
+        <div className="absolute inset-0 z-40 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full overflow-hidden">
+            {/* Header */}
+            <div className="px-6 py-4.5 border-b border-slate-100 dark:border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shrink-0">
+                <div className="flex items-center gap-3">
+                    <div className={`p-2.5 rounded-xl ${isBulk ? 'bg-brand-blue text-white shadow-md shadow-blue-500/20' : 'bg-brand-blue text-white shadow-md shadow-blue-500/20'}`}>
+                        {count > 1 ? <CheckBadgeIcon className="w-5 h-5" /> : <BuildingOfficeIcon className="w-5 h-5" />}
                     </div>
-                    <div className="flex items-center gap-2">
-                        <span className="text-[8px] font-black text-slate-400 uppercase border border-slate-200 dark:border-slate-800 px-1.5 py-0.5 rounded">Esc</span>
-                        <button type="button" onClick={closeManualIdentify} className="p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors">
-                            <XMarkIcon className="w-5 h-5" />
-                        </button>
+                    <div>
+                        <h3 className="text-base sm:text-lg font-black text-slate-800 dark:text-white tracking-tight uppercase">
+                            {count > 1 ? 'Destinar Lote' : 'Identificação de Lançamento'}
+                        </h3>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">
+                            {count > 1 ? 'Reconciliação em Lote' : 'Identificação Pendente'}
+                        </p>
                     </div>
                 </div>
+                <div className="flex items-center gap-2 self-end sm:self-auto">
+                    <span className="text-[8px] font-black text-slate-400 uppercase border border-slate-200 dark:border-slate-800 px-1.5 py-0.5 rounded">Esc</span>
+                    <button type="button" onClick={closeManualIdentify} className="p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors">
+                        <XMarkIcon className="w-5 h-5" />
+                    </button>
+                </div>
+            </div>
 
-                <div className="p-5 sm:p-6 space-y-4 flex-1 overflow-y-auto w-full custom-scrollbar">
-                    {isManualLaunch ? (
-                        <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
-                            <button
-                                type="button"
-                                onClick={() => handleTypeSwitch('entrada')}
-                                className={`relative flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all duration-300 text-[10px] font-bold uppercase tracking-wide cursor-pointer ${
-                                    manualType === 'entrada'
-                                        ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-xs z-10 border-transparent'
-                                        : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'
-                                }`}
-                                id="modal-btn-entrada"
-                            >
-                                <svg className={`w-3.5 h-3.5 ${manualType === 'entrada' ? 'text-white' : 'text-emerald-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                                </svg>
-                                <span>Entrada</span>
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => handleTypeSwitch('saida')}
-                                className={`relative flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all duration-300 text-[10px] font-bold uppercase tracking-wide cursor-pointer ${
-                                    manualType === 'saida'
-                                        ? 'bg-gradient-to-r from-rose-500 to-red-600 text-white shadow-xs z-10 border-transparent'
-                                        : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'
-                                }`}
-                                id="modal-btn-saida"
-                            >
-                                <svg className={`w-3.5 h-3.5 ${manualType === 'saida' ? 'text-white' : 'text-rose-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                                </svg>
-                                <span>Saída</span>
-                            </button>
-                        </div>
-                    ) : (
+            {/* Form fields */}
+            <div className="p-5 sm:p-6 flex-1 overflow-y-auto w-full custom-scrollbar">
+                <div className="space-y-4 max-w-5xl mx-auto">
+                    {count > 1 ? (
                         <div className="bg-slate-50 dark:bg-black/20 p-4 rounded-2xl border border-slate-100 dark:border-white/5">
                             <div className="flex justify-between items-center">
                                 <div>
@@ -1123,7 +1087,7 @@ export const ManualIdModal: React.FC = () => {
                                 </div>
                             </div>
                         </div>
-                    )}
+                    ) : null}
 
                     {count === 1 && !isManualLaunch && (
                         <div className="space-y-3">
@@ -1404,23 +1368,11 @@ export const ManualIdModal: React.FC = () => {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
-                            <div className="flex items-center justify-between flex-wrap gap-1">
+                            <div className="flex items-center justify-between flex-wrap gap-1.5">
                                 <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
                                     Descrição / Categoria
                                 </label>
-                                <span className="text-[9px] font-semibold text-indigo-600 dark:text-indigo-400">
-                                    ✏️ Digite para detalhar ou renomear
-                                </span>
-                            </div>
-                            <div className="relative flex items-center group">
-                                <input
-                                    type="text"
-                                    value={selectedType}
-                                    onChange={e => setSelectedType(e.target.value)}
-                                    placeholder="Selecione na lista ou digite para renomear..."
-                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 pl-3 pr-28 transition-all outline-none text-xs font-bold"
-                                />
-                                <div className="absolute right-1.5 flex items-center">
+                                <div className="flex items-center gap-1.5">
                                     <select
                                         value=""
                                         onChange={e => {
@@ -1428,19 +1380,28 @@ export const ManualIdModal: React.FC = () => {
                                                 setSelectedType(e.target.value);
                                             }
                                         }}
-                                        className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold py-1 px-2 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer outline-none transition-colors"
+                                        className="bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold py-0.5 px-2 rounded-lg border border-indigo-200/70 dark:border-indigo-800/70 cursor-pointer outline-none transition-colors"
                                         title="Escolher modelo ou categoria pré-definida"
                                     >
-                                        <option value="" disabled>📋 Modelos...</option>
+                                        <option value="" disabled>📋 Carregar Modelo...</option>
                                         {typeOptions.map((type: string) => (
                                             <option key={type} value={type}>{type}</option>
                                         ))}
                                     </select>
                                 </div>
                             </div>
+                            <div className="relative w-full">
+                                <input
+                                    type="text"
+                                    value={selectedType}
+                                    onChange={e => setSelectedType(e.target.value)}
+                                    placeholder="Digite a descrição detalhada ou selecione um modelo..."
+                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 px-3.5 transition-all outline-none text-xs font-bold"
+                                />
+                            </div>
                             {/* Atalhos rápidos de modelos mais frequentes */}
                             <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 custom-scrollbar">
-                                {typeOptions.slice(0, 5).map((type: string) => (
+                                {typeOptions.slice(0, 6).map((type: string) => (
                                     <button
                                         key={type}
                                         type="button"
@@ -1515,25 +1476,26 @@ export const ManualIdModal: React.FC = () => {
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <div className="px-6 py-3.5 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-white/5 flex justify-end gap-3 rounded-b-[2rem] shrink-0">
-                    <button 
-                        type="button" 
-                        onClick={closeManualIdentify} 
-                        className="px-5 py-2 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-xl shadow-xs hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
-                    >
-                        {t('common.cancel')}
-                    </button>
-                    <button 
-                        type="button" 
-                        onClick={handleConfirm} 
-                        disabled={!selectedChurchId || (isManualLaunch && !selectedBankId) || isSaving} 
-                        className="px-6 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
-                    >
-                         {isSaving ? 'Processando...' : isManualLaunch ? 'Salvar Lançamento' : 'Confirmar Lote'}
-                         {!isSaving && selectedChurchId && (!isManualLaunch || selectedBankId) && <span className="ml-1 text-[8px] opacity-70 bg-white/20 px-1 rounded">Enter</span>}
-                    </button>
-                </div>
+            {/* Footer */}
+            <div className="px-6 py-3.5 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-white/5 flex justify-end gap-3 shrink-0">
+                <button 
+                    type="button" 
+                    onClick={closeManualIdentify} 
+                    className="px-5 py-2 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-xl shadow-xs hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                >
+                    {t('common.cancel')}
+                </button>
+                <button 
+                    type="button" 
+                    onClick={handleConfirm} 
+                    disabled={!selectedChurchId || (isManualLaunch && !selectedBankId) || isSaving} 
+                    className="px-6 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
+                >
+                     {isSaving ? 'Processando...' : count > 1 ? 'Confirmar Lote' : 'Salvar Identificação'}
+                     {!isSaving && selectedChurchId && (!isManualLaunch || selectedBankId) && <span className="ml-1 text-[8px] opacity-70 bg-white/20 px-1 rounded">Enter</span>}
+                </button>
             </div>
         </div>
     );
