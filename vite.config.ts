@@ -6,7 +6,8 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
 
   return {
-    publicDir: 'public',
+    root: 'src',
+    publicDir: '../public',
     server: {
       port: 3000,
       host: '0.0.0.0',
@@ -19,7 +20,7 @@ export default defineConfig(({ mode }) => {
       }
     },
     build: {
-      outDir: 'dist',
+      outDir: '../dist',
       emptyOutDir: true,
       copyPublicDir: true,
       sourcemap: false,
