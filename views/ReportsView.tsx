@@ -47,7 +47,7 @@ export const ReportsView: React.FC = () => {
     const perms = (subscription?.permissions || {}) as any;
     const canIdentify = !isSecondaryUser || (perms.identificar !== false && perms.identifyPayments !== false);
 
-    const handleManualLaunch = (type: 'entrada' | 'saida' = 'entrada') => {
+    const handleManualLaunch = (type?: 'entrada' | 'saida') => {
         const existingGhost = bulkIdentificationTxs?.find((tx: any) => tx.id.startsWith('ghost-manual-'));
         if (existingGhost) {
             setActiveView('novo_lancamento');
@@ -55,7 +55,7 @@ export const ReportsView: React.FC = () => {
         }
 
         const amountFloat = 0;
-        const description = type === 'entrada' ? 'Lançamento Manual Entrada' : 'Lançamento Manual Saída';
+        const description = type === 'saida' ? 'Lançamento Manual Saída' : type === 'entrada' ? 'Lançamento Manual Entrada' : 'Lançamento Manual';
 
         const manualTxId = `ghost-manual-${Date.now()}`;
         const newTx: Transaction = {

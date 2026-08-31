@@ -60,7 +60,7 @@ export const ManualIdModal: React.FC = () => {
     const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
     const [manualDescription, setManualDescription] = useState<string>('');
     const [manualAmount, setManualAmount] = useState<string>('');
-    const [manualType, setManualType] = useState<'entrada' | 'saida'>('entrada');
+    const [manualType, setManualType] = useState<'entrada' | 'saida' | null>(null);
     const [isSaving, setIsSaving] = useState(false);
 
     // Auto-busca de contribuintes cadastrados ao digitar
@@ -381,7 +381,7 @@ export const ManualIdModal: React.FC = () => {
 
             // 3. Description
             const desc = tx.description || '';
-            if (desc === 'Lançamento Manual Entrada' || desc === 'Lançamento Manual Saída') {
+            if (desc === 'Lançamento Manual Entrada' || desc === 'Lançamento Manual Saída' || desc === 'Lançamento Manual') {
                 setManualDescription('');
             } else {
                 setManualDescription(desc);
@@ -402,19 +402,20 @@ export const ManualIdModal: React.FC = () => {
                 setSelectedBankId(availableBanks[0].id);
             }
 
-            // 5. Manual Type
+            // 5. Manual Type (Se não foi explicitamente marcado, exige seleção do usuário)
             const descLower = (desc || '').toLowerCase();
-            const isSaida = descLower.includes('saída') || descLower.includes('saida') || tx.amount < 0;
-            const initType: 'entrada' | 'saida' = isSaida ? 'saida' : 'entrada';
-            setManualType(initType);
-
-            // 6. Type
-            if (matchedResult?.contributionType) {
-                setSelectedType(matchedResult.contributionType);
-            } else if (initType === 'saida') {
-                setSelectedType(defaultSaidaType);
+            const isExplicitSaida = descLower.includes('saída') || descLower.includes('saida') || tx.amount < 0;
+            const isExplicitEntrada = (descLower.includes('entrada') && desc !== 'Lançamento Manual Entrada') || (tx.amount > 0 && desc !== 'Lançamento Manual');
+            
+            if (isExplicitSaida) {
+                setManualType('saida');
+                setSelectedType(matchedResult?.contributionType || defaultSaidaType);
+            } else if (isExplicitEntrada) {
+                setManualType('entrada');
+                setSelectedType(matchedResult?.contributionType || defaultEntradaType);
             } else {
-                setSelectedType(defaultEntradaType);
+                setManualType(null);
+                setSelectedType('');
             }
 
             // 7. Payment Method
@@ -467,11 +468,11 @@ export const ManualIdModal: React.FC = () => {
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') closeManualIdentify();
-            if (e.key === 'Enter' && selectedChurchId && (!isManualLaunch || selectedBankId) && !isSaving) handleConfirm();
+            if (e.key === 'Enter' && selectedChurchId && (!isManualLaunch || (selectedBankId && manualType)) && !isSaving) handleConfirm();
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [closeManualIdentify, selectedChurchId, selectedBankId, isManualLaunch, isSaving]);
+    }, [closeManualIdentify, selectedChurchId, selectedBankId, isManualLaunch, manualType, isSaving]);
 
     useEffect(() => {
         if (churches.length === 1 && !selectedChurchId) {
@@ -489,6 +490,11 @@ export const ManualIdModal: React.FC = () => {
     
     const handleConfirm = async () => {
         if (!selectedChurchId) return;
+
+        if (isManualLaunch && !manualType) {
+            alert("Por favor, selecione se este lançamento é uma Entrada ou Saída antes de salvar.");
+            return;
+        }
 
         if (isManualLaunch && !selectedBankId) {
             alert("Por favor, selecione uma Conta / Caixa de Destino para direcionar o lançamento.");
@@ -559,35 +565,62 @@ export const ManualIdModal: React.FC = () => {
                         </div>
 
                         {/* Selector buttons right in front of the name */}
-                        <div className="inline-flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 text-[10px]">
-                            <button
-                                type="button"
-                                onClick={() => handleTypeSwitch('entrada')}
-                                className={`px-3 py-1.5 rounded-lg text-[10px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
-                                    manualType === 'entrada'
-                                        ? 'bg-emerald-600 text-white shadow-xs'
-                                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-                                }`}
-                                id="modal-btn-entrada"
-                            >
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-300"></span>
-                                <span>• Entrada</span>
-                            </button>
+                        {manualType === null ? (
+                            <div className="inline-flex items-center gap-1.5 p-1 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 shadow-xs">
+                                <span className="text-[9px] font-black text-amber-700 dark:text-amber-300 uppercase px-1 flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                                    Tipo:
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => handleTypeSwitch('entrada')}
+                                    className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer flex items-center gap-1.5 bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 shadow-xs hover:scale-105"
+                                    id="modal-btn-entrada"
+                                >
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                    <span>• Entrada</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleTypeSwitch('saida')}
+                                    className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer flex items-center gap-1.5 bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 border border-rose-300 dark:border-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/50 shadow-xs hover:scale-105"
+                                    id="modal-btn-saida"
+                                >
+                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                                    <span>• Saída</span>
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="inline-flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 text-[10px]">
+                                <button
+                                    type="button"
+                                    onClick={() => handleTypeSwitch('entrada')}
+                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
+                                        manualType === 'entrada'
+                                            ? 'bg-emerald-600 text-white shadow-xs'
+                                            : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                                    }`}
+                                    id="modal-btn-entrada"
+                                >
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-300"></span>
+                                    <span>• Entrada</span>
+                                </button>
 
-                            <button
-                                type="button"
-                                onClick={() => handleTypeSwitch('saida')}
-                                className={`px-3 py-1.5 rounded-lg text-[10px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
-                                    manualType === 'saida'
-                                        ? 'bg-rose-600 text-white shadow-xs'
-                                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-                                }`}
-                                id="modal-btn-saida"
-                            >
-                                <span className="w-1.5 h-1.5 rounded-full bg-rose-300"></span>
-                                <span>• Saída</span>
-                            </button>
-                        </div>
+                                <button
+                                    type="button"
+                                    onClick={() => handleTypeSwitch('saida')}
+                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
+                                        manualType === 'saida'
+                                            ? 'bg-rose-600 text-white shadow-xs'
+                                            : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                                    }`}
+                                    id="modal-btn-saida"
+                                >
+                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-300"></span>
+                                    <span>• Saída</span>
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex items-center gap-2 self-end sm:self-auto">
@@ -601,6 +634,58 @@ export const ManualIdModal: React.FC = () => {
                 {/* Form fields */}
                 <div className="p-5 sm:p-6 flex-1 overflow-y-auto w-full custom-scrollbar">
                     <div className="space-y-4 max-w-5xl mx-auto">
+                        {/* Banner Obrigatório para Escolha de Entrada ou Saída */}
+                        {!manualType ? (
+                            <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 border-2 border-dashed border-amber-400/80 dark:border-amber-600/80 rounded-2xl p-4 sm:p-5 shadow-xs text-center space-y-3">
+                                <div className="flex items-center justify-center gap-2">
+                                    <span className="text-lg">⚠️</span>
+                                    <h4 className="text-xs sm:text-sm font-black text-amber-900 dark:text-amber-200 uppercase tracking-wider">
+                                        Escolha Obrigatória: Selecione o Tipo do Lançamento
+                                    </h4>
+                                </div>
+                                <p className="text-[11px] font-bold text-slate-600 dark:text-slate-300 max-w-md mx-auto">
+                                    Para evitar lançamentos no fluxo financeiro incorreto, clique abaixo e informe se este registro é uma <strong className="text-emerald-600 dark:text-emerald-400">Entrada</strong> (Receita) ou <strong className="text-rose-600 dark:text-rose-400">Saída</strong> (Despesa):
+                                </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg mx-auto pt-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleTypeSwitch('entrada')}
+                                        className="flex items-center justify-center gap-2.5 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-md shadow-emerald-600/25 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer"
+                                        id="banner-btn-entrada"
+                                    >
+                                        <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse"></span>
+                                        <span>• ENTRADA (Dízimo / Oferta / Receita)</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleTypeSwitch('saida')}
+                                        className="flex items-center justify-center gap-2.5 px-4 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-md shadow-rose-600/25 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer"
+                                        id="banner-btn-saida"
+                                    >
+                                        <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse"></span>
+                                        <span>• SAÍDA (Despesa / Pagamento / Conta)</span>
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className={`flex items-center justify-between px-3.5 py-2 rounded-xl border text-[10px] font-bold uppercase tracking-wider transition-all ${
+                                manualType === 'entrada'
+                                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300'
+                                    : 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300'
+                            }`}>
+                                <div className="flex items-center gap-2">
+                                    <span className={`w-2 h-2 rounded-full ${manualType === 'entrada' ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                                    <span>Tipo Selecionado: <strong>{manualType === 'entrada' ? 'ENTRADA (Receitas / Dízimos / Ofertas)' : 'SAÍDA (Despesas / Pagamentos)'}</strong></span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => handleTypeSwitch(manualType === 'entrada' ? 'saida' : 'entrada')}
+                                    className="text-[9px] font-black underline hover:opacity-80 cursor-pointer ml-2"
+                                >
+                                    Mudar para {manualType === 'entrada' ? 'Saída' : 'Entrada'}
+                                </button>
+                            </div>
+                        )}
                         {/* Linha 1: Data e Valor */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="space-y-1.5">
@@ -1035,11 +1120,15 @@ export const ManualIdModal: React.FC = () => {
                     <button 
                         type="button" 
                         onClick={handleConfirm} 
-                        disabled={!selectedChurchId || !selectedBankId || isSaving} 
-                        className="px-6 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
+                        disabled={!manualType || !selectedChurchId || !selectedBankId || isSaving} 
+                        className={`px-6 py-2 text-[10px] font-black text-white rounded-xl shadow-md transition-all tracking-wider uppercase flex items-center gap-2 ${
+                            !manualType || !selectedChurchId || !selectedBankId || isSaving
+                                ? 'bg-slate-400 dark:bg-slate-700 opacity-60 cursor-not-allowed'
+                                : 'bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer'
+                        }`}
                     >
-                         {isSaving ? 'Processando...' : 'Salvar Lançamento'}
-                         {!isSaving && selectedChurchId && selectedBankId && <span className="ml-1 text-[8px] opacity-70 bg-white/20 px-1 rounded">Enter</span>}
+                         {isSaving ? 'Processando...' : !manualType ? '⚠️ Selecione Entrada ou Saída' : 'Salvar Lançamento'}
+                         {!isSaving && selectedChurchId && selectedBankId && manualType && <span className="ml-1 text-[8px] opacity-70 bg-white/20 px-1 rounded">Enter</span>}
                     </button>
                 </div>
             </div>
