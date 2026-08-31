@@ -125,7 +125,7 @@ const MobileCard = memo(({
     const isManualRow = sourceInfo.isManual || 
         row.transaction?.source === 'manual' || 
         row.transaction?.isManual === true || 
-        row.matchMethod === 'MANUAL' || 
+        (row as any).isManual === true ||
         String(row.transaction?.id).startsWith('ghost-manual-') || 
         (row.transaction?.row_hash && row.transaction?.row_hash.includes('|bmanual|'));
     const canDeleteRow = !isSecondaryUser || isManualRow;
@@ -370,7 +370,7 @@ const IncomeRow = memo(({
     const isManualRow = sourceInfo.isManual || 
         row.transaction?.source === 'manual' || 
         row.transaction?.isManual === true || 
-        row.matchMethod === 'MANUAL' || 
+        (row as any).isManual === true ||
         String(row.transaction?.id).startsWith('ghost-manual-') || 
         (row.transaction?.row_hash && row.transaction?.row_hash.includes('|bmanual|'));
     const canDeleteRow = !isSecondaryUser || isManualRow;

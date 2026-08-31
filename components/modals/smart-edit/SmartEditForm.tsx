@@ -63,52 +63,32 @@ export const SmartEditForm: React.FC<SmartEditFormProps> = ({
             )}
             <div className="grid grid-cols-2 gap-2">
                 <div>
-                    <label className={`block text-[8px] font-bold uppercase tracking-widest mb-1.5 flex items-center gap-1 ${isAiProposed ? 'text-purple-600 dark:text-purple-400' : 'text-indigo-500'}`}><TagIcon className="w-2.5 h-2.5" /> Tipo</label>
-                    {isCustomType ? (
-                        <div className="relative flex gap-1">
-                            <input 
-                                type="text" 
-                                value={manualType} 
-                                onChange={(e) => setManualType(e.target.value)}
-                                placeholder="Digite o tipo..." 
-                                className={`w-full bg-white dark:bg-slate-950 border rounded-lg py-1 px-2 text-[10px] font-bold focus:ring-2 focus:ring-brand-blue outline-none transition-all ${isAiProposed ? 'border-purple-300 dark:border-purple-700' : 'border-indigo-200 dark:border-indigo-800 text-slate-700 dark:text-slate-200'}`}
-                                autoFocus
-                            />
-                            <button 
-                                type="button"
-                                onClick={() => {
-                                    setIsCustomType(false);
-                                    setManualType('');
-                                }}
-                                className="px-1.5 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[9px] font-bold rounded-lg text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 whitespace-nowrap cursor-pointer"
-                                title="Voltar para a lista"
-                            >
-                                Lista
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="relative">
-                            <select 
-                                value={manualType} 
+                    <label className={`block text-[8px] font-bold uppercase tracking-widest mb-1 flex items-center gap-1 ${isAiProposed ? 'text-purple-600 dark:text-purple-400' : 'text-indigo-500'}`}>
+                        <TagIcon className="w-2.5 h-2.5" /> Descrição / Tipo
+                    </label>
+                    <div className="relative flex items-center">
+                        <input 
+                            type="text" 
+                            value={manualType} 
+                            onChange={(e) => setManualType(e.target.value)}
+                            placeholder="Digite ou selecione..." 
+                            className={`w-full bg-white dark:bg-slate-950 border rounded-lg py-1 pl-2 pr-16 text-[10px] font-bold focus:ring-2 focus:ring-brand-blue outline-none transition-all ${isAiProposed ? 'border-purple-300 dark:border-purple-700 text-purple-900 dark:text-purple-100' : 'border-indigo-200 dark:border-indigo-800 text-slate-700 dark:text-slate-200'}`}
+                        />
+                        <div className="absolute right-1">
+                            <select
+                                value=""
                                 onChange={(e) => {
-                                    const val = e.target.value;
-                                    if (val === '__CUSTOM__') {
-                                        setIsCustomType(true);
-                                        setManualType('');
-                                    } else {
-                                        setManualType(val);
-                                    }
-                                }} 
-                                className={`w-full bg-white dark:bg-slate-950 border rounded-lg py-1.5 px-3 text-[10px] font-bold focus:ring-2 focus:ring-brand-blue outline-none transition-all appearance-none ${isAiProposed ? 'border-purple-300 dark:border-purple-700' : 'border-indigo-200 dark:border-indigo-800 text-slate-700 dark:text-slate-200'}`}
+                                    if (e.target.value) setManualType(e.target.value);
+                                }}
+                                className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[8px] font-bold py-0.5 px-1 rounded border border-slate-200 dark:border-slate-700 cursor-pointer outline-none"
+                                title="Escolher modelo"
                             >
-                                <option value="">Sem categoria</option>
+                                <option value="" disabled>📋 Modelos</option>
                                 {contributionKeywords.map((k: string) => <option key={k} value={k}>{k}</option>)}
                                 <option value="OUTROS">OUTROS</option>
-                                <option value="__CUSTOM__">✍️ Outro (Digitar manual...)</option>
                             </select>
-                            <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none"><ChevronDownIcon className="w-2.5 h-2.5" /></div>
                         </div>
-                    )}
+                    </div>
                 </div>
                 <div>
                     <label className={`block text-[8px] font-bold uppercase tracking-widest mb-1.5 flex items-center gap-1 ${isAiProposed ? 'text-purple-600 dark:text-purple-400' : 'text-blue-500'}`}><CreditCardIcon className="w-2.5 h-2.5" /> Forma</label>

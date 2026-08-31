@@ -252,8 +252,7 @@ export const resolveTransactionSource = (
         row.is_manual === true ||
         txId.startsWith('ghost-manual-') ||
         rowHash.startsWith('manual_') ||
-        rowHash.includes('|bmanual|') ||
-        ((row.matchMethod === 'MANUAL' || row.matchMethod === 'manual') && (!src || src === 'manual' || src === 'none' || src === 'file'));
+        rowHash.includes('|bmanual|');
 
     if (isManualSource) {
         return { label: 'Manual', isSms: false, isManual: true };

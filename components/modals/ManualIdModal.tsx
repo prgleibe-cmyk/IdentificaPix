@@ -10,6 +10,7 @@ import { XMarkIcon, SparklesIcon, CheckBadgeIcon, BuildingOfficeIcon, ChevronDow
 import { Contributor, MatchResult, ReconciliationStatus, MatchMethod } from '../../types';
 import { extractNameAndCpf, findSimilarContributors } from '../../utils/contributorHelper';
 import { getStoredWhatsAppSettings } from './WhatsAppReceiptModal';
+import { getCachedContributors } from '../../services/contributorsCache';
 
 const formatCpfCnpj = (value: string) => {
     const clean = value.replace(/\D/g, '');
@@ -64,6 +65,19 @@ export const ManualIdModal: React.FC = () => {
 
     // Auto-busca de contribuintes cadastrados ao digitar
     const [showSuggestions, setShowSuggestions] = useState(false);
+    const [dbContributors, setDbContributors] = useState<any[]>([]);
+
+    useEffect(() => {
+        let isMounted = true;
+        getCachedContributors().then(list => {
+            if (isMounted && Array.isArray(list)) {
+                setDbContributors(list);
+            }
+        }).catch(err => {
+            console.error('[ManualIdModal] Erro ao carregar contribuintes do banco:', err);
+        });
+        return () => { isMounted = false; };
+    }, []);
 
     const allowedBankIds = useMemo(() => {
         if (!isSecondaryUser) return null;
@@ -158,55 +172,117 @@ export const ManualIdModal: React.FC = () => {
     };
 
     const allContributors = useMemo(() => {
-        if (!contributorFiles) return [];
-        return contributorFiles.flatMap(file => {
-            const church = churches.find((c: any) => c.id === file.churchId);
-            return file.contributors?.map(c => ({
-                ...c, _churchName: church?.name || 'Desconhecida', _churchId: church?.id
-            })) || [];
+        const map = new Map<string, any>();
+        const churchMap = new Map<string, any>();
+        (churches || []).forEach((ch: any) => {
+            if (ch?.id) churchMap.set(ch.id, ch);
         });
-    }, [contributorFiles, churches]);
+
+        // 1. Cadastros persistidos no banco de dados VPS (Geral)
+        if (Array.isArray(dbContributors)) {
+            dbContributors.forEach(c => {
+                if (c.status === 'inactive') return;
+                const churchId = c.church_id || c._churchId;
+                const ch = churchId ? churchMap.get(churchId) : null;
+                const displayName = c.canonical_name || c.name || c.trade_name || c.cleanedName || '';
+                if (!displayName) return;
+
+                const item = {
+                    ...c,
+                    id: c.id,
+                    name: displayName,
+                    canonical_name: c.canonical_name || displayName,
+                    cleanedName: c.cleanedName || displayName,
+                    trade_name: c.trade_name || '',
+                    cpf: c.cpf || '',
+                    phone: c.phone || '',
+                    email: c.email || '',
+                    _churchId: churchId || '',
+                    _churchName: ch?.name || (c.is_global ? 'Todas as Congregações' : 'Geral')
+                };
+                map.set(c.id, item);
+            });
+        }
+
+        // 2. Mescla com contributorFiles locais da sessão caso existam
+        if (Array.isArray(contributorFiles)) {
+            contributorFiles.forEach(file => {
+                const church = churches.find((c: any) => c.id === file.churchId);
+                file.contributors?.forEach((c: any) => {
+                    const churchId = c._churchId || file.churchId;
+                    const ch = churchId ? churchMap.get(churchId) : church;
+                    const displayName = c.name || c.canonical_name || c.cleanedName || '';
+                    if (!displayName) return;
+
+                    const idKey = c.id || `${displayName.toLowerCase().trim()}_${churchId || ''}`;
+                    if (!map.has(idKey)) {
+                        map.set(idKey, {
+                            ...c,
+                            id: c.id || idKey,
+                            name: displayName,
+                            canonical_name: c.canonical_name || displayName,
+                            cleanedName: c.cleanedName || displayName,
+                            _churchName: ch?.name || 'Desconhecida',
+                            _churchId: churchId
+                        });
+                    }
+                });
+            });
+        }
+
+        return Array.from(map.values());
+    }, [dbContributors, contributorFiles, churches]);
 
     const filteredContributors = useMemo(() => {
         if (!manualDescription || manualDescription.trim().length < 1) {
-            const seenNames = new Set<string>();
-            const matches: any[] = [];
-            for (const c of allContributors) {
-                const name = c.name || '';
-                if (!name) continue;
-                const key = `${name.toLowerCase().trim()}_${c._churchId || ''}`;
-                if (!seenNames.has(key)) {
-                    seenNames.add(key);
-                    matches.push(c);
-                }
-                if (matches.length >= 10) break;
-            }
-            return matches;
+            return allContributors.slice(0, 15);
         }
-        const query = manualDescription.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        const queryDigits = query.replace(/\D/g, '');
-        
-        const seenNames = new Set<string>();
+        const rawQuery = manualDescription.trim();
+        const queryNorm = rawQuery.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const queryDigits = rawQuery.replace(/\D/g, '');
+        const queryTokens = queryNorm.split(/\s+/).filter(Boolean);
+
+        const seenKeys = new Set<string>();
         const matches: any[] = [];
-        
+
         for (const c of allContributors) {
-            const name = c.name || '';
+            const name = c.name || c.canonical_name || c.cleanedName || '';
             const normName = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            
-            const matchesName = normName.includes(query);
-            
+            const normTrade = (c.trade_name || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const normEmail = (c.email || '').toLowerCase();
             const cpfClean = (c.cpf || '').replace(/\D/g, '');
-            const matchesCpf = queryDigits.length > 0 && cpfClean.includes(queryDigits);
-            
-            if (matchesName || matchesCpf) {
-                const key = `${name.toLowerCase().trim()}_${c._churchId || ''}`;
-                if (!seenNames.has(key)) {
-                    seenNames.add(key);
+            const phoneClean = (c.phone || '').replace(/\D/g, '');
+
+            // 1. Correspondência por tokens/palavras do nome, razão social ou email
+            const matchesTokens = queryTokens.length > 0 && queryTokens.every(tok => 
+                normName.includes(tok) || normTrade.includes(tok) || normEmail.includes(tok)
+            );
+
+            // 2. Correspondência por CPF/CNPJ ou telefone
+            const matchesCpf = queryDigits.length >= 3 && cpfClean.includes(queryDigits);
+            const matchesPhone = queryDigits.length >= 4 && phoneClean.includes(queryDigits);
+
+            if (matchesTokens || matchesCpf || matchesPhone) {
+                const uniqueKey = c.id || `${name.toLowerCase().trim()}_${c._churchId || ''}`;
+                if (!seenKeys.has(uniqueKey)) {
+                    seenKeys.add(uniqueKey);
                     matches.push(c);
                 }
             }
-            if (matches.length >= 12) break;
+
+            if (matches.length >= 30) break;
         }
+
+        matches.sort((a, b) => {
+            const aName = (a.name || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const bName = (b.name || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const aStarts = aName.startsWith(queryNorm);
+            const bStarts = bName.startsWith(queryNorm);
+            if (aStarts && !bStarts) return -1;
+            if (!aStarts && bStarts) return 1;
+            return aName.localeCompare(bName);
+        });
+
         return matches;
     }, [manualDescription, allContributors]);
 
@@ -837,55 +913,57 @@ export const ManualIdModal: React.FC = () => {
                         {/* Linha 4: Descrição e Forma de Pagamento */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="space-y-1.5">
-                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
-                                    Descrição
-                                </label>
-                                {isCustomType ? (
-                                    <div className="flex gap-2 items-center">
-                                        <input
-                                            type="text"
-                                            value={selectedType}
-                                            onChange={e => setSelectedType(e.target.value)}
-                                            placeholder="Digite a descrição (ex: Dízimo, Oferta, Manutenção)"
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 px-3 transition-all outline-none text-xs font-bold"
-                                            autoFocus
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setIsCustomType(false);
-                                                setSelectedType(manualType === 'saida' ? defaultSaidaType : defaultEntradaType);
-                                            }}
-                                            className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[10px] font-bold rounded-xl text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-pointer transition-all shrink-0"
-                                        >
-                                            Lista
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div className="relative">
+                                <div className="flex items-center justify-between flex-wrap gap-1">
+                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
+                                        Descrição / Categoria
+                                    </label>
+                                    <span className="text-[9px] font-semibold text-indigo-600 dark:text-indigo-400">
+                                        ✏️ Digite para detalhar ou renomear
+                                    </span>
+                                </div>
+                                <div className="relative flex items-center group">
+                                    <input
+                                        type="text"
+                                        value={selectedType}
+                                        onChange={e => setSelectedType(e.target.value)}
+                                        placeholder="Selecione na lista ou digite para renomear..."
+                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 pl-3 pr-28 transition-all outline-none text-xs font-bold"
+                                    />
+                                    <div className="absolute right-1.5 flex items-center">
                                         <select
-                                            value={selectedType}
+                                            value=""
                                             onChange={e => {
-                                                const val = e.target.value;
-                                                if (val === '__CUSTOM__') {
-                                                    setIsCustomType(true);
-                                                    setSelectedType('');
-                                                } else {
-                                                    setSelectedType(val);
+                                                if (e.target.value) {
+                                                    setSelectedType(e.target.value);
                                                 }
                                             }}
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 px-3 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer"
+                                            className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold py-1 px-2 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer outline-none transition-colors"
+                                            title="Escolher modelo ou categoria pré-definida"
                                         >
+                                            <option value="" disabled>📋 Modelos...</option>
                                             {typeOptions.map((type: string) => (
                                                 <option key={type} value={type}>{type}</option>
                                             ))}
-                                            <option value="__CUSTOM__">✍️ Outro (Digitar manual...)</option>
                                         </select>
-                                        <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                            <ChevronDownIcon className="w-3.5 h-3.5" />
-                                        </div>
                                     </div>
-                                )}
+                                </div>
+                                {/* Atalhos rápidos de modelos mais frequentes */}
+                                <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 custom-scrollbar">
+                                    {typeOptions.slice(0, 5).map((type: string) => (
+                                        <button
+                                            key={type}
+                                            type="button"
+                                            onClick={() => setSelectedType(type)}
+                                            className={`text-[9px] font-bold px-2 py-0.5 rounded-md border transition-colors whitespace-nowrap cursor-pointer ${
+                                                selectedType === type
+                                                    ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'
+                                                    : 'bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
+                                            }`}
+                                        >
+                                            {type}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
 
                             <div className="space-y-1.5">
@@ -1108,30 +1186,41 @@ export const ManualIdModal: React.FC = () => {
                                     />
                                     {showSuggestions && filteredContributors.length > 0 && (
                                         <div className="absolute left-0 right-0 top-[105%] z-50 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl overflow-hidden max-h-56 overflow-y-auto custom-scrollbar">
-                                            <div className="p-2 border-b border-slate-100 dark:border-white/5 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider px-3 py-1.5 bg-slate-50 dark:bg-slate-900/80">
-                                                Contribuintes VPS Cadastrados
+                                            <div className="p-2 border-b border-slate-100 dark:border-white/5 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider px-3 py-1.5 bg-slate-50 dark:bg-slate-900/80 flex justify-between items-center">
+                                                <span>🔍 Cadastros Encontrados</span>
+                                                <span className="text-[8px] font-semibold text-indigo-600 dark:text-indigo-400">{filteredContributors.length} encontrados</span>
                                             </div>
-                                            {filteredContributors.map((col, cIdx) => (
-                                                <button
-                                                    key={col.id || cIdx}
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setManualDescription(col.name);
-                                                        if (col._churchId) {
-                                                            setSelectedChurchId(col._churchId);
-                                                        }
-                                                        setSelectedAssociationType('unify');
-                                                        setSelectedUnifiedField(col.id);
-                                                        setShowSuggestions(false);
-                                                    }}
-                                                    className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-800 dark:text-slate-200 text-xs font-semibold transition-colors flex justify-between items-center border-b border-slate-50 dark:border-white/5 last:border-none cursor-pointer"
-                                                >
-                                                    <span className="truncate">{col.name}</span>
-                                                    <span className="text-[9px] font-black bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded truncate max-w-[150px]">
-                                                        {col._churchName}
-                                                    </span>
-                                                </button>
-                                            ))}
+                                            {filteredContributors.map((col, cIdx) => {
+                                                const chosenName = col.name || col.canonical_name || col.cleanedName || '';
+                                                return (
+                                                    <button
+                                                        key={col.id || cIdx}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setManualDescription(chosenName);
+                                                            if (col._churchId) {
+                                                                setSelectedChurchId(col._churchId);
+                                                            }
+                                                            setSelectedAssociationType('unify');
+                                                            setSelectedUnifiedField(col.id);
+                                                            setShowSuggestions(false);
+                                                        }}
+                                                        className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-800 dark:text-slate-200 text-xs font-semibold transition-colors flex justify-between items-center border-b border-slate-50 dark:border-white/5 last:border-none cursor-pointer"
+                                                    >
+                                                        <div className="flex flex-col min-w-0 pr-2">
+                                                            <span className="font-bold text-slate-800 dark:text-slate-200 truncate">{chosenName}</span>
+                                                            {col.cpf && (
+                                                                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">
+                                                                    {col.cpf.replace(/\D/g, '').length === 14 ? 'CNPJ' : 'CPF'}: {formatCpfCnpj(col.cpf)}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <span className="text-[9px] font-black bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded border border-indigo-200/50 dark:border-indigo-800/50 shrink-0 max-w-[160px] truncate">
+                                                            🏛️ {col._churchName}
+                                                        </span>
+                                                    </button>
+                                                );
+                                            })}
                                         </div>
                                     )}
                                 </div>
@@ -1315,55 +1404,57 @@ export const ManualIdModal: React.FC = () => {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
-                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
-                                Descrição
-                            </label>
-                            {isCustomType ? (
-                                <div className="flex gap-2 items-center">
-                                    <input
-                                        type="text"
-                                        value={selectedType}
-                                        onChange={e => setSelectedType(e.target.value)}
-                                        placeholder="Digite a descrição (ex: Dízimo, Oferta, Manutenção)"
-                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 px-3 transition-all outline-none text-xs font-bold"
-                                        autoFocus
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setIsCustomType(false);
-                                            setSelectedType(defaultEntradaType);
-                                        }}
-                                        className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[10px] font-bold rounded-xl text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-pointer transition-all shrink-0"
-                                    >
-                                        Lista
-                                    </button>
-                                </div>
-                            ) : (
-                                <div className="relative">
+                            <div className="flex items-center justify-between flex-wrap gap-1">
+                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
+                                    Descrição / Categoria
+                                </label>
+                                <span className="text-[9px] font-semibold text-indigo-600 dark:text-indigo-400">
+                                    ✏️ Digite para detalhar ou renomear
+                                </span>
+                            </div>
+                            <div className="relative flex items-center group">
+                                <input
+                                    type="text"
+                                    value={selectedType}
+                                    onChange={e => setSelectedType(e.target.value)}
+                                    placeholder="Selecione na lista ou digite para renomear..."
+                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 pl-3 pr-28 transition-all outline-none text-xs font-bold"
+                                />
+                                <div className="absolute right-1.5 flex items-center">
                                     <select
-                                        value={selectedType}
+                                        value=""
                                         onChange={e => {
-                                            const val = e.target.value;
-                                            if (val === '__CUSTOM__') {
-                                                setIsCustomType(true);
-                                                setSelectedType('');
-                                            } else {
-                                                setSelectedType(val);
+                                            if (e.target.value) {
+                                                setSelectedType(e.target.value);
                                             }
                                         }}
-                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 px-3 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer"
+                                        className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold py-1 px-2 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer outline-none transition-colors"
+                                        title="Escolher modelo ou categoria pré-definida"
                                     >
+                                        <option value="" disabled>📋 Modelos...</option>
                                         {typeOptions.map((type: string) => (
                                             <option key={type} value={type}>{type}</option>
                                         ))}
-                                        <option value="__CUSTOM__">✍️ Outro (Digitar manual...)</option>
                                     </select>
-                                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                        <ChevronDownIcon className="w-3.5 h-3.5" />
-                                    </div>
                                 </div>
-                            )}
+                            </div>
+                            {/* Atalhos rápidos de modelos mais frequentes */}
+                            <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 custom-scrollbar">
+                                {typeOptions.slice(0, 5).map((type: string) => (
+                                    <button
+                                        key={type}
+                                        type="button"
+                                        onClick={() => setSelectedType(type)}
+                                        className={`text-[9px] font-bold px-2 py-0.5 rounded-md border transition-colors whitespace-nowrap cursor-pointer ${
+                                            selectedType === type
+                                                ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'
+                                                : 'bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
+                                        }`}
+                                    >
+                                        {type}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
 
                         <div className="space-y-1.5">

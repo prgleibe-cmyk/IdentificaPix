@@ -79,7 +79,6 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
         const isManual = r.isManual || 
             r.transaction?.source === 'manual' || 
             r.transaction?.isManual === true || 
-            r.matchMethod === 'MANUAL' || 
             String(r.transaction?.id ?? r.id ?? '').startsWith('ghost-manual-') || 
             (r.transaction?.row_hash && r.transaction?.row_hash.includes('|bmanual|'));
         return !isManual;

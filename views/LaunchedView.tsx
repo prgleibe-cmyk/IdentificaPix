@@ -196,7 +196,7 @@ export const LaunchedView: React.FC = () => {
                                         {(() => {
                                             const isManualRow = item.transaction?.source === 'manual' || 
                                                 item.transaction?.isManual === true || 
-                                                item.matchMethod === 'MANUAL' || 
+                                                item.isManual === true || 
                                                 String(item.transaction?.id).startsWith('ghost-manual-') || 
                                                 (item.transaction?.row_hash && item.transaction?.row_hash.includes('|bmanual|'));
                                             const canDelete = !isSecondaryUser || isManualRow;
