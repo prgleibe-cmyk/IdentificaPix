@@ -16,7 +16,7 @@ function parseSMS(text) {
     const normalizedText = text.replace(/\s+/g, ' ').trim();
 
     // 1. EXTRAÇÃO DE VALOR
-    // Ex: "Pix de R$0,02", "R$ 150,00", "R$1.250,55", "R$ 50", "VALOR: R$ 5,00", "BRL 100,00"
+    // Ex: "Pix de R$0,02", "R$ 150,00", "R$1.250,55", "R$ 50,00", "VALOR: R$ 5,00", "BRL 100,00", "R$ 10.00"
     const amountMatch = normalizedText.match(/(?:R\$|RS|BRL|R\$:|VALOR:?\s*R\$?)\s*([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2}|[0-9]+,[0-9]{2}|[0-9\.]+)/i)
         || normalizedText.match(/([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2}|[0-9]+,[0-9]{2})\s*(?:reais|BRL)/i);
 
@@ -113,11 +113,11 @@ function parseSMS(text) {
         
         // Padrões com palavras-chave diretas
         /(?:pagador|remetente|origem|cliente)\s*:\s*([^\,\.\;\:\*\-\/]+?)(?:,\s*(?:cpf|cnpj)|\s+(?:cpf|cnpj)|\s+no\s+valor|\s+em\s+|\s*\.|\s*R\$|\d|$)/i,
-        /(?:recebido\s+de\s+|enviado\s+por\s+|de\s+:\s*)([^\,\.\;\:\*\-\/]+?)(?:,\s*(?:cpf|cnpj)|\s+(?:cpf|cnpj)|\s+no\s+valor|\s+em\s+|\s+para\s+|\s+via\s+|\s*\.|\s*R\$|\d{2}\/\d{2}|$)/i,
-        /(?:enviado\s+para\s+|pago\s+a\s+|para\s+:\s*)([^\,\.\;\:\*\-\/]+?)(?:,\s*(?:cpf|cnpj)|\s+(?:cpf|cnpj)|\s+no\s+valor|\s+em\s+|\s+via\s+|\s*\.|\s*R\$|\d{2}\/\d{2}|$)/i,
+        /(?:recebido\s+de\s+|enviado\s+por\s+|de\s*:\s*)([^\,\.\;\:\*\-\/]+?)(?:,\s*(?:cpf|cnpj)|\s+(?:cpf|cnpj)|\s+no\s+valor|\s+em\s+|\s+para\s+|\s+via\s+|\s*\.|\s*R\$|\d{2}\/\d{2}|$)/i,
+        /(?:enviado\s+para\s+|pago\s+a\s+|para\s*:\s*)([^\,\.\;\:\*\-\/]+?)(?:,\s*(?:cpf|cnpj)|\s+(?:cpf|cnpj)|\s+no\s+valor|\s+em\s+|\s+via\s+|\s*\.|\s*R\$|\d{2}\/\d{2}|$)/i,
         /de\s+([A-Z\s\u00C0-\u00FF]+?)\s+em\s+\d{2}\/\d{2}/i,
-        /de\s+([A-Z\s\u00C0-\u00FF]{3,35})(?:\s+em\s+|\s+no\s+valor|\s*R\$|\s*\.|\s*$)/i,
-        /para\s+([A-Z\s\u00C0-\u00FF]{3,35})(?:\s+em\s+|\s+no\s+valor|\s*R\$|\s*\.|\s*$)/i
+        /de\s+([A-Z\s\u00C0-\u00FF]{3,40})(?:\s+em\s+|\s+no\s+valor|\s*R\$|\s*\.|\s*$)/i,
+        /para\s+([A-Z\s\u00C0-\u00FF]{3,40})(?:\s+em\s+|\s+no\s+valor|\s*R\$|\s*\.|\s*$)/i
     ];
 
     for (const pattern of patterns) {
@@ -175,6 +175,8 @@ function parseSMS(text) {
 // Middleware personalizado para consumir o corpo da requisição de forma resiliente
 // Isso previne quebras causadas por novos caracteres de linha do MacroDroid inseridos no JSON
 const resilientBodyParser = (req, res, next) => {
+    const existingBody = (req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0) ? { ...req.body } : null;
+    
     let data = '';
     req.setEncoding('utf8');
     req.on('data', (chunk) => {
@@ -182,22 +184,31 @@ const resilientBodyParser = (req, res, next) => {
     });
     req.on('end', () => {
         req.rawBody = data;
-        if (data) {
+        if (data && data.trim().length > 0) {
             try {
                 // Tenta o parsing padrão JSON primeiro
                 req.body = JSON.parse(data);
             } catch (e) {
-                console.log('[Resilient Parser] JSON.parse falhou (provavelmente devido a quebras de linha do MacroDroid). Reparando...');
+                console.log('[Resilient Parser] JSON.parse falhou (tratando quebras de linha ou aspas do MacroDroid)...');
                 
-                // Padrão 1: Tentar extrair o campo "text" ou campos MacroDroid via regex lidando com quebras de linha internas [\s\S]*?
-                const textMatch = data.match(/"(?:text|not_text_big|not_text|not_title|not_sub_text|notif_text|notification|texto|mensagem|message)"\s*:\s*"([\s\S]*?)"\s*}/)
-                    || data.match(/"(?:text|not_text_big|not_text|not_title|not_sub_text|notif_text|notification|texto|mensagem|message)"\s*:\s*"([\s\S]*?)"/);
-                if (textMatch) {
-                    req.body = { text: textMatch[1] };
-                    console.log('[Resilient Parser] Texto extraído via Regex com sucesso!');
-                } else {
-                    // Padrão 2: Se não houver campo "text" estruturado, tenta decodificar como formulário x-www-form-urlencoded
-                    if (data.includes('=')) {
+                // Tentativa 2: Limpar quebras de linha internas e tentar novamente
+                try {
+                    const sanitized = data.replace(/[\r\n\t]+/g, ' ');
+                    req.body = JSON.parse(sanitized);
+                } catch (e2) {
+                    // Extração via Regex de campos conhecidos do MacroDroid
+                    const extracted = {};
+                    const fields = ['text', 'not_text_big', 'not_text', 'not_title', 'title', 'not_sub_text', 'notif_text', 'notification', 'texto', 'mensagem', 'message'];
+                    for (const field of fields) {
+                        const m = data.match(new RegExp(`"${field}"\\s*:\\s*"([\\s\\S]*?)"`));
+                        if (m && m[1]) {
+                            extracted[field] = m[1];
+                        }
+                    }
+
+                    if (Object.keys(extracted).length > 0) {
+                        req.body = extracted;
+                    } else if (data.includes('=')) {
                         try {
                             const params = new URLSearchParams(data);
                             const parsed = {};
@@ -205,17 +216,16 @@ const resilientBodyParser = (req, res, next) => {
                                 parsed[key] = value;
                             }
                             req.body = parsed;
-                            console.log('[Resilient Parser] Decodificado como Form URL Encoded');
                         } catch (err) {
                             req.body = { text: data };
                         }
                     } else {
-                        // Fallback final: define o corpo inteiro como a mensagem de texto
                         req.body = { text: data };
-                        console.log('[Resilient Parser] Fallback: Definido corpo bruto como texto');
                     }
                 }
             }
+        } else if (existingBody) {
+            req.body = existingBody;
         } else {
             req.body = {};
         }
@@ -256,11 +266,12 @@ export default (ai) => {
 
         // Resiliently extract the SMS body text from various potential payload keys or formats (including MacroDroid tags)
         const candidateTexts = [
-            req.body?.text,
-            req.body?.notification,
             req.body?.not_text_big,
             req.body?.not_text,
+            req.body?.text,
+            req.body?.notification,
             req.body?.not_title,
+            req.body?.title,
             req.body?.not_ticker,
             req.body?.not_sub_text,
             req.body?.notif_big,
@@ -283,9 +294,19 @@ export default (ai) => {
             req.query?.message
         ].filter(Boolean);
 
-        let text = candidateTexts.find(t => typeof t === 'string' && t.trim().length > 0);
+        // Filter out literal unreplaced template placeholders like "{notification}", "[not_text]", etc.
+        const validCandidates = candidateTexts.filter(t => 
+            typeof t === 'string' && 
+            t.trim().length > 0 && 
+            !/^(\{|\[)[a-z0-9_]+(\}|\])$/i.test(t.trim())
+        );
 
-        if (!text && candidateTexts.length > 0) {
+        let text = '';
+        if (validCandidates.length > 0) {
+            // Join distinct valid parts (e.g. title + expanded text + text)
+            const uniqueParts = Array.from(new Set(validCandidates));
+            text = uniqueParts.join(' - ');
+        } else if (candidateTexts.length > 0) {
             text = candidateTexts[0];
         }
 
