@@ -480,6 +480,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 type: isExpense ? 'expense' : 'income',
                 status: r.status,
                 isConfirmed: r.isConfirmed,
+                splits: (Array.isArray(r.splits) && r.splits.length > 0) ? r.splits : ((Array.isArray(tx.splits) && tx.splits.length > 0) ? tx.splits : null),
                 raw: r
             };
         });

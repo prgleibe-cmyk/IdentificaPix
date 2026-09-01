@@ -191,12 +191,15 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
     const totalSplitAmount = splits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
     const difference = Math.round((absoluteOriginal - totalSplitAmount) * 100) / 100;
     const isSumPerfect = Math.abs(difference) < 0.01;
+    const hasInvalidAmount = splits.some(s => (Number(s.amount) || 0) <= 0);
+    const isAllDescriptionsFilled = splits.every(s => (s.description || '').trim().length > 0);
+    const isSaveEnabled = isSumPerfect && !hasInvalidAmount && isAllDescriptionsFilled;
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (!isOpen) return;
             if (e.key === 'Escape') onClose();
-            if (e.key === 'Enter' && isSumPerfect && !e.shiftKey) {
+            if (e.key === 'Enter' && isSaveEnabled && !e.shiftKey) {
                 const target = e.target as HTMLElement;
                 if (target?.tagName === 'INPUT' || target?.tagName === 'SELECT') return;
                 handleSaveClick();
@@ -204,7 +207,7 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, isSumPerfect, splits, absoluteOriginal, isExpense]);
+    }, [isOpen, isSaveEnabled, isSumPerfect, splits, absoluteOriginal, isExpense]);
 
     if (!isOpen || !matchResult) return null;
 
@@ -292,10 +295,16 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
             return;
         }
 
+        if (!isAllDescriptionsFilled) {
+            setErrorMessage('O campo "Observação / Destino Específico" é obrigatório em todas as linhas do rateio.');
+            return;
+        }
+
         // Ajusta o sinal dos valores das distribuições para manter fidelidade com o lançamento original (positivo p/ receitas, negativo p/ despesas)
         const finalSplits: TransactionSplit[] = splits.map(s => ({
             ...s,
             amount: isExpense ? -Math.abs(Number(s.amount)) : Math.abs(Number(s.amount)),
+            description: (s.description || '').trim(),
             date: matchResult.transaction.date
         }));
 
@@ -567,16 +576,28 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
 
                                             {/* Observação / Finalidade / Destino */}
                                             <div>
-                                                <label className="block text-[8px] font-black uppercase tracking-widest text-slate-400 mb-1 ml-0.5 flex items-center gap-1">
-                                                    <FileText className="w-2.5 h-2.5 text-slate-400" />
-                                                    Observação / Destino Específico
+                                                <label className="block text-[8px] font-black uppercase tracking-widest text-slate-400 mb-1 ml-0.5 flex items-center justify-between">
+                                                    <span className="flex items-center gap-1">
+                                                        <FileText className="w-2.5 h-2.5 text-amber-500" />
+                                                        Observação / Destino Específico
+                                                    </span>
+                                                    <span className="text-[7px] font-black text-amber-600 dark:text-amber-400 uppercase bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.2 rounded border border-amber-200/60 dark:border-amber-800/40">
+                                                        * Obrigatório
+                                                    </span>
                                                 </label>
                                                 <input 
                                                     type="text"
                                                     value={split.description || ''}
-                                                    onChange={(e) => handleSplitChange(split.id, 'description', e.target.value)}
+                                                    onChange={(e) => {
+                                                        handleSplitChange(split.id, 'description', e.target.value);
+                                                        if (errorMessage) setErrorMessage(null);
+                                                    }}
                                                     placeholder="Ex: Oferta Especial, Missões, Reforma, etc."
-                                                    className="w-full px-3 py-2 text-xs font-semibold border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all"
+                                                    className={`w-full px-3 py-2 text-xs font-semibold border rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs outline-none transition-all ${
+                                                        !(split.description || '').trim() 
+                                                            ? 'border-amber-300 dark:border-amber-700/60 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500' 
+                                                            : 'border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue'
+                                                    }`}
                                                 />
                                             </div>
                                         </div>
@@ -610,7 +631,7 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
                         </div>
 
                         {/* Status Message */}
-                        <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800 flex justify-center">
+                        <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800 flex flex-col items-center gap-1.5 justify-center">
                             {isSumPerfect ? (
                                 <div className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-1 rounded-full border border-emerald-200/80 dark:border-emerald-800/60">
                                     <CheckCircle2 className="w-3.5 h-3.5" />
@@ -622,6 +643,13 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
                                     {difference > 0 
                                         ? `Faltam ${formatCurrency(difference, language)} para completar o total.` 
                                         : `O valor ultrapassou o total em ${formatCurrency(Math.abs(difference), language)}.`}
+                                </div>
+                            )}
+
+                            {!isAllDescriptionsFilled && (
+                                <div className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 rounded-lg border border-amber-200/80 dark:border-amber-800/60">
+                                    <AlertCircle className="w-3 h-3" />
+                                    Preencha o campo "Observação / Destino Específico" em todas as linhas para liberar o botão Salvar.
                                 </div>
                             )}
                         </div>
@@ -649,7 +677,7 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
                         <button 
                             type="button" 
                             onClick={handleSaveClick}
-                            disabled={!isSumPerfect}
+                            disabled={!isSaveEnabled}
                             className="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 hover:from-orange-600 hover:to-black text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-lg shadow-orange-500/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
                         >
                             <CheckCircle2 className="w-4 h-4" />

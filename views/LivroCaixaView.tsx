@@ -27,7 +27,8 @@ import {
     ArrowRight,
     Check,
     ChevronLeft,
-    ChevronRight
+    ChevronRight,
+    Tag
 } from 'lucide-react';
 
 export const LivroCaixaView: React.FC = memo(() => {
@@ -511,6 +512,70 @@ export const LivroCaixaView: React.FC = memo(() => {
             saldoFinal
         };
     }, [reportData, filteredReportData, selectionMode, customStartDate, selectedYear, selectedMonth, selectedChurchIds, selectedBankIds, isSecondaryUser, allowedChurchIds, churches, banks]);
+
+    // Resumo analítico agrupado por Descrição / Destino Específico / Rateio
+    const descriptionBreakdown = useMemo(() => {
+        const incomeMap = new Map<string, { label: string; total: number; count: number }>();
+        const expenseMap = new Map<string, { label: string; total: number; count: number }>();
+
+        filteredReportData.forEach((tx: any) => {
+            const isBaseExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
+            const txSplits = (Array.isArray(tx.splits) && tx.splits.length > 0)
+                ? tx.splits
+                : (Array.isArray(tx.raw?.splits) && tx.raw.splits.length > 0)
+                    ? tx.raw.splits
+                    : null;
+
+            if (txSplits && txSplits.length > 0) {
+                // Se a transação possui rateio, computa cada fatia com seu respectivo destino/observação
+                txSplits.forEach((s: any) => {
+                    const splitAmt = Math.abs(Number(s.amount) || 0);
+                    if (splitAmt <= 0) return;
+
+                    const isSplitExpense = s.amount < 0 || isBaseExpense;
+                    const rawLabel = (s.description || s.observacao || s.destino || s.contributionType || tx.desc || tx.description || 'Geral').toString().trim();
+                    const cleanKey = rawLabel.toUpperCase();
+                    const targetMap = isSplitExpense ? expenseMap : incomeMap;
+
+                    const existing = targetMap.get(cleanKey);
+                    if (existing) {
+                        existing.total += splitAmt;
+                        existing.count += 1;
+                    } else {
+                        targetMap.set(cleanKey, { label: rawLabel, total: splitAmt, count: 1 });
+                    }
+                });
+            } else {
+                // Transação direta sem rateio
+                const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
+                if (amt <= 0) return;
+
+                const rawLabel = (tx.desc || tx.description || tx.historico || tx.category || tx.categoria || tx.contributionType || 'Geral').toString().trim();
+                const cleanKey = rawLabel.toUpperCase();
+                const targetMap = isBaseExpense ? expenseMap : incomeMap;
+
+                const existing = targetMap.get(cleanKey);
+                if (existing) {
+                    existing.total += amt;
+                    existing.count += 1;
+                } else {
+                    targetMap.set(cleanKey, { label: rawLabel, total: amt, count: 1 });
+                }
+            }
+        });
+
+        const incomes = Array.from(incomeMap.values()).sort((a, b) => b.total - a.total);
+        const expenses = Array.from(expenseMap.values()).sort((a, b) => b.total - a.total);
+        const totalIncome = incomes.reduce((acc, curr) => acc + curr.total, 0);
+        const totalExpense = expenses.reduce((acc, curr) => acc + curr.total, 0);
+
+        return {
+            incomes,
+            expenses,
+            totalIncome,
+            totalExpense
+        };
+    }, [filteredReportData]);
 
     // Histórico de transações com o mesmo escopo de igreja e banco (para cálculo exato em relatórios e PDF)
     const scopedAllReportData = useMemo(() => {
@@ -1150,6 +1215,133 @@ export const LivroCaixaView: React.FC = memo(() => {
                                 <span className={`text-base font-black font-mono whitespace-nowrap ${summaryBreakdown.saldoFinal >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                                     {formatBRL(summaryBreakdown.saldoFinal)}
                                 </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* RESUMO POR DESTINO / FINALIDADE (DESCRIÇÃO & RATEIOS) */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-4 border-b border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center gap-2">
+                            <div className="w-2 h-4 bg-brand-blue rounded-full"></div>
+                            <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                                RESUMO POR DESTINO / FINALIDADE (DESCRIÇÃO)
+                            </h3>
+                        </div>
+                        <span className="text-[11px] font-bold text-slate-400">
+                            Totalização por Descrição e Rateios Específicos
+                        </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 text-xs">
+                        {/* Coluna Entradas por Descrição */}
+                        <div className="bg-emerald-50/20 dark:bg-emerald-950/10 p-4 rounded-xl border border-emerald-100/80 dark:border-emerald-900/30 flex flex-col justify-between">
+                            <div>
+                                <div className="flex items-center justify-between mb-3 pb-2 border-b border-emerald-200/60 dark:border-emerald-800/40">
+                                    <div className="flex items-center gap-1.5 font-black text-emerald-800 dark:text-emerald-400 uppercase text-[10px] tracking-wider">
+                                        <ArrowUpRight className="w-3.5 h-3.5 text-emerald-600" />
+                                        <span>Entradas por Destino / Descrição</span>
+                                    </div>
+                                    <span className="text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full">
+                                        {descriptionBreakdown.incomes.length} {descriptionBreakdown.incomes.length === 1 ? 'item' : 'itens'}
+                                    </span>
+                                </div>
+
+                                {descriptionBreakdown.incomes.length === 0 ? (
+                                    <div className="py-8 text-center text-slate-400 italic text-xs">
+                                        Nenhuma entrada registrada no período.
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1 custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
+                                        {descriptionBreakdown.incomes.map((item, idx) => {
+                                            const pct = descriptionBreakdown.totalIncome > 0 
+                                                ? Math.round((item.total / descriptionBreakdown.totalIncome) * 100) 
+                                                : 0;
+
+                                            return (
+                                                <div 
+                                                    key={idx}
+                                                    className="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900/80 border border-emerald-100 dark:border-emerald-950/60 rounded-xl hover:border-emerald-300 transition-colors shadow-2xs"
+                                                >
+                                                    <div className="flex flex-col min-w-0 pr-2">
+                                                        <span className="font-bold text-slate-800 dark:text-slate-100 uppercase text-[11px] truncate" title={item.label}>
+                                                            {item.label}
+                                                        </span>
+                                                        <span className="text-[9.5px] text-slate-400 font-medium mt-0.5">
+                                                            {item.count} {item.count === 1 ? 'lançamento' : 'lançamentos'} ({pct}%)
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-right whitespace-nowrap pl-2">
+                                                        <span className="font-mono font-black text-emerald-600 dark:text-emerald-400 text-xs">
+                                                            {formatBRL(item.total)}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex justify-between items-center font-extrabold text-emerald-800 dark:text-emerald-300 pt-3 mt-3 border-t border-emerald-200/80 dark:border-emerald-800/60 text-xs">
+                                <span>Total Entradas:</span>
+                                <span className="font-mono text-sm ml-2 whitespace-nowrap">{formatBRL(descriptionBreakdown.totalIncome)}</span>
+                            </div>
+                        </div>
+
+                        {/* Coluna Saídas por Descrição */}
+                        <div className="bg-rose-50/20 dark:bg-rose-950/10 p-4 rounded-xl border border-rose-100/80 dark:border-rose-900/30 flex flex-col justify-between">
+                            <div>
+                                <div className="flex items-center justify-between mb-3 pb-2 border-b border-rose-200/60 dark:border-rose-800/40">
+                                    <div className="flex items-center gap-1.5 font-black text-rose-800 dark:text-rose-400 uppercase text-[10px] tracking-wider">
+                                        <ArrowDownRight className="w-3.5 h-3.5 text-rose-600" />
+                                        <span>Saídas por Destino / Descrição</span>
+                                    </div>
+                                    <span className="text-[10px] font-mono font-bold bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 px-2 py-0.5 rounded-full">
+                                        {descriptionBreakdown.expenses.length} {descriptionBreakdown.expenses.length === 1 ? 'item' : 'itens'}
+                                    </span>
+                                </div>
+
+                                {descriptionBreakdown.expenses.length === 0 ? (
+                                    <div className="py-8 text-center text-slate-400 italic text-xs">
+                                        Nenhuma saída registrada no período.
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1 custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
+                                        {descriptionBreakdown.expenses.map((item, idx) => {
+                                            const pct = descriptionBreakdown.totalExpense > 0 
+                                                ? Math.round((item.total / descriptionBreakdown.totalExpense) * 100) 
+                                                : 0;
+
+                                            return (
+                                                <div 
+                                                    key={idx}
+                                                    className="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900/80 border border-rose-100 dark:border-rose-950/60 rounded-xl hover:border-rose-300 transition-colors shadow-2xs"
+                                                >
+                                                    <div className="flex flex-col min-w-0 pr-2">
+                                                        <span className="font-bold text-slate-800 dark:text-slate-100 uppercase text-[11px] truncate" title={item.label}>
+                                                            {item.label}
+                                                        </span>
+                                                        <span className="text-[9.5px] text-slate-400 font-medium mt-0.5">
+                                                            {item.count} {item.count === 1 ? 'lançamento' : 'lançamentos'} ({pct}%)
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-right whitespace-nowrap pl-2">
+                                                        <span className="font-mono font-black text-rose-600 dark:text-rose-400 text-xs">
+                                                            {formatBRL(item.total)}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex justify-between items-center font-extrabold text-rose-800 dark:text-rose-300 pt-3 mt-3 border-t border-rose-200/80 dark:border-rose-800/60 text-xs">
+                                <span>Total Saídas:</span>
+                                <span className="font-mono text-sm ml-2 whitespace-nowrap">{formatBRL(descriptionBreakdown.totalExpense)}</span>
                             </div>
                         </div>
                     </div>
