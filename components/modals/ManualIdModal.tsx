@@ -63,6 +63,21 @@ export const ManualIdModal: React.FC = () => {
     const [manualType, setManualType] = useState<'entrada' | 'saida' | null>(null);
     const [isSaving, setIsSaving] = useState(false);
 
+    const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const rawDigits = e.target.value.replace(/\D/g, '');
+        if (!rawDigits || parseInt(rawDigits, 10) === 0) {
+            setManualAmount('');
+            return;
+        }
+        const truncated = rawDigits.slice(0, 11);
+        const numericValue = parseInt(truncated, 10) / 100;
+        const formatted = numericValue.toLocaleString('pt-BR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+        setManualAmount(formatted);
+    };
+
     // Auto-busca de contribuintes cadastrados ao digitar
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [dbContributors, setDbContributors] = useState<any[]>([]);
@@ -374,7 +389,8 @@ export const ManualIdModal: React.FC = () => {
 
             // 2. Amount
             if (tx.amount) {
-                setManualAmount(Math.abs(tx.amount).toString().replace('.', ','));
+                const num = Math.abs(tx.amount);
+                setManualAmount(num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
             } else {
                 setManualAmount('');
             }
@@ -448,6 +464,10 @@ export const ManualIdModal: React.FC = () => {
                 setSelectedType(defaultEntradaType);
             }
 
+            // Inicializa a data de referência com a data da transação ou a reference_date existente
+            const initialDate = matchedResult?.reference_date || tx.reference_date || tx.date || new Date().toISOString().split('T')[0];
+            setSelectedDate(initialDate);
+
             if (matchedResult?.church?.id) {
                 setSelectedChurchId(matchedResult.church.id);
             } else if (churches.length === 1) {
@@ -515,7 +535,8 @@ export const ManualIdModal: React.FC = () => {
                 const churchObj = churches?.find((c: any) => c.id === selectedChurchId);
                 const firstTx = bulkIdentificationTxs[0];
                 const contributorName = manualDescription || firstTx?.contributor?.name || firstTx?.description || 'Contribuinte';
-                const calculatedTotalAmount = isManualLaunch ? (parseFloat(manualAmount) || 0) : bulkIdentificationTxs.reduce((sum, tx) => sum + (tx.amount || 0), 0);
+                const parsedManualAmt = manualAmount ? (parseFloat(manualAmount.replace(/\./g, '').replace(',', '.')) || 0) : 0;
+                const calculatedTotalAmount = isManualLaunch ? parsedManualAmt : bulkIdentificationTxs.reduce((sum, tx) => sum + (tx.amount || 0), 0);
 
                 await confirmBulkManualIdentification(
                     ids, 
@@ -708,10 +729,12 @@ export const ManualIdModal: React.FC = () => {
                                     <DollarSign className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
                                     <input
                                         type="text"
+                                        inputMode="numeric"
                                         value={manualAmount}
-                                        onChange={e => setManualAmount(e.target.value)}
+                                        onChange={handleAmountChange}
                                         placeholder="0,00"
                                         className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 pl-10 pr-3 transition-all outline-none text-xs font-bold font-mono placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                                        id="manual-launch-amount-input"
                                     />
                                 </div>
                             </div>
@@ -1387,6 +1410,28 @@ export const ManualIdModal: React.FC = () => {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
+                            <div className="flex items-center justify-between flex-wrap gap-1">
+                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
+                                    Data de Referência (Competência)
+                                </label>
+                                {bulkIdentificationTxs && bulkIdentificationTxs[0]?.date && (
+                                    <span className="text-[9px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                                        Data do Banco: {new Date(bulkIdentificationTxs[0].date + 'T00:00:00').toLocaleDateString('pt-BR')}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="relative group">
+                                <Calendar className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
+                                <input
+                                    type="date"
+                                    value={selectedDate}
+                                    onChange={e => setSelectedDate(e.target.value)}
+                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 pl-10 pr-3 transition-all outline-none text-xs font-bold"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-1.5">
                             <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
                                Escolha a Igreja de Destino
                             </label>
@@ -1409,7 +1454,9 @@ export const ManualIdModal: React.FC = () => {
                                 </div>
                             </div>
                         </div>
+                    </div>
 
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
                             <div className="flex items-center justify-between flex-wrap gap-1">
                                 <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-1">

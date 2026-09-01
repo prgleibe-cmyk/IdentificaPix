@@ -149,6 +149,7 @@ export interface ChurchFormData {
 export interface Transaction {
   id: string;
   date: string;
+  reference_date?: string | null;
   description: string;
   rawDescription: string;
   amount: number;
@@ -174,6 +175,7 @@ export interface Contributor {
   normalizedName?: string;
   amount: number;
   date?: string;
+  reference_date?: string | null;
   originalAmount?: string;
   contributionType?: string;
   paymentMethod?: string;
@@ -209,6 +211,7 @@ export interface MatchResult {
   contributorAmount?: number;
   contributionType?: string;
   paymentMethod?: string;
+  reference_date?: string | null;
   isConfirmed?: boolean;
   updatedAt?: string;
   divergence?: {

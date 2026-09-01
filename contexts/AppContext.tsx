@@ -430,8 +430,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const bankObj = bankMap.get(bankId) || r.bank || {};
             const bankName = bankObj.account_name || bankObj.name || (typeof bankObj === 'string' ? bankObj : '');
 
-            const dateRaw = tx.date || contrib.date || r.launchedAt || '';
+            const refDateRaw = contrib.reference_date || r.reference_date || tx.reference_date || '';
+            const bankDateRaw = tx.date || contrib.date || r.launchedAt || '';
+            const dateRaw = refDateRaw || bankDateRaw;
             const dateClean = dateRaw ? String(dateRaw).split('T')[0] : '';
+            const bankDateClean = bankDateRaw ? String(bankDateRaw).split('T')[0] : '';
+            const refDateClean = refDateRaw ? String(refDateRaw).split('T')[0] : '';
 
             const desc = tx.description || tx.rawDescription || contrib.name || 'Lançamento de Caixa';
             const payer = contrib.name || (r.status === 'IDENTIFICADO' ? (contrib.cleanedName || contrib.name) : null) || 'NÃO IDENTIFICADO';
@@ -451,6 +455,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             return {
                 id: tx.id || r.id || r._injectedId,
                 date: dateClean,
+                reference_date: refDateClean || null,
+                referenceDate: refDateClean || null,
+                bank_date: bankDateClean || null,
+                bankDate: bankDateClean || null,
                 desc: desc,
                 description: desc,
                 historico: desc,

@@ -304,7 +304,13 @@ export const ExportService = {
         const church = resolveChurch(churches, selectedChurchId, data);
 
         const tableRows = data.flatMap(r => {
-            const date = formatDate(r.transaction.date);
+            const refDate = r.contributor?.reference_date || r.reference_date || r.transaction.reference_date;
+            const hasRefDate = refDate && refDate !== r.transaction.date;
+            const date = formatDate(refDate || r.transaction.date);
+            const originalBankDate = formatDate(r.transaction.date);
+            const dateCellHtml = hasRefDate
+                ? `<div><strong>${date}</strong><br/><span style="font-size: 8px; color: #64748b;">(Banco: ${originalBankDate})</span></div>`
+                : date;
             
             // FIDELIDADE TOTAL: Usa o nome resolvido sem ruído numérico/valor
             const name = getResolvedDisplayName(r).toUpperCase();
@@ -330,7 +336,7 @@ export const ExportService = {
                     const type = s.contributionType;
                     return `
                         <tr>
-                            <td>${date}</td>
+                            <td>${dateCellHtml}</td>
                             <td style="font-weight: 600;">${splitName} <span style="font-size: 8px; font-weight: 800; color: #4f46e5; background: #e0e7ff; padding: 2px 5px; border-radius: 4px; margin-left: 5px;">RATEADO</span></td>
                             <td style="font-size: 9px; color: #475569;">${churchName}</td>
                             <td style="text-align: center; font-size: 9px; font-weight: bold;">${type}</td>
@@ -347,7 +353,7 @@ export const ExportService = {
 
                 return `
                     <tr>
-                        <td>${date}</td>
+                        <td>${dateCellHtml}</td>
                         <td style="font-weight: 600;">${name}</td>
                         <td style="font-size: 9px; color: #475569;">${churchName}</td>
                         <td style="text-align: center; font-size: 9px; font-weight: bold;">${type}</td>
@@ -500,7 +506,9 @@ export const ExportService = {
      */
     downloadExcel: (data: MatchResult[], filename: string = 'relatorio_conciliacao.xlsx') => {
         const rows = data.flatMap(r => {
-            const date = formatDate(r.transaction.date);
+            const refDate = r.contributor?.reference_date || r.reference_date || r.transaction.reference_date;
+            const displayDate = formatDate(refDate || r.transaction.date);
+            const bankDate = formatDate(r.transaction.date);
             
             const desc = getResolvedDisplayName(r).toUpperCase();
             
@@ -513,7 +521,8 @@ export const ExportService = {
                     const splitType = s.contributionType;
                     const splitAmount = Number(s.amount);
                     return {
-                        "Data": date,
+                        "Data": displayDate,
+                        "Data do Banco": bankDate,
                         "Descrição do Lançamento": splitDesc,
                         "Descrição": `${splitType} (RATEADO)`,
                         "Status": status,
@@ -526,7 +535,8 @@ export const ExportService = {
                 const rawAmount = r.transaction.amount;
                 const amount = Number(rawAmount);
                 return {
-                    "Data": date,
+                    "Data": displayDate,
+                    "Data do Banco": bankDate,
                     "Descrição do Lançamento": desc,
                     "Descrição": type,
                     "Status": status,
@@ -714,7 +724,12 @@ ${transactionsOfx}
         
         const rows: any[] = data.flatMap((r: MatchResult) => {
             const isGhost = r.status === 'PENDENTE';
-            const date = formatDate(isGhost ? (r.contributor?.date || r.transaction.date) : r.transaction.date);
+            const refDate = r.contributor?.reference_date || r.reference_date || r.transaction?.reference_date;
+            const originalBankDateStr = isGhost ? (r.contributor?.date || r.transaction?.date) : r.transaction?.date;
+            const hasRefDate = refDate && refDate !== originalBankDateStr;
+            const displayDate = formatDate(refDate || originalBankDateStr);
+            const originalBankDate = formatDate(originalBankDateStr);
+            const dateStr = hasRefDate ? `${displayDate}\n(Banco: ${originalBankDate})` : displayDate;
             
             const rawName = r.contributor?.cleanedName || r.contributor?.name || r.transaction.cleanedDescription || r.transaction.description;
             const desc = String(rawName).toUpperCase();
@@ -727,13 +742,13 @@ ${transactionsOfx}
                     const splitDesc = s.description ? `${desc} - ${s.description.toUpperCase()}` : desc;
                     const splitType = s.contributionType;
                     const splitAmount = Number(s.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-                    return [date, splitDesc, church, `${splitType} (RATEADO)`, status, splitAmount];
+                    return [dateStr, splitDesc, church, `${splitType} (RATEADO)`, status, splitAmount];
                 });
             } else {
                 const type = r.contributor?.contributionType || r.transaction.contributionType || "---";
                 const rawAmount = isGhost ? (r.contributorAmount || r.contributor?.amount || 0) : r.transaction.amount;
                 const amount = Number(rawAmount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-                return [[date, desc, church, type, status, amount]];
+                return [[dateStr, desc, church, type, status, amount]];
             }
         });
 
@@ -1119,9 +1134,12 @@ ${itemsOfx}
         const excelRows = transactions.map(tx => {
             const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
             const amount = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
+            const dateStr = tx.date || '---';
+            const bankDateStr = tx.bank_date || tx.bankDate || tx.date || '---';
 
             return {
-                "Data": tx.date || '---',
+                "Data": dateStr,
+                "Data do Banco": bankDateStr,
                 "Descrição / Histórico": (tx.desc || tx.description || tx.historico || 'Lançamento').toUpperCase(),
                 "Contribuinte / Favorecido": tx.payer || tx.contribuinte || tx.nome || '---',
                 "Categoria": tx.category || tx.categoria || 'Geral',
@@ -1405,6 +1423,11 @@ ${itemsOfx}
             const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
             const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
             const dateStr = tx.date || '---';
+            const bankDateStr = tx.bank_date || tx.bankDate;
+            const hasRefDiff = bankDateStr && tx.reference_date && tx.reference_date !== bankDateStr;
+            const displayDateHtml = hasRefDiff
+                ? `<div><strong>${dateStr}</strong><br/><span style="font-size: 8px; color: #64748b;">(Banco: ${bankDateStr})</span></div>`
+                : dateStr;
             const desc = (tx.desc || tx.description || tx.historico || 'Lançamento').toUpperCase();
             const payer = tx.payer || tx.contribuinte || tx.nome || '---';
             const cat = tx.category || tx.categoria || 'Geral';
@@ -1415,7 +1438,7 @@ ${itemsOfx}
 
             return `
                 <tr>
-                    <td style="padding: 6px 8px; font-family: monospace;">${dateStr}</td>
+                    <td style="padding: 6px 8px; font-family: monospace;">${displayDateHtml}</td>
                     <td style="padding: 6px 8px; font-weight: 500;">${desc}</td>
                     <td style="padding: 6px 8px;">${payer}</td>
                     <td style="padding: 6px 8px;">${cat}</td>
@@ -1728,8 +1751,10 @@ ${ofxTrns}
             const detailRows = rawTransactions.map(tx => {
                 const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
                 const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
+                const bankDateStr = tx.bank_date || tx.bankDate || tx.date || '---';
                 return {
                     "Data": tx.date || '---',
+                    "Data do Banco": bankDateStr,
                     "Descrição / Histórico": (tx.desc || tx.description || tx.historico || 'Lançamento').toUpperCase(),
                     "Contribuinte / Favorecido": tx.payer || tx.contribuinte || tx.nome || '---',
                     "Categoria": tx.category || tx.categoria || 'Geral',
@@ -1953,14 +1978,15 @@ ${ofxTrns}
             });
             lines.push(`"3.0.00";"RESULTADO LIQUIDO";"SALDO";"${totals.income.toFixed(2).replace('.', ',')}";"${totals.expenses.toFixed(2).replace('.', ',')}";"${totals.balance.toFixed(2).replace('.', ',')}"`);
         } else if (balanceteType === 'analitico') {
-            lines.push("DATA;HISTORICO;CONTRIBUINTE/FAVORECIDO;CATEGORIA;TIPO;VALOR (R$)");
+            lines.push("DATA;DATA_BANCO;HISTORICO;CONTRIBUINTE/FAVORECIDO;CATEGORIA;TIPO;VALOR (R$)");
             rawTransactions.forEach(tx => {
                 const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
                 const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
                 const desc = (tx.desc || tx.description || tx.historico || 'Lançamento').replace(/;/g, ' ');
                 const payer = (tx.payer || tx.contribuinte || tx.nome || '---').replace(/;/g, ' ');
                 const cat = (tx.category || tx.categoria || 'Geral').replace(/;/g, ' ');
-                lines.push(`"${tx.date || '---'}";"${desc}";"${payer}";"${cat}";"${isExpense ? 'Saída' : 'Entrada'}";"${(isExpense ? -amt : amt).toFixed(2).replace('.', ',')}"`);
+                const bankDateStr = tx.bank_date || tx.bankDate || tx.date || '---';
+                lines.push(`"${tx.date || '---'}";"${bankDateStr}";"${desc}";"${payer}";"${cat}";"${isExpense ? 'Saída' : 'Entrada'}";"${(isExpense ? -amt : amt).toFixed(2).replace('.', ',')}"`);
             });
         } else {
             lines.push("INDICADOR;VALOR (R$)");

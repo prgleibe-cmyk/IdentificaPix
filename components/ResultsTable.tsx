@@ -154,7 +154,10 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                                               transaction.type?.toLowerCase() === 'saida' || 
                                               contributionType?.toLowerCase() === 'saída' || 
                                               contributionType?.toLowerCase() === 'saida';
-                            const displayDate = formatDate(transaction.date);
+                            const refDate = contributor?.reference_date || transaction.reference_date;
+                            const hasRefDate = refDate && refDate !== transaction.date;
+                            const displayDate = formatDate(refDate || transaction.date);
+                            const originalBankDate = formatDate(transaction.date);
                             
                             const bankDescription = transaction.description;
                             const statusStr = String(status);
@@ -175,7 +178,21 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                                     <td className="px-4 py-2.5 text-center">
                                         <input type="checkbox" className="w-4 h-4 rounded-full" checked={isSelected} onChange={() => toggleSelection(transaction.id)} />
                                     </td>
-                                    <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">{displayDate}</td>
+                                    <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
+                                        {hasRefDate ? (
+                                            <div className="flex flex-col leading-tight">
+                                                <span className="font-bold text-slate-800 dark:text-white" title={`Data de Referência (Competência): ${displayDate}`}>
+                                                    {displayDate}
+                                                </span>
+                                                <span className="text-[9.5px] text-slate-400 dark:text-slate-500 font-normal mt-0.5" title={`Data no Banco: ${originalBankDate}`}>
+                                                    <span className="text-[8.5px] uppercase font-semibold text-slate-400 mr-0.5">Banco:</span>
+                                                    {originalBankDate}
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <span>{displayDate}</span>
+                                        )}
+                                    </td>
                                     <td className="px-1.5 py-2.5 text-center shrink-0">
                                         {isWhatsAppSent(transaction.id) ? (
                                             <button
@@ -188,7 +205,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                                                         amount: displayAmount,
                                                         contributionType: contributionType || 'Contribuição',
                                                         churchName: church?.name,
-                                                        date: transaction.date,
+                                                        date: refDate || transaction.date,
                                                         transactionId: transaction.id
                                                     }, { contributors, churches, showToast });
                                                 }}
@@ -208,7 +225,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                                                         amount: displayAmount,
                                                         contributionType: contributionType || 'Contribuição',
                                                         churchName: church?.name,
-                                                        date: transaction.date,
+                                                        date: refDate || transaction.date,
                                                         transactionId: transaction.id
                                                     }, { contributors, churches, showToast });
                                                 }}

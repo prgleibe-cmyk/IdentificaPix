@@ -148,7 +148,7 @@ export const consolidationService = {
         }
     },
 
-    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string | null, bankId?: string, contributorId?: string | null, isConfirmed?: boolean, type?: string, pix_key?: string, contribution_type?: string, payment_method?: string) => {
+    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string | null, bankId?: string, contributorId?: string | null, isConfirmed?: boolean, type?: string, pix_key?: string, contribution_type?: string, payment_method?: string, referenceDate?: string | null) => {
         try {
             const session = await getAuthSession();
             const currentUserId = session?.user?.id;
@@ -170,6 +170,7 @@ export const consolidationService = {
             if (pix_key !== undefined) updateData.pix_key = pix_key;
             if (contribution_type !== undefined) updateData.contribution_type = contribution_type;
             if (payment_method !== undefined) updateData.payment_method = payment_method;
+            if (referenceDate !== undefined) updateData.reference_date = referenceDate;
 
             console.log('[ID:WRITE]', {
               userId: currentUserId,

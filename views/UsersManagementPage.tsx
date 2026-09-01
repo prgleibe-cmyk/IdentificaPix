@@ -340,16 +340,16 @@ export const UsersManagementPage: React.FC = () => {
                     <div className="w-10 h-10 border-4 border-brand-blue/30 border-t-brand-blue rounded-full animate-spin" />
                 </div>
             ) : filteredUsers.length > 0 ? (
-                <div className="flex-1 overflow-hidden bg-white dark:bg-slate-800/50 rounded-[2.5rem] border border-slate-100 dark:border-slate-700/50 shadow-sm flex flex-col">
+                <div className="flex-1 overflow-hidden bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700/50 shadow-xs flex flex-col">
                     <div className="overflow-x-auto custom-scrollbar">
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="border-b border-slate-100 dark:border-slate-700/50">
-                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Usuário</th>
-                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Congregações</th>
-                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Bancos</th>
-                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Permissões</th>
-                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Ações</th>
+                                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Usuário</th>
+                                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Congregações</th>
+                                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Bancos</th>
+                                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Permissões</th>
+                                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right">Ações</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50 dark:divide-slate-700/30">
@@ -360,18 +360,18 @@ export const UsersManagementPage: React.FC = () => {
 
                                     return (
                                         <tr key={user.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors group">
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 font-bold uppercase">
+                                            <td className="px-4 py-2.5">
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-bold uppercase shrink-0">
                                                         {user.name?.substring(0, 2) || user.email?.substring(0, 2)}
                                                     </div>
                                                     <div>
-                                                        <div className="text-sm font-bold text-slate-900 dark:text-white">{user.name || 'Sem nome'}</div>
-                                                        <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">{user.email}</div>
+                                                        <div className="text-xs font-bold text-slate-800 dark:text-white leading-snug">{user.name || 'Sem nome'}</div>
+                                                        <div className="text-[11px] text-slate-400 dark:text-slate-500 font-medium leading-none mt-0.5">{user.email}</div>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-4 py-2.5">
                                                 <div className="flex flex-wrap gap-1 max-w-[200px]">
                                                     {(() => {
                                                         const perms = user.permissions || {};
@@ -388,12 +388,12 @@ export const UsersManagementPage: React.FC = () => {
                                                             ids = [congregationRaw];
                                                         }
                                                         
-                                                        if (ids.length === 0) return <span className="text-xs text-slate-400">Nenhuma</span>;
+                                                        if (ids.length === 0) return <span className="text-[11px] text-slate-400">Nenhuma</span>;
                                                         
                                                         return ids.map((id: string) => {
                                                             const church = churches.find(c => c.id === id);
                                                             return (
-                                                                <span key={id} className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-bold rounded-md whitespace-nowrap">
+                                                                <span key={id} className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[9.5px] font-bold rounded-md whitespace-nowrap">
                                                                     {church?.name || 'Desconhecida'}
                                                                 </span>
                                                             );
@@ -401,18 +401,18 @@ export const UsersManagementPage: React.FC = () => {
                                                     })()}
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-4 py-2.5">
                                                 <div className="flex flex-wrap gap-1 max-w-[200px]">
                                                     {(() => {
                                                         const perms = user.permissions || {};
                                                         const bankIds = perms.bankIds || [];
                                                         
-                                                        if (bankIds.length === 0) return <span className="text-xs text-slate-400">Nenhum</span>;
+                                                        if (bankIds.length === 0) return <span className="text-[11px] text-slate-400">Nenhum</span>;
                                                         
                                                         return bankIds.map((id: string) => {
                                                             const bank = banks.find(b => b.id === id);
                                                             return (
-                                                                <span key={id} className="px-2 py-0.5 bg-orange-50 dark:bg-orange-950/20 text-orange-600 dark:text-orange-400 text-[10px] font-bold rounded-md whitespace-nowrap">
+                                                                <span key={id} className="px-2 py-0.5 bg-orange-50 dark:bg-orange-950/20 text-orange-600 dark:text-orange-400 text-[9.5px] font-bold rounded-md whitespace-nowrap">
                                                                     {bank?.name || 'Desconhecido'}
                                                                 </span>
                                                             );
@@ -420,28 +420,28 @@ export const UsersManagementPage: React.FC = () => {
                                                     })()}
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-4 py-2.5">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="px-2 py-0.5 bg-brand-blue/10 text-brand-blue text-[10px] font-bold rounded-full">
+                                                    <span className="px-2 py-0.5 bg-brand-blue/10 text-brand-blue text-[9.5px] font-bold rounded-full">
                                                         {activePermsCount} Permissões
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4 text-right">
-                                                <div className="flex items-center justify-end gap-2">
+                                            <td className="px-4 py-2.5 text-right">
+                                                <div className="flex items-center justify-end gap-1">
                                                     <button 
-                                                        className="p-2 text-slate-400 hover:text-brand-blue hover:bg-brand-blue/10 rounded-xl transition-all"
+                                                        className="p-1.5 text-slate-400 hover:text-brand-blue hover:bg-brand-blue/10 rounded-lg transition-all cursor-pointer"
                                                         title="Editar Usuário"
                                                         onClick={() => handleEditClick(user)}
                                                     >
-                                                        <PencilIcon className="w-5 h-5" />
+                                                        <PencilIcon className="w-4 h-4" />
                                                     </button>
                                                     <button 
-                                                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-all"
+                                                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-all cursor-pointer"
                                                         title="Excluir Usuário"
                                                         onClick={() => handleDeleteUser(user.id)}
                                                     >
-                                                        <TrashIcon className="w-5 h-5" />
+                                                        <TrashIcon className="w-4 h-4" />
                                                     </button>
                                                 </div>
                                             </td>

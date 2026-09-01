@@ -967,7 +967,19 @@ export const LivroCaixaView: React.FC = memo(() => {
                                         return (
                                             <tr key={tx.id || idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
                                                 <td className="px-4 py-2.5 whitespace-nowrap font-mono text-slate-600 dark:text-slate-400">
-                                                    {formatDateBRL(tx.date)}
+                                                    {tx.reference_date && tx.bank_date && tx.reference_date !== tx.bank_date ? (
+                                                        <div className="flex flex-col leading-tight">
+                                                            <span className="font-bold text-slate-800 dark:text-slate-100" title={`Data de Referência (Competência): ${formatDateBRL(tx.date)}`}>
+                                                                {formatDateBRL(tx.date)}
+                                                            </span>
+                                                            <span className="text-[9.5px] text-slate-400 dark:text-slate-500 font-normal mt-0.5" title={`Data no Banco: ${formatDateBRL(tx.bank_date)}`}>
+                                                                <span className="text-[8.5px] uppercase font-semibold text-slate-400 mr-0.5">Banco:</span>
+                                                                {formatDateBRL(tx.bank_date)}
+                                                            </span>
+                                                        </div>
+                                                    ) : (
+                                                        <span>{formatDateBRL(tx.date)}</span>
+                                                    )}
                                                 </td>
                                                 <td className="px-4 py-2.5">
                                                     <div className="font-bold text-slate-800 dark:text-slate-100 uppercase flex items-center gap-1.5">

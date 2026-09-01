@@ -356,6 +356,7 @@ export const useReconciliationActions = ({
 
         if (!id.includes('ghost') && !id.startsWith('sim')) {
           const itemType = (original.transaction.amount >= 0) ? 'income' : 'expense';
+          const finalRefDate = selectedDate || original.reference_date || original.transaction.reference_date || undefined;
           await consolidationService.updateTransactionStatus(
             id, 
             'identified', 
@@ -366,7 +367,8 @@ export const useReconciliationActions = ({
             itemType,
             undefined,
             contributionType,
-            paymentMethod
+            paymentMethod,
+            finalRefDate
           );
         }
         affectedCount++;
@@ -382,7 +384,8 @@ export const useReconciliationActions = ({
 
           const contributor = {
             ...buildSafeContributor(r, contributionType, paymentMethod),
-            ...(matchingContributorId ? { id: matchingContributorId } : {})
+            ...(matchingContributorId ? { id: matchingContributorId } : {}),
+            reference_date: selectedDate || r.reference_date || r.transaction.reference_date || null
           };
 
           let registeredName = '';
@@ -408,6 +411,8 @@ export const useReconciliationActions = ({
             contributor.cleanedName = registeredName;
           }
 
+          const finalRefDate = selectedDate || r.reference_date || r.transaction.reference_date || null;
+
           const updated: MatchResult = {
             ...r,
             status: ReconciliationStatus.IDENTIFIED,
@@ -420,8 +425,10 @@ export const useReconciliationActions = ({
             contributorAmount: contributor.amount,
             contributionType: contributor.contributionType, // Proteção contra sobrescrita
             paymentMethod: contributor.paymentMethod,       // Proteção contra sobrescrita
+            reference_date: finalRefDate,
             transaction: { 
               ...r.transaction,
+              reference_date: finalRefDate,
               isConfirmed: false 
             },
             updatedAt: new Date().toISOString()

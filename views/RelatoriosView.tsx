@@ -1559,7 +1559,21 @@ export const RelatoriosView: React.FC = memo(() => {
 
                                                         return (
                                                             <tr key={idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
-                                                                <td className="py-2 px-3 font-mono text-slate-500 text-[11px] whitespace-nowrap">{tx.date || '---'}</td>
+                                                                <td className="py-2 px-3 font-mono text-slate-500 text-[11px] whitespace-nowrap">
+                                                                    {tx.reference_date && tx.bank_date && tx.reference_date !== tx.bank_date ? (
+                                                                        <div className="flex flex-col leading-tight">
+                                                                            <span className="font-bold text-slate-800 dark:text-white" title={`Data de Referência (Competência): ${formatDateBRL(tx.date)}`}>
+                                                                                {formatDateBRL(tx.date)}
+                                                                            </span>
+                                                                            <span className="text-[9.5px] text-slate-400 dark:text-slate-500 font-normal mt-0.5" title={`Data no Banco: ${formatDateBRL(tx.bank_date)}`}>
+                                                                                <span className="text-[8.5px] uppercase font-semibold text-slate-400 mr-0.5">Banco:</span>
+                                                                                {formatDateBRL(tx.bank_date)}
+                                                                            </span>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <span>{tx.date ? formatDateBRL(tx.date) : '---'}</span>
+                                                                    )}
+                                                                </td>
                                                                 <td className="py-2 px-3 font-bold text-slate-800 dark:text-white uppercase">{tx.desc || tx.description || tx.historico || 'Lançamento'}</td>
                                                                 <td className="py-2 px-3 text-slate-600 dark:text-slate-300">{tx.payer || tx.contribuinte || tx.nome || '---'}</td>
                                                                 <td className="py-2 px-3 text-slate-500">{tx.category || tx.categoria || 'Geral'}</td>

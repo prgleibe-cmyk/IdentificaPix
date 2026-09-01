@@ -107,7 +107,10 @@ const MobileCard = memo(({
                       row.transaction?.type?.toLowerCase() === 'saida' || 
                       row.contributionType?.toLowerCase() === 'saída' || 
                       row.contributionType?.toLowerCase() === 'saida';
-    const displayDate = formatDate(row.transaction.date);
+    const refDate = row.contributor?.reference_date || row.reference_date || row.transaction.reference_date;
+    const hasRefDate = refDate && refDate !== row.transaction.date;
+    const displayDate = formatDate(refDate || row.transaction.date);
+    const originalBankDate = formatDate(row.transaction.date);
 
     const displayName = getResolvedDisplayName(row) || '---';
     const rawBankDesc = row.transaction?.rawDescription || row.transaction?.cleanedDescription || row.transaction?.description || '';
@@ -148,7 +151,18 @@ const MobileCard = memo(({
                     />
                     <div className="flex flex-col">
                         <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{displayDate}</span>
+                            {hasRefDate ? (
+                                <div className="flex items-baseline gap-1.5 font-mono">
+                                    <span className="text-[10px] font-bold text-slate-800 dark:text-white uppercase tracking-wider" title={`Data de Referência (Competência): ${displayDate}`}>
+                                        {displayDate}
+                                    </span>
+                                    <span className="text-[9px] font-normal text-slate-400 dark:text-slate-500" title={`Data no Banco: ${originalBankDate}`}>
+                                        (Banco: {originalBankDate})
+                                    </span>
+                                </div>
+                            ) : (
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{displayDate}</span>
+                            )}
                             <span className={`px-1.5 py-0.2 rounded text-[8px] font-bold uppercase border ${
                                 sourceInfo.isManual
                                     ? 'bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border-amber-300/80 dark:border-amber-700/60'
@@ -261,7 +275,7 @@ const MobileCard = memo(({
                                         amount: displayAmount,
                                         contributionType: displayType,
                                         churchName: row.church?.name,
-                                        date: row.transaction.date,
+                                        date: refDate || row.transaction.date,
                                         transactionId: row.transaction.id
                                     });
                                 }
@@ -351,7 +365,10 @@ const IncomeRow = memo(({
                       row.transaction?.type?.toLowerCase() === 'saida' || 
                       row.contributionType?.toLowerCase() === 'saída' || 
                       row.contributionType?.toLowerCase() === 'saida';
-    const displayDate = formatDate(row.transaction.date);
+    const refDate = row.contributor?.reference_date || row.reference_date || row.transaction.reference_date;
+    const hasRefDate = refDate && refDate !== row.transaction.date;
+    const displayDate = formatDate(refDate || row.transaction.date);
+    const originalBankDate = formatDate(row.transaction.date);
     
     const displayName = getResolvedDisplayName(row) || '---';
     const rawBankDesc = row.transaction?.rawDescription || row.transaction?.cleanedDescription || row.transaction?.description || '';
@@ -393,7 +410,21 @@ const IncomeRow = memo(({
                     className="w-4 h-4 rounded-full border-slate-300 text-brand-blue cursor-pointer accent-blue-600"
                 />
             </td>
-            <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">{displayDate}</td>
+            <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
+                {hasRefDate ? (
+                    <div className="flex flex-col leading-tight">
+                        <span className="font-bold text-slate-800 dark:text-white" title={`Data de Referência (Competência): ${displayDate}`}>
+                            {displayDate}
+                        </span>
+                        <span className="text-[9.5px] text-slate-400 dark:text-slate-500 font-normal mt-0.5" title={`Data no Banco: ${originalBankDate}`}>
+                            <span className="text-[8.5px] uppercase font-semibold text-slate-400 mr-0.5">Banco:</span>
+                            {originalBankDate}
+                        </span>
+                    </div>
+                ) : (
+                    <span>{displayDate}</span>
+                )}
+            </td>
             <td className="px-1.5 py-2.5 text-center shrink-0">
                 {waSent ? (
                     <button
@@ -406,7 +437,7 @@ const IncomeRow = memo(({
                                 amount: displayAmount,
                                 contributionType: displayType,
                                 churchName: row.church?.name,
-                                date: row.transaction.date,
+                                date: refDate || row.transaction.date,
                                 transactionId: row.transaction.id
                             }, { contributors, churches, showToast });
                         }}
@@ -426,7 +457,7 @@ const IncomeRow = memo(({
                                 amount: displayAmount,
                                 contributionType: displayType,
                                 churchName: row.church?.name,
-                                date: row.transaction.date,
+                                date: refDate || row.transaction.date,
                                 transactionId: row.transaction.id
                             }, { contributors, churches, showToast });
                         }}
