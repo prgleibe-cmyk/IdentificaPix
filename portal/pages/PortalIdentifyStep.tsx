@@ -272,17 +272,6 @@ export const PortalIdentifyStep: React.FC<PortalIdentifyStepProps> = ({
                     </div>
                 </div>
             </div>
-
-            {/* Edit / Complete Profile Modal */}
-            <PortalEditProfileModal
-                isOpen={isEditModalOpen}
-                onClose={() => setIsEditModalOpen(false)}
-                contributor={contributor}
-                church={church}
-                onProfileUpdated={(updated) => {
-                    onUpdateContributor(updated);
-                }}
-            />
         </div>
     );
 

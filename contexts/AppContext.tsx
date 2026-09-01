@@ -327,9 +327,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             return;
         }
 
-        // Se o tamanho é igual, checamos diferenças de conteúdo (Tipo, Forma, Status, Confirmação)
-        const cloudSample = cloudResults.slice(0, 500).map((r: any) => `${r.status}-${r.isConfirmed}-${r.contributionType || ''}-${r.paymentMethod || ''}-${r.church?.id || r._churchId}`).join('|');
-        const localSample = localResults.slice(0, 500).map((r: any) => `${r.status}-${r.isConfirmed}-${r.contributionType || ''}-${r.paymentMethod || ''}-${r.church?.id || r._churchId}`).join('|');
+        // Se o tamanho é igual, checamos diferenças de conteúdo (Tipo, Forma, Status, Confirmação, Splits)
+        const cloudSample = cloudResults.slice(0, 500).map((r: any) => `${r.status}-${r.isConfirmed}-${r.contributionType || ''}-${r.paymentMethod || ''}-${r.church?.id || r._churchId}-${r.splits ? JSON.stringify(r.splits) : ''}`).join('|');
+        const localSample = localResults.slice(0, 500).map((r: any) => `${r.status}-${r.isConfirmed}-${r.contributionType || ''}-${r.paymentMethod || ''}-${r.church?.id || r._churchId}-${r.splits ? JSON.stringify(r.splits) : ''}`).join('|');
 
         if (cloudSample !== localSample && localTotal > 0) {
             console.log("[AppContext] Aplicando sincronização passiva de banco.");

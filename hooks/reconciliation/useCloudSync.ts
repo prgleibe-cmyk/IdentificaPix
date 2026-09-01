@@ -404,6 +404,7 @@ export const useCloudSync = ({
                         similarity: 100,
                         contributionType: savedContribType,
                         paymentMethod: savedPaymentMethod,
+                        splits: (Array.isArray(t.splits) && t.splits.length > 0) ? t.splits : undefined,
                         updatedAt: t.updated_at
                     };
 
@@ -431,6 +432,7 @@ export const useCloudSync = ({
                             },
                             contributionType: r.contributionType || saved.contributionType,
                             paymentMethod: r.paymentMethod || saved.paymentMethod,
+                            splits: (Array.isArray(r.splits) && r.splits.length > 0) ? r.splits : (Array.isArray(saved.splits) && saved.splits.length > 0 ? saved.splits : undefined),
                             updatedAt: r.updatedAt || saved.updatedAt
                         });
                     } else {

@@ -118,6 +118,7 @@ export const useReconciliation = (props: any) => {
             status: row.status || 'identified',
             contributionType: row.contributionType || null,
             paymentMethod: row.paymentMethod || null,
+            splits: row.splits || null,
             isConfirmed: !!row.isConfirmed,
             contributor: row.contributor || null,
             church: row.church || PLACEHOLDER_CHURCH

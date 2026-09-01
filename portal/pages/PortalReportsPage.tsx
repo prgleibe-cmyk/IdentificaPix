@@ -70,19 +70,27 @@ export const PortalReportsPage: React.FC<PortalReportsPageProps> = ({ church, on
     const [receiptRecord, setReceiptRecord] = useState<ContributionRecord | null>(null);
     const [isEditProfileOpen, setIsEditProfileOpen] = useState<boolean>(false);
 
-    // Load stored contributor from localStorage
+    // Load stored contributor from localStorage & keep synchronized
     useEffect(() => {
-        try {
-            const raw = localStorage.getItem('iggestor_portal_contributor');
-            if (raw) {
-                const parsed = JSON.parse(raw);
-                if (parsed && (parsed.id || parsed.name || parsed.cpf)) {
-                    setContributor(parsed);
+        const syncContributorFromStorage = () => {
+            try {
+                const raw = localStorage.getItem('iggestor_portal_contributor');
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (parsed && (parsed.id || parsed.name || parsed.cpf)) {
+                        setContributor(parsed);
+                    }
                 }
+            } catch (err) {
+                console.error('[PortalReportsPage] Erro ao carregar perfil do contribuinte:', err);
             }
-        } catch (err) {
-            console.error('[PortalReportsPage] Erro ao carregar perfil do contribuinte:', err);
-        }
+        };
+
+        syncContributorFromStorage();
+        window.addEventListener('storage', syncContributorFromStorage);
+        return () => {
+            window.removeEventListener('storage', syncContributorFromStorage);
+        };
     }, []);
 
     const handleConfirmPeriodicProfile = async () => {

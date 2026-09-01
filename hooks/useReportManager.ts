@@ -248,10 +248,10 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             r: (results || []).length, 
             s: !!spreadsheetData,
             // Fingerprint mais robusto para detectar mudanças em qualquer lugar da lista
-            // Incluindo Tipo e Forma para garantir persistência multiusuário
+            // Incluindo Tipo, Forma e Rateios (splits) para garantir persistência multiusuário
             f: (results || []).length > 100 
-                ? `${(results || []).filter(r => r.isConfirmed).length}-${(results || []).filter(r => r.status === 'IDENTIFICADO').length}-${(results || []).reduce((acc, r) => acc + (r.contributionType?.length || 0) + (r.paymentMethod?.length || 0), 0)}`
-                : (results || []).map(r => `${r.status}-${r.isConfirmed}-${r.contributionType}-${r.paymentMethod}`).join('|')
+                ? `${(results || []).filter(r => r.isConfirmed).length}-${(results || []).filter(r => r.status === 'IDENTIFICADO').length}-${(results || []).reduce((acc, r) => acc + (r.contributionType?.length || 0) + (r.paymentMethod?.length || 0) + (r.splits ? JSON.stringify(r.splits).length : 0), 0)}`
+                : (results || []).map(r => `${r.status}-${r.isConfirmed}-${r.contributionType}-${r.paymentMethod}-${r.splits ? JSON.stringify(r.splits) : ''}`).join('|')
         });
         if (lastSavedPayloadRef.current === currentPayload + reportId) return;
         lastSavedPayloadRef.current = currentPayload + reportId;

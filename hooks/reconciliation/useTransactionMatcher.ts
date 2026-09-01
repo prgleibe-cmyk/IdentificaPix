@@ -26,6 +26,7 @@ interface UseTransactionMatcherProps {
     activeReportId: string | null;
     overwriteSavedReport: (reportId: string, results: MatchResult[]) => Promise<void>;
     triggerSync?: (updatedRow: MatchResult) => void;
+    savedReports?: any[];
 }
 
 export const useTransactionMatcher = ({
@@ -50,7 +51,8 @@ export const useTransactionMatcher = ({
     setBulkIdentificationTxs,
     activeReportId,
     overwriteSavedReport,
-    triggerSync
+    triggerSync,
+    savedReports
 }: UseTransactionMatcherProps) => {
 
     const syncDebounceRef = useRef<any>(null);
@@ -484,18 +486,41 @@ export const useTransactionMatcher = ({
             triggerSync(updatedRow);
         }
 
-        // 🛡️ PERSISTÊNCIA EXPLÍCITA (AJUSTE CIRÚRGICO)
-        if (!activeReportId) {
-            console.error('SEM REPORT_ID — NÃO É POSSÍVEL PERSISTIR');
-            return;
+        // 🛡️ PERSISTÊNCIA DIRETA NA TABELA DE TRANSAÇÕES CONSOLIDADAS (SALVAMENTO EM NUVEM MULTI-DISPOSITIVO)
+        if (updatedRow.transaction?.id && !updatedRow.transaction.id.startsWith('temp-') && !updatedRow.transaction.id.startsWith('ghost-')) {
+            try {
+                const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+                const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = `Bearer ${token}`;
+
+                await fetch(`/api/v1/consolidated_transactions/${updatedRow.transaction.id}`, {
+                    method: 'PUT',
+                    headers,
+                    body: JSON.stringify({
+                        church_id: updatedRow.church?.id && updatedRow.church.id !== 'unidentified' ? updatedRow.church.id : null,
+                        contributor_id: updatedRow.contributor?.id || null,
+                        contribution_type: updatedRow.contributionType || null,
+                        payment_method: updatedRow.paymentMethod || null,
+                        splits: updatedRow.splits && updatedRow.splits.length > 0 ? updatedRow.splits : null,
+                        status: updatedRow.status || 'identified',
+                        is_confirmed: updatedRow.isConfirmed
+                    })
+                });
+            } catch (err) {
+                console.error('[updateReportData] Erro ao persistir consolidated_transaction:', err);
+            }
         }
 
-        try {
-            await overwriteSavedReport(activeReportId, nextResults);
-        } catch (error) {
-            console.error("[updateReportData] Erro ao persistir:", error);
+        // 🛡️ PERSISTÊNCIA EM RELATÓRIOS SALVOS (SESSÃO ATIVA OU RELATÓRIO ABERTO)
+        const targetReportId = activeReportId || (savedReports || []).find((r: any) => r.name === '[SESSÃO_ATIVA]')?.id;
+        if (targetReportId) {
+            try {
+                await overwriteSavedReport(targetReportId, nextResults);
+            } catch (error) {
+                console.error("[updateReportData] Erro ao persistir saved report:", error);
+            }
         }
-    }, [setMatchResults, activeReportId, overwriteSavedReport]);
+    }, [setMatchResults, activeReportId, savedReports, overwriteSavedReport, triggerSync]);
 
     const revertMatch = useCallback((txId: string) => {
         batchState.isAtomicUpdate = true;

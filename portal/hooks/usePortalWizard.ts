@@ -538,10 +538,18 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
     }, []);
 
     const updateContributor = useCallback((updates: Partial<ContributorMockProfile>) => {
-        setWizardState(prev => ({
-            ...prev,
-            contributor: { ...prev.contributor, ...updates }
-        }));
+        setWizardState(prev => {
+            const merged = { ...prev.contributor, ...updates };
+            try {
+                localStorage.setItem('iggestor_portal_contributor', JSON.stringify(merged));
+                window.dispatchEvent(new Event('storage'));
+            } catch (_) {}
+            return {
+                ...prev,
+                contributor: merged,
+                mockSearchFound: Boolean(merged.name || merged.canonical_name || prev.mockSearchFound)
+            };
+        });
     }, []);
 
     const toggleItemSelection = useCallback((itemId: string) => {

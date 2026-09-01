@@ -408,6 +408,7 @@ async function initializeDatabase() {
     await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS payment_method VARCHAR(255);');
     await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS contribution_type VARCHAR(255);');
     await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS contribution_request_id UUID;');
+    await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS splits JSONB;');
     await client.query('CREATE INDEX IF NOT EXISTS idx_consolidated_tx_contrib_req ON consolidated_transactions(church_id, contribution_request_id);');
     await client.query('CREATE INDEX IF NOT EXISTS idx_consolidated_tx_church_user ON consolidated_transactions(church_id, user_id);');
     await client.query('CREATE INDEX IF NOT EXISTS idx_consolidated_tx_date ON consolidated_transactions(transaction_date);');
@@ -1419,13 +1420,25 @@ app.post('/api/v1/contributors/update-profile', async (req: Request, res: Respon
 
     const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
     
-    let targetId = id;
-    if (!targetId || !uuidRegex.test(targetId)) {
-      // If no ID provided, try finding by CPF
+    let targetId: string | null = null;
+
+    // 1. Check by UUID if provided
+    if (id && uuidRegex.test(id)) {
+      const checkRes = await pool.query("SELECT id FROM contributors WHERE id = $1", [id]);
+      if (checkRes.rows.length > 0) {
+        targetId = checkRes.rows[0].id;
+      }
+    }
+
+    // 2. If not found by ID, try finding by CPF
+    if (!targetId) {
       const cleanCpf = cpf ? String(cpf).replace(/\D/g, '') : null;
       if (cleanCpf) {
         const findRes = await pool.query(
-          "SELECT id FROM contributors WHERE status = 'active' AND (cpf = $1 OR REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), '/', '') = $1) LIMIT 1",
+          `SELECT id FROM contributors 
+           WHERE (status ILIKE 'ativ%' OR status = 'active' OR status = 'Ativo' OR status IS NULL) 
+             AND (cpf = $1 OR REGEXP_REPLACE(COALESCE(cpf, ''), '\\D', '', 'g') = $1 OR REPLACE(REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), '/', ''), ' ', '') = $1) 
+           LIMIT 1`,
           [cleanCpf]
         );
         if (findRes.rows.length > 0) {
@@ -1434,78 +1447,159 @@ app.post('/api/v1/contributors/update-profile', async (req: Request, res: Respon
       }
     }
 
+    // 3. If not found by CPF, try finding by Phone / WhatsApp
     if (!targetId) {
-      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'ID ou CPF do contribuinte não localizado.' });
-    }
-
-    const updates: string[] = ['updated_at = NOW()'];
-    const params: any[] = [targetId];
-    let counter = 2;
-
-    const addField = (fieldName: string, val: any) => {
-      if (val !== undefined) {
-        updates.push(`${fieldName} = $${counter}`);
-        params.push(val);
-        counter++;
-      }
-    };
-
-    if (canonical_name !== undefined || name !== undefined) {
-      const chosenName = canonical_name || name;
-      if (typeof chosenName === 'string' && chosenName.trim()) {
-        addField('canonical_name', chosenName.trim().replace(/\s+/g, ' ').toUpperCase());
-        addField('name', chosenName.trim());
+      const rawPhone = phone || whatsapp;
+      const cleanPhone = rawPhone ? String(rawPhone).replace(/\D/g, '') : null;
+      if (cleanPhone && cleanPhone.length >= 8) {
+        const findPhoneRes = await pool.query(
+          `SELECT id FROM contributors 
+           WHERE (status ILIKE 'ativ%' OR status = 'active' OR status = 'Ativo' OR status IS NULL) 
+             AND (
+               phone = $1 OR whatsapp = $1 
+               OR REGEXP_REPLACE(COALESCE(phone, ''), '\\D', '', 'g') = $1 
+               OR REGEXP_REPLACE(COALESCE(whatsapp, ''), '\\D', '', 'g') = $1
+             ) 
+           LIMIT 1`,
+          [cleanPhone]
+        );
+        if (findPhoneRes.rows.length > 0) {
+          targetId = findPhoneRes.rows[0].id;
+        }
       }
     }
 
-    if (cpf !== undefined) {
-      const cleanCpf = cpf ? String(cpf).replace(/\D/g, '') : null;
-      addField('cpf', cleanCpf);
+    // 4. If not found by phone, try finding by Email
+    if (!targetId && email && typeof email === 'string' && email.trim()) {
+      const cleanEmail = email.trim().toLowerCase();
+      const findEmailRes = await pool.query(
+        `SELECT id FROM contributors 
+         WHERE (status ILIKE 'ativ%' OR status = 'active' OR status = 'Ativo' OR status IS NULL) 
+           AND LOWER(TRIM(COALESCE(email, ''))) = $1 
+         LIMIT 1`,
+        [cleanEmail]
+      );
+      if (findEmailRes.rows.length > 0) {
+        targetId = findEmailRes.rows[0].id;
+      }
     }
 
-    if (email !== undefined) {
-      addField('email', email && typeof email === 'string' ? email.trim() : null);
+    const cleanChosenName = (name || canonical_name || '').trim();
+    const cleanCanonical = cleanChosenName ? cleanChosenName.replace(/\s+/g, ' ').toUpperCase() : 'CONTRIBUINTE';
+    const cleanCpfDigits = cpf ? String(cpf).replace(/\D/g, '') : null;
+    const cleanPhoneDigits = (phone || whatsapp) ? String(phone || whatsapp).replace(/\D/g, '') : null;
+    const cleanPhoto = photo_url !== undefined ? photo_url : photo;
+    const cleanChurchId = church_id && uuidRegex.test(church_id) ? church_id : '00000000-0000-0000-0000-000000000001';
+
+    // 5. If existing record found, perform UPDATE
+    if (targetId) {
+      const updates: string[] = ['updated_at = NOW()'];
+      const params: any[] = [targetId];
+      let counter = 2;
+
+      const addField = (fieldName: string, val: any) => {
+        if (val !== undefined) {
+          updates.push(`${fieldName} = $${counter}`);
+          params.push(val);
+          counter++;
+        }
+      };
+
+      if (cleanChosenName) {
+        addField('canonical_name', cleanCanonical);
+        addField('name', cleanChosenName);
+      }
+
+      if (cpf !== undefined) {
+        addField('cpf', cleanCpfDigits);
+      }
+
+      if (email !== undefined) {
+        addField('email', email && typeof email === 'string' ? email.trim() : null);
+      }
+
+      if (phone !== undefined || whatsapp !== undefined) {
+        addField('phone', cleanPhoneDigits);
+        addField('whatsapp', cleanPhoneDigits);
+      }
+
+      if (birth_date !== undefined) addField('birth_date', birth_date ? String(birth_date).trim() : null);
+      if (person_type !== undefined) addField('person_type', person_type || 'PF');
+      if (trade_name !== undefined) addField('trade_name', trade_name ? String(trade_name).trim() : null);
+      if (rg_ie !== undefined) addField('rg_ie', rg_ie ? String(rg_ie).trim() : null);
+      if (contact_person !== undefined) addField('contact_person', contact_person ? String(contact_person).trim() : null);
+      if (category !== undefined) addField('category', category ? String(category).trim() : null);
+      if (role_position !== undefined) addField('role_position', role_position ? String(role_position).trim() : null);
+      if (pix_key !== undefined) addField('pix_key', pix_key ? String(pix_key).trim() : null);
+      if (bank_name !== undefined) addField('bank_name', bank_name ? String(bank_name).trim() : null);
+      if (bank_agency !== undefined) addField('bank_agency', bank_agency ? String(bank_agency).trim() : null);
+      if (bank_account !== undefined) addField('bank_account', bank_account ? String(bank_account).trim() : null);
+      if (address_cep !== undefined) addField('address_cep', address_cep ? String(address_cep).trim() : null);
+      if (address_street !== undefined) addField('address_street', address_street ? String(address_street).trim() : null);
+      if (address_number !== undefined) addField('address_number', address_number ? String(address_number).trim() : null);
+      if (address_city !== undefined) addField('address_city', address_city ? String(address_city).trim() : null);
+      if (address_state !== undefined) addField('address_state', address_state ? String(address_state).trim() : null);
+      if (notes !== undefined) addField('notes', notes ? String(notes).trim() : null);
+      if (photo_url !== undefined || photo !== undefined) {
+        addField('photo_url', cleanPhoto && typeof cleanPhoto === 'string' ? cleanPhoto.trim() : null);
+      }
+      if (church_id && typeof church_id === 'string' && uuidRegex.test(church_id)) {
+        addField('church_id', church_id);
+      }
+
+      const updateQuery = `UPDATE contributors SET ${updates.join(', ')} WHERE id = $1 RETURNING *`;
+      const result = await pool.query(updateQuery, params);
+
+      if (result.rows.length > 0) {
+        return res.json(result.rows[0]);
+      }
     }
 
-    if (phone !== undefined || whatsapp !== undefined) {
-      const cleanPhone = phone || whatsapp;
-      addField('phone', cleanPhone && typeof cleanPhone === 'string' ? cleanPhone.trim() : null);
-      addField('whatsapp', cleanPhone && typeof cleanPhone === 'string' ? cleanPhone.trim() : null);
-    }
+    // 6. If no existing record found, INSERT a new contributor record
+    const insertRes = await pool.query(
+      `INSERT INTO contributors (
+        church_id, canonical_name, name, cpf, email, phone, whatsapp,
+        birth_date, person_type, trade_name, rg_ie, contact_person,
+        category, role_position, pix_key, bank_name, bank_agency, bank_account,
+        address_cep, address_street, address_number, address_city, address_state, notes,
+        photo_url, status
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7,
+        $8, $9, $10, $11, $12,
+        $13, $14, $15, $16, $17, $18,
+        $19, $20, $21, $22, $23, $24,
+        $25, 'active'
+      ) RETURNING *`,
+      [
+        cleanChurchId,
+        cleanCanonical,
+        cleanChosenName || 'Contribuinte',
+        cleanCpfDigits,
+        email && typeof email === 'string' ? email.trim() : null,
+        cleanPhoneDigits,
+        cleanPhoneDigits,
+        birth_date ? String(birth_date).trim() : null,
+        person_type || 'PF',
+        trade_name ? String(trade_name).trim() : null,
+        rg_ie ? String(rg_ie).trim() : null,
+        contact_person ? String(contact_person).trim() : null,
+        category ? String(category).trim() : null,
+        role_position ? String(role_position).trim() : null,
+        pix_key ? String(pix_key).trim() : null,
+        bank_name ? String(bank_name).trim() : null,
+        bank_agency ? String(bank_agency).trim() : null,
+        bank_account ? String(bank_account).trim() : null,
+        address_cep ? String(address_cep).trim() : null,
+        address_street ? String(address_street).trim() : null,
+        address_number ? String(address_number).trim() : null,
+        address_city ? String(address_city).trim() : null,
+        address_state ? String(address_state).trim() : null,
+        notes ? String(notes).trim() : null,
+        cleanPhoto && typeof cleanPhoto === 'string' ? cleanPhoto.trim() : null
+      ]
+    );
 
-    if (birth_date !== undefined) addField('birth_date', birth_date ? String(birth_date).trim() : null);
-    if (person_type !== undefined) addField('person_type', person_type || 'PF');
-    if (trade_name !== undefined) addField('trade_name', trade_name ? String(trade_name).trim() : null);
-    if (rg_ie !== undefined) addField('rg_ie', rg_ie ? String(rg_ie).trim() : null);
-    if (contact_person !== undefined) addField('contact_person', contact_person ? String(contact_person).trim() : null);
-    if (category !== undefined) addField('category', category ? String(category).trim() : null);
-    if (role_position !== undefined) addField('role_position', role_position ? String(role_position).trim() : null);
-    if (pix_key !== undefined) addField('pix_key', pix_key ? String(pix_key).trim() : null);
-    if (bank_name !== undefined) addField('bank_name', bank_name ? String(bank_name).trim() : null);
-    if (bank_agency !== undefined) addField('bank_agency', bank_agency ? String(bank_agency).trim() : null);
-    if (bank_account !== undefined) addField('bank_account', bank_account ? String(bank_account).trim() : null);
-    if (address_cep !== undefined) addField('address_cep', address_cep ? String(address_cep).trim() : null);
-    if (address_street !== undefined) addField('address_street', address_street ? String(address_street).trim() : null);
-    if (address_number !== undefined) addField('address_number', address_number ? String(address_number).trim() : null);
-    if (address_city !== undefined) addField('address_city', address_city ? String(address_city).trim() : null);
-    if (address_state !== undefined) addField('address_state', address_state ? String(address_state).trim() : null);
-    if (notes !== undefined) addField('notes', notes ? String(notes).trim() : null);
-    if (photo_url !== undefined || photo !== undefined) {
-      const cleanPhoto = photo_url !== undefined ? photo_url : photo;
-      addField('photo_url', cleanPhoto && typeof cleanPhoto === 'string' ? cleanPhoto.trim() : null);
-    }
-    if (church_id && typeof church_id === 'string' && uuidRegex.test(church_id)) {
-      addField('church_id', church_id);
-    }
-
-    const updateQuery = `UPDATE contributors SET ${updates.join(', ')} WHERE id = $1 RETURNING *`;
-    const result = await pool.query(updateQuery, params);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'NOT_FOUND', message: 'Contribuinte não encontrado.' });
-    }
-
-    return res.json(result.rows[0]);
+    return res.json(insertRes.rows[0]);
   } catch (err: any) {
     console.error('[Contributors API] Error updating contributor profile:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: 'Erro ao atualizar dados do contribuinte.' });
@@ -4534,7 +4628,7 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
       return res.json([]);
     }
 
-    let query = 'SELECT id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, created_at, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id FROM consolidated_transactions WHERE 1=1';
+    let query = 'SELECT id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, created_at, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits FROM consolidated_transactions WHERE 1=1';
     const params: any[] = [];
     let counter = 1;
 
@@ -4642,7 +4736,7 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
 app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response) => {
   try {
     const ctx = getTenantContext(req);
-    const { id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id } = req.body;
+    const { id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits } = req.body;
 
     const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
     const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : (church_id || null);
@@ -4671,8 +4765,8 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
     let params: any[] = [];
     if (finalId) {
       query = `INSERT INTO consolidated_transactions 
-        (id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) 
+        (id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) 
         ON CONFLICT (id) DO UPDATE SET 
           amount = EXCLUDED.amount, 
           description = EXCLUDED.description, 
@@ -4684,14 +4778,15 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
           report_id = EXCLUDED.report_id,
           payment_method = EXCLUDED.payment_method,
           contribution_type = EXCLUDED.contribution_type,
-          contribution_request_id = EXCLUDED.contribution_request_id
+          contribution_request_id = EXCLUDED.contribution_request_id,
+          splits = EXCLUDED.splits
         RETURNING *`;
-      params = [finalId, amount, description, type, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null];
+      params = [finalId, amount, description, type, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null, splits ? JSON.stringify(splits) : null];
     } else {
       query = `INSERT INTO consolidated_transactions 
-        (amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *`;
-      params = [amount, description, type, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null];
+        (amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING *`;
+      params = [amount, description, type, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null, splits ? JSON.stringify(splits) : null];
     }
 
     const result = await pool.query(query, params);
@@ -4734,7 +4829,7 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
     const inserted: any[] = [];
 
     for (const tx of transactions) {
-      const { id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id } = tx;
+      const { id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits } = tx;
       
       const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
       const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : (church_id || null);
@@ -4751,8 +4846,8 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
       let params: any[] = [];
       if (finalId) {
         query = `INSERT INTO consolidated_transactions 
-          (id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id) 
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) 
+          (id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits) 
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) 
           ON CONFLICT (id) DO UPDATE SET 
             amount = EXCLUDED.amount, 
             description = EXCLUDED.description, 
@@ -4764,14 +4859,15 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
             report_id = EXCLUDED.report_id,
             payment_method = EXCLUDED.payment_method,
             contribution_type = EXCLUDED.contribution_type,
-            contribution_request_id = EXCLUDED.contribution_request_id
+            contribution_request_id = EXCLUDED.contribution_request_id,
+            splits = EXCLUDED.splits
           RETURNING *`;
-        params = [finalId, amount, description, type, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null];
+        params = [finalId, amount, description, type, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null, splits ? JSON.stringify(splits) : null];
       } else {
         query = `INSERT INTO consolidated_transactions 
-          (amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id) 
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *`;
-        params = [amount, description, type, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null];
+          (amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits) 
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING *`;
+        params = [amount, description, type, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null, splits ? JSON.stringify(splits) : null];
       }
 
       const result = await client.query(query, params);
@@ -4896,7 +4992,7 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
   try {
     const { id } = req.params;
     const ctx = getTenantContext(req);
-    const { amount, description, type, pix_key, source, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id } = req.body;
+    const { amount, description, type, pix_key, source, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits } = req.body;
     
     const oldTxRes = await pool.query('SELECT * FROM consolidated_transactions WHERE id = $1', [id]);
     const oldTx = oldTxRes.rows[0] || null;
@@ -4934,9 +5030,10 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
         report_id = COALESCE($13, report_id),
         payment_method = COALESCE($14, payment_method),
         contribution_type = COALESCE($15, contribution_type),
-        contribution_request_id = COALESCE($16, contribution_request_id)
-      WHERE id = $17 RETURNING *`,
-      [amount, description, type, pix_key, source, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, finalContribReqId || null, id]
+        contribution_request_id = COALESCE($16, contribution_request_id),
+        splits = CASE WHEN $17::text IS NOT NULL THEN $17::jsonb ELSE splits END
+      WHERE id = $18 RETURNING *`,
+      [amount, description, type, pix_key, source, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, finalContribReqId || null, splits !== undefined ? JSON.stringify(splits) : null, id]
     );
 
     const updatedRow = result.rows[0];

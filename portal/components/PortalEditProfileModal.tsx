@@ -274,6 +274,7 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                 status: 'active'
             };
 
+            let resData: any = null;
             let updatedId = contributor?.id;
 
             if (contributor?.id) {
@@ -293,34 +294,71 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                 }
 
                 if (!response.ok) {
+                    // Fallback to update-profile without id
+                    response = await fetch(`/api/v1/contributors/update-profile`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                }
+
+                if (!response.ok) {
                     const errJson = await response.json().catch(() => ({}));
                     throw new Error(errJson.message || errJson.error || 'Falha ao salvar dados no servidor.');
                 }
-                const resData = await response.json();
+                resData = await response.json().catch(() => null);
                 if (resData && resData.id) updatedId = resData.id;
             } else {
-                // Register/create new contributor record
-                const response = await fetch('/api/v1/contributors', {
+                // Register/create or update contributor record
+                let response = await fetch('/api/v1/contributors/update-profile', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
 
                 if (!response.ok) {
-                    const errJson = await response.json().catch(() => ({}));
-                    throw new Error(errJson.message || errJson.error || 'Falha ao cadastrar contribuinte.');
+                    response = await fetch('/api/v1/contributors', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
                 }
-                const resData = await response.json();
+
+                if (!response.ok) {
+                    const errJson = await response.json().catch(() => ({}));
+                    throw new Error(errJson.message || errJson.error || 'Falha ao salvar contribuinte.');
+                }
+                resData = await response.json().catch(() => null);
                 if (resData && resData.id) updatedId = resData.id;
             }
 
+            const nowIso = new Date().toISOString();
             const updatedProfileObj: ContributorMockProfile = {
                 ...liveProfile,
-                id: updatedId || contributor?.id || 'contrib_' + Date.now(),
+                id: updatedId || contributor?.id || (resData && resData.id) || 'contrib_' + Date.now(),
+                canonical_name: name.trim().toUpperCase(),
+                name: name.trim(),
+                cpf: cleanCpfDigits ? formatCpf(cleanCpfDigits) : cpf,
+                phone: cleanPhoneDigits ? formatPhone(cleanPhoneDigits) : phone,
+                whatsapp: cleanPhoneDigits ? formatPhone(cleanPhoneDigits) : phone,
+                email: email.trim() || undefined,
+                birth_date: birthDate.trim() || undefined,
+                address_cep: addressCep.trim() || undefined,
+                address_street: addressStreet.trim() || undefined,
+                address_number: addressNumber.trim() || undefined,
+                address_city: addressCity.trim() || undefined,
+                address_state: addressState.trim() || undefined,
+                city: addressCity.trim() || undefined,
+                state: addressState.trim() || undefined,
+                congregation: (congregation && congregation.trim()) || (church?.name || undefined),
+                role_position: rolePosition.trim() || undefined,
                 photo_url: photoPreview || undefined,
                 avatarUrl: photoPreview || undefined,
+                photo: photoPreview || undefined,
                 isExisting: true,
-                church_id: targetChurchId
+                church_id: targetChurchId,
+                updated_at: nowIso,
+                last_confirmed_at: nowIso
             };
 
             // Save to localStorage
