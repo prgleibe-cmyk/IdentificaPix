@@ -1153,7 +1153,7 @@ ${itemsOfx}
         let saidasOutras = 0;
         let transfEnviadas = 0;
 
-        if (selectionMode === 'dates' && customStartDate && allReportData.length > 0) {
+        if (customStartDate && allReportData.length > 0) {
             allReportData.forEach((item: any) => {
                 const itemDate = item.date ? (item.date.includes('T') ? item.date.split('T')[0] : item.date) : '';
                 if (itemDate && itemDate < customStartDate) {

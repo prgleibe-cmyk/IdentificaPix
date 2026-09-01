@@ -402,11 +402,46 @@ export const LivroCaixaView: React.FC = memo(() => {
         let saidasOutras = 0;
         let transfEnviadas = 0;
 
-        // Cálculo do Saldo Anterior (se houver data de início)
-        if (selectionMode === 'dates' && customStartDate) {
+        // Data de corte para o Saldo Anterior
+        const effectiveStartDate = selectionMode === 'dates'
+            ? customStartDate
+            : (selectedYear && selectedMonth ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01` : '');
+
+        // Cálculo do Saldo Anterior (respeitando rigorosamente os filtros de igreja e banco ativos)
+        if (effectiveStartDate) {
             reportData.forEach((item: any) => {
+                if (isSecondaryUser && allowedChurchIds && allowedChurchIds.length > 0) {
+                    const itemChurchId = item.churchId || item.church;
+                    if (itemChurchId && !allowedChurchIds.includes(itemChurchId)) return;
+                }
+
+                if (selectedChurchIds.length > 0) {
+                    const itemChurchId = item.churchId;
+                    const itemChurchName = item.church;
+                    const matchesAny = selectedChurchIds.some(cId => {
+                        if (itemChurchId && itemChurchId === cId) return true;
+                        const chObj = churches.find((c: any) => c.id === cId);
+                        return chObj && (itemChurchName === chObj.name || itemChurchId === chObj.id);
+                    });
+                    if (!matchesAny) return;
+                }
+
+                if (selectedBankIds.length > 0) {
+                    const itemBankId = item.bankId || item.raw?.transaction?.bank_id || item.raw?.bankId;
+                    const itemBankName = item.bankName;
+                    const matchesAny = selectedBankIds.some(bId => {
+                        if (itemBankId && itemBankId === bId) return true;
+                        const bObj = banks.find((b: any) => b.id === bId);
+                        if (!bObj) return false;
+                        const bName = (bObj.account_name || bObj.name || '').toLowerCase();
+                        if (itemBankName && itemBankName.toLowerCase() === bName) return true;
+                        return false;
+                    });
+                    if (!matchesAny) return;
+                }
+
                 const itemDate = item.date ? (item.date.includes('T') ? item.date.split('T')[0] : item.date) : '';
-                if (itemDate && itemDate < customStartDate) {
+                if (itemDate && itemDate < effectiveStartDate) {
                     const amt = Math.abs(Number(item.amount) || Number(item.val) || 0);
                     const isExp = item.type === 'expense' || Number(item.amount) < 0 || (item.category && item.category.toLowerCase().includes('saida'));
                     if (isExp) {
@@ -475,7 +510,44 @@ export const LivroCaixaView: React.FC = memo(() => {
             totalSaidasPlusTransf,
             saldoFinal
         };
-    }, [reportData, filteredReportData, selectionMode, customStartDate]);
+    }, [reportData, filteredReportData, selectionMode, customStartDate, selectedYear, selectedMonth, selectedChurchIds, selectedBankIds, isSecondaryUser, allowedChurchIds, churches, banks]);
+
+    // Histórico de transações com o mesmo escopo de igreja e banco (para cálculo exato em relatórios e PDF)
+    const scopedAllReportData = useMemo(() => {
+        return reportData.filter((item: any) => {
+            if (isSecondaryUser && allowedChurchIds && allowedChurchIds.length > 0) {
+                const itemChurchId = item.churchId || item.church;
+                if (itemChurchId && !allowedChurchIds.includes(itemChurchId)) return false;
+            }
+
+            if (selectedChurchIds.length > 0) {
+                const itemChurchId = item.churchId;
+                const itemChurchName = item.church;
+                const matchesAny = selectedChurchIds.some(cId => {
+                    if (itemChurchId && itemChurchId === cId) return true;
+                    const chObj = churches.find((c: any) => c.id === cId);
+                    return chObj && (itemChurchName === chObj.name || itemChurchId === chObj.id);
+                });
+                if (!matchesAny) return false;
+            }
+
+            if (selectedBankIds.length > 0) {
+                const itemBankId = item.bankId || item.raw?.transaction?.bank_id || item.raw?.bankId;
+                const itemBankName = item.bankName;
+                const matchesAny = selectedBankIds.some(bId => {
+                    if (itemBankId && itemBankId === bId) return true;
+                    const bObj = banks.find((b: any) => b.id === bId);
+                    if (!bObj) return false;
+                    const bName = (bObj.account_name || bObj.name || '').toLowerCase();
+                    if (itemBankName && itemBankName.toLowerCase() === bName) return true;
+                    return false;
+                });
+                if (!matchesAny) return false;
+            }
+
+            return true;
+        });
+    }, [reportData, selectedChurchIds, selectedBankIds, isSecondaryUser, allowedChurchIds, churches, banks]);
 
     const handleExportLivroCaixa = (format: 'pdf' | 'excel' | 'csv' | 'ofx') => {
         setShowExportLivroCaixa(false);
@@ -484,9 +556,12 @@ export const LivroCaixaView: React.FC = memo(() => {
             return;
         }
         const dateStr = new Date().toISOString().slice(0, 10);
+        const effectiveStartDate = selectionMode === 'dates'
+            ? customStartDate
+            : (selectedYear && selectedMonth ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01` : '');
         
         if (format === 'pdf') {
-            ExportService.downloadLivroCaixaPdf(filteredReportData, churches, 'Livro Caixa - Extrato Analítico', `livro_caixa_${dateStr}.pdf`, selectedChurchIds[0], reportData, customStartDate, selectionMode);
+            ExportService.downloadLivroCaixaPdf(filteredReportData, churches, 'Livro Caixa - Extrato Analítico', `livro_caixa_${dateStr}.pdf`, selectedChurchIds[0], scopedAllReportData, effectiveStartDate, selectionMode);
         } else if (format === 'excel') {
             ExportService.downloadLivroCaixaExcel(filteredReportData, churches, `livro_caixa_${dateStr}.xlsx`);
         } else if (format === 'csv') {
@@ -502,7 +577,10 @@ export const LivroCaixaView: React.FC = memo(() => {
             showToast('Você não tem permissão para imprimir relatórios.', 'error');
             return;
         }
-        ExportService.printLivroCaixa(filteredReportData, churches, reportData, customStartDate, selectionMode, selectedChurchIds[0]);
+        const effectiveStartDate = selectionMode === 'dates'
+            ? customStartDate
+            : (selectedYear && selectedMonth ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01` : '');
+        ExportService.printLivroCaixa(filteredReportData, churches, scopedAllReportData, effectiveStartDate, selectionMode, selectedChurchIds[0]);
     };
 
     return (

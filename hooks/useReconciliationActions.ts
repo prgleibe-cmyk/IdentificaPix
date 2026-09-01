@@ -182,6 +182,7 @@ export const useReconciliationActions = ({
             description: finalDescription,
             rawDescription: '',
             amount: finalAmount,
+            type: txType,
             isConfirmed: false,
             cleanedDescription: finalDescription,
             bank_id: selectedBankId || undefined,
@@ -250,8 +251,8 @@ export const useReconciliationActions = ({
           selectedBankId || undefined,
           actualContributorId,
           false,
-          txType, // 🔥 CORREÇÃO: Passar txType ('income' | 'expense') para garantir validador e tipo corretos!
-          paymentMethod,
+          txType,
+          undefined,
           contributionType,
           paymentMethod
         );
@@ -263,6 +264,11 @@ export const useReconciliationActions = ({
         // 4. Registrar o aprendizado (Association) usando o ID real
         const updatedMatchResult: MatchResult = {
           ...tempOriginal,
+          transaction: {
+            ...tempOriginal.transaction,
+            type: txType,
+            bank_id: selectedBankId || undefined
+          },
           status: ReconciliationStatus.IDENTIFIED,
           isConfirmed: false,
           contributor,

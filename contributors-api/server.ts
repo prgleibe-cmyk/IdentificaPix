@@ -4789,6 +4789,103 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
   }
 });
 
+async function isAuthorizedForTransaction(pool: any, ctx: TenantContext, oldTx: any): Promise<boolean> {
+  if (!ctx.isAuthenticated || ctx.isSuperAdmin) return true;
+  if (!oldTx) return false;
+
+  const currentUserId = ctx.userId;
+  const currentOwnerId = ctx.ownerId || ctx.userId;
+
+  // 1. Vínculo direto por ID de usuário ou dono
+  if (oldTx.user_id && (oldTx.user_id === currentUserId || oldTx.user_id === currentOwnerId)) {
+    return true;
+  }
+
+  // 2. Se for usuário secundário: restringe às igrejas permitidas
+  if (ctx.isSecondaryUser) {
+    if (ctx.allowedChurchIds.length === 0) return false;
+    if (oldTx.church_id && ctx.allowedChurchIds.includes(oldTx.church_id)) return true;
+    return false;
+  }
+
+  // 3. Se for Proprietário / Administrador da conta (Owner):
+  if (ctx.isOwner) {
+    if (oldTx.church_id) {
+      if (ctx.allowedChurchIds && ctx.allowedChurchIds.includes(oldTx.church_id)) return true;
+      const churchCheck = await pool.query(
+        'SELECT id FROM churches WHERE id = $1 AND (user_id = $2 OR user_id = $3) LIMIT 1',
+        [oldTx.church_id, currentUserId, currentOwnerId]
+      );
+      if (churchCheck.rows.length > 0) return true;
+    }
+
+    if (oldTx.user_id) {
+      const userCheck = await pool.query(
+        'SELECT id FROM profiles WHERE id = $1 AND owner_id = $2 LIMIT 1',
+        [oldTx.user_id, currentOwnerId]
+      );
+      if (userCheck.rows.length > 0) return true;
+
+      const appUserCheck = await pool.query(
+        'SELECT id FROM app_users WHERE id = $1 AND owner_id = $2 LIMIT 1',
+        [oldTx.user_id, currentOwnerId]
+      );
+      if (appUserCheck.rows.length > 0) return true;
+    }
+
+    if (!oldTx.user_id && !oldTx.church_id) return true;
+  }
+
+  return false;
+}
+
+async function isAuthorizedForFinancialRecord(pool: any, ctx: TenantContext, oldRec: any): Promise<boolean> {
+  if (!ctx.isAuthenticated || ctx.isSuperAdmin) return true;
+  if (!oldRec) return false;
+
+  const currentUserId = ctx.userId;
+  const currentOwnerId = ctx.ownerId || ctx.userId;
+
+  if (oldRec.user_id && (oldRec.user_id === currentUserId || oldRec.user_id === currentOwnerId)) {
+    return true;
+  }
+
+  if (ctx.isSecondaryUser) {
+    if (ctx.allowedChurchIds.length === 0) return false;
+    if (oldRec.church_id && ctx.allowedChurchIds.includes(oldRec.church_id)) return true;
+    return false;
+  }
+
+  if (ctx.isOwner) {
+    if (oldRec.church_id) {
+      if (ctx.allowedChurchIds && ctx.allowedChurchIds.includes(oldRec.church_id)) return true;
+      const churchCheck = await pool.query(
+        'SELECT id FROM churches WHERE id = $1 AND (user_id = $2 OR user_id = $3) LIMIT 1',
+        [oldRec.church_id, currentUserId, currentOwnerId]
+      );
+      if (churchCheck.rows.length > 0) return true;
+    }
+
+    if (oldRec.user_id) {
+      const userCheck = await pool.query(
+        'SELECT id FROM profiles WHERE id = $1 AND owner_id = $2 LIMIT 1',
+        [oldRec.user_id, currentOwnerId]
+      );
+      if (userCheck.rows.length > 0) return true;
+
+      const appUserCheck = await pool.query(
+        'SELECT id FROM app_users WHERE id = $1 AND owner_id = $2 LIMIT 1',
+        [oldRec.user_id, currentOwnerId]
+      );
+      if (appUserCheck.rows.length > 0) return true;
+    }
+
+    if (!oldRec.user_id && !oldRec.church_id) return true;
+  }
+
+  return false;
+}
+
 // PUT /api/v1/consolidated_transactions/:id
 app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Response) => {
   try {
@@ -4800,10 +4897,9 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
     const oldTx = oldTxRes.rows[0] || null;
     if (!oldTx) return res.status(404).json({ error: 'NOT_FOUND' });
 
-    if (ctx.isAuthenticated && !ctx.isSuperAdmin) {
-      if (ctx.churchId && oldTx.church_id && oldTx.church_id !== ctx.churchId && oldTx.user_id !== ctx.userId && oldTx.user_id !== ctx.ownerId) {
-        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: a transação pertence a outra organização.' });
-      }
+    const isAuthorized = await isAuthorizedForTransaction(pool, ctx, oldTx);
+    if (!isAuthorized) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: a transação pertence a outra organização.' });
     }
 
     let finalContribReqId = contribution_request_id;
@@ -4871,10 +4967,9 @@ app.delete('/api/v1/consolidated_transactions/:id', async (req: Request, res: Re
     const oldTx = oldTxRes.rows[0] || null;
     if (!oldTx) return res.status(404).json({ error: 'NOT_FOUND' });
 
-    if (ctx.isAuthenticated && !ctx.isSuperAdmin) {
-      if (ctx.churchId && oldTx.church_id && oldTx.church_id !== ctx.churchId && oldTx.user_id !== ctx.userId && oldTx.user_id !== ctx.ownerId) {
-        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: a transação pertence a outra organização.' });
-      }
+    const isAuthorized = await isAuthorizedForTransaction(pool, ctx, oldTx);
+    if (!isAuthorized) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: a transação pertence a outra organização.' });
     }
 
     const result = await pool.query('DELETE FROM consolidated_transactions WHERE id = $1 RETURNING id', [id]);
@@ -4907,11 +5002,10 @@ app.post('/api/v1/consolidated_transactions/bulk-delete', async (req: Request, r
     const oldTxsRes = await pool.query('SELECT * FROM consolidated_transactions WHERE id = ANY($1)', [ids]);
     const oldTxs = oldTxsRes.rows || [];
 
-    if (ctx.isAuthenticated && !ctx.isSuperAdmin) {
-      for (const oldTx of oldTxs) {
-        if (ctx.churchId && oldTx.church_id && oldTx.church_id !== ctx.churchId && oldTx.user_id !== ctx.userId && oldTx.user_id !== ctx.ownerId) {
-          return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: uma ou mais transações pertencem a outra organização.' });
-        }
+    for (const oldTx of oldTxs) {
+      const isAuthorized = await isAuthorizedForTransaction(pool, ctx, oldTx);
+      if (!isAuthorized) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: uma ou mais transações pertencem a outra organização.' });
       }
     }
 
@@ -5116,10 +5210,9 @@ app.put('/api/v1/financial_records/:id', async (req: Request, res: Response) => 
     const oldRec = oldRecRes.rows[0] || null;
     if (!oldRec) return res.status(404).json({ error: 'NOT_FOUND' });
 
-    if (ctx.isAuthenticated && !ctx.isSuperAdmin) {
-      if (oldRec.user_id && ctx.userId && oldRec.user_id !== ctx.userId && oldRec.user_id !== ctx.ownerId) {
-        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o registro pertence a outro usuário.' });
-      }
+    const isAuthorized = await isAuthorizedForFinancialRecord(pool, ctx, oldRec);
+    if (!isAuthorized) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o registro pertence a outro usuário.' });
     }
 
     const updates: string[] = [];
@@ -5190,10 +5283,9 @@ app.delete('/api/v1/financial_records/:id', async (req: Request, res: Response) 
     const oldRec = oldRecRes.rows[0] || null;
     if (!oldRec) return res.status(404).json({ error: 'NOT_FOUND' });
 
-    if (ctx.isAuthenticated && !ctx.isSuperAdmin) {
-      if (oldRec.user_id && ctx.userId && oldRec.user_id !== ctx.userId && oldRec.user_id !== ctx.ownerId) {
-        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o registro pertence a outro usuário.' });
-      }
+    const isAuthorized = await isAuthorizedForFinancialRecord(pool, ctx, oldRec);
+    if (!isAuthorized) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o registro pertence a outro usuário.' });
     }
 
     const result = await pool.query('DELETE FROM financial_records WHERE id = $1 RETURNING id', [id]);
