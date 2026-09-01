@@ -357,8 +357,17 @@ export const PortalPledgesPage: React.FC<PortalPledgesPageProps> = ({ church, on
                 {contributor ? (
                     <div className="bg-gradient-to-r from-purple-950 via-slate-900 to-slate-900 text-white p-5 rounded-2xl shadow-xl border border-purple-800/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-2xl bg-purple-500/20 border border-purple-400/40 flex items-center justify-center text-purple-300 font-black text-xl shadow-inner shrink-0">
-                                {contributor.name ? contributor.name.charAt(0).toUpperCase() : 'C'}
+                            <div className="w-12 h-12 rounded-2xl bg-purple-500/20 border border-purple-400/40 flex items-center justify-center text-purple-300 font-black text-xl shadow-inner shrink-0 overflow-hidden">
+                                {(contributor.photo_url || contributor.avatarUrl || contributor.photo) ? (
+                                    <img 
+                                        src={contributor.photo_url || contributor.avatarUrl || contributor.photo} 
+                                        alt={contributor.name || 'Contribuinte'} 
+                                        className="w-full h-full object-cover" 
+                                        referrerPolicy="no-referrer"
+                                    />
+                                ) : (
+                                    contributor.name ? contributor.name.charAt(0).toUpperCase() : 'C'
+                                )}
                             </div>
                             <div>
                                 <div className="flex items-center gap-2">

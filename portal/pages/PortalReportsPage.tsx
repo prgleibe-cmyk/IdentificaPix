@@ -383,8 +383,17 @@ export const PortalReportsPage: React.FC<PortalReportsPageProps> = ({ church, on
                     <>
                     <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950 text-white p-5 rounded-2xl shadow-xl border border-slate-700/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-2xl bg-brand-orange/20 border border-brand-orange/40 flex items-center justify-center text-brand-orange font-black text-xl shadow-inner shrink-0">
-                                {contributor.name ? contributor.name.charAt(0).toUpperCase() : 'C'}
+                            <div className="w-12 h-12 rounded-2xl bg-brand-orange/20 border border-brand-orange/40 flex items-center justify-center text-brand-orange font-black text-xl shadow-inner shrink-0 overflow-hidden">
+                                {(contributor.photo_url || contributor.avatarUrl || contributor.photo) ? (
+                                    <img 
+                                        src={contributor.photo_url || contributor.avatarUrl || contributor.photo} 
+                                        alt={contributor.name || 'Contribuinte'} 
+                                        className="w-full h-full object-cover" 
+                                        referrerPolicy="no-referrer"
+                                    />
+                                ) : (
+                                    contributor.name ? contributor.name.charAt(0).toUpperCase() : 'C'
+                                )}
                             </div>
                             <div>
                                 <div className="flex items-center gap-2">

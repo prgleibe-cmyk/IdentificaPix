@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { ContributorMockProfile, PortalChurch } from '../types/portal';
 import { checkProfileCompleteness } from '../utils/portalProfileCompleteness';
 import { formatCpf, formatPhone, validateCpfVisual, validatePhoneVisual, validateEmailVisual } from '../utils/portalFormatters';
@@ -17,7 +18,11 @@ import {
     Search, 
     Loader2,
     ShieldCheck,
-    RefreshCw
+    RefreshCw,
+    Camera,
+    Upload,
+    Trash2,
+    Image as ImageIcon
 } from 'lucide-react';
 
 interface PortalEditProfileModalProps {
@@ -47,6 +52,10 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
     const [addressState, setAddressState] = useState('');
     const [congregation, setCongregation] = useState('');
     const [rolePosition, setRolePosition] = useState('');
+    const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+    const [isProcessingPhoto, setIsProcessingPhoto] = useState(false);
+
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [isSearchingCep, setIsSearchingCep] = useState(false);
     const [cepError, setCepError] = useState<string | null>(null);
@@ -74,10 +83,12 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                     : (church?.name || '')
             );
             setRolePosition(contributor.role_position || '');
+            setPhotoPreview(contributor.photo_url || contributor.photo || contributor.avatarUrl || null);
             setFormErrors({});
             setApiError(null);
             setSaveSuccess(false);
             setCepError(null);
+            setIsProcessingPhoto(false);
         }
     }, [isOpen, contributor, church]);
 
@@ -102,10 +113,83 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
         state: addressState,
         congregation,
         role_position: rolePosition,
+        photo_url: photoPreview || undefined,
+        avatarUrl: photoPreview || undefined,
         isExisting: contributor?.isExisting ?? true
     };
 
     const completeness = checkProfileCompleteness(liveProfile);
+
+    const convertFileToDataUrl = (file: File): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    const maxDim = 600;
+
+                    if (width > maxDim || height > maxDim) {
+                        if (width > height) {
+                            height = Math.round((height * maxDim) / width);
+                            width = maxDim;
+                        } else {
+                            width = Math.round((width * maxDim) / height);
+                            height = maxDim;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        ctx.drawImage(img, 0, 0, width, height);
+                        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                        resolve(dataUrl);
+                    } else {
+                        resolve(e.target?.result as string);
+                    }
+                };
+                img.onerror = () => {
+                    resolve(e.target?.result as string);
+                };
+                img.src = e.target?.result as string;
+            };
+            reader.onerror = (err) => reject(err);
+            reader.readAsDataURL(file);
+        });
+    };
+
+    const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+            setApiError('Por favor, selecione um arquivo de imagem válido (JPG ou PNG).');
+            return;
+        }
+
+        setIsProcessingPhoto(true);
+        setApiError(null);
+        try {
+            const dataUrl = await convertFileToDataUrl(file);
+            setPhotoPreview(dataUrl);
+        } catch (err) {
+            console.error('Erro ao processar imagem:', err);
+            setApiError('Não foi possível carregar a imagem. Tente uma foto menor.');
+        } finally {
+            setIsProcessingPhoto(false);
+        }
+    };
+
+    const handleRemovePhoto = () => {
+        setPhotoPreview(null);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
 
     // Auto CEP lookup via ViaCEP
     const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -184,6 +268,8 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                 address_city: addressCity.trim() || null,
                 address_state: addressState.trim() || null,
                 role_position: rolePosition.trim() || null,
+                photo_url: photoPreview || null,
+                photo: photoPreview || null,
                 church_id: targetChurchId,
                 status: 'active'
             };
@@ -192,11 +278,19 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
 
             if (contributor?.id) {
                 // Update existing contributor record
-                const response = await fetch(`/api/v1/contributors/${contributor.id}`, {
-                    method: 'PUT',
+                let response = await fetch(`/api/v1/contributors/update-profile`, {
+                    method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify({ ...payload, id: contributor.id })
                 });
+
+                if (!response.ok) {
+                    response = await fetch(`/api/v1/contributors/${contributor.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                }
 
                 if (!response.ok) {
                     const errJson = await response.json().catch(() => ({}));
@@ -223,6 +317,8 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
             const updatedProfileObj: ContributorMockProfile = {
                 ...liveProfile,
                 id: updatedId || contributor?.id || 'contrib_' + Date.now(),
+                photo_url: photoPreview || undefined,
+                avatarUrl: photoPreview || undefined,
                 isExisting: true,
                 church_id: targetChurchId
             };
@@ -248,8 +344,8 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
         }
     };
 
-    return (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
+    const modalContent = (
+        <div className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-900/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
             <div 
                 className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-2xl overflow-hidden flex flex-col max-h-[92vh] transition-all"
                 style={{ touchAction: 'pan-x pan-y pinch-zoom' }}
@@ -257,8 +353,19 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                 {/* Modal Header */}
                 <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-r from-blue-50/80 via-white to-amber-50/80 dark:from-slate-800/80 dark:via-slate-900 dark:to-slate-800/80 flex items-start justify-between gap-4 shrink-0">
                     <div className="flex items-center gap-3.5">
-                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-blue to-amber-500 text-white flex items-center justify-center font-black text-xl shadow-md shrink-0">
-                            {name ? name.charAt(0).toUpperCase() : <User className="w-6 h-6" />}
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-blue to-amber-500 text-white flex items-center justify-center font-black text-xl shadow-md shrink-0 overflow-hidden ring-2 ring-white dark:ring-slate-800">
+                            {photoPreview ? (
+                                <img 
+                                    src={photoPreview} 
+                                    alt={name || 'Contribuinte'} 
+                                    className="w-full h-full object-cover" 
+                                    referrerPolicy="no-referrer"
+                                />
+                            ) : name ? (
+                                name.charAt(0).toUpperCase()
+                            ) : (
+                                <User className="w-6 h-6" />
+                            )}
                         </div>
                         <div>
                             <div className="flex items-center gap-2">
@@ -333,6 +440,74 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                             <p className="text-xs font-bold">{apiError}</p>
                         </div>
                     )}
+
+                    {/* FOTO DO PERFIL */}
+                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 flex flex-col sm:flex-row items-center gap-4">
+                        <div className="relative group shrink-0">
+                            <div className="w-20 h-20 rounded-2xl overflow-hidden bg-slate-200 dark:bg-slate-700 border-2 border-white dark:border-slate-800 shadow-md flex items-center justify-center">
+                                {photoPreview ? (
+                                    <img 
+                                        src={photoPreview} 
+                                        alt="Foto do perfil" 
+                                        className="w-full h-full object-cover" 
+                                        referrerPolicy="no-referrer"
+                                    />
+                                ) : (
+                                    <User className="w-10 h-10 text-slate-400 dark:text-slate-500" />
+                                )}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={isProcessingPhoto}
+                                className="absolute -bottom-1.5 -right-1.5 p-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-md transition-transform hover:scale-105 active:scale-95 cursor-pointer"
+                                title="Carregar nova foto"
+                            >
+                                <Camera className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 text-center sm:text-left">
+                            <h4 className="text-xs font-black text-slate-800 dark:text-white mb-0.5">
+                                Foto do Contribuinte
+                            </h4>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2.5">
+                                Adicione sua foto para identificação no portal e no sistema da igreja.
+                            </p>
+                            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    accept="image/png,image/jpeg,image/jpg,image/webp"
+                                    onChange={handlePhotoChange}
+                                    className="hidden"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={isProcessingPhoto}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 text-xs font-bold hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors cursor-pointer"
+                                >
+                                    {isProcessingPhoto ? (
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    ) : (
+                                        <Upload className="w-3.5 h-3.5" />
+                                    )}
+                                    {photoPreview ? 'Alterar Foto' : 'Adicionar Foto'}
+                                </button>
+                                {photoPreview && (
+                                    <button
+                                        type="button"
+                                        onClick={handleRemovePhoto}
+                                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 text-xs font-bold hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-colors cursor-pointer"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                        Remover
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
 
                     {/* SECTION 1: DADOS PESSOAIS */}
                     <div className="space-y-3.5">
@@ -613,4 +788,10 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
             </div>
         </div>
     );
+
+    if (typeof document !== 'undefined') {
+        return createPortal(modalContent, document.body);
+    }
+
+    return modalContent;
 };

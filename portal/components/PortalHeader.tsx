@@ -149,8 +149,17 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({ church, onNavigate }
                     <div className="hidden sm:flex items-center">
                         {contributor ? (
                             <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 py-1 px-2.5 rounded-full border border-slate-200/80 dark:border-slate-700">
-                                <div className="w-6 h-6 rounded-full bg-brand-orange text-white flex items-center justify-center font-bold text-xs shrink-0">
-                                    {contributor.name ? contributor.name.charAt(0).toUpperCase() : 'C'}
+                                <div className="w-6 h-6 rounded-full bg-brand-orange text-white flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden">
+                                    {(contributor.photo_url || contributor.avatarUrl || contributor.photo) ? (
+                                        <img 
+                                            src={contributor.photo_url || contributor.avatarUrl || contributor.photo} 
+                                            alt={contributor.name || 'Contribuinte'} 
+                                            className="w-full h-full object-cover" 
+                                            referrerPolicy="no-referrer"
+                                        />
+                                    ) : (
+                                        contributor.name ? contributor.name.charAt(0).toUpperCase() : 'C'
+                                    )}
                                 </div>
                                 <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate max-w-[100px]">
                                     {contributor.name.split(' ')[0]}
@@ -225,8 +234,17 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({ church, onNavigate }
                     {contributor ? (
                         <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                                <div className="w-7 h-7 rounded-full bg-brand-orange text-white flex items-center justify-center font-bold text-xs">
-                                    {contributor.name ? contributor.name.charAt(0).toUpperCase() : 'C'}
+                                <div className="w-7 h-7 rounded-full bg-brand-orange text-white flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden">
+                                    {(contributor.photo_url || contributor.avatarUrl || contributor.photo) ? (
+                                        <img 
+                                            src={contributor.photo_url || contributor.avatarUrl || contributor.photo} 
+                                            alt={contributor.name || 'Contribuinte'} 
+                                            className="w-full h-full object-cover" 
+                                            referrerPolicy="no-referrer"
+                                        />
+                                    ) : (
+                                        contributor.name ? contributor.name.charAt(0).toUpperCase() : 'C'
+                                    )}
                                 </div>
                                 <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
                                     {contributor.name}

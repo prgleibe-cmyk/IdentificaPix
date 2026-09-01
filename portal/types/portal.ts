@@ -77,6 +77,7 @@ export interface ContributorMockProfile {
     notes?: string;
     avatarUrl?: string;
     photo_url?: string;
+    photo?: string;
     isExisting?: boolean;
     church_id?: string;
     status?: string;

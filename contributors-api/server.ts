@@ -1413,7 +1413,8 @@ app.post('/api/v1/contributors/update-profile', async (req: Request, res: Respon
       id, church_id, canonical_name, name, cpf, email, phone, whatsapp,
       birth_date, person_type, trade_name, rg_ie, contact_person,
       category, role_position, pix_key, bank_name, bank_agency, bank_account,
-      address_cep, address_street, address_number, address_city, address_state, notes
+      address_cep, address_street, address_number, address_city, address_state, notes,
+      photo_url, photo
     } = req.body;
 
     const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -1489,6 +1490,10 @@ app.post('/api/v1/contributors/update-profile', async (req: Request, res: Respon
     if (address_city !== undefined) addField('address_city', address_city ? String(address_city).trim() : null);
     if (address_state !== undefined) addField('address_state', address_state ? String(address_state).trim() : null);
     if (notes !== undefined) addField('notes', notes ? String(notes).trim() : null);
+    if (photo_url !== undefined || photo !== undefined) {
+      const cleanPhoto = photo_url !== undefined ? photo_url : photo;
+      addField('photo_url', cleanPhoto && typeof cleanPhoto === 'string' ? cleanPhoto.trim() : null);
+    }
     if (church_id && typeof church_id === 'string' && uuidRegex.test(church_id)) {
       addField('church_id', church_id);
     }

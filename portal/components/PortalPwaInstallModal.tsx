@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { PortalChurch } from '../types/portal';
 import { Smartphone, Download, Share2, PlusSquare, X, Check, ArrowRight, ShieldCheck, ExternalLink } from 'lucide-react';
 
@@ -51,8 +52,8 @@ export const PortalPwaInstallModal: React.FC<PortalPwaInstallModalProps> = ({
     const appName = church?.name || 'IgGestor';
     const appLogo = church?.logoUrl || '/pwa/icon-512.png';
 
-    return (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
+    const modalContent = (
+        <div className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl relative overflow-hidden my-auto animate-scale-in text-slate-800 dark:text-slate-100">
                 {/* Background ambient glow */}
                 <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none -mr-16 -mt-16" />
@@ -204,7 +205,7 @@ export const PortalPwaInstallModal: React.FC<PortalPwaInstallModalProps> = ({
                     <button
                         type="button"
                         onClick={onClose}
-                        className="w-full py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors uppercase tracking-wider"
+                        className="w-full py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors uppercase tracking-wider cursor-pointer"
                     >
                         Entendi / Fechar
                     </button>
@@ -212,4 +213,10 @@ export const PortalPwaInstallModal: React.FC<PortalPwaInstallModalProps> = ({
             </div>
         </div>
     );
+
+    if (typeof document !== 'undefined') {
+        return createPortal(modalContent, document.body);
+    }
+
+    return modalContent;
 };

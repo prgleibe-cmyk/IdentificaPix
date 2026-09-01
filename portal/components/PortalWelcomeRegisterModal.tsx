@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { PortalChurch, ContributorMockProfile } from '../types/portal';
 import { Smartphone, CheckCircle2, Sparkles, X, ArrowRight, Building2, ShieldCheck, Heart } from 'lucide-react';
 import { PortalPwaInstallModal } from './PortalPwaInstallModal';
@@ -57,9 +58,9 @@ export const PortalWelcomeRegisterModal: React.FC<PortalWelcomeRegisterModalProp
     const memberName = contributor?.name || contributor?.canonical_name || 'Irmão(ã)';
     const firstName = memberName.split(' ')[0];
 
-    return (
+    const modalContent = (
         <>
-            <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
+            <div className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
                 <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-[2.5rem] max-w-md w-full p-6 sm:p-8 shadow-2xl relative overflow-hidden my-auto animate-scale-in text-slate-800 dark:text-slate-100">
                     
                     {/* Ambient celebratory lights */}
@@ -174,4 +175,10 @@ export const PortalWelcomeRegisterModal: React.FC<PortalWelcomeRegisterModalProp
             )}
         </>
     );
+
+    if (typeof document !== 'undefined') {
+        return createPortal(modalContent, document.body);
+    }
+
+    return modalContent;
 };

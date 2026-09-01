@@ -31,6 +31,8 @@ const INITIAL_EMPTY_CONTRIBUTOR: ContributorMockProfile = {
     city: '',
     state: '',
     congregation: '',
+    photo_url: '',
+    avatarUrl: '',
     isExisting: false
 };
 
@@ -259,7 +261,8 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
                     address_number: contrib.address_number,
                     address_city: contrib.address_city || contrib.city,
                     address_state: contrib.address_state || contrib.state,
-                    role_position: contrib.role_position
+                    role_position: contrib.role_position,
+                    photo_url: contrib.photo_url || contrib.avatarUrl || null
                 };
 
                 let res = await fetch('/api/v1/contributors/update-profile', {
@@ -317,6 +320,7 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
                     address_city: contrib.address_city || contrib.city,
                     address_state: contrib.address_state || contrib.state,
                     role_position: contrib.role_position,
+                    photo_url: contrib.photo_url || contrib.avatarUrl || null,
                     status: 'active'
                 })
             });
@@ -382,7 +386,8 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
                         address_number: merged.address_number,
                         address_city: merged.address_city || merged.city,
                         address_state: merged.address_state || merged.state,
-                        role_position: merged.role_position
+                        role_position: merged.role_position,
+                        photo_url: merged.photo_url || merged.avatarUrl || null
                     })
                 });
 

@@ -307,8 +307,17 @@ export const PortalIdentifyStep: React.FC<PortalIdentifyStepProps> = ({
                             >
                                 <div className="space-y-5">
                                     <div className="p-5 rounded-2xl bg-gradient-to-br from-blue-50/80 to-indigo-50/50 dark:from-slate-800 dark:to-slate-900 border border-blue-100 dark:border-slate-700 flex flex-col items-center text-center space-y-3">
-                                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-brand-blue to-amber-500 text-white flex items-center justify-center font-black text-2xl shadow-md ring-4 ring-white dark:ring-slate-800 shrink-0">
-                                            {contributor.name ? contributor.name.charAt(0).toUpperCase() : 'C'}
+                                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-brand-blue to-amber-500 text-white flex items-center justify-center font-black text-2xl shadow-md ring-4 ring-white dark:ring-slate-800 shrink-0 overflow-hidden">
+                                            {(contributor.photo_url || contributor.avatarUrl || contributor.photo) ? (
+                                                <img 
+                                                    src={contributor.photo_url || contributor.avatarUrl || contributor.photo} 
+                                                    alt={contributor.name || 'Contribuinte'} 
+                                                    className="w-full h-full object-cover" 
+                                                    referrerPolicy="no-referrer"
+                                                />
+                                            ) : (
+                                                contributor.name ? contributor.name.charAt(0).toUpperCase() : 'C'
+                                            )}
                                         </div>
 
                                         <div className="space-y-1 w-full">

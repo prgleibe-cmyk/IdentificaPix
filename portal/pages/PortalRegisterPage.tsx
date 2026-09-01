@@ -44,6 +44,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
     const [congregation, setCongregation] = useState('Sede Central');
     const [city, setCity] = useState('');
     const [state, setState] = useState('SP');
+    const [photoUrl, setPhotoUrl] = useState<string | null>(null);
 
     // Existing Contributor lookup states
     const [contributorId, setContributorId] = useState<string | null>(null);
@@ -145,6 +146,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                     if (c.address_city) setCity(c.address_city);
                     if (c.address_state) setState(c.address_state);
                     if (c.congregation) setCongregation(c.congregation);
+                    if (c.photo_url || c.photo || c.avatarUrl) setPhotoUrl(c.photo_url || c.photo || c.avatarUrl);
 
                     setIsCheckingCpf(false);
                     return;
@@ -167,6 +169,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                 }
                 if (localFound.address_city) setCity(localFound.address_city);
                 if (localFound.address_state) setState(localFound.address_state);
+                if (localFound.photo_url || localFound.photo || localFound.avatarUrl) setPhotoUrl(localFound.photo_url || localFound.photo || localFound.avatarUrl);
                 setIsCheckingCpf(false);
                 return;
             }
@@ -276,6 +279,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
         if (c.birth_date) setBirthDate(String(c.birth_date).split('T')[0]);
         if (c.address_city) setCity(c.address_city);
         if (c.address_state) setState(c.address_state);
+        if (c.photo_url || c.photo || c.avatarUrl) setPhotoUrl(c.photo_url || c.photo || c.avatarUrl);
         
         setShowNameSuggestions(false);
         setLookupMessage(`Cadastro de "${c.name || c.canonical_name}" carregado! Você pode conferir ou atualizar seus dados abaixo.`);
@@ -352,7 +356,8 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                     birth_date: birthDate || null,
                     address_city: city || null,
                     address_state: state || null,
-                    role_position: 'Membro'
+                    role_position: 'Membro',
+                    photo_url: photoUrl || null
                 };
 
                 let updateRes = await fetch('/api/v1/contributors/update-profile', {
@@ -390,6 +395,8 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                     city: city,
                     state: state,
                     birth_date: birthDate,
+                    photo_url: photoUrl || undefined,
+                    avatarUrl: photoUrl || undefined,
                     isExisting: true
                 };
 
@@ -416,6 +423,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                 address_city: city || null,
                 address_state: state || null,
                 role_position: 'Membro',
+                photo_url: photoUrl || null,
                 status: 'active'
             };
 
@@ -446,6 +454,8 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                     city: city,
                     state: state,
                     birth_date: birthDate,
+                    photo_url: photoUrl || undefined,
+                    avatarUrl: photoUrl || undefined,
                     isExisting: true
                 };
 
