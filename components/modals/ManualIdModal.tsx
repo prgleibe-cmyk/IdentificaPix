@@ -636,34 +636,31 @@ export const ManualIdModal: React.FC = () => {
                     <div className="space-y-4 max-w-5xl mx-auto">
                         {/* Banner Obrigatório para Escolha de Entrada ou Saída */}
                         {!manualType ? (
-                            <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 border-2 border-dashed border-amber-400/80 dark:border-amber-600/80 rounded-2xl p-4 sm:p-5 shadow-xs text-center space-y-3">
-                                <div className="flex items-center justify-center gap-2">
-                                    <span className="text-lg">⚠️</span>
-                                    <h4 className="text-xs sm:text-sm font-black text-amber-900 dark:text-amber-200 uppercase tracking-wider">
-                                        Escolha Obrigatória: Selecione o Tipo do Lançamento
+                            <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-700/60 rounded-xl p-3 shadow-2xs text-center space-y-2">
+                                <div className="flex items-center justify-center gap-1.5">
+                                    <span className="text-sm">⚠️</span>
+                                    <h4 className="text-[11px] font-bold text-amber-900 dark:text-amber-200 uppercase tracking-wide">
+                                        Selecione o Tipo do Lançamento
                                     </h4>
                                 </div>
-                                <p className="text-[11px] font-bold text-slate-600 dark:text-slate-300 max-w-md mx-auto">
-                                    Para evitar lançamentos no fluxo financeiro incorreto, clique abaixo e informe se este registro é uma <strong className="text-emerald-600 dark:text-emerald-400">Entrada</strong> (Receita) ou <strong className="text-rose-600 dark:text-rose-400">Saída</strong> (Despesa):
-                                </p>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg mx-auto pt-1">
+                                <div className="flex flex-wrap items-center justify-center gap-2 max-w-md mx-auto pt-0.5">
                                     <button
                                         type="button"
                                         onClick={() => handleTypeSwitch('entrada')}
-                                        className="flex items-center justify-center gap-2.5 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-md shadow-emerald-600/25 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer"
+                                        className="flex items-center justify-center gap-2 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[11px] uppercase tracking-wide shadow-xs active:scale-95 transition-all cursor-pointer"
                                         id="banner-btn-entrada"
                                     >
-                                        <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse"></span>
-                                        <span>• ENTRADA (Dízimo / Oferta / Receita)</span>
+                                        <span className="w-2 h-2 rounded-full bg-white"></span>
+                                        <span>Entrada (Receita)</span>
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => handleTypeSwitch('saida')}
-                                        className="flex items-center justify-center gap-2.5 px-4 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-md shadow-rose-600/25 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer"
+                                        className="flex items-center justify-center gap-2 px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold text-[11px] uppercase tracking-wide shadow-xs active:scale-95 transition-all cursor-pointer"
                                         id="banner-btn-saida"
                                     >
-                                        <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse"></span>
-                                        <span>• SAÍDA (Despesa / Pagamento / Conta)</span>
+                                        <span className="w-2 h-2 rounded-full bg-white"></span>
+                                        <span>Saída (Despesa)</span>
                                     </button>
                                 </div>
                             </div>
