@@ -418,10 +418,14 @@ export const useCloudSync = ({
                 txResults.forEach(r => {
                     const saved = reportsMap.get(r.transaction.id);
                     if (saved) {
-                        // Preserva metadados de identificação salvos no relatório (contribuinte, igreja, status, splits, isConfirmed),
-                        // mas MANTÉM OS DADOS DA TRANSAÇÃO AUTÊNTICA DO BANCO (data, valor, descrição, origem, pix_key, row_hash)
+                        const savedUpdatedTime = saved.updatedAt ? new Date(saved.updatedAt).getTime() : 0;
+                        const rUpdatedTime = r.updatedAt ? new Date(r.updatedAt).getTime() : 0;
+                        const useDbAsPrimary = rUpdatedTime >= savedUpdatedTime;
+
+                        // Preserva metadados atualizados com prioridade temporal
                         reconstructedMap.set(r.transaction.id, {
-                            ...saved,
+                            ...(useDbAsPrimary ? saved : r),
+                            ...(useDbAsPrimary ? r : saved),
                             transaction: {
                                 ...saved.transaction,
                                 ...r.transaction, // Campos autênticos do banco sobressaem sempre
@@ -430,10 +434,14 @@ export const useCloudSync = ({
                                 contributionType: r.transaction.contributionType || saved.transaction?.contributionType,
                                 paymentMethod: r.transaction.paymentMethod || saved.transaction?.paymentMethod
                             },
+                            church: useDbAsPrimary ? (r.church?.id && r.church.id !== 'unidentified' ? r.church : saved.church) : (saved.church?.id && saved.church.id !== 'unidentified' ? saved.church : r.church),
+                            contributor: useDbAsPrimary ? (r.contributor || saved.contributor) : (saved.contributor || r.contributor),
+                            status: useDbAsPrimary ? r.status : (saved.status || r.status),
+                            isConfirmed: useDbAsPrimary ? r.isConfirmed : (saved.isConfirmed ?? r.isConfirmed),
                             contributionType: r.contributionType || saved.contributionType,
                             paymentMethod: r.paymentMethod || saved.paymentMethod,
                             splits: (Array.isArray(r.splits) && r.splits.length > 0) ? r.splits : (Array.isArray(saved.splits) && saved.splits.length > 0 ? saved.splits : undefined),
-                            updatedAt: r.updatedAt || saved.updatedAt
+                            updatedAt: (rUpdatedTime >= savedUpdatedTime ? r.updatedAt : saved.updatedAt) || new Date().toISOString()
                         });
                     } else {
                         reconstructedMap.set(r.transaction.id, r);
@@ -471,12 +479,12 @@ export const useCloudSync = ({
                         
                         // 🛡️ BLOCK_REGRESSION: Proteção contra updates atrasados do banco
                         const currentUpdatedAt = current?.updatedAt ? new Date(current.updatedAt).getTime() : 0;
-                        const incomingUpdatedAt = r.updatedAt ? new Date(r.updatedAt).getTime() : 0;
+                        const incomingUpdatedAt = r.updatedAt ? new Date(r.updatedAt).getTime() : (r.transaction?.date ? new Date(r.transaction.date).getTime() : 0);
 
                         // 🛡️ EXCEÇÃO FASE 2.3: Permitimos 'regressão' para pending ou unconfirmed se for uma mudança legítima de estado
                         const isUndoingHydrate = r.status === ReconciliationStatus.UNIDENTIFIED || r.isConfirmed === false;
 
-                        if (current && incomingUpdatedAt < currentUpdatedAt && !isUndoingHydrate) {
+                        if (current && incomingUpdatedAt > 0 && currentUpdatedAt > 0 && incomingUpdatedAt < currentUpdatedAt && !isUndoingHydrate) {
                             console.log('[BLOCK_REGRESSION:HYDRATE] Ignorando item antigo do banco:', r.transaction.id);
                             return;
                         }

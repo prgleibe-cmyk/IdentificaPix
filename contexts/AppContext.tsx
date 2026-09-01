@@ -37,24 +37,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const [realtimeRefreshKey, setRealtimeRefreshKey] = useState(0);
 
-    // 📡 ESCUTA DE RECONEXÃO DE REDE (Sem travar a tela na troca de abas)
+    // 📡 ESCUTA DE SINCRONIZAÇÃO EM TEMPO REAL (Multi-dispositivos, abas e reconexão)
     useEffect(() => {
         let lastTriggerTime = 0;
         const triggerRefresh = () => {
             const now = Date.now();
-            if (now - lastTriggerTime < 5000) return; // debounce de 5s
+            if (now - lastTriggerTime < 4000) return; // debounce de 4s
             lastTriggerTime = now;
             
-            console.log("[AppContext:RealtimeRefresh] Conexão de rede restabelecida.");
+            console.log("[AppContext:RealtimeRefresh] Sincronização em tempo real acionada.");
             setRealtimeRefreshKey(prev => prev + 1);
         };
 
+        const handleVisibilityOrFocus = () => {
+            if (document.visibilityState === 'visible') {
+                triggerRefresh();
+            }
+        };
+
         window.addEventListener('online', triggerRefresh);
+        document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+        window.addEventListener('focus', handleVisibilityOrFocus);
+
+        // Polling suave em segundo plano para manter dados sincronizados entre múltiplos aparelhos/usuários
+        const intervalId = setInterval(() => {
+            if (document.visibilityState === 'visible' && user?.id) {
+                triggerRefresh();
+            }
+        }, 15000);
+
+        // BroadcastChannel para sincronização instantânea entre abas no mesmo navegador
+        let bc: BroadcastChannel | null = null;
+        if (typeof BroadcastChannel !== 'undefined') {
+            try {
+                bc = new BroadcastChannel('identificapix_realtime_sync');
+                bc.onmessage = (event) => {
+                    if (event.data?.type === 'TRANSACTION_UPDATED') {
+                        triggerRefresh();
+                    }
+                };
+            } catch (e) {
+                // Ignore
+            }
+        }
 
         return () => {
             window.removeEventListener('online', triggerRefresh);
+            document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+            window.removeEventListener('focus', handleVisibilityOrFocus);
+            clearInterval(intervalId);
+            if (bc) bc.close();
         };
-    }, []);
+    }, [user?.id]);
 
     const modalController = useModalController();
     const referenceData = useReferenceData(user, showToast, realtimeRefreshKey);

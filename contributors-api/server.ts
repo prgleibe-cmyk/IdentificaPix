@@ -402,6 +402,7 @@ async function initializeDatabase() {
     await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS is_confirmed BOOLEAN DEFAULT FALSE;');
     await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS transaction_date TIMESTAMP;');
     await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();');
+    await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();');
     await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS church_id UUID;');
     await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS contributor_id UUID;');
     await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS report_id VARCHAR(255);');
@@ -4628,7 +4629,7 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
       return res.json([]);
     }
 
-    let query = 'SELECT id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, created_at, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits FROM consolidated_transactions WHERE 1=1';
+    let query = 'SELECT id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, created_at, updated_at, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits FROM consolidated_transactions WHERE 1=1';
     const params: any[] = [];
     let counter = 1;
 
@@ -4779,7 +4780,8 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
           payment_method = EXCLUDED.payment_method,
           contribution_type = EXCLUDED.contribution_type,
           contribution_request_id = EXCLUDED.contribution_request_id,
-          splits = EXCLUDED.splits
+          splits = EXCLUDED.splits,
+          updated_at = NOW()
         RETURNING *`;
       params = [finalId, amount, description, type, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null, splits ? JSON.stringify(splits) : null];
     } else {
@@ -4860,7 +4862,8 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
             payment_method = EXCLUDED.payment_method,
             contribution_type = EXCLUDED.contribution_type,
             contribution_request_id = EXCLUDED.contribution_request_id,
-            splits = EXCLUDED.splits
+            splits = EXCLUDED.splits,
+            updated_at = NOW()
           RETURNING *`;
         params = [finalId, amount, description, type, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null, splits ? JSON.stringify(splits) : null];
       } else {
@@ -5031,7 +5034,8 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
         payment_method = COALESCE($14, payment_method),
         contribution_type = COALESCE($15, contribution_type),
         contribution_request_id = COALESCE($16, contribution_request_id),
-        splits = CASE WHEN $17::text IS NOT NULL THEN $17::jsonb ELSE splits END
+        splits = CASE WHEN $17::text IS NOT NULL THEN $17::jsonb ELSE splits END,
+        updated_at = NOW()
       WHERE id = $18 RETURNING *`,
       [amount, description, type, pix_key, source, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, finalContribReqId || null, splits !== undefined ? JSON.stringify(splits) : null, id]
     );

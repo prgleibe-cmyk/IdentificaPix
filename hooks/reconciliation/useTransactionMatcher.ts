@@ -469,7 +469,11 @@ export const useTransactionMatcher = ({
         showToast("Item removido.", "success");
     }, [setLaunchedResults, showToast]);
 
-    const updateReportData = useCallback(async (updatedRow: MatchResult) => {
+    const updateReportData = useCallback(async (incomingRow: MatchResult) => {
+        const updatedRow: MatchResult = {
+            ...incomingRow,
+            updatedAt: new Date().toISOString()
+        };
         let nextResults: MatchResult[] = [];
         batchState.isAtomicUpdate = true;
         setMatchResults(prev => {
@@ -497,6 +501,11 @@ export const useTransactionMatcher = ({
                     method: 'PUT',
                     headers,
                     body: JSON.stringify({
+                        amount: updatedRow.transaction.amount,
+                        description: updatedRow.transaction.description,
+                        type: updatedRow.transaction.type,
+                        transaction_date: updatedRow.transaction.date,
+                        bank_id: updatedRow.transaction.bank_id || null,
                         church_id: updatedRow.church?.id && updatedRow.church.id !== 'unidentified' ? updatedRow.church.id : null,
                         contributor_id: updatedRow.contributor?.id || null,
                         contribution_type: updatedRow.contributionType || null,

@@ -133,6 +133,17 @@ export const useReconciliation = (props: any) => {
 
         const payload = buildCanonicalPayload(updatedRow);
         console.log("[Sync:Trigger] Payload CANÔNICO:", payload);
+
+        // Notifica outras abas no mesmo navegador instantaneamente
+        if (typeof BroadcastChannel !== 'undefined') {
+            try {
+                const bc = new BroadcastChannel('identificapix_realtime_sync');
+                bc.postMessage({ type: 'TRANSACTION_UPDATED', txId: updatedRow.transaction?.id });
+                bc.close();
+            } catch (e) {
+                // Ignore
+            }
+        }
     }, [user?.id, subscription.ownerId, buildCanonicalPayload]);
 
     const params = {
