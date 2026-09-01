@@ -84,20 +84,22 @@ export const useDataDeletion = ({
 
                     // Persiste a mudança no relatório salvo ou na nuvem
                     const activeReportId = reconciliation.activeReportId;
-                    const currentResults = reconciliation.fullMatchResults || [];
-                    const nextResults = currentResults.filter((r: any) => r.transaction.id !== id);
-                    if (activeReportId) {
+                    const currentResults = reconciliation.fullMatchResults || reconciliation.matchResults || [];
+                    const nextResults = currentResults.filter((r: any) => r?.transaction?.id && r.transaction.id !== id);
+                    if (activeReportId && reportManager?.overwriteSavedReport) {
                         await reportManager.overwriteSavedReport(activeReportId, nextResults);
                     } else {
-                        const liveReport = (reportManager?.savedReports || []).find((r: any) => r.name === '[SESSÃO_ATIVA]');
+                        const liveReport = (reportManager?.savedReports || []).find((r: any) => r && r.name === '[SESSÃO_ATIVA]');
                         if (liveReport && reportManager?.overwriteSavedReport) {
                             await reportManager.overwriteSavedReport(liveReport.id, nextResults);
                         }
-                        await reconciliation.syncToCloud?.(nextResults);
+                        if (reconciliation?.syncToCloud) {
+                            await reconciliation.syncToCloud(nextResults);
+                        }
                     }
                     
                     // Força a sincronização da Lista Viva para atualizar os contadores no UploadView
-                    if (reconciliation.hydrate) {
+                    if (reconciliation?.hydrate) {
                         await reconciliation.hydrate();
                     }
                     
@@ -117,20 +119,22 @@ export const useDataDeletion = ({
 
                         // Persiste a mudança no relatório salvo ou na nuvem
                         const activeReportId = reconciliation.activeReportId;
-                        const currentResults = reconciliation.fullMatchResults || [];
-                        const nextResults = currentResults.filter((r: any) => !ids.includes(r.transaction.id));
-                        if (activeReportId) {
+                        const currentResults = reconciliation.fullMatchResults || reconciliation.matchResults || [];
+                        const nextResults = currentResults.filter((r: any) => r?.transaction?.id && !ids.includes(r.transaction.id));
+                        if (activeReportId && reportManager?.overwriteSavedReport) {
                             await reportManager.overwriteSavedReport(activeReportId, nextResults);
                         } else {
-                            const liveReport = (reportManager?.savedReports || []).find((r: any) => r.name === '[SESSÃO_ATIVA]');
+                            const liveReport = (reportManager?.savedReports || []).find((r: any) => r && r.name === '[SESSÃO_ATIVA]');
                             if (liveReport && reportManager?.overwriteSavedReport) {
                                 await reportManager.overwriteSavedReport(liveReport.id, nextResults);
                             }
-                            await reconciliation.syncToCloud?.(nextResults);
+                            if (reconciliation?.syncToCloud) {
+                                await reconciliation.syncToCloud(nextResults);
+                            }
                         }
                         
                         // Força a sincronização da Lista Viva para atualizar os contadores no UploadView
-                        if (reconciliation.hydrate) {
+                        if (reconciliation?.hydrate) {
                             await reconciliation.hydrate();
                         }
                         

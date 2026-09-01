@@ -544,12 +544,12 @@ export const useTransactionMatcher = ({
 
     const removeTransaction = useCallback((id: string) => {
         batchState.isAtomicUpdate = true;
-        setMatchResults(prev => prev.filter(r => r.transaction.id !== id));
+        setMatchResults(prev => prev.filter(r => r?.transaction?.id !== id));
     }, [setMatchResults]);
 
     const removeTransactions = useCallback((ids: string[]) => {
         batchState.isAtomicUpdate = true;
-        setMatchResults(prev => prev.filter(r => !ids.includes(r.transaction.id)));
+        setMatchResults(prev => prev.filter(r => !r?.transaction?.id || !ids.includes(r.transaction.id)));
     }, [setMatchResults]);
 
     return {
