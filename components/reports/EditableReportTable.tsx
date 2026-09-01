@@ -4,7 +4,7 @@ import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { formatCurrency, formatDate, isPeriodClosed, getClosedPeriodsSet, isDateInClosedPeriods, resolvePaymentMethod, resolveContributionType, resolveTransactionSource } from '../../utils/formatters';
 import { useAuth } from '../../contexts/AuthContext';
-import { GitFork, Printer, X, MessageCircle, CheckCircle2 } from 'lucide-react';
+import { GitFork, Printer, X, MessageCircle, CheckCircle2, Pencil } from 'lucide-react';
 import { isWhatsAppSent, getWhatsAppSentMap, sendWhatsAppDirect } from '../modals/WhatsAppReceiptModal';
 import { 
     PencilIcon, 
@@ -314,6 +314,15 @@ const MobileCard = memo(({
                         ) : (
                             !isClosedPeriod && (
                                 <>
+                                    {isManualRow && onEdit && (
+                                        <button 
+                                            onClick={() => onEdit(row)} 
+                                            className="px-3.5 py-2 rounded-xl text-amber-700 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 font-bold text-[10px] uppercase tracking-wider flex items-center gap-1.5 transition-colors border border-amber-200/60 dark:border-amber-800/40"
+                                            title="Editar Lançamento Manual"
+                                        >
+                                            <Pencil className="w-3.5 h-3.5" /> Editar
+                                        </button>
+                                    )}
                                     {canDeleteRow && (
                                         <button onClick={() => onDelete(row)} className="p-2.5 rounded-xl text-rose-600 bg-rose-50" title="Excluir"><TrashIcon className="w-4 h-4" /></button>
                                     )}
@@ -586,6 +595,15 @@ const IncomeRow = memo(({
                         ) : (
                             !isClosedPeriod && (
                                 <>
+                                    {isManualRow && onEdit && (
+                                        <button 
+                                            onClick={() => onEdit(row)} 
+                                            className="p-1.5 rounded-lg text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-900/30 transition-colors cursor-pointer border border-amber-200/60 dark:border-amber-800/40 shadow-xs" 
+                                            title="Editar Lançamento Manual"
+                                        >
+                                            <Pencil className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
                                     {isIdentified && canUndoIdentification && <button onClick={() => onUndo(row.transaction.id)} className="p-1.5 rounded-lg text-amber-600 bg-amber-50 hover:bg-amber-100 cursor-pointer" title="Desfazer auto-identificação"><ArrowUturnLeftIcon className="w-3.5 h-3.5" /></button>}
                                     {canDeleteRow && (
                                         <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg text-rose-600 bg-rose-50 hover:bg-rose-100 cursor-pointer" title="Excluir"><TrashIcon className="w-3.5 h-3.5" /></button>
@@ -805,7 +823,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                                     language={language}
                                     isSelected={selectedIds.includes(result.transaction.id)}
                                     onToggleSelection={toggleSelection}
-                                    onEdit={() => {}}
+                                    onEdit={onEdit}
                                     onDelete={(row: MatchResult) => openDeleteConfirmation({ type: 'report-row', id: row.transaction.id, name: `Transação ${row.transaction.id}`, meta: { reportType } })}
                                     onUndo={undoIdentification}
                                     onToggleLock={(id: string, lock: boolean) => toggleConfirmation([id], lock)}
@@ -847,7 +865,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                             language={language}
                             isSelected={selectedIds.includes(result.transaction.id)}
                             onToggleSelection={toggleSelection}
-                            onEdit={() => {}}
+                            onEdit={onEdit}
                             onDelete={(row: MatchResult) => openDeleteConfirmation({ type: 'report-row', id: row.transaction.id, name: `Transação ${row.transaction.id}`, meta: { reportType } })}
                             onUndo={undoIdentification}
                             onToggleLock={(id: string, lock: boolean) => toggleConfirmation([id], lock)}

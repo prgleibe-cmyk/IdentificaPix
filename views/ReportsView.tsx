@@ -10,6 +10,7 @@ import { useReportsController } from '../hooks/useReportsController';
 import { Calendar, Check, Building2, BookOpen } from 'lucide-react';
 import { MatchResult, Transaction, ReconciliationStatus } from '../types';
 import { SplitTransactionModal } from '../components/modals/SplitTransactionModal';
+import { EditManualTransactionModal } from '../components/modals/EditManualTransactionModal';
 
 // Sub-componentes modulares
 import { CategoryPills } from '../components/reports/CategoryPills';
@@ -90,6 +91,7 @@ export const ReportsView: React.FC = () => {
     const [customStart, setCustomStart] = useState<string>('');
     const [customEnd, setCustomEnd] = useState<string>('');
     const [splitRow, setSplitRow] = useState<MatchResult | null>(null);
+    const [editingManualRow, setEditingManualRow] = useState<MatchResult | null>(null);
 
     const startSelected = ctrl.searchFilters?.dateRange?.start;
     const endSelected = ctrl.searchFilters?.dateRange?.end;
@@ -376,6 +378,7 @@ export const ReportsView: React.FC = () => {
                                     reportType={ctrl.activeCategory === 'expenses' ? 'expenses' : 'income'}
                                     sortConfig={ctrl.sortConfig}
                                     onSort={ctrl.handleSort}
+                                    onEdit={setEditingManualRow}
                                     onSplit={setSplitRow}
                                     loadingAiId={loadingAiId}
                                 />
@@ -401,6 +404,18 @@ export const ReportsView: React.FC = () => {
                         };
                         ctrl.updateReportData(updatedRow);
                         setSplitRow(null);
+                    }}
+                />
+            )}
+
+            {editingManualRow && (
+                <EditManualTransactionModal
+                    isOpen={!!editingManualRow}
+                    row={editingManualRow}
+                    onClose={() => setEditingManualRow(null)}
+                    onSave={(updatedRow) => {
+                        ctrl.updateReportData(updatedRow);
+                        setEditingManualRow(null);
                     }}
                 />
             )}
