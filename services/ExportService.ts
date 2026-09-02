@@ -1226,6 +1226,9 @@ ${itemsOfx}
         const totalEntradasPlusTransf = totalEntradas + transfRecebidas;
         const totalSaidasPlusTransf = totalSaidas + transfEnviadas;
 
+        const saldoDinheiro = entradasDinheiro - saidasDinheiro;
+        const saldoPix = entradasPix - saidasPix;
+
         const saldoFinal = saldoAnterior + totalEntradasPlusTransf - totalSaidasPlusTransf;
 
         return {
@@ -1241,8 +1244,110 @@ ${itemsOfx}
             transfEnviadas,
             totalEntradasPlusTransf,
             totalSaidasPlusTransf,
+            saldoDinheiro,
+            saldoPix,
             saldoFinal
         };
+    },
+
+    /**
+     * Calcula o agrupamento analítico por Destino / Finalidade / Categoria / Descrição
+     */
+    calculateLivroCaixaDescriptionBreakdown: (transactions: any[]) => {
+        const incomeMap = new Map<string, { label: string; total: number; count: number }>();
+        const expenseMap = new Map<string, { label: string; total: number; count: number }>();
+
+        let totalIncome = 0;
+        let totalExpense = 0;
+
+        transactions.forEach((tx: any) => {
+            const isBaseExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && String(tx.category).toLowerCase().includes('saida'));
+            const txSplits = (Array.isArray(tx.splits) && tx.splits.length > 0)
+                ? tx.splits
+                : (Array.isArray(tx.raw?.splits) && tx.raw.splits.length > 0)
+                    ? tx.raw.splits
+                    : null;
+
+            if (txSplits && txSplits.length > 0) {
+                txSplits.forEach((s: any) => {
+                    const splitAmt = Math.abs(Number(s.amount) || 0);
+                    if (splitAmt <= 0) return;
+                    const isSplitExpense = s.amount < 0 || isBaseExpense;
+                    const rawLabel = (
+                        s.contributionType ||
+                        s.category ||
+                        s.categoria ||
+                        s.destino ||
+                        s.observacao ||
+                        s.description ||
+                        tx.category ||
+                        tx.categoria ||
+                        tx.contributionType ||
+                        tx.desc ||
+                        tx.description ||
+                        (isSplitExpense ? 'Despesas Gerais' : 'Dízimos & Ofertas')
+                    ).toString().trim();
+                    const cleanKey = rawLabel.toUpperCase();
+                    const targetMap = isSplitExpense ? expenseMap : incomeMap;
+
+                    if (isSplitExpense) totalExpense += splitAmt;
+                    else totalIncome += splitAmt;
+
+                    const existing = targetMap.get(cleanKey);
+                    if (existing) {
+                        existing.total += splitAmt;
+                        existing.count += 1;
+                    } else {
+                        targetMap.set(cleanKey, { label: rawLabel, total: splitAmt, count: 1 });
+                    }
+                });
+            } else {
+                const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
+                if (amt <= 0) return;
+
+                const catCandidate = (
+                    tx.contributionType ||
+                    tx.category ||
+                    tx.categoria ||
+                    tx.purpose ||
+                    tx.proposito ||
+                    tx.categoryName ||
+                    tx.type_name ||
+                    ''
+                ).toString().trim();
+
+                let rawLabel = catCandidate;
+                const upperCandidate = catCandidate.toUpperCase();
+
+                if (!upperCandidate || upperCandidate === 'GERAL' || upperCandidate === 'DIVERSOS') {
+                    rawLabel = (
+                        tx.desc ||
+                        tx.description ||
+                        tx.historico ||
+                        (isBaseExpense ? 'Despesas Gerais' : 'Dízimos & Ofertas')
+                    ).toString().trim();
+                }
+
+                const cleanKey = rawLabel.toUpperCase();
+                const targetMap = isBaseExpense ? expenseMap : incomeMap;
+
+                if (isBaseExpense) totalExpense += amt;
+                else totalIncome += amt;
+
+                const existing = targetMap.get(cleanKey);
+                if (existing) {
+                    existing.total += amt;
+                    existing.count += 1;
+                } else {
+                    targetMap.set(cleanKey, { label: rawLabel, total: amt, count: 1 });
+                }
+            }
+        });
+
+        const incomes = Array.from(incomeMap.values()).sort((a, b) => b.total - a.total);
+        const expenses = Array.from(expenseMap.values()).sort((a, b) => b.total - a.total);
+
+        return { incomes, expenses, totalIncome, totalExpense };
     },
 
     /**
@@ -1364,7 +1469,9 @@ ${itemsOfx}
                     `• Total transf. enviadas: R$ ${fmtVal(breakdown.transfEnviadas)}\n\n` +
                     `TOTAL SAÍDAS + TRANSF: R$ ${fmtVal(breakdown.totalSaidasPlusTransf)}`,
 
-                    `• Saldo Anterior: R$ ${fmtVal(breakdown.saldoAnterior)}\n\n\n\n\n` +
+                    `• Saldo em Dinheiro: R$ ${fmtVal(breakdown.saldoDinheiro)}\n` +
+                    `• Saldo em Pix: R$ ${fmtVal(breakdown.saldoPix)}\n` +
+                    `• Saldo Anterior: R$ ${fmtVal(breakdown.saldoAnterior)}\n\n` +
                     `SALDO FINAL DO CAIXA: R$ ${fmtVal(breakdown.saldoFinal)}`
                 ]
             ],
@@ -1379,7 +1486,51 @@ ${itemsOfx}
             }
         });
 
-        const finalYAfterResumo = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY : finalY + 40;
+        let currentY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY : finalY + 40;
+
+        // Tabela de Resumo por Destino / Finalidade (Descrição)
+        const descBreakdown = ExportService.calculateLivroCaixaDescriptionBreakdown(transactions);
+        if (descBreakdown.incomes.length > 0 || descBreakdown.expenses.length > 0) {
+            if (currentY + 45 > pageHeight - 20) {
+                doc.addPage();
+                currentY = 32;
+            } else {
+                currentY += 6;
+            }
+
+            const incLines = descBreakdown.incomes.map(item => {
+                const pct = descBreakdown.totalIncome > 0 ? Math.round((item.total / descBreakdown.totalIncome) * 100) : 0;
+                return `${item.count}x  ${item.label.toUpperCase()}: R$ ${fmtVal(item.total)} (${pct}%)`;
+            }).join('\n') || 'Nenhuma entrada registrada';
+
+            const expLines = descBreakdown.expenses.map(item => {
+                const pct = descBreakdown.totalExpense > 0 ? Math.round((item.total / descBreakdown.totalExpense) * 100) : 0;
+                return `${item.count}x  ${item.label.toUpperCase()}: R$ ${fmtVal(item.total)} (${pct}%)`;
+            }).join('\n') || 'Nenhuma saída registrada';
+
+            autoTable(doc, {
+                startY: currentY,
+                head: [["RESUMO POR DESTINO / ENTRADAS", "RESUMO POR DESTINO / SAÍDAS"]],
+                body: [
+                    [
+                        incLines + `\n\nTOTAL ENTRADAS: R$ ${fmtVal(descBreakdown.totalIncome)}`,
+                        expLines + `\n\nTOTAL SAÍDAS: R$ ${fmtVal(descBreakdown.totalExpense)}`
+                    ]
+                ],
+                theme: 'grid',
+                headStyles: { fillColor: [71, 85, 105], fontSize: 8, fontStyle: 'bold', halign: 'center' },
+                bodyStyles: { fontSize: 7, cellPadding: 3, textColor: [30, 41, 59] },
+                margin: { left: 10, right: 10 },
+                columnStyles: {
+                    0: { cellWidth: (pageWidth - 20) / 2 },
+                    1: { cellWidth: (pageWidth - 20) / 2 }
+                }
+            });
+
+            currentY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY : currentY + 35;
+        }
+
+        const finalYAfterResumo = currentY;
 
         // Desenhar assinaturas do Pastor e Tesoureiro no final do relatório
         drawChurchFooterSignatures(doc, targetChurch, finalYAfterResumo);
@@ -1406,6 +1557,7 @@ ${itemsOfx}
         const logo = targetChurch?.logo || targetChurch?.logoUrl || '';
 
         const breakdown = ExportService.calculateLivroCaixaBreakdown(transactions, allReportData, customStartDate, selectionMode);
+        const descBreakdown = ExportService.calculateLivroCaixaDescriptionBreakdown(transactions);
 
         let totalIncome = 0;
         let totalExpense = 0;
@@ -1564,13 +1716,77 @@ ${itemsOfx}
 
                             <div class="resumo-col" style="background: #fffbeb; border-color: #fde68a;">
                                 <div class="resumo-col-title" style="color: #b45309;">Saldos do Período</div>
-                                <div class="resumo-row"><span>Saldo Anterior:</span><strong>${formatBRL(breakdown.saldoAnterior)}</strong></div>
-                                <div style="margin-top: 25px; padding: 8px; background: #ffffff; border: 1px solid #fcd34d; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+                                <div class="resumo-row"><span>Saldo em Dinheiro:</span><strong style="color: ${breakdown.saldoDinheiro >= 0 ? '#047857' : '#b91c1c'};">${formatBRL(breakdown.saldoDinheiro)}</strong></div>
+                                <div class="resumo-row"><span>Saldo em Pix:</span><strong style="color: ${breakdown.saldoPix >= 0 ? '#047857' : '#b91c1c'};">${formatBRL(breakdown.saldoPix)}</strong></div>
+                                <div class="resumo-row" style="border-top: 1px solid #fde68a; padding-top: 4px; margin-top: 4px;"><span>Saldo Anterior:</span><strong>${formatBRL(breakdown.saldoAnterior)}</strong></div>
+                                <div style="margin-top: 12px; padding: 8px; background: #ffffff; border: 1px solid #fcd34d; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
                                     <span style="font-weight: 800; font-size: 10px;">SALDO FINAL:</span>
                                     <span style="font-weight: 900; font-size: 12px; color: ${breakdown.saldoFinal >= 0 ? '#047857' : '#b91c1c'};">${formatBRL(breakdown.saldoFinal)}</span>
                                 </div>
                             </div>
                         </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; border-top: 1px solid #e2e8f0; padding-top: 10px;">
+                            <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 6px; padding: 8px;">
+                                <div style="font-size: 9px; font-weight: 800; text-transform: uppercase; color: #047857; margin-bottom: 4px;">Resumo em Dinheiro (Espécie)</div>
+                                <div class="resumo-row"><span>Total Entrada Dinheiro:</span><strong>${formatBRL(breakdown.entradasDinheiro)}</strong></div>
+                                <div class="resumo-row"><span>(-) Total Pago Dinheiro:</span><strong>${formatBRL(breakdown.saidasDinheiro)}</strong></div>
+                                <div class="resumo-row total" style="color: ${breakdown.saldoDinheiro >= 0 ? '#047857' : '#b91c1c'};"><span>(=) Saldo Dinheiro:</span><strong>${formatBRL(breakdown.saldoDinheiro)}</strong></div>
+                            </div>
+                            <div style="background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 6px; padding: 8px;">
+                                <div style="font-size: 9px; font-weight: 800; text-transform: uppercase; color: #0f766e; margin-bottom: 4px;">Resumo em Pix</div>
+                                <div class="resumo-row"><span>Valor Entrada Pix:</span><strong>${formatBRL(breakdown.entradasPix)}</strong></div>
+                                <div class="resumo-row"><span>(-) Valor Saída Pix:</span><strong>${formatBRL(breakdown.saidasPix)}</strong></div>
+                                <div class="resumo-row total" style="color: ${breakdown.saldoPix >= 0 ? '#0f766e' : '#b91c1c'};"><span>(=) Saldo Pix:</span><strong>${formatBRL(breakdown.saldoPix)}</strong></div>
+                            </div>
+                        </div>
+
+                        ${(descBreakdown.incomes.length > 0 || descBreakdown.expenses.length > 0) ? `
+                        <div style="margin-top: 12px; border-top: 2px dashed #cbd5e1; padding-top: 10px;">
+                            <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #1e293b; margin-bottom: 8px;">
+                                Resumo por Destino / Finalidade (Descrição e Rateios)
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px;">
+                                    <div style="font-size: 9px; font-weight: 800; text-transform: uppercase; color: #047857; margin-bottom: 6px; border-bottom: 1px solid #e2e8f0; padding-bottom: 3px;">
+                                        Entradas por Destino (${descBreakdown.incomes.length} ${descBreakdown.incomes.length === 1 ? 'item' : 'itens'})
+                                    </div>
+                                    ${descBreakdown.incomes.map(item => {
+                                        const pct = descBreakdown.totalIncome > 0 ? Math.round((item.total / descBreakdown.totalIncome) * 100) : 0;
+                                        return `
+                                            <div class="resumo-row" style="font-size: 9.5px; margin-bottom: 3px;">
+                                                <span><strong>${item.count}x</strong> ${item.label.toUpperCase()} <small style="color: #64748b;">(${pct}%)</small></span>
+                                                <strong style="color: #047857;">${formatBRL(item.total)}</strong>
+                                            </div>
+                                        `;
+                                    }).join('') || '<div style="color: #94a3b8; font-size: 9px;">Nenhuma entrada</div>'}
+                                    <div class="resumo-row total" style="color: #047857; font-size: 10px; margin-top: 6px;">
+                                        <span>Total Entradas:</span>
+                                        <strong>${formatBRL(descBreakdown.totalIncome)}</strong>
+                                    </div>
+                                </div>
+
+                                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px;">
+                                    <div style="font-size: 9px; font-weight: 800; text-transform: uppercase; color: #b91c1c; margin-bottom: 6px; border-bottom: 1px solid #e2e8f0; padding-bottom: 3px;">
+                                        Saídas por Destino (${descBreakdown.expenses.length} ${descBreakdown.expenses.length === 1 ? 'item' : 'itens'})
+                                    </div>
+                                    ${descBreakdown.expenses.map(item => {
+                                        const pct = descBreakdown.totalExpense > 0 ? Math.round((item.total / descBreakdown.totalExpense) * 100) : 0;
+                                        return `
+                                            <div class="resumo-row" style="font-size: 9.5px; margin-bottom: 3px;">
+                                                <span><strong>${item.count}x</strong> ${item.label.toUpperCase()} <small style="color: #64748b;">(${pct}%)</small></span>
+                                                <strong style="color: #b91c1c;">${formatBRL(item.total)}</strong>
+                                            </div>
+                                        `;
+                                    }).join('') || '<div style="color: #94a3b8; font-size: 9px;">Nenhuma saída</div>'}
+                                    <div class="resumo-row total" style="color: #b91c1c; font-size: 10px; margin-top: 6px;">
+                                        <span>Total Saídas:</span>
+                                        <strong>${formatBRL(descBreakdown.totalExpense)}</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        ` : ''}
                     </div>
 
                     <div class="signatures">

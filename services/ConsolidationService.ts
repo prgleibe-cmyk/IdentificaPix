@@ -523,12 +523,22 @@ export const consolidationService = {
     deleteTransactionById: async (id: string) => {
         try {
             console.log(`[WRITE:VPS] Excluindo transação por ID: ${id}`);
+            const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+            const headers: Record<string, string> = {};
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
             
             const response = await fetch(`/api/v1/consolidated_transactions/${id}`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers
             });
 
             if (!response.ok) {
+                if (response.status === 404) {
+                    console.warn(`[Consolidation] Transação ${id} não encontrada no banco, mantendo exclusão local.`);
+                    return true;
+                }
                 const errorText = await response.text();
                 throw new Error(`Erro ao excluir transação: ${errorText}`);
             }
@@ -544,10 +554,15 @@ export const consolidationService = {
     deleteTransactionsByIds: async (ids: string[]) => {
         try {
             console.log(`[WRITE:VPS] Excluindo múltiplas transações por IDs:`, ids);
+            const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
 
             const response = await fetch('/api/v1/consolidated_transactions/bulk-delete', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 body: JSON.stringify({ ids })
             });
 

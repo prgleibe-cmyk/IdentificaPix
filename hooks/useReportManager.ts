@@ -272,9 +272,15 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
         console.log(`[WRITE:ALREADY_CORRECT] Sobrescrevendo relatório com effectiveUserId: ${effectiveUserId} no VPS`);
         try {
+            const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+
             const res = await fetch(`/api/v1/saved_reports/${reportId}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 body: JSON.stringify({
                     data: mergedData,
                     record_count: recordCount

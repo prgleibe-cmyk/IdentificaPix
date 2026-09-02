@@ -494,6 +494,9 @@ export const LivroCaixaView: React.FC = memo(() => {
         const totalEntradasPlusTransf = totalEntradas + transfRecebidas;
         const totalSaidasPlusTransf = totalSaidas + transfEnviadas;
 
+        const saldoDinheiro = entradasDinheiro - saidasDinheiro;
+        const saldoPix = entradasPix - saidasPix;
+
         const saldoFinal = saldoAnterior + totalEntradasPlusTransf - totalSaidasPlusTransf;
 
         return {
@@ -509,17 +512,19 @@ export const LivroCaixaView: React.FC = memo(() => {
             transfEnviadas,
             totalEntradasPlusTransf,
             totalSaidasPlusTransf,
+            saldoDinheiro,
+            saldoPix,
             saldoFinal
         };
     }, [reportData, filteredReportData, selectionMode, customStartDate, selectedYear, selectedMonth, selectedChurchIds, selectedBankIds, isSecondaryUser, allowedChurchIds, churches, banks]);
 
-    // Resumo analítico agrupado por Descrição / Destino Específico / Rateio
+    // Resumo analítico agrupado por Destino / Finalidade / Categoria / Descrição / Rateio
     const descriptionBreakdown = useMemo(() => {
         const incomeMap = new Map<string, { label: string; total: number; count: number }>();
         const expenseMap = new Map<string, { label: string; total: number; count: number }>();
 
         filteredReportData.forEach((tx: any) => {
-            const isBaseExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
+            const isBaseExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && String(tx.category).toLowerCase().includes('saida'));
             const txSplits = (Array.isArray(tx.splits) && tx.splits.length > 0)
                 ? tx.splits
                 : (Array.isArray(tx.raw?.splits) && tx.raw.splits.length > 0)
@@ -527,13 +532,26 @@ export const LivroCaixaView: React.FC = memo(() => {
                     : null;
 
             if (txSplits && txSplits.length > 0) {
-                // Se a transação possui rateio, computa cada fatia com seu respectivo destino/observação
+                // Se a transação possui rateio, computa cada fatia com seu respectivo destino/categoria/observação
                 txSplits.forEach((s: any) => {
                     const splitAmt = Math.abs(Number(s.amount) || 0);
                     if (splitAmt <= 0) return;
 
                     const isSplitExpense = s.amount < 0 || isBaseExpense;
-                    const rawLabel = (s.description || s.observacao || s.destino || s.contributionType || tx.desc || tx.description || 'Geral').toString().trim();
+                    const rawLabel = (
+                        s.contributionType ||
+                        s.category ||
+                        s.categoria ||
+                        s.destino ||
+                        s.observacao ||
+                        s.description ||
+                        tx.category ||
+                        tx.categoria ||
+                        tx.contributionType ||
+                        tx.desc ||
+                        tx.description ||
+                        (isSplitExpense ? 'Despesas Gerais' : 'Dízimos & Ofertas')
+                    ).toString().trim();
                     const cleanKey = rawLabel.toUpperCase();
                     const targetMap = isSplitExpense ? expenseMap : incomeMap;
 
@@ -550,7 +568,30 @@ export const LivroCaixaView: React.FC = memo(() => {
                 const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
                 if (amt <= 0) return;
 
-                const rawLabel = (tx.desc || tx.description || tx.historico || tx.category || tx.categoria || tx.contributionType || 'Geral').toString().trim();
+                // Prioriza Destino / Finalidade / Categoria / Tipo de Contribuição
+                const catCandidate = (
+                    tx.contributionType ||
+                    tx.category ||
+                    tx.categoria ||
+                    tx.purpose ||
+                    tx.proposito ||
+                    tx.categoryName ||
+                    tx.type_name ||
+                    ''
+                ).toString().trim();
+
+                let rawLabel = catCandidate;
+                const upperCandidate = catCandidate.toUpperCase();
+
+                if (!upperCandidate || upperCandidate === 'GERAL' || upperCandidate === 'DIVERSOS') {
+                    rawLabel = (
+                        tx.desc ||
+                        tx.description ||
+                        tx.historico ||
+                        (isBaseExpense ? 'Despesas Gerais' : 'Dízimos & Ofertas')
+                    ).toString().trim();
+                }
+
                 const cleanKey = rawLabel.toUpperCase();
                 const targetMap = isBaseExpense ? expenseMap : incomeMap;
 
@@ -1203,9 +1244,21 @@ export const LivroCaixaView: React.FC = memo(() => {
 
                         {/* Bloco Saldos */}
                         <div className="space-y-3 bg-amber-50/40 dark:bg-amber-950/10 p-4 rounded-xl border border-amber-200/60 dark:border-amber-900/30 flex flex-col justify-between">
-                            <div>
+                            <div className="space-y-2">
                                 <div className="font-black text-amber-800 dark:text-amber-400 uppercase text-[10px] tracking-wider mb-2 border-b border-amber-200/60 dark:border-amber-800/40 pb-1.5">Saldos do Período</div>
-                                <div className="flex justify-between items-center text-slate-700 dark:text-slate-300 py-1">
+                                <div className="flex justify-between items-center text-slate-700 dark:text-slate-300 py-0.5">
+                                    <span className="font-bold">Saldo em Dinheiro:</span>
+                                    <strong className={`font-mono ml-2 whitespace-nowrap ${summaryBreakdown.saldoDinheiro >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                        {formatBRL(summaryBreakdown.saldoDinheiro)}
+                                    </strong>
+                                </div>
+                                <div className="flex justify-between items-center text-slate-700 dark:text-slate-300 py-0.5">
+                                    <span className="font-bold">Saldo em Pix:</span>
+                                    <strong className={`font-mono ml-2 whitespace-nowrap ${summaryBreakdown.saldoPix >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                        {formatBRL(summaryBreakdown.saldoPix)}
+                                    </strong>
+                                </div>
+                                <div className="flex justify-between items-center text-slate-700 dark:text-slate-300 py-0.5 border-t border-amber-200/40 pt-1">
                                     <span className="font-bold">Saldo Anterior:</span>
                                     <strong className="font-mono ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.saldoAnterior)}</strong>
                                 </div>
@@ -1215,6 +1268,67 @@ export const LivroCaixaView: React.FC = memo(() => {
                                 <span className={`text-base font-black font-mono whitespace-nowrap ${summaryBreakdown.saldoFinal >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                                     {formatBRL(summaryBreakdown.saldoFinal)}
                                 </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Demonstrativo Detalhado de Saldo Dinheiro e Saldo Pix */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 mt-4 border-t border-slate-100 dark:border-slate-800">
+                        {/* Resumo Dinheiro */}
+                        <div className="bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-200/70 dark:border-emerald-900/40 rounded-xl p-3.5 space-y-2.5">
+                            <div className="flex items-center justify-between pb-2 border-b border-emerald-200/60 dark:border-emerald-800/40">
+                                <span className="font-black uppercase tracking-wider text-[11px] text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                                    <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+                                    Resumo em Dinheiro (Espécie)
+                                </span>
+                                <span className={`text-xs font-mono font-black ${summaryBreakdown.saldoDinheiro >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-400'}`}>
+                                    Saldo: {formatBRL(summaryBreakdown.saldoDinheiro)}
+                                </span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-xs">
+                                <div className="bg-white/70 dark:bg-slate-900/70 p-2 rounded-lg border border-emerald-100 dark:border-emerald-900/30">
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Total Entrada</span>
+                                    <strong className="font-mono text-emerald-600 block text-[11.5px] mt-0.5">{formatBRL(summaryBreakdown.entradasDinheiro)}</strong>
+                                </div>
+                                <div className="bg-white/70 dark:bg-slate-900/70 p-2 rounded-lg border border-emerald-100 dark:border-emerald-900/30">
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase block">(-) Total Pago</span>
+                                    <strong className="font-mono text-rose-600 block text-[11.5px] mt-0.5">{formatBRL(summaryBreakdown.saidasDinheiro)}</strong>
+                                </div>
+                                <div className="bg-white/70 dark:bg-slate-900/70 p-2 rounded-lg border border-emerald-100 dark:border-emerald-900/30 text-right">
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase block">(=) Saldo Dinheiro</span>
+                                    <strong className={`font-mono block text-[11.5px] mt-0.5 ${summaryBreakdown.saldoDinheiro >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                        {formatBRL(summaryBreakdown.saldoDinheiro)}
+                                    </strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Resumo Pix */}
+                        <div className="bg-teal-50/40 dark:bg-teal-950/20 border border-teal-200/70 dark:border-teal-900/40 rounded-xl p-3.5 space-y-2.5">
+                            <div className="flex items-center justify-between pb-2 border-b border-teal-200/60 dark:border-teal-800/40">
+                                <span className="font-black uppercase tracking-wider text-[11px] text-teal-800 dark:text-teal-300 flex items-center gap-1.5">
+                                    <Sparkles className="w-3.5 h-3.5 text-teal-600" />
+                                    Resumo em Pix
+                                </span>
+                                <span className={`text-xs font-mono font-black ${summaryBreakdown.saldoPix >= 0 ? 'text-teal-700 dark:text-teal-300' : 'text-rose-600 dark:text-rose-400'}`}>
+                                    Saldo: {formatBRL(summaryBreakdown.saldoPix)}
+                                </span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-xs">
+                                <div className="bg-white/70 dark:bg-slate-900/70 p-2 rounded-lg border border-teal-100 dark:border-teal-900/30">
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Valor Entrada</span>
+                                    <strong className="font-mono text-teal-600 dark:text-teal-400 block text-[11.5px] mt-0.5">{formatBRL(summaryBreakdown.entradasPix)}</strong>
+                                </div>
+                                <div className="bg-white/70 dark:bg-slate-900/70 p-2 rounded-lg border border-teal-100 dark:border-teal-900/30">
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase block">(-) Valor Saída</span>
+                                    <strong className="font-mono text-rose-600 block text-[11.5px] mt-0.5">{formatBRL(summaryBreakdown.saidasPix)}</strong>
+                                </div>
+                                <div className="bg-white/70 dark:bg-slate-900/70 p-2 rounded-lg border border-teal-100 dark:border-teal-900/30 text-right">
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase block">(=) Saldo Pix</span>
+                                    <strong className={`font-mono block text-[11.5px] mt-0.5 ${summaryBreakdown.saldoPix >= 0 ? 'text-teal-700 dark:text-teal-300' : 'text-rose-600 dark:text-rose-400'}`}>
+                                        {formatBRL(summaryBreakdown.saldoPix)}
+                                    </strong>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1264,16 +1378,21 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                     key={idx}
                                                     className="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900/80 border border-emerald-100 dark:border-emerald-950/60 rounded-xl hover:border-emerald-300 transition-colors shadow-2xs"
                                                 >
-                                                    <div className="flex flex-col min-w-0 pr-2">
-                                                        <span className="font-bold text-slate-800 dark:text-slate-100 uppercase text-[11px] truncate" title={item.label}>
-                                                            {item.label}
+                                                    <div className="flex items-center gap-2 min-w-0 pr-2">
+                                                        <span className="font-mono font-extrabold text-[11px] px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 shrink-0 border border-emerald-200/60 dark:border-emerald-800/40">
+                                                            {item.count}x
                                                         </span>
-                                                        <span className="text-[9.5px] text-slate-400 font-medium mt-0.5">
-                                                            {item.count} {item.count === 1 ? 'lançamento' : 'lançamentos'} ({pct}%)
-                                                        </span>
+                                                        <div className="flex flex-col min-w-0">
+                                                            <span className="font-bold text-slate-800 dark:text-slate-100 uppercase text-[11.5px] truncate" title={item.label}>
+                                                                {item.label}
+                                                            </span>
+                                                            <span className="text-[9.5px] text-slate-400 font-medium mt-0.5">
+                                                                {item.count} {item.count === 1 ? 'lançamento' : 'lançamentos'} ({pct}% do total)
+                                                            </span>
+                                                        </div>
                                                     </div>
                                                     <div className="text-right whitespace-nowrap pl-2">
-                                                        <span className="font-mono font-black text-emerald-600 dark:text-emerald-400 text-xs">
+                                                        <span className="font-mono font-black text-emerald-600 dark:text-emerald-400 text-xs sm:text-sm">
                                                             {formatBRL(item.total)}
                                                         </span>
                                                     </div>
@@ -1319,16 +1438,21 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                     key={idx}
                                                     className="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900/80 border border-rose-100 dark:border-rose-950/60 rounded-xl hover:border-rose-300 transition-colors shadow-2xs"
                                                 >
-                                                    <div className="flex flex-col min-w-0 pr-2">
-                                                        <span className="font-bold text-slate-800 dark:text-slate-100 uppercase text-[11px] truncate" title={item.label}>
-                                                            {item.label}
+                                                    <div className="flex items-center gap-2 min-w-0 pr-2">
+                                                        <span className="font-mono font-extrabold text-[11px] px-2 py-0.5 rounded-md bg-rose-100 dark:bg-rose-900/60 text-rose-800 dark:text-rose-200 shrink-0 border border-rose-200/60 dark:border-rose-800/40">
+                                                            {item.count}x
                                                         </span>
-                                                        <span className="text-[9.5px] text-slate-400 font-medium mt-0.5">
-                                                            {item.count} {item.count === 1 ? 'lançamento' : 'lançamentos'} ({pct}%)
-                                                        </span>
+                                                        <div className="flex flex-col min-w-0">
+                                                            <span className="font-bold text-slate-800 dark:text-slate-100 uppercase text-[11.5px] truncate" title={item.label}>
+                                                                {item.label}
+                                                            </span>
+                                                            <span className="text-[9.5px] text-slate-400 font-medium mt-0.5">
+                                                                {item.count} {item.count === 1 ? 'lançamento' : 'lançamentos'} ({pct}% do total)
+                                                            </span>
+                                                        </div>
                                                     </div>
                                                     <div className="text-right whitespace-nowrap pl-2">
-                                                        <span className="font-mono font-black text-rose-600 dark:text-rose-400 text-xs">
+                                                        <span className="font-mono font-black text-rose-600 dark:text-rose-400 text-xs sm:text-sm">
                                                             {formatBRL(item.total)}
                                                         </span>
                                                     </div>

@@ -76,7 +76,11 @@ export const useDataDeletion = ({
                 case 'report-row': {
                     // Se não for um registro fantasma, remove permanentemente do banco de dados
                     if (id && !id.startsWith('ghost-')) {
-                        await consolidationService.deleteTransactionById(id);
+                        try {
+                            await consolidationService.deleteTransactionById(id);
+                        } catch (e) {
+                            console.warn('[useDataDeletion] Falha ao deletar do banco mas prosseguindo com remoção do relatório:', e);
+                        }
                     }
                     
                     // Remove do estado da reconciliação (UI do relatório)
@@ -98,11 +102,6 @@ export const useDataDeletion = ({
                         }
                     }
                     
-                    // Força a sincronização da Lista Viva para atualizar os contadores no UploadView
-                    if (reconciliation?.hydrate) {
-                        await reconciliation.hydrate();
-                    }
-                    
                     showToast("Linha removida permanentemente.", "success");
                     break;
                 }
@@ -111,7 +110,11 @@ export const useDataDeletion = ({
                     if (ids.length > 0) {
                         const dbIds = ids.filter((x: string) => x && !x.startsWith('ghost-'));
                         if (dbIds.length > 0) {
-                            await consolidationService.deleteTransactionsByIds(dbIds);
+                            try {
+                                await consolidationService.deleteTransactionsByIds(dbIds);
+                            } catch (e) {
+                                console.warn('[useDataDeletion] Falha ao deletar lote do banco mas prosseguindo com remoção do relatório:', e);
+                            }
                         }
                         
                         // Remove do estado da reconciliação (UI do relatório)
@@ -131,11 +134,6 @@ export const useDataDeletion = ({
                             if (reconciliation?.syncToCloud) {
                                 await reconciliation.syncToCloud(nextResults);
                             }
-                        }
-                        
-                        // Força a sincronização da Lista Viva para atualizar os contadores no UploadView
-                        if (reconciliation?.hydrate) {
-                            await reconciliation.hydrate();
                         }
                         
                         showToast(`${ids.length} linhas removidas permanentemente.`, "success");

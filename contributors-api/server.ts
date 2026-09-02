@@ -5069,26 +5069,32 @@ app.delete('/api/v1/consolidated_transactions/:id', async (req: Request, res: Re
     const { id } = req.params;
     const ctx = getTenantContext(req);
 
-    const oldTxRes = await pool.query('SELECT * FROM consolidated_transactions WHERE id = $1', [id]);
+    const oldTxRes = await pool.query('SELECT * FROM consolidated_transactions WHERE id::text = $1', [id]);
     const oldTx = oldTxRes.rows[0] || null;
-    if (!oldTx) return res.status(404).json({ error: 'NOT_FOUND' });
+    if (!oldTx) {
+      return res.json({ success: true, notFoundInDb: true, id });
+    }
 
     const isAuthorized = await isAuthorizedForTransaction(pool, ctx, oldTx);
     if (!isAuthorized) {
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: a transação pertence a outra organização.' });
     }
 
-    const result = await pool.query('DELETE FROM consolidated_transactions WHERE id = $1 RETURNING id', [id]);
+    const result = await pool.query('DELETE FROM consolidated_transactions WHERE id::text = $1 RETURNING id', [id]);
 
-    await logAudit(pool, {
-      action: 'DELETE',
-      entity: 'consolidated_transactions',
-      entityId: id,
-      churchId: oldTx?.church_id,
-      userId: oldTx?.user_id,
-      oldValues: oldTx,
-      req
-    });
+    try {
+      await logAudit(pool, {
+        action: 'DELETE',
+        entity: 'consolidated_transactions',
+        entityId: id,
+        churchId: oldTx?.church_id,
+        userId: oldTx?.user_id,
+        oldValues: oldTx,
+        req
+      });
+    } catch (auditErr) {
+      console.warn('[Audit] Erro ao gravar log de auditoria no DELETE:', auditErr);
+    }
 
     return res.json({ success: true, id });
   } catch (err) {
@@ -5105,7 +5111,7 @@ app.post('/api/v1/consolidated_transactions/bulk-delete', async (req: Request, r
     if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: 'VALIDATION_ERROR: ids array is required' });
     }
-    const oldTxsRes = await pool.query('SELECT * FROM consolidated_transactions WHERE id = ANY($1)', [ids]);
+    const oldTxsRes = await pool.query('SELECT * FROM consolidated_transactions WHERE id::text = ANY($1)', [ids]);
     const oldTxs = oldTxsRes.rows || [];
 
     for (const oldTx of oldTxs) {
@@ -5115,21 +5121,25 @@ app.post('/api/v1/consolidated_transactions/bulk-delete', async (req: Request, r
       }
     }
 
-    const result = await pool.query('DELETE FROM consolidated_transactions WHERE id = ANY($1) RETURNING id', [ids]);
+    const result = await pool.query('DELETE FROM consolidated_transactions WHERE id::text = ANY($1) RETURNING id', [ids]);
 
     for (const oldTx of oldTxs) {
-      await logAudit(pool, {
-        action: 'DELETE',
-        entity: 'consolidated_transactions',
-        entityId: oldTx.id,
-        churchId: oldTx.church_id,
-        userId: oldTx.user_id,
-        oldValues: oldTx,
-        req
-      });
+      try {
+        await logAudit(pool, {
+          action: 'DELETE',
+          entity: 'consolidated_transactions',
+          entityId: oldTx.id,
+          churchId: oldTx.church_id,
+          userId: oldTx.user_id,
+          oldValues: oldTx,
+          req
+        });
+      } catch (auditErr) {
+        console.warn('[Audit] Erro ao gravar log de auditoria no bulk-delete:', auditErr);
+      }
     }
 
-    return res.json({ success: true, count: result.rows.length });
+    return res.json({ success: true, count: result.rows.length, ids });
   } catch (err) {
     console.error('[Contributors API] Error POST bulk-delete consolidated_transactions:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
