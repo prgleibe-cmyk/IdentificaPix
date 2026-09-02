@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { MatchResult, ReconciliationStatus, GroupedReportData, Transaction } from '../../types';
 import { matchTransactions, groupResultsByChurch, PLACEHOLDER_CHURCH } from '../../services/processingService';
-import { batchState } from './useCloudSync';
+import { batchState, lastRealtimeUpdate } from './useCloudSync';
 
 interface UseTransactionMatcherProps {
     subscription: any;
@@ -476,6 +476,8 @@ export const useTransactionMatcher = ({
         };
         let nextResults: MatchResult[] = [];
         batchState.isAtomicUpdate = true;
+        lastRealtimeUpdate.txId = updatedRow.transaction.id;
+        lastRealtimeUpdate.timestamp = Date.now();
         setMatchResults(prev => {
             const next = [...prev];
             const idx = next.findIndex(r => r.transaction.id === updatedRow.transaction.id);
@@ -533,6 +535,8 @@ export const useTransactionMatcher = ({
 
     const revertMatch = useCallback((txId: string) => {
         batchState.isAtomicUpdate = true;
+        lastRealtimeUpdate.txId = txId;
+        lastRealtimeUpdate.timestamp = Date.now();
         setMatchResults(prev =>
             prev.map(r =>
                 r.transaction.id === txId
@@ -553,11 +557,15 @@ export const useTransactionMatcher = ({
 
     const removeTransaction = useCallback((id: string) => {
         batchState.isAtomicUpdate = true;
+        lastRealtimeUpdate.txId = id;
+        lastRealtimeUpdate.timestamp = Date.now();
         setMatchResults(prev => prev.filter(r => r?.transaction?.id !== id));
     }, [setMatchResults]);
 
     const removeTransactions = useCallback((ids: string[]) => {
         batchState.isAtomicUpdate = true;
+        lastRealtimeUpdate.txId = ids[0] || null;
+        lastRealtimeUpdate.timestamp = Date.now();
         setMatchResults(prev => prev.filter(r => !r?.transaction?.id || !ids.includes(r.transaction.id)));
     }, [setMatchResults]);
 

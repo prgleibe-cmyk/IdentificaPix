@@ -432,18 +432,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // 📊 DADOS CONSOLIDADOS PARA RELATÓRIOS E LIVRO CAIXA
     const reportData = useMemo(() => {
-        let results = reconciliation.fullMatchResults || reconciliation.matchResults || [];
-
-        // Fallback: Se não houver sessão ativa carregada no momento, tenta coletar de relatórios salvos
-        if (results.length === 0 && reportManager.savedReports && reportManager.savedReports.length > 0) {
-            const collected: any[] = [];
-            reportManager.savedReports.forEach((sr: any) => {
-                if (sr.data?.results && Array.isArray(sr.data.results)) {
-                    collected.push(...sr.data.results);
-                }
-            });
-            results = collected;
-        }
+        const results = reconciliation.fullMatchResults || reconciliation.matchResults || [];
 
         const churchMap = new Map<string, any>();
         (referenceData.churches || []).forEach((c: any) => {

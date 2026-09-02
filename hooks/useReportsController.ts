@@ -339,58 +339,124 @@ export const useReportsController = () => {
         const oldItem = cacheRef.current.resultsMap.get(txId);
         const newItem = currentResults.find(r => r.transaction.id === txId);
 
+        const allowedIds = isSecondary ? (subscription?.congregationIds || []) : null;
+        const churchesMap = new Map<string, any>();
+        (churches || []).forEach((c: any) => {
+            if (c.id) churchesMap.set(c.id, c);
+        });
+
+        const adjustChurch = (item: MatchResult, factor: 1 | -1) => {
+            const churchId = (item.church?.id && item.church.id !== 'unidentified') 
+                ? item.church.id 
+                : (item._churchId && item._churchId !== 'unidentified' ? item._churchId : (item.transaction as any)?.church_id);
+            const hasValidChurch = churchId && churchId !== 'unidentified';
+            if (hasValidChurch) {
+                if (allowedIds && !allowedIds.includes(churchId)) return;
+                
+                const realChurch = churchesMap.get(churchId) || item.church;
+                const churchName = realChurch?.name || item.church?.name || 'Igreja';
+                const isExp = isExpenseTx(item);
+                const rawAmount = item.status === 'PENDENTE' ? item.contributorAmount : item.transaction?.amount;
+                const amount = Math.abs(Number(rawAmount) || 0);
+                const effectiveAmount = isExp ? -amount : amount;
+
+                const idx = cacheRef.current.churchList.findIndex(c => c.id === churchId);
+                if (idx !== -1) {
+                    const existing = cacheRef.current.churchList[idx];
+                    const newCount = Math.max(0, existing.count + factor);
+                    const newTotal = existing.total + factor * effectiveAmount;
+                    const updatedList = [...cacheRef.current.churchList];
+                    updatedList[idx] = {
+                        ...existing,
+                        count: newCount,
+                        total: newTotal
+                    };
+                    cacheRef.current.churchList = updatedList;
+                } else if (factor === 1) {
+                    cacheRef.current.churchList = [
+                        ...cacheRef.current.churchList,
+                        {
+                            id: churchId,
+                            name: churchName,
+                            count: 1,
+                            total: effectiveAmount
+                        }
+                    ].sort((a, b) => a.name.localeCompare(b.name));
+                }
+            }
+        };
+
+        const matchesCountFilters = (item: MatchResult) => {
+            if (!isSecondary) return true;
+            const churchId = (item.church?.id && item.church.id !== 'unidentified') 
+                ? item.church.id 
+                : (item._churchId && item._churchId !== 'unidentified' ? item._churchId : (item.transaction as any)?.church_id || 'unidentified');
+            return churchId === 'unidentified' || (subscription.congregationIds || []).includes(churchId);
+        };
+
+        const matchesFilters = (item: MatchResult) => {
+            let matchesCat = false;
+            if (activeCategory === 'general') {
+                matchesCat = true;
+            } else if (activeCategory === 'unidentified') {
+                matchesCat = isPendingTx(item);
+            } else if (activeCategory === 'expenses') {
+                matchesCat = isExpenseTx(item);
+            } else {
+                const targetChurchId = (isSecondary && subscription.congregationIds && subscription.congregationIds.length > 0)
+                    ? (selectedReportId && subscription.congregationIds.includes(selectedReportId) ? selectedReportId : subscription.congregationIds[0])
+                    : ((selectedReportId && selectedReportId !== 'general_all' && selectedReportId !== 'unidentified' && selectedReportId !== 'all_expenses_group' && cacheRef.current.churchList.some(c => c.id === selectedReportId))
+                        ? selectedReportId 
+                        : (cacheRef.current.churchList.length > 0 ? cacheRef.current.churchList[0].id : null));
+                const churchId = (item.church?.id && item.church.id !== 'unidentified') 
+                    ? item.church.id 
+                    : (item._churchId && item._churchId !== 'unidentified' ? item._churchId : (item.transaction as any)?.church_id);
+                matchesCat = churchId === targetChurchId;
+            }
+
+            if (!matchesCat) return false;
+
+            if (selectedBankId && selectedBankId !== 'all') {
+                if (String(item.transaction?.bank_id) !== selectedBankId) return false;
+            } else if (isSecondary && subscription?.bankIds && subscription.bankIds.length > 0) {
+                if (!subscription.bankIds.includes(String(item.transaction?.bank_id))) return false;
+            }
+
+            if (searchFilters.dateRange && (searchFilters.dateRange.start || searchFilters.dateRange.end)) {
+                const startStr = searchFilters.dateRange.start ? toIsoDate(searchFilters.dateRange.start) : null;
+                const endStr = searchFilters.dateRange.end ? toIsoDate(searchFilters.dateRange.end) : null;
+                const dateStr = item.transaction?.date || item.contributor?.date || (item as any).date;
+                if (dateStr) {
+                    const itemIso = toIsoDate(dateStr);
+                    if (startStr && itemIso < startStr) return false;
+                    if (endStr && itemIso > endStr) return false;
+                }
+            }
+
+            if (searchFilters) {
+                const res = applyAdvancedFilters([item], searchFilters);
+                if (res.length === 0) return false;
+            }
+
+            if (searchTerm && searchTerm.trim()) {
+                if (!filterByUniversalQuery(item, searchTerm)) return false;
+            }
+
+            return true;
+        };
+
+        const getStableKeyMetrics = (item: MatchResult) => {
+            const identified = item.status === ReconciliationStatus.IDENTIFIED || item.status === ReconciliationStatus.RESOLVED;
+            const confirmed = !!item.isConfirmed;
+            const withChurch = !!(item.church?.id && item.church.id !== 'unidentified');
+            return { identified, confirmed, withChurch };
+        };
+
         if (newItem) {
             // 1. Update resultsMap
             cacheRef.current.resultsMap.set(txId, newItem);
 
             // 2. Update churchList incrementally
-            const allowedIds = isSecondary ? (subscription?.congregationIds || []) : null;
-            const churchesMap = new Map<string, any>();
-            (churches || []).forEach((c: any) => {
-                if (c.id) churchesMap.set(c.id, c);
-            });
-
-            const adjustChurch = (item: MatchResult, factor: 1 | -1) => {
-                const churchId = (item.church?.id && item.church.id !== 'unidentified') 
-                    ? item.church.id 
-                    : (item._churchId && item._churchId !== 'unidentified' ? item._churchId : (item.transaction as any)?.church_id);
-                const hasValidChurch = churchId && churchId !== 'unidentified';
-                if (hasValidChurch) {
-                    if (allowedIds && !allowedIds.includes(churchId)) return;
-                    
-                    const realChurch = churchesMap.get(churchId) || item.church;
-                    const churchName = realChurch?.name || item.church?.name || 'Igreja';
-                    const isExp = isExpenseTx(item);
-                    const rawAmount = item.status === 'PENDENTE' ? item.contributorAmount : item.transaction?.amount;
-                    const amount = Math.abs(Number(rawAmount) || 0);
-                    const effectiveAmount = isExp ? -amount : amount;
-
-                    const idx = cacheRef.current.churchList.findIndex(c => c.id === churchId);
-                    if (idx !== -1) {
-                        const existing = cacheRef.current.churchList[idx];
-                        const newCount = Math.max(0, existing.count + factor);
-                        const newTotal = existing.total + factor * effectiveAmount;
-                        const updatedList = [...cacheRef.current.churchList];
-                        updatedList[idx] = {
-                            ...existing,
-                            count: newCount,
-                            total: newTotal
-                        };
-                        cacheRef.current.churchList = updatedList;
-                    } else if (factor === 1) {
-                        cacheRef.current.churchList = [
-                            ...cacheRef.current.churchList,
-                            {
-                                id: churchId,
-                                name: churchName,
-                                count: 1,
-                                total: effectiveAmount
-                            }
-                        ].sort((a, b) => a.name.localeCompare(b.name));
-                    }
-                }
-            };
-
             if (oldItem) {
                 adjustChurch(oldItem, -1);
             }
@@ -398,15 +464,6 @@ export const useReportsController = () => {
 
             // 3. Update counts incrementally
             let countsDelta = { pending: 0, expenses: 0 };
-            
-            const matchesCountFilters = (item: MatchResult) => {
-                if (!isSecondary) return true;
-                const churchId = (item.church?.id && item.church.id !== 'unidentified') 
-                    ? item.church.id 
-                    : (item._churchId && item._churchId !== 'unidentified' ? item._churchId : (item.transaction as any)?.church_id || 'unidentified');
-                return churchId === 'unidentified' || (subscription.congregationIds || []).includes(churchId);
-            };
-
             if (oldItem && matchesCountFilters(oldItem)) {
                 if (isPendingTx(oldItem)) countsDelta.pending--;
                 if (isExpenseTx(oldItem)) countsDelta.expenses--;
@@ -424,57 +481,6 @@ export const useReportsController = () => {
             };
 
             // 4. Update activeData incrementally
-            const matchesFilters = (item: MatchResult) => {
-                let matchesCat = false;
-                if (activeCategory === 'general') {
-                    matchesCat = true;
-                } else if (activeCategory === 'unidentified') {
-                    matchesCat = isPendingTx(item);
-                } else if (activeCategory === 'expenses') {
-                    matchesCat = isExpenseTx(item);
-                } else {
-                    const targetChurchId = (isSecondary && subscription.congregationIds && subscription.congregationIds.length > 0)
-                        ? (selectedReportId && subscription.congregationIds.includes(selectedReportId) ? selectedReportId : subscription.congregationIds[0])
-                        : ((selectedReportId && selectedReportId !== 'general_all' && selectedReportId !== 'unidentified' && selectedReportId !== 'all_expenses_group' && cacheRef.current.churchList.some(c => c.id === selectedReportId))
-                            ? selectedReportId 
-                            : (cacheRef.current.churchList.length > 0 ? cacheRef.current.churchList[0].id : null));
-                    const churchId = (item.church?.id && item.church.id !== 'unidentified') 
-                        ? item.church.id 
-                        : (item._churchId && item._churchId !== 'unidentified' ? item._churchId : (item.transaction as any)?.church_id);
-                    matchesCat = churchId === targetChurchId;
-                }
-
-                if (!matchesCat) return false;
-
-                if (selectedBankId && selectedBankId !== 'all') {
-                    if (String(item.transaction?.bank_id) !== selectedBankId) return false;
-                } else if (isSecondary && subscription?.bankIds && subscription.bankIds.length > 0) {
-                    if (!subscription.bankIds.includes(String(item.transaction?.bank_id))) return false;
-                }
-
-                if (searchFilters.dateRange && (searchFilters.dateRange.start || searchFilters.dateRange.end)) {
-                    const startStr = searchFilters.dateRange.start ? toIsoDate(searchFilters.dateRange.start) : null;
-                    const endStr = searchFilters.dateRange.end ? toIsoDate(searchFilters.dateRange.end) : null;
-                    const dateStr = item.transaction?.date || item.contributor?.date || (item as any).date;
-                    if (dateStr) {
-                        const itemIso = toIsoDate(dateStr);
-                        if (startStr && itemIso < startStr) return false;
-                        if (endStr && itemIso > endStr) return false;
-                    }
-                }
-
-                if (searchFilters) {
-                    const res = applyAdvancedFilters([item], searchFilters);
-                    if (res.length === 0) return false;
-                }
-
-                if (searchTerm && searchTerm.trim()) {
-                    if (!filterByUniversalQuery(item, searchTerm)) return false;
-                }
-
-                return true;
-            };
-
             const oldMatched = oldItem ? matchesFilters(oldItem) : false;
             const newMatched = matchesFilters(newItem);
 
@@ -498,13 +504,6 @@ export const useReportsController = () => {
 
             // 5. Update stableKey incrementally
             let stableKeyDelta = { identified: 0, confirmed: 0, withChurch: 0 };
-            const getStableKeyMetrics = (item: MatchResult) => {
-                const identified = item.status === ReconciliationStatus.IDENTIFIED || item.status === ReconciliationStatus.RESOLVED;
-                const confirmed = !!item.isConfirmed;
-                const withChurch = !!(item.church?.id && item.church.id !== 'unidentified');
-                return { identified, confirmed, withChurch };
-            };
-
             if (oldItem) {
                 const oldMetrics = getStableKeyMetrics(oldItem);
                 if (oldMetrics.identified) stableKeyDelta.identified--;
@@ -522,6 +521,39 @@ export const useReportsController = () => {
                 const newIdentified = parseInt(prevStableKeyParts[1]) + stableKeyDelta.identified;
                 const newConfirmed = parseInt(prevStableKeyParts[2]) + stableKeyDelta.confirmed;
                 const newWithChurch = parseInt(prevStableKeyParts[3]) + stableKeyDelta.withChurch;
+                cacheRef.current.stableKey = `${newTotal}-${newIdentified}-${newConfirmed}-${newWithChurch}`;
+            }
+        } else if (oldItem) {
+            // 🗑️ DELEÇÃO DE LINHA: Limpa imediatamente do cache sem deixar resíduos
+            cacheRef.current.resultsMap.delete(txId);
+            adjustChurch(oldItem, -1);
+
+            let countsDelta = { pending: 0, expenses: 0 };
+            if (matchesCountFilters(oldItem)) {
+                if (isPendingTx(oldItem)) countsDelta.pending--;
+                if (isExpenseTx(oldItem)) countsDelta.expenses--;
+            }
+            cacheRef.current.counts = {
+                ...cacheRef.current.counts,
+                pending: Math.max(0, cacheRef.current.counts.pending + countsDelta.pending),
+                expenses: Math.max(0, cacheRef.current.counts.expenses + countsDelta.expenses),
+                churches: cacheRef.current.churchList.length
+            };
+
+            cacheRef.current.activeData = cacheRef.current.activeData.filter(r => r.transaction.id !== txId);
+
+            const oldMetrics = getStableKeyMetrics(oldItem);
+            let stableKeyDelta = { identified: 0, confirmed: 0, withChurch: 0 };
+            if (oldMetrics.identified) stableKeyDelta.identified--;
+            if (oldMetrics.confirmed) stableKeyDelta.confirmed--;
+            if (oldMetrics.withChurch) stableKeyDelta.withChurch--;
+
+            const prevStableKeyParts = cacheRef.current.stableKey.split('-');
+            if (prevStableKeyParts.length === 4) {
+                const newTotal = Math.max(0, parseInt(prevStableKeyParts[0]) - 1);
+                const newIdentified = Math.max(0, parseInt(prevStableKeyParts[1]) + stableKeyDelta.identified);
+                const newConfirmed = Math.max(0, parseInt(prevStableKeyParts[2]) + stableKeyDelta.confirmed);
+                const newWithChurch = Math.max(0, parseInt(prevStableKeyParts[3]) + stableKeyDelta.withChurch);
                 cacheRef.current.stableKey = `${newTotal}-${newIdentified}-${newConfirmed}-${newWithChurch}`;
             }
         }

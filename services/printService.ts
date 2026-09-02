@@ -141,26 +141,32 @@ export const printService = {
                     table { 
                         width: 100%; 
                         border-collapse: collapse; 
-                        margin-bottom: 30px; 
+                        margin-bottom: 12px; 
                     }
+                    thead { display: table-header-group; }
+                    tbody { display: table-row-group; }
+                    tfoot { display: table-footer-group; }
+                    tr { page-break-inside: avoid; break-inside: avoid; }
                     
                     th { 
                         background-color: #f1f5f9 !important; 
                         color: #475569; 
-                        font-size: 10px; 
+                        font-size: 8.5px; 
                         font-weight: 900; 
                         text-transform: uppercase; 
                         letter-spacing: 0.5px; 
-                        padding: 8px 10px; 
+                        padding: 5px 6px; 
                         border-bottom: 2px solid #cbd5e1; 
+                        line-height: 1.2;
                     }
                     
                     td { 
-                        padding: 5px 10px; 
+                        padding: 4px 6px; 
                         border-bottom: 1px solid #e2e8f0; 
-                        font-size: 10px; 
+                        font-size: 9px; 
                         font-weight: 500; 
                         color: #334155;
+                        line-height: 1.25;
                     }
                     
                     tr:nth-child(even) { background-color: #f8fafc !important; }
@@ -174,16 +180,18 @@ export const printService = {
                         display: flex; 
                         justify-content: space-around; 
                         flex-wrap: wrap; 
-                        gap: 40px; 
-                        margin-top: 60px; 
+                        gap: 20px; 
+                        margin-top: 18px; 
+                        margin-bottom: 6px;
                         page-break-inside: avoid; 
+                        break-inside: avoid;
                     }
                     
                     .footer {
-                        margin-top: 30px;
-                        padding-top: 10px;
+                        margin-top: 14px;
+                        padding-top: 6px;
                         border-top: 1px solid #e2e8f0;
-                        font-size: 9px;
+                        font-size: 8.5px;
                         color: #94a3b8;
                         text-align: right;
                         display: flex;
@@ -191,8 +199,8 @@ export const printService = {
                     }
 
                     @media print {
-                        body { padding: 0; }
-                        @page { margin: 1cm; }
+                        body { padding: 0; margin: 0; }
+                        @page { size: A4 portrait; margin: 8mm 10mm; }
                     }
                 </style>
             </head>

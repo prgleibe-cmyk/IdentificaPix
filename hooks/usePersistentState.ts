@@ -93,8 +93,8 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
 
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
-        // Otimização: Aumenta o delay para dados pesados (2s) vs leves (500ms)
-        const delay = isHeavy ? 2000 : 500;
+        // Persistência rápida e ágil para sincronização limpa em tempo real
+        const delay = isHeavy ? 300 : 150;
 
         timeoutRef.current = setTimeout(() => {
             // Executa em idle para não bloquear a UI

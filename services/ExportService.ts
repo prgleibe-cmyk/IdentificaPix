@@ -378,59 +378,71 @@ export const ExportService = {
                     <style>
                         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
                         
+                        @page {
+                            size: A4 portrait;
+                            margin: 8mm 10mm 8mm 10mm;
+                        }
+                        * {
+                            box-sizing: border-box;
+                        }
                         body { 
                             font-family: 'Inter', sans-serif; 
-                            padding: 20px; 
+                            margin: 0;
+                            padding: 0; 
                             color: #1e293b;
                             -webkit-print-color-adjust: exact !important;
                             print-color-adjust: exact !important;
                         }
                         
-                        .header-container { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #f97316; padding-bottom: 12px; margin-bottom: 20px; }
-                        .church-info-box { display: flex; align-items: center; gap: 14px; }
-                        .church-logo { max-height: 55px; max-width: 90px; object-fit: contain; border-radius: 6px; border: 1px solid #e2e8f0; padding: 4px; background: #fff; }
-                        .church-title { font-size: 15px; font-weight: 900; color: #0f172a; margin: 0; text-transform: uppercase; letter-spacing: -0.01em; }
-                        .church-sub { margin: 3px 0 0 0; font-size: 10px; color: #64748b; font-weight: 600; }
-                        .church-leader { margin: 3px 0 0 0; font-size: 10px; color: #f97316; font-weight: 700; text-transform: uppercase; }
+                        .header-container { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #f97316; padding-bottom: 8px; margin-bottom: 10px; }
+                        .church-info-box { display: flex; align-items: center; gap: 12px; }
+                        .church-logo { max-height: 48px; max-width: 85px; object-fit: contain; border-radius: 6px; border: 1px solid #e2e8f0; padding: 3px; background: #fff; }
+                        .church-title { font-size: 14px; font-weight: 900; color: #0f172a; margin: 0; text-transform: uppercase; letter-spacing: -0.01em; }
+                        .church-sub { margin: 2px 0 0 0; font-size: 9px; color: #64748b; font-weight: 600; }
+                        .church-leader { margin: 2px 0 0 0; font-size: 9px; color: #f97316; font-weight: 700; text-transform: uppercase; }
                         .report-title-box { text-align: right; }
-                        .report-title { font-size: 16px; margin: 0; color: #f97316; text-transform: uppercase; font-weight: 900; }
-                        .report-date { font-size: 10px; color: #64748b; font-weight: 600; }
+                        .report-title { font-size: 15px; margin: 0; color: #f97316; text-transform: uppercase; font-weight: 900; }
+                        .report-date { font-size: 9px; color: #64748b; font-weight: 600; }
 
                         .summary { 
                             display: flex; 
-                            gap: 20px; 
-                            margin-bottom: 20px; 
-                            padding: 12px 16px; 
+                            gap: 16px; 
+                            margin-bottom: 10px; 
+                            padding: 6px 12px; 
                             background: #f8fafc !important; 
-                            border-radius: 10px; 
+                            border-radius: 8px; 
                             border: 1px solid #e2e8f0; 
                         }
                         
                         .summary-item { display: flex; flex-direction: column; }
-                        .summary-label { font-size: 9px; font-weight: 800; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; }
-                        .summary-value { font-size: 15px; font-weight: 900; color: #0f172a; }
+                        .summary-label { font-size: 8.5px; font-weight: 800; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; }
+                        .summary-value { font-size: 13px; font-weight: 900; color: #0f172a; }
                         
-                        table { width: 100%; border-collapse: collapse; font-size: 10px; table-layout: fixed; }
+                        table { width: 100%; border-collapse: collapse; font-size: 9px; table-layout: fixed; margin-bottom: 10px; }
+                        thead { display: table-header-group; }
+                        tbody { display: table-row-group; }
+                        tr { page-break-inside: avoid; break-inside: avoid; }
                         th { 
                             text-align: left; 
                             background: #f8fafc !important; 
-                            padding: 8px; 
-                            border-bottom: 2px solid #0f172a; 
+                            padding: 5px 6px; 
+                            border-bottom: 1.5px solid #0f172a; 
                             text-transform: uppercase; 
-                            font-size: 8.5px; 
+                            font-size: 8px; 
                             font-weight: 900;
                             color: #475569; 
+                            line-height: 1.2;
                         }
                         
-                        td { padding: 8px; border-bottom: 1px solid #e2e8f0; word-break: break-word; vertical-align: middle; }
+                        td { padding: 4.5px 6px; border-bottom: 1px solid #e2e8f0; word-break: break-word; vertical-align: middle; font-size: 9px; line-height: 1.25; }
                         tr:nth-child(even) { background: #f8fafc !important; }
 
-                        .footer-signatures { margin-top: 50px; page-break-inside: avoid; }
-                        .sig-container { display: flex; justify-content: space-around; text-align: center; margin-top: 30px; }
-                        .sig-block { width: 240px; }
-                        .sig-line { border-bottom: 1px solid #64748b; margin-bottom: 6px; }
-                        .sig-name { display: block; font-size: 11px; font-weight: 800; color: #0f172a; text-transform: uppercase; }
-                        .sig-role { font-size: 9px; color: #64748b; font-weight: 600; }
+                        .footer-signatures { margin-top: 18px; margin-bottom: 6px; page-break-inside: avoid; break-inside: avoid; }
+                        .sig-container { display: flex; justify-content: space-around; text-align: center; margin-top: 14px; }
+                        .sig-block { width: 220px; }
+                        .sig-line { border-bottom: 1px solid #64748b; margin-bottom: 4px; }
+                        .sig-name { display: block; font-size: 10px; font-weight: 800; color: #0f172a; text-transform: uppercase; }
+                        .sig-role { font-size: 8.5px; color: #64748b; font-weight: 600; }
                     </style>
                 </head>
                 <body>
@@ -477,7 +489,7 @@ export const ExportService = {
                     </table>
 
                     <div class="footer-signatures">
-                        <p style="text-align: center; font-size: 11px; color: #475569; font-weight: 600; margin-bottom: 25px;">
+                        <p style="text-align: center; font-size: 10px; color: #475569; font-weight: 600; margin-bottom: 12px;">
                             ${cityState}, ${dateFormatted}
                         </p>
                         <div class="sig-container">
@@ -919,58 +931,70 @@ ${transactionsOfx}
                     <style>
                         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
                         
+                        @page {
+                            size: A4 portrait;
+                            margin: 8mm 10mm 8mm 10mm;
+                        }
+                        * {
+                            box-sizing: border-box;
+                        }
                         body { 
                             font-family: 'Inter', sans-serif; 
                             color: #0f172a; 
-                            margin: 20px; 
+                            margin: 0; 
+                            padding: 0;
                             -webkit-print-color-adjust: exact !important; 
                             print-color-adjust: exact !important;
                         }
                         
-                        .header-container { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #f97316; padding-bottom: 12px; margin-bottom: 20px; }
-                        .church-info-box { display: flex; align-items: center; gap: 14px; }
-                        .church-logo { max-height: 55px; max-width: 90px; object-fit: contain; border-radius: 6px; border: 1px solid #e2e8f0; padding: 4px; background: #fff; }
-                        .church-title { font-size: 15px; font-weight: 900; color: #0f172a; margin: 0; text-transform: uppercase; letter-spacing: -0.01em; }
-                        .church-sub { margin: 3px 0 0 0; font-size: 10px; color: #64748b; font-weight: 600; }
-                        .church-leader { margin: 3px 0 0 0; font-size: 10px; color: #f97316; font-weight: 700; text-transform: uppercase; }
+                        .header-container { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #f97316; padding-bottom: 8px; margin-bottom: 10px; }
+                        .church-info-box { display: flex; align-items: center; gap: 12px; }
+                        .church-logo { max-height: 48px; max-width: 85px; object-fit: contain; border-radius: 6px; border: 1px solid #e2e8f0; padding: 3px; background: #fff; }
+                        .church-title { font-size: 14px; font-weight: 900; color: #0f172a; margin: 0; text-transform: uppercase; letter-spacing: -0.01em; }
+                        .church-sub { margin: 2px 0 0 0; font-size: 9px; color: #64748b; font-weight: 600; }
+                        .church-leader { margin: 2px 0 0 0; font-size: 9px; color: #f97316; font-weight: 700; text-transform: uppercase; }
                         .report-title-box { text-align: right; }
                         .report-title { font-size: 15px; margin: 0; color: #f97316; text-transform: uppercase; font-weight: 900; }
-                        .report-date { font-size: 10px; color: #64748b; font-weight: 600; }
+                        .report-date { font-size: 9px; color: #64748b; font-weight: 600; }
 
                         .summary { 
                             display: flex; 
-                            gap: 20px; 
-                            margin-bottom: 20px; 
-                            padding: 12px 16px; 
+                            gap: 16px; 
+                            margin-bottom: 10px; 
+                            padding: 6px 12px; 
                             background: #f8fafc !important; 
-                            border-radius: 10px; 
+                            border-radius: 8px; 
                             border: 1px solid #e2e8f0; 
                         }
                         
                         .summary-item { display: flex; flex-direction: column; }
-                        .summary-label { font-size: 9px; font-weight: 800; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; }
-                        .summary-value { font-size: 15px; font-weight: 900; color: #0f172a; }
+                        .summary-label { font-size: 8.5px; font-weight: 800; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; }
+                        .summary-value { font-size: 13px; font-weight: 900; color: #0f172a; }
                         
-                        table { width: 100%; border-collapse: collapse; font-size: 10px; table-layout: fixed; }
+                        table { width: 100%; border-collapse: collapse; font-size: 9px; table-layout: fixed; margin-bottom: 10px; }
+                        thead { display: table-header-group; }
+                        tbody { display: table-row-group; }
+                        tr { page-break-inside: avoid; break-inside: avoid; }
                         th { 
                             background: #f8fafc !important; 
-                            padding: 8px; 
-                            border-bottom: 2px solid #0f172a; 
+                            padding: 5px 6px; 
+                            border-bottom: 1.5px solid #0f172a; 
                             text-transform: uppercase; 
-                            font-size: 8.5px; 
-                            font-weight: 900;
+                            font-size: 8px; 
+                            font-weight: 900; 
                             color: #475569; 
                             text-align: left;
+                            line-height: 1.2;
                         }
-                        td { padding: 8px; border-bottom: 1px solid #e2e8f0; word-break: break-word; vertical-align: middle; }
+                        td { padding: 4.5px 6px; border-bottom: 1px solid #e2e8f0; word-break: break-word; vertical-align: middle; font-size: 9px; line-height: 1.25; }
                         tr:nth-child(even) { background: #f8fafc !important; }
 
-                        .footer-signatures { margin-top: 50px; page-break-inside: avoid; }
-                        .sig-container { display: flex; justify-content: space-around; text-align: center; margin-top: 30px; }
-                        .sig-block { width: 240px; }
-                        .sig-line { border-bottom: 1px solid #64748b; margin-bottom: 6px; }
-                        .sig-name { display: block; font-size: 11px; font-weight: 800; color: #0f172a; text-transform: uppercase; }
-                        .sig-role { font-size: 9px; color: #64748b; font-weight: 600; }
+                        .footer-signatures { margin-top: 18px; margin-bottom: 6px; page-break-inside: avoid; break-inside: avoid; }
+                        .sig-container { display: flex; justify-content: space-around; text-align: center; margin-top: 14px; }
+                        .sig-block { width: 220px; }
+                        .sig-line { border-bottom: 1px solid #64748b; margin-bottom: 4px; }
+                        .sig-name { display: block; font-size: 10px; font-weight: 800; color: #0f172a; text-transform: uppercase; }
+                        .sig-role { font-size: 8.5px; color: #64748b; font-weight: 600; }
                     </style>
                 </head>
                 <body>
@@ -1590,13 +1614,13 @@ ${itemsOfx}
 
             return `
                 <tr>
-                    <td style="padding: 6px 8px; font-family: monospace;">${displayDateHtml}</td>
-                    <td style="padding: 6px 8px; font-weight: 500;">${desc}</td>
-                    <td style="padding: 6px 8px;">${payer}</td>
-                    <td style="padding: 6px 8px;">${cat}</td>
-                    <td style="padding: 6px 8px;">${church}</td>
-                    <td style="padding: 6px 8px;">${typeStr}</td>
-                    <td style="padding: 6px 8px; text-align: right; font-family: monospace; font-weight: bold; color: ${valColor};">${formattedVal}</td>
+                    <td style="padding: 4px 6px; font-family: monospace; font-size: 9px; line-height: 1.25;">${displayDateHtml}</td>
+                    <td style="padding: 4px 6px; font-weight: 500; font-size: 9px; line-height: 1.25;">${desc}</td>
+                    <td style="padding: 4px 6px; font-size: 9px; line-height: 1.25;">${payer}</td>
+                    <td style="padding: 4px 6px; font-size: 9px; line-height: 1.25;">${cat}</td>
+                    <td style="padding: 4px 6px; font-size: 9px; line-height: 1.25;">${church}</td>
+                    <td style="padding: 4px 6px; font-size: 9px; line-height: 1.25;">${typeStr}</td>
+                    <td style="padding: 4px 6px; text-align: right; font-family: monospace; font-weight: bold; font-size: 9px; line-height: 1.25; color: ${valColor};">${formattedVal}</td>
                 </tr>
             `;
         }).join('');
@@ -1612,41 +1636,45 @@ ${itemsOfx}
                 <head>
                     <title>Livro Caixa - ${churchName}</title>
                     <style>
-                        @page { size: A4 portrait; margin: 12mm; }
-                        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 11px; color: #0f172a; margin: 0; padding: 0; }
-                        .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #f97316; padding-bottom: 10px; margin-bottom: 12px; }
-                        .header-logo { max-height: 50px; max-width: 120px; margin-right: 12px; }
+                        @page { size: A4 portrait; margin: 8mm 10mm 8mm 10mm; }
+                        * { box-sizing: border-box; }
+                        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 10px; color: #0f172a; margin: 0; padding: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                        .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #f97316; padding-bottom: 8px; margin-bottom: 10px; }
+                        .header-logo { max-height: 48px; max-width: 110px; margin-right: 10px; }
                         .header-info { flex: 1; }
-                        .header-info h2 { margin: 0; font-size: 16px; color: #0f172a; font-weight: 800; text-transform: uppercase; }
-                        .header-info p { margin: 2px 0 0 0; font-size: 9px; color: #64748b; }
+                        .header-info h2 { margin: 0; font-size: 14px; color: #0f172a; font-weight: 800; text-transform: uppercase; }
+                        .header-info p { margin: 2px 0 0 0; font-size: 8.5px; color: #64748b; }
                         .header-title { text-align: right; }
-                        .header-title h3 { margin: 0; font-size: 14px; color: #f97316; text-transform: uppercase; font-weight: 800; }
-                        .header-title p { margin: 2px 0 0 0; font-size: 9px; color: #94a3b8; }
+                        .header-title h3 { margin: 0; font-size: 13px; color: #f97316; text-transform: uppercase; font-weight: 800; }
+                        .header-title p { margin: 1px 0 0 0; font-size: 8.5px; color: #94a3b8; }
                         
-                        .discrete-summary { display: flex; justify-content: space-between; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; margin-bottom: 14px; font-size: 11px; }
-                        .discrete-summary-item { display: flex; gap: 6px; align-items: center; }
+                        .discrete-summary { display: flex; justify-content: space-between; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 10px; margin-bottom: 10px; font-size: 10px; }
+                        .discrete-summary-item { display: flex; gap: 5px; align-items: center; font-size: 9.5px; }
                         .discrete-summary-item span { font-weight: bold; }
 
-                        table.data-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 10px; }
-                        table.data-table th { background: #f97316; color: #ffffff; padding: 6px 8px; text-align: left; text-transform: uppercase; font-size: 9px; font-weight: 800; }
-                        table.data-table td { border-bottom: 1px solid #f1f5f9; }
+                        table.data-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 9px; }
+                        table.data-table thead { display: table-header-group; }
+                        table.data-table tbody { display: table-row-group; }
+                        table.data-table tr { page-break-inside: avoid; break-inside: avoid; }
+                        table.data-table th { background: #f97316; color: #ffffff; padding: 4.5px 6px; text-align: left; text-transform: uppercase; font-size: 8px; font-weight: 800; line-height: 1.2; }
+                        table.data-table td { border-bottom: 1px solid #f1f5f9; padding: 4px 6px; font-size: 9px; line-height: 1.25; }
                         table.data-table tr:nth-child(even) { background: #fff7ed; }
 
-                        .resumo-box { border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; margin-top: 16px; background: #ffffff; page-break-inside: avoid; }
-                        .resumo-header { font-size: 11px; font-weight: 800; text-transform: uppercase; color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-bottom: 10px; display: flex; justify-content: space-between; }
-                        .resumo-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-                        .resumo-col { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; }
-                        .resumo-col-title { font-size: 9px; font-weight: 800; text-transform: uppercase; padding-bottom: 4px; border-bottom: 1px solid #cbd5e1; margin-bottom: 6px; }
-                        .resumo-row { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 10px; }
-                        .resumo-row.total { font-weight: bold; border-top: 1px solid #e2e8f0; padding-top: 4px; margin-top: 4px; }
+                        .resumo-box { border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px; margin-top: 10px; background: #ffffff; break-inside: auto; page-break-inside: auto; }
+                        .resumo-header { font-size: 10px; font-weight: 800; text-transform: uppercase; color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 8px; display: flex; justify-content: space-between; }
+                        .resumo-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; break-inside: avoid; page-break-inside: avoid; }
+                        .resumo-col { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 5px; padding: 6px 8px; break-inside: avoid; page-break-inside: avoid; }
+                        .resumo-col-title { font-size: 8.5px; font-weight: 800; text-transform: uppercase; padding-bottom: 3px; border-bottom: 1px solid #cbd5e1; margin-bottom: 4px; }
+                        .resumo-row { display: flex; justify-content: space-between; margin-bottom: 2.5px; font-size: 9px; line-height: 1.25; }
+                        .resumo-row.total { font-weight: bold; border-top: 1px solid #e2e8f0; padding-top: 3px; margin-top: 3px; }
                         
-                        .signatures { margin-top: 30px; page-break-inside: avoid; }
-                        .signatures-date { text-align: center; font-size: 10px; color: #475569; font-weight: 600; margin-bottom: 20px; }
+                        .signatures { margin-top: 16px; margin-bottom: 6px; page-break-inside: avoid; break-inside: avoid; }
+                        .signatures-date { text-align: center; font-size: 9.5px; color: #475569; font-weight: 600; margin-bottom: 12px; }
                         .signatures-grid { display: flex; justify-content: space-around; }
                         .sig-block { text-align: center; width: 40%; }
                         .sig-line { border-top: 1px solid #94a3b8; margin-bottom: 4px; }
-                        .sig-name { font-weight: bold; font-size: 10px; text-transform: uppercase; display: block; }
-                        .sig-role { font-size: 9px; color: #64748b; display: block; }
+                        .sig-name { font-weight: bold; font-size: 9.5px; text-transform: uppercase; display: block; }
+                        .sig-role { font-size: 8.5px; color: #64748b; display: block; }
                     </style>
                 </head>
                 <body>
@@ -1719,22 +1747,22 @@ ${itemsOfx}
                                 <div class="resumo-row"><span>Saldo em Dinheiro:</span><strong style="color: ${breakdown.saldoDinheiro >= 0 ? '#047857' : '#b91c1c'};">${formatBRL(breakdown.saldoDinheiro)}</strong></div>
                                 <div class="resumo-row"><span>Saldo em Pix:</span><strong style="color: ${breakdown.saldoPix >= 0 ? '#047857' : '#b91c1c'};">${formatBRL(breakdown.saldoPix)}</strong></div>
                                 <div class="resumo-row" style="border-top: 1px solid #fde68a; padding-top: 4px; margin-top: 4px;"><span>Saldo Anterior:</span><strong>${formatBRL(breakdown.saldoAnterior)}</strong></div>
-                                <div style="margin-top: 12px; padding: 8px; background: #ffffff; border: 1px solid #fcd34d; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
-                                    <span style="font-weight: 800; font-size: 10px;">SALDO FINAL:</span>
-                                    <span style="font-weight: 900; font-size: 12px; color: ${breakdown.saldoFinal >= 0 ? '#047857' : '#b91c1c'};">${formatBRL(breakdown.saldoFinal)}</span>
+                                <div style="margin-top: 8px; padding: 6px; background: #ffffff; border: 1px solid #fcd34d; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-weight: 800; font-size: 9.5px;">SALDO FINAL:</span>
+                                    <span style="font-weight: 900; font-size: 11px; color: ${breakdown.saldoFinal >= 0 ? '#047857' : '#b91c1c'};">${formatBRL(breakdown.saldoFinal)}</span>
                                 </div>
                             </div>
                         </div>
 
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; border-top: 1px solid #e2e8f0; padding-top: 10px;">
-                            <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 6px; padding: 8px;">
-                                <div style="font-size: 9px; font-weight: 800; text-transform: uppercase; color: #047857; margin-bottom: 4px;">Resumo em Dinheiro (Espécie)</div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; border-top: 1px solid #e2e8f0; padding-top: 8px; break-inside: avoid; page-break-inside: avoid;">
+                            <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 5px; padding: 6px 8px; break-inside: avoid;">
+                                <div style="font-size: 8.5px; font-weight: 800; text-transform: uppercase; color: #047857; margin-bottom: 3px;">Resumo em Dinheiro (Espécie)</div>
                                 <div class="resumo-row"><span>Total Entrada Dinheiro:</span><strong>${formatBRL(breakdown.entradasDinheiro)}</strong></div>
                                 <div class="resumo-row"><span>(-) Total Pago Dinheiro:</span><strong>${formatBRL(breakdown.saidasDinheiro)}</strong></div>
                                 <div class="resumo-row total" style="color: ${breakdown.saldoDinheiro >= 0 ? '#047857' : '#b91c1c'};"><span>(=) Saldo Dinheiro:</span><strong>${formatBRL(breakdown.saldoDinheiro)}</strong></div>
                             </div>
-                            <div style="background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 6px; padding: 8px;">
-                                <div style="font-size: 9px; font-weight: 800; text-transform: uppercase; color: #0f766e; margin-bottom: 4px;">Resumo em Pix</div>
+                            <div style="background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 5px; padding: 6px 8px; break-inside: avoid;">
+                                <div style="font-size: 8.5px; font-weight: 800; text-transform: uppercase; color: #0f766e; margin-bottom: 3px;">Resumo em Pix</div>
                                 <div class="resumo-row"><span>Valor Entrada Pix:</span><strong>${formatBRL(breakdown.entradasPix)}</strong></div>
                                 <div class="resumo-row"><span>(-) Valor Saída Pix:</span><strong>${formatBRL(breakdown.saidasPix)}</strong></div>
                                 <div class="resumo-row total" style="color: ${breakdown.saldoPix >= 0 ? '#0f766e' : '#b91c1c'};"><span>(=) Saldo Pix:</span><strong>${formatBRL(breakdown.saldoPix)}</strong></div>
@@ -1742,44 +1770,44 @@ ${itemsOfx}
                         </div>
 
                         ${(descBreakdown.incomes.length > 0 || descBreakdown.expenses.length > 0) ? `
-                        <div style="margin-top: 12px; border-top: 2px dashed #cbd5e1; padding-top: 10px;">
-                            <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #1e293b; margin-bottom: 8px;">
+                        <div style="margin-top: 10px; border-top: 2px dashed #cbd5e1; padding-top: 8px; break-inside: auto;">
+                            <div style="font-size: 9.5px; font-weight: 800; text-transform: uppercase; color: #1e293b; margin-bottom: 6px;">
                                 Resumo por Destino / Finalidade (Descrição e Rateios)
                             </div>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px;">
-                                    <div style="font-size: 9px; font-weight: 800; text-transform: uppercase; color: #047857; margin-bottom: 6px; border-bottom: 1px solid #e2e8f0; padding-bottom: 3px;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 5px; padding: 6px 8px; break-inside: avoid; page-break-inside: avoid;">
+                                    <div style="font-size: 8.5px; font-weight: 800; text-transform: uppercase; color: #047857; margin-bottom: 4px; border-bottom: 1px solid #e2e8f0; padding-bottom: 3px;">
                                         Entradas por Destino (${descBreakdown.incomes.length} ${descBreakdown.incomes.length === 1 ? 'item' : 'itens'})
                                     </div>
                                     ${descBreakdown.incomes.map(item => {
                                         const pct = descBreakdown.totalIncome > 0 ? Math.round((item.total / descBreakdown.totalIncome) * 100) : 0;
                                         return `
-                                            <div class="resumo-row" style="font-size: 9.5px; margin-bottom: 3px;">
+                                            <div class="resumo-row" style="font-size: 9px; margin-bottom: 2px;">
                                                 <span><strong>${item.count}x</strong> ${item.label.toUpperCase()} <small style="color: #64748b;">(${pct}%)</small></span>
                                                 <strong style="color: #047857;">${formatBRL(item.total)}</strong>
                                             </div>
                                         `;
-                                    }).join('') || '<div style="color: #94a3b8; font-size: 9px;">Nenhuma entrada</div>'}
-                                    <div class="resumo-row total" style="color: #047857; font-size: 10px; margin-top: 6px;">
+                                    }).join('') || '<div style="color: #94a3b8; font-size: 8.5px;">Nenhuma entrada</div>'}
+                                    <div class="resumo-row total" style="color: #047857; font-size: 9.5px; margin-top: 4px;">
                                         <span>Total Entradas:</span>
                                         <strong>${formatBRL(descBreakdown.totalIncome)}</strong>
                                     </div>
                                 </div>
 
-                                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px;">
-                                    <div style="font-size: 9px; font-weight: 800; text-transform: uppercase; color: #b91c1c; margin-bottom: 6px; border-bottom: 1px solid #e2e8f0; padding-bottom: 3px;">
+                                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 5px; padding: 6px 8px; break-inside: avoid; page-break-inside: avoid;">
+                                    <div style="font-size: 8.5px; font-weight: 800; text-transform: uppercase; color: #b91c1c; margin-bottom: 4px; border-bottom: 1px solid #e2e8f0; padding-bottom: 3px;">
                                         Saídas por Destino (${descBreakdown.expenses.length} ${descBreakdown.expenses.length === 1 ? 'item' : 'itens'})
                                     </div>
                                     ${descBreakdown.expenses.map(item => {
                                         const pct = descBreakdown.totalExpense > 0 ? Math.round((item.total / descBreakdown.totalExpense) * 100) : 0;
                                         return `
-                                            <div class="resumo-row" style="font-size: 9.5px; margin-bottom: 3px;">
+                                            <div class="resumo-row" style="font-size: 9px; margin-bottom: 2px;">
                                                 <span><strong>${item.count}x</strong> ${item.label.toUpperCase()} <small style="color: #64748b;">(${pct}%)</small></span>
                                                 <strong style="color: #b91c1c;">${formatBRL(item.total)}</strong>
                                             </div>
                                         `;
-                                    }).join('') || '<div style="color: #94a3b8; font-size: 9px;">Nenhuma saída</div>'}
-                                    <div class="resumo-row total" style="color: #b91c1c; font-size: 10px; margin-top: 6px;">
+                                    }).join('') || '<div style="color: #94a3b8; font-size: 8.5px;">Nenhuma saída</div>'}
+                                    <div class="resumo-row total" style="color: #b91c1c; font-size: 9.5px; margin-top: 4px;">
                                         <span>Total Saídas:</span>
                                         <strong>${formatBRL(descBreakdown.totalExpense)}</strong>
                                     </div>
@@ -2473,26 +2501,31 @@ ${itemsOfx}
                 <head>
                     <title>${title}</title>
                     <style>
-                        @page { size: A4 portrait; margin: 12mm; }
-                        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1e293b; margin: 0; padding: 10px; }
-                        .header-table { width: 100%; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 15px; }
-                        .logo { max-height: 55px; max-width: 130px; object-fit: contain; }
-                        .church-title { font-size: 15px; font-weight: 800; color: #0f172a; text-transform: uppercase; margin: 0; }
-                        .church-sub { font-size: 10px; color: #64748b; margin-top: 2px; }
+                        @page { size: A4 portrait; margin: 8mm 10mm 8mm 10mm; }
+                        * { box-sizing: border-box; }
+                        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1e293b; margin: 0; padding: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                        .header-table { width: 100%; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 10px; }
+                        .logo { max-height: 48px; max-width: 110px; object-fit: contain; }
+                        .church-title { font-size: 14px; font-weight: 800; color: #0f172a; text-transform: uppercase; margin: 0; }
+                        .church-sub { font-size: 9px; color: #64748b; margin-top: 2px; }
                         .report-title { font-size: 13px; font-weight: 800; color: #ea580c; text-align: right; text-transform: uppercase; margin: 0; }
-                        .footer-signatures { margin-top: 40px; page-break-inside: avoid; }
-                        .sig-container { display: flex; justify-content: space-around; gap: 40px; }
+                        table { page-break-inside: auto; break-inside: auto; }
+                        thead { display: table-header-group; }
+                        tbody { display: table-row-group; }
+                        tr { page-break-inside: avoid; break-inside: avoid; }
+                        .footer-signatures { margin-top: 18px; margin-bottom: 6px; page-break-inside: avoid; break-inside: avoid; }
+                        .sig-container { display: flex; justify-content: space-around; gap: 20px; }
                         .sig-block { flex: 1; text-align: center; }
-                        .sig-line { border-top: 1px solid #475569; margin-bottom: 6px; width: 80%; margin-left: auto; margin-right: auto; }
-                        .sig-name { font-size: 11px; font-weight: bold; color: #0f172a; display: block; }
-                        .sig-role { font-size: 9px; color: #64748b; display: block; }
+                        .sig-line { border-top: 1px solid #475569; margin-bottom: 4px; width: 80%; margin-left: auto; margin-right: auto; }
+                        .sig-name { font-size: 10px; font-weight: bold; color: #0f172a; display: block; }
+                        .sig-role { font-size: 8.5px; color: #64748b; display: block; }
                     </style>
                 </head>
                 <body>
                     <table class="header-table">
                         <tr>
                             <td style="width: 70px;">
-                                ${logoUrl ? `<img src="${logoUrl}" class="logo" />` : `<div style="width: 50px; height: 50px; background: #0f172a; color: white; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 18px; border-radius: 8px;">IgG</div>`}
+                                ${logoUrl ? `<img src="${logoUrl}" class="logo" />` : `<div style="width: 45px; height: 45px; background: #0f172a; color: white; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 16px; border-radius: 6px;">IgG</div>`}
                             </td>
                             <td>
                                 <h1 class="church-title">${churchName}</h1>
@@ -2500,7 +2533,7 @@ ${itemsOfx}
                             </td>
                             <td style="text-align: right;">
                                 <h2 class="report-title">${title}</h2>
-                                <div style="font-size: 10px; color: #64748b;">Emissão: ${dateFormatted}</div>
+                                <div style="font-size: 9px; color: #64748b;">Emissão: ${dateFormatted}</div>
                             </td>
                         </tr>
                     </table>
@@ -2508,7 +2541,7 @@ ${itemsOfx}
                     ${tableHtml}
 
                     <div class="footer-signatures">
-                        <p style="text-align: center; font-size: 10px; color: #64748b; font-weight: 600; margin-bottom: 25px;">
+                        <p style="text-align: center; font-size: 9.5px; color: #64748b; font-weight: 600; margin-bottom: 12px;">
                             ${cityState}, ${dateFormatted}
                         </p>
                         <div class="sig-container">

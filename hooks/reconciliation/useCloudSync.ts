@@ -516,9 +516,9 @@ export const useCloudSync = ({
                         hasChanges = true;
                     });
 
-                    // Preserva itens locais válidos que já estavam em prev (como lançamentos manuais recém-criados ou da sessão ativa)
+                    // Preserva estritamente lançamentos manuais temporários locais não persistidos no banco ainda
                     prev.forEach(p => {
-                        if (!map.has(p.transaction.id) && !p.transaction.id.startsWith('ghost-manual-')) {
+                        if (!map.has(p.transaction.id) && (p.transaction.id.startsWith('ghost-manual-') || p.transaction.id.startsWith('manual-temp-'))) {
                             map.set(p.transaction.id, p);
                             hasChanges = true;
                         }
