@@ -1,5 +1,6 @@
 
 import { MatchResult, Language } from '../types';
+import { MonthClosingRecord } from '../types/domain';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { NameResolver } from '../core/processors/NameResolver';
 import { getResolvedDisplayName } from './utils/parsingUtils';
@@ -174,15 +175,27 @@ const drawChurchHeader = (doc: jsPDF, church: any, title: string, subtitle?: str
     }
 };
 
-const drawChurchFooterSignatures = (doc: jsPDF, church: any, startY: number): number => {
+const drawChurchFooterSignatures = (
+    doc: jsPDF, 
+    church: any, 
+    startY: number, 
+    closingRecord?: MonthClosingRecord | null
+): number => {
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
 
-    let currentY = startY + 14;
+    const signatures = closingRecord?.signatures || [];
+    const hasDigitalSignatures = signatures.length > 0;
 
-    if (currentY + 38 > pageHeight - 12) {
+    // Altura necessária estimada
+    const neededHeight = hasDigitalSignatures 
+        ? (signatures.length > 2 ? 68 : 52) + 16
+        : 42;
+
+    let currentY = startY + 12;
+    if (currentY + neededHeight > pageHeight - 12) {
         doc.addPage();
-        currentY = 44;
+        currentY = 40;
     }
 
     const cityState = church?.city ? `${church.city}${church.state ? '/' + church.state : ''}` : 'Local';
@@ -190,47 +203,131 @@ const drawChurchFooterSignatures = (doc: jsPDF, church: any, startY: number): nu
     const localDateText = `${cityState}, ${dateFormatted}`;
 
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.5);
-    doc.setTextColor(51, 65, 85);
+    doc.setFontSize(8);
+    doc.setTextColor(71, 85, 105);
     doc.text(localDateText, pageWidth / 2, currentY, { align: 'center' });
 
-    currentY += 16;
+    currentY += 10;
 
-    const colWidth = 72;
-    const col1X = (pageWidth / 2) - colWidth - 10;
-    const col2X = (pageWidth / 2) + 10;
+    if (hasDigitalSignatures) {
+        const numCols = Math.min(signatures.length, 3);
+        const totalSpacing = 14 * (numCols - 1);
+        const colWidth = Math.min(65, (pageWidth - 28 - totalSpacing) / numCols);
+        const startX = (pageWidth - (numCols * colWidth + totalSpacing)) / 2;
 
-    doc.setDrawColor(148, 163, 184);
-    doc.setLineWidth(0.5);
-    doc.line(col1X, currentY, col1X + colWidth, currentY);
-    doc.line(col2X, currentY, col2X + colWidth, currentY);
+        signatures.forEach((sig, idx) => {
+            const colIndex = idx % numCols;
+            const rowIndex = Math.floor(idx / numCols);
+            const x = startX + colIndex * (colWidth + 14);
+            const y = currentY + rowIndex * 32;
 
-    currentY += 4;
+            // Imagem da assinatura digital colhida no canvas
+            if (sig.signatureDataUrl) {
+                try {
+                    doc.addImage(sig.signatureDataUrl, 'PNG', x + (colWidth - 36) / 2, y + 2, 36, 12);
+                } catch (e) {
+                    // Fallback se formato não puder ser embutido
+                }
+            }
 
-    const pastorRaw = church?.pastor || 'Pastor Presidente';
-    const pastorName = pastorRaw.toLowerCase().startsWith('pr') ? pastorRaw : `Pr. ${pastorRaw}`;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    doc.setTextColor(15, 23, 42);
-    doc.text(pastorName.toUpperCase(), col1X + (colWidth / 2), currentY, { align: 'center' });
+            // Linha da assinatura
+            const lineY = y + 16;
+            doc.setDrawColor(148, 163, 184);
+            doc.setLineWidth(0.5);
+            doc.line(x, lineY, x + colWidth, lineY);
 
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
-    doc.setTextColor(100);
-    doc.text("Pastor Presidente / Responsável", col1X + (colWidth / 2), currentY + 3.5, { align: 'center' });
+            // Nome do signatário
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(7.5);
+            doc.setTextColor(15, 23, 42);
+            doc.text(sig.signerName.toUpperCase(), x + (colWidth / 2), lineY + 3.5, { align: 'center' });
 
-    const treasurerName = church?.treasurer || 'Tesoureiro Geral';
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    doc.setTextColor(15, 23, 42);
-    doc.text(treasurerName.toUpperCase(), col2X + (colWidth / 2), currentY, { align: 'center' });
+            // Cargo / Função / Documento
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(6.5);
+            doc.setTextColor(71, 85, 105);
+            const roleTxt = sig.signerDocument ? `${sig.signerRole} • ${sig.signerDocument}` : sig.signerRole;
+            doc.text(roleTxt, x + (colWidth / 2), lineY + 6.8, { align: 'center' });
 
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
-    doc.setTextColor(100);
-    doc.text("Tesoureiro / Resp. Financeiro", col2X + (colWidth / 2), currentY + 3.5, { align: 'center' });
+            // Carimbo eletrônico com data e hora
+            const signDate = new Date(sig.signedAt).toLocaleDateString('pt-BR') + ' ' + new Date(sig.signedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            doc.setFontSize(5.5);
+            doc.setTextColor(5, 150, 105);
+            doc.text(`✓ Assinado Digitalmente (${signDate})`, x + (colWidth / 2), lineY + 9.8, { align: 'center' });
+        });
 
-    return currentY + 12;
+        const totalRows = Math.ceil(signatures.length / numCols);
+        currentY += (totalRows * 32) + 2;
+
+        // Selo de Integridade e Autenticidade Digital SHA-256
+        if (closingRecord?.integrityHash) {
+            const sealY = currentY;
+            doc.setFillColor(248, 250, 252);
+            doc.setDrawColor(203, 213, 225);
+            doc.setLineWidth(0.4);
+            doc.roundedRect(12, sealY, pageWidth - 24, 13, 1.5, 1.5, 'FD');
+
+            doc.setFillColor(16, 185, 129);
+            doc.rect(12, sealY, 2.5, 13, 'F');
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(6.5);
+            doc.setTextColor(15, 23, 42);
+            doc.text("HOMOLOGAÇÃO DIGITAL · LIVRO CAIXA FECHADO ELETRONICAMENTE", 18, sealY + 4);
+
+            doc.setFont("courier", "bold");
+            doc.setFontSize(6);
+            doc.setTextColor(71, 85, 105);
+            doc.text(`HASH SHA-256: ${closingRecord.integrityHash}`, 18, sealY + 8);
+
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(5.5);
+            doc.setTextColor(100, 116, 139);
+            doc.text("Fechamento com certificação eletrônica interna conforme MP nº 2.200-2/2001 e Lei nº 14.063/2020. Dispensa impressão.", 18, sealY + 11.5);
+
+            return sealY + 16;
+        }
+
+        return currentY + 6;
+    } else {
+        const colWidth = 72;
+        const col1X = (pageWidth / 2) - colWidth - 10;
+        const col2X = (pageWidth / 2) + 10;
+
+        currentY += 12;
+
+        doc.setDrawColor(148, 163, 184);
+        doc.setLineWidth(0.5);
+        doc.line(col1X, currentY, col1X + colWidth, currentY);
+        doc.line(col2X, currentY, col2X + colWidth, currentY);
+
+        currentY += 4;
+
+        const pastorRaw = church?.pastor || 'Pastor Presidente';
+        const pastorName = pastorRaw.toLowerCase().startsWith('pr') ? pastorRaw : `Pr. ${pastorRaw}`;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.setTextColor(15, 23, 42);
+        doc.text(pastorName.toUpperCase(), col1X + (colWidth / 2), currentY, { align: 'center' });
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7);
+        doc.setTextColor(100);
+        doc.text("Pastor Presidente / Responsável", col1X + (colWidth / 2), currentY + 3.5, { align: 'center' });
+
+        const treasurerName = church?.treasurer || 'Tesoureiro Geral';
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.setTextColor(15, 23, 42);
+        doc.text(treasurerName.toUpperCase(), col2X + (colWidth / 2), currentY, { align: 'center' });
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7);
+        doc.setTextColor(100);
+        doc.text("Tesoureiro / Resp. Financeiro", col2X + (colWidth / 2), currentY + 3.5, { align: 'center' });
+
+        return currentY + 12;
+    }
 };
 
 const applyHeadersAndPageNumbers = (doc: jsPDF, church: any, title: string, subtitle?: string) => {
@@ -1377,7 +1474,17 @@ ${itemsOfx}
     /**
      * Exporta o Livro Caixa em PDF formatado com Cabeçalho da Igreja, Logomarca, Número de Páginas, Resumo Consolidado no Final e Assinaturas no Rodapé.
      */
-    downloadLivroCaixaPdf: (transactions: any[], churches: any[], title: string = 'Livro Caixa - Extrato Analítico', filename: string = 'livro_caixa.pdf', selectedChurchId?: string, allReportData: any[] = [], customStartDate?: string, selectionMode?: string) => {
+    downloadLivroCaixaPdf: (
+        transactions: any[], 
+        churches: any[], 
+        title: string = 'Livro Caixa - Extrato Analítico', 
+        filename: string = 'livro_caixa.pdf', 
+        selectedChurchId?: string, 
+        allReportData: any[] = [], 
+        customStartDate?: string, 
+        selectionMode?: string,
+        closingRecord?: MonthClosingRecord | null
+    ) => {
         const doc = new jsPDF();
         const targetChurch = resolveChurch(churches, selectedChurchId, transactions);
         const getChurchName = (item: any) => item.church || churches.find(c => c.id === item.churchId)?.name || targetChurch?.name || 'Igreja Sede';
@@ -1556,8 +1663,8 @@ ${itemsOfx}
 
         const finalYAfterResumo = currentY;
 
-        // Desenhar assinaturas do Pastor e Tesoureiro no final do relatório
-        drawChurchFooterSignatures(doc, targetChurch, finalYAfterResumo);
+        // Desenhar assinaturas no final do relatório (com suporte a assinaturas digitais colhidas e selo SHA-256)
+        drawChurchFooterSignatures(doc, targetChurch, finalYAfterResumo, closingRecord);
 
         // Aplicar cabeçalho institucional e paginação (sem subtitle longo para não sobrepor texto)
         applyHeadersAndPageNumbers(doc, targetChurch, title, undefined);
@@ -1568,7 +1675,15 @@ ${itemsOfx}
     /**
      * Gera relatório de impressão formatado do Livro Caixa em janela de impressão.
      */
-    printLivroCaixa: (transactions: any[], churches: any[], allReportData: any[] = [], customStartDate?: string, selectionMode?: string, selectedChurchId?: string) => {
+    printLivroCaixa: (
+        transactions: any[], 
+        churches: any[], 
+        allReportData: any[] = [], 
+        customStartDate?: string, 
+        selectionMode?: string, 
+        selectedChurchId?: string,
+        closingRecord?: MonthClosingRecord | null
+    ) => {
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
 
@@ -1605,6 +1720,29 @@ ${itemsOfx}
                 ? `<div><strong>${dateStr}</strong><br/><span style="font-size: 8px; color: #64748b;">(Banco: ${bankDateStr})</span></div>`
                 : dateStr;
             const desc = (tx.desc || tx.description || tx.historico || 'Lançamento').toUpperCase();
+            const txAtts = tx.attachments || tx.raw?.attachments || [];
+            const hasNf = txAtts.some((a: any) => a.documentRole === 'nota_fiscal' || a.extractedData?.documentType === 'nota_fiscal');
+            const hasInvoice = txAtts.some((a: any) => a.documentRole === 'fatura' || a.extractedData?.documentType === 'fatura' || a.extractedData?.documentType === 'boleto');
+            const hasReceipt = txAtts.some((a: any) => a.documentRole === 'comprovante' || a.extractedData?.documentType === 'recibo' || a.extractedData?.documentType === 'comprovante_pix' || a.extractedData?.documentType === 'comprovante_pagamento');
+            let docBadge = '';
+            if (isExpense) {
+                const badges: string[] = [];
+                if (hasNf) {
+                    badges.push('<span style="display:inline-block; margin-left:3px; font-size:7px; padding:0 3px; background:#e0e7ff; color:#3730a3; border:1px solid #c7d2fe; border-radius:3px; font-weight:bold;">NF</span>');
+                }
+                if (hasInvoice) {
+                    badges.push('<span style="display:inline-block; margin-left:3px; font-size:7px; padding:0 3px; background:#fef3c7; color:#92400e; border:1px solid #fde68a; border-radius:3px; font-weight:bold;">BOLETO</span>');
+                }
+                if (hasReceipt) {
+                    badges.push('<span style="display:inline-block; margin-left:3px; font-size:7px; padding:0 3px; background:#dcfce7; color:#166534; border:1px solid #bbf7d0; border-radius:3px; font-weight:bold;">COMPROV.</span>');
+                }
+                if (badges.length === 0 && txAtts.length > 0) {
+                    badges.push('<span style="display:inline-block; margin-left:3px; font-size:7px; padding:0 3px; background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; border-radius:3px; font-weight:bold;">ANEXO</span>');
+                }
+                if (badges.length > 0) {
+                    docBadge = ' ' + badges.join(' ');
+                }
+            }
             const payer = tx.payer || tx.contribuinte || tx.nome || '---';
             const cat = tx.category || tx.categoria || 'Geral';
             const church = tx.church || churches.find(c => c.id === tx.churchId)?.name || churchName;
@@ -1615,7 +1753,7 @@ ${itemsOfx}
             return `
                 <tr>
                     <td style="padding: 4px 6px; font-family: monospace; font-size: 9px; line-height: 1.25;">${displayDateHtml}</td>
-                    <td style="padding: 4px 6px; font-weight: 500; font-size: 9px; line-height: 1.25;">${desc}</td>
+                    <td style="padding: 4px 6px; font-weight: 500; font-size: 9px; line-height: 1.25;">${desc}${docBadge}</td>
                     <td style="padding: 4px 6px; font-size: 9px; line-height: 1.25;">${payer}</td>
                     <td style="padding: 4px 6px; font-size: 9px; line-height: 1.25;">${cat}</td>
                     <td style="padding: 4px 6px; font-size: 9px; line-height: 1.25;">${church}</td>
@@ -1817,6 +1955,47 @@ ${itemsOfx}
                         ` : ''}
                     </div>
 
+                    ${(closingRecord?.signatures && closingRecord.signatures.length > 0) ? `
+                    <div class="signatures">
+                        <div class="signatures-date">${cityState}, ${dateFormatted}</div>
+                        <div style="display: flex; flex-wrap: wrap; justify-content: space-around; gap: 16px; margin-bottom: 12px;">
+                            ${closingRecord.signatures.map(sig => `
+                                <div class="sig-block" style="flex: 1; min-width: 180px; max-width: 260px; text-align: center;">
+                                    ${sig.signatureDataUrl ? `
+                                        <div style="height: 48px; display: flex; align-items: flex-end; justify-content: center; margin-bottom: 4px;">
+                                            <img src="${sig.signatureDataUrl}" style="max-height: 44px; max-width: 160px; object-fit: contain;" alt="Assinatura" />
+                                        </div>
+                                    ` : '<div style="height: 36px;"></div>'}
+                                    <div class="sig-line"></div>
+                                    <span class="sig-name">${sig.signerName.toUpperCase()}</span>
+                                    <span class="sig-role">${sig.signerRole}${sig.signerDocument ? ` • Doc: ${sig.signerDocument}` : ''}</span>
+                                    <span style="display: block; font-size: 7.5px; color: #059669; font-weight: 700; margin-top: 2px;">
+                                        ✓ Assinado Digitalmente (${new Date(sig.signedAt).toLocaleDateString('pt-BR')} ${new Date(sig.signedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })})
+                                    </span>
+                                </div>
+                            `).join('')}
+                        </div>
+
+                        ${closingRecord.integrityHash ? `
+                        <div style="margin-top: 14px; padding: 8px 12px; background: #f8fafc; border: 1px solid #cbd5e1; border-left: 4px solid #10b981; border-radius: 6px; text-align: left; page-break-inside: avoid;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+                                <span style="font-size: 9px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px;">
+                                    ✓ Homologação e Certificação Digital · Livro Caixa Eletrônico
+                                </span>
+                                <span style="font-size: 8px; font-weight: 800; color: #047857; background: #d1fae5; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">
+                                    Validade Jurídica e Contábil
+                                </span>
+                            </div>
+                            <div style="font-family: monospace; font-size: 8px; color: #475569; word-break: break-all; margin-bottom: 2px;">
+                                HASH DE INTEGRIDADE (SHA-256): <strong>${closingRecord.integrityHash}</strong>
+                            </div>
+                            <div style="font-size: 7.5px; color: #64748b;">
+                                Fechamento e transporte de saldos homologados digitalmente conforme MP nº 2.200-2/2001 e Lei nº 14.063/2020. Dispensa arquivamento físico de papel.
+                            </div>
+                        </div>
+                        ` : ''}
+                    </div>
+                    ` : `
                     <div class="signatures">
                         <div class="signatures-date">${cityState}, ${dateFormatted}</div>
                         <div class="signatures-grid">
@@ -1832,6 +2011,7 @@ ${itemsOfx}
                             </div>
                         </div>
                     </div>
+                    `}
 
                     <script>window.onload = function() { setTimeout(() => { window.print(); }, 500); }</script>
                 </body>

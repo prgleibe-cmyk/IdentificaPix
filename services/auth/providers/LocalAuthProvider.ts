@@ -6,6 +6,7 @@ const USER_KEY = 'iggestor_vps_user';
 
 export class LocalAuthProvider implements IAuthProvider {
   readonly type: AuthProviderType = 'LOCAL';
+  private refreshPromise: Promise<string | null> | null = null;
 
   async getToken(): Promise<string | null> {
     try {
@@ -15,9 +16,13 @@ export class LocalAuthProvider implements IAuthProvider {
       // Check if JWT is expired without external lib if possible
       const isExpired = this.isTokenExpired(token);
       if (isExpired) {
-        // Attempt refresh
-        const refreshedToken = await this.tryRefreshToken();
-        return refreshedToken;
+        // Deduplicate simultaneous refresh calls using a shared Promise
+        if (!this.refreshPromise) {
+          this.refreshPromise = this.tryRefreshToken().finally(() => {
+            this.refreshPromise = null;
+          });
+        }
+        return await this.refreshPromise;
       }
 
       return token;
@@ -150,9 +155,13 @@ export class LocalAuthProvider implements IAuthProvider {
       });
 
       if (!res.ok) {
-        localStorage.removeItem(ACCESS_TOKEN_KEY);
-        localStorage.removeItem(REFRESH_TOKEN_KEY);
-        localStorage.removeItem(USER_KEY);
+        // Apenas limpa credenciais se a resposta do servidor for explicitamente 401 ou 403 (token inválido/revogado)
+        // Erros transitórios de rede (500, 502, 504, timeout) não devem destruir a sessão ativa do usuário
+        if (res.status === 401 || res.status === 403) {
+          localStorage.removeItem(ACCESS_TOKEN_KEY);
+          localStorage.removeItem(REFRESH_TOKEN_KEY);
+          localStorage.removeItem(USER_KEY);
+        }
         return null;
       }
 

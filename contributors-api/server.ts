@@ -982,9 +982,9 @@ export function getTenantContext(req: Request): TenantContext {
     const churchId = user.church_id || (allowedChurchIds.length > 0 ? allowedChurchIds[0] : null) || headerChurchId || null;
 
     const hasSeparateOwner = Boolean(ownerId && userId && ownerId !== userId);
-    const isSecondaryRole = ['secondary', 'member', 'user', 'operador', 'colaborador'].includes(role);
+    const isSecondaryRole = ['secondary', 'member', 'operador', 'colaborador'].includes(role) || (role === 'user' && hasSeparateOwner);
     const isSecondaryUser = !isSuperAdmin && (hasSeparateOwner || isSecondaryRole || Boolean(user.is_secondary));
-    const isOwner = isSuperAdmin || (!isSecondaryUser && (role === 'owner' || !hasSeparateOwner));
+    const isOwner = isSuperAdmin || (!isSecondaryUser && (role === 'owner' || role === 'principal' || !hasSeparateOwner));
 
     return {
       userId,
@@ -999,7 +999,8 @@ export function getTenantContext(req: Request): TenantContext {
     };
   }
 
-  const fallbackIsSecondary = headerRole ? ['secondary', 'member', 'user', 'operador', 'colaborador'].includes(headerRole) : Boolean(headerOwnerId && headerUserId && headerOwnerId !== headerUserId);
+  const fallbackHasSeparateOwner = Boolean(headerOwnerId && headerUserId && headerOwnerId !== headerUserId);
+  const fallbackIsSecondary = headerRole ? (['secondary', 'member', 'operador', 'colaborador'].includes(headerRole) || (headerRole === 'user' && fallbackHasSeparateOwner)) : fallbackHasSeparateOwner;
   const fallbackAllowedChurchIds = headerAllowedChurchIds || (headerChurchId ? [headerChurchId] : []);
 
   return {
@@ -4663,7 +4664,7 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
         params.push(church_id);
         counter++;
       } else {
-        query += ` AND church_id = ANY($${counter})`;
+        query += ` AND (church_id = ANY($${counter}) OR (status = 'pending' AND church_id IS NULL))`;
         params.push(ctx.allowedChurchIds);
         counter++;
       }

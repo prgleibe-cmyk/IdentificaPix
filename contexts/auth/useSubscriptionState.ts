@@ -6,9 +6,10 @@ import { SystemSettings } from './AuthContracts';
 const normalizeRole = (r: any, hasSeparateOwner: boolean): 'owner' | 'member' | 'admin' | 'principal' | 'secondary' => {
     if (r === 'admin' || r === 'superadmin') return 'admin';
     if (r === 'secondary') return 'secondary';
-    if (r === 'member' || r === 'user' || r === 'operador' || r === 'colaborador' || hasSeparateOwner) return 'secondary';
-    if (r === 'principal' || r === 'owner') return 'owner';
-    return hasSeparateOwner ? 'secondary' : 'owner';
+    if (r === 'member' || r === 'operador' || r === 'colaborador') return 'secondary';
+    if (hasSeparateOwner) return 'secondary';
+    if (r === 'principal' || r === 'owner' || r === 'user') return 'owner';
+    return 'owner';
 };
 
 // Fix: Added React to imports and typed settingsRef as React.MutableRefObject

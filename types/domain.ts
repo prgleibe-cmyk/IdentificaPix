@@ -166,6 +166,7 @@ export interface Transaction {
   source?: string;
   pix_key?: string;
   row_hash?: string;
+  attachments?: ExpenseAttachment[];
 }
 
 export interface Contributor {
@@ -223,6 +224,7 @@ export interface MatchResult {
   _churchId?: string;
   launchedAt?: string;
   splits?: TransactionSplit[];
+  attachments?: ExpenseAttachment[];
 }
 
 export interface LearnedAssociation {
@@ -366,6 +368,8 @@ export interface ExtractedExpenseDoc {
   confidenceScore: number;
 }
 
+export type DocumentRole = 'nota_fiscal' | 'fatura' | 'comprovante' | 'recibo' | 'outro';
+
 export interface ExpenseAttachment {
   id: string;
   fileName: string;
@@ -376,6 +380,7 @@ export interface ExpenseAttachment {
   extractedData?: ExtractedExpenseDoc;
   validationStatus: ExpenseValidationStatus;
   validationNotes?: string;
+  documentRole?: DocumentRole;
 }
 
 export interface FinancialRecord {
@@ -402,4 +407,35 @@ export interface FinancialRecord {
   validation_notes?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface DigitalSignature {
+  id: string;
+  signerName: string;
+  signerRole: string;
+  signerDocument?: string;
+  signatureDataUrl: string;
+  signedAt: string;
+  userAgent?: string;
+}
+
+export interface MonthClosingRecord {
+  id: string;
+  churchId: string;
+  churchName?: string;
+  month: number;
+  year: number;
+  closedAt: string;
+  closedBy?: string;
+  totalIncome: number;
+  totalExpenses: number;
+  previousBalance: number;
+  finalBalance: number;
+  transferredBalance?: number;
+  targetChurchId?: string | null;
+  targetChurchName?: string;
+  signatures: DigitalSignature[];
+  integrityHash: string;
+  status: 'draft' | 'signed' | 'locked';
+  notes?: string;
 }

@@ -4,6 +4,12 @@ import { useUI } from '../contexts/UIContext';
 import { useAuth } from '../contexts/AuthContext';
 import { ExportService } from '../services/ExportService';
 import { ChurchClosingModal } from '../components/modals/ChurchClosingModal';
+import { AttachmentPreviewModal } from '../components/financial/AttachmentPreviewModal';
+import { QuickAttachModal } from '../components/modals/QuickAttachModal';
+import { ServiceReceiptModal } from '../components/modals/ServiceReceiptModal';
+import { preloadAllAttachmentsMap } from '../services/expenseAttachmentService';
+import { getMonthClosingRecord } from '../services/monthClosingService';
+import { ExpenseAttachment, MonthClosingRecord } from '../types/domain';
 import { 
     BookOpen, 
     Building2, 
@@ -28,7 +34,11 @@ import {
     Check,
     ChevronLeft,
     ChevronRight,
-    Tag
+    Tag,
+    Paperclip,
+    Plus,
+    Receipt,
+    FileSignature
 } from 'lucide-react';
 
 export const LivroCaixaView: React.FC = memo(() => {
@@ -81,6 +91,31 @@ export const LivroCaixaView: React.FC = memo(() => {
     const [showExportLivroCaixa, setShowExportLivroCaixa] = useState<boolean>(false);
     const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
     const [isClosingModalOpen, setIsClosingModalOpen] = useState<boolean>(false);
+    const [previewAttachment, setPreviewAttachment] = useState<ExpenseAttachment | null>(null);
+    const [quickAttachTx, setQuickAttachTx] = useState<any | null>(null);
+    const [serviceReceiptTx, setServiceReceiptTx] = useState<any | null>(null);
+    const [attachmentFilter, setAttachmentFilter] = useState<'all' | 'with_attachments' | 'without_attachments'>('all');
+    const [attachmentsMap, setAttachmentsMap] = useState<Map<string, ExpenseAttachment[]>>(new Map());
+    const [monthClosingRecord, setMonthClosingRecord] = useState<MonthClosingRecord | null>(null);
+
+    useEffect(() => {
+        let isMounted = true;
+        preloadAllAttachmentsMap().then(map => {
+            if (isMounted) setAttachmentsMap(map);
+        });
+
+        const handleAttUpdate = () => {
+            preloadAllAttachmentsMap().then(map => {
+                if (isMounted) setAttachmentsMap(map);
+            });
+        };
+
+        window.addEventListener('expense_attachments_updated', handleAttUpdate);
+        return () => {
+            isMounted = false;
+            window.removeEventListener('expense_attachments_updated', handleAttUpdate);
+        };
+    }, []);
 
     const churchDropdownRef = useRef<HTMLDivElement>(null);
     const bankDropdownRef = useRef<HTMLDivElement>(null);
@@ -106,13 +141,80 @@ export const LivroCaixaView: React.FC = memo(() => {
         return raw.filter((c: any) => allowedChurchIds.includes(c.id));
     }, [context?.churches, isSecondaryUser, allowedChurchIds]);
 
+    // Carrega registro de fechamento homologado e assinado digitalmente para a congregação e período ativo
+    useEffect(() => {
+        let isMounted = true;
+        const churchId = selectedChurchIds.length === 1 ? selectedChurchIds[0] : (churches.length === 1 ? churches[0].id : null);
+        if (!churchId) {
+            setMonthClosingRecord(null);
+            return;
+        }
+
+        const m = selectionMode === 'month' ? selectedMonth : (customStartDate ? parseInt(customStartDate.split('-')[1], 10) : selectedMonth);
+        const y = selectionMode === 'month' ? selectedYear : (customStartDate ? parseInt(customStartDate.split('-')[0], 10) : selectedYear);
+
+        if (m && y) {
+            getMonthClosingRecord(churchId, y, m).then(record => {
+                if (isMounted) setMonthClosingRecord(record);
+            });
+        }
+
+        const handleClosingUpdate = (e: any) => {
+            const updated = e?.detail as MonthClosingRecord | undefined;
+            if (updated && updated.churchId === churchId && updated.year === y && updated.month === m) {
+                if (isMounted) setMonthClosingRecord(updated);
+            } else if (m && y) {
+                getMonthClosingRecord(churchId, y, m).then(record => {
+                    if (isMounted) setMonthClosingRecord(record);
+                });
+            }
+        };
+
+        window.addEventListener('month_closing_updated', handleClosingUpdate);
+        return () => {
+            isMounted = false;
+            window.removeEventListener('month_closing_updated', handleClosingUpdate);
+        };
+    }, [selectedChurchIds, churches, selectionMode, selectedMonth, selectedYear, customStartDate]);
+
     const banks = useMemo(() => {
         const raw = context?.banks || [];
         if (!isSecondaryUser || !allowedBankIds || allowedBankIds.length === 0) return raw;
         return raw.filter((b: any) => allowedBankIds.includes(b.id));
     }, [context?.banks, isSecondaryUser, allowedBankIds]);
 
-    const reportData = context?.reportData || [];
+    const reportData = useMemo(() => {
+        const raw = context?.reportData || [];
+        if (!attachmentsMap || attachmentsMap.size === 0) return raw;
+        return raw.map((item: any) => {
+            const atts = attachmentsMap.get(item.id);
+            if (atts && atts.length > 0) {
+                return { ...item, attachments: atts };
+            }
+            return item;
+        });
+    }, [context?.reportData, attachmentsMap]);
+
+    const expenseAttachmentStats = useMemo(() => {
+        let totalExpenses = 0;
+        let withAttachments = 0;
+        let pendingAttachments = 0;
+
+        reportData.forEach((item: any) => {
+            const isExp = item.type === 'expense' || Number(item.amount) < 0 || (item.category && String(item.category).toLowerCase().includes('saida'));
+            if (isExp) {
+                totalExpenses++;
+                const atts = item.attachments || attachmentsMap.get(item.id) || item.raw?.attachments || item.raw?.transaction?.attachments || [];
+                if (atts && atts.length > 0) {
+                    withAttachments++;
+                } else {
+                    pendingAttachments++;
+                }
+            }
+        });
+
+        return { totalExpenses, withAttachments, pendingAttachments };
+    }, [reportData, attachmentsMap]);
     const isHydratingFromCloud = typeof context?.isHydrating === 'boolean'
         ? context.isHydrating
         : Boolean(context?.isHydratingFromCloud?.current || context?.isHydrating?.current);
@@ -345,9 +447,18 @@ export const LivroCaixaView: React.FC = memo(() => {
                 if (!textToSearch.includes(query)) return false;
             }
 
+            if (attachmentFilter !== 'all') {
+                const isExp = item.type === 'expense' || Number(item.amount) < 0 || (item.category && String(item.category).toLowerCase().includes('saida'));
+                if (!isExp) return false;
+                const atts = item.attachments || attachmentsMap.get(item.id) || item.raw?.attachments || item.raw?.transaction?.attachments || [];
+                const hasAtts = atts && atts.length > 0;
+                if (attachmentFilter === 'with_attachments' && !hasAtts) return false;
+                if (attachmentFilter === 'without_attachments' && hasAtts) return false;
+            }
+
             return true;
         });
-    }, [reportData, selectedChurchIds, selectedBankIds, selectionMode, selectedMonth, selectedYear, customStartDate, customEndDate, searchTerm, isSecondaryUser, allowedChurchIds, churches, banks]);
+    }, [reportData, selectedChurchIds, selectedBankIds, selectionMode, selectedMonth, selectedYear, customStartDate, customEndDate, searchTerm, isSecondaryUser, allowedChurchIds, churches, banks, attachmentFilter, attachmentsMap]);
 
     const financialTotals = useMemo(() => {
         let income = 0;
@@ -667,7 +778,17 @@ export const LivroCaixaView: React.FC = memo(() => {
             : (selectedYear && selectedMonth ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01` : '');
         
         if (format === 'pdf') {
-            ExportService.downloadLivroCaixaPdf(filteredReportData, churches, 'Livro Caixa - Extrato Analítico', `livro_caixa_${dateStr}.pdf`, selectedChurchIds[0], scopedAllReportData, effectiveStartDate, selectionMode);
+            ExportService.downloadLivroCaixaPdf(
+                filteredReportData, 
+                churches, 
+                'Livro Caixa - Extrato Analítico', 
+                `livro_caixa_${dateStr}.pdf`, 
+                selectedChurchIds[0], 
+                scopedAllReportData, 
+                effectiveStartDate, 
+                selectionMode,
+                monthClosingRecord
+            );
         } else if (format === 'excel') {
             ExportService.downloadLivroCaixaExcel(filteredReportData, churches, `livro_caixa_${dateStr}.xlsx`);
         } else if (format === 'csv') {
@@ -686,7 +807,15 @@ export const LivroCaixaView: React.FC = memo(() => {
         const effectiveStartDate = selectionMode === 'dates'
             ? customStartDate
             : (selectedYear && selectedMonth ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01` : '');
-        ExportService.printLivroCaixa(filteredReportData, churches, scopedAllReportData, effectiveStartDate, selectionMode, selectedChurchIds[0]);
+        ExportService.printLivroCaixa(
+            filteredReportData, 
+            churches, 
+            scopedAllReportData, 
+            effectiveStartDate, 
+            selectionMode, 
+            selectedChurchIds[0],
+            monthClosingRecord
+        );
     };
 
     return (
@@ -708,17 +837,45 @@ export const LivroCaixaView: React.FC = memo(() => {
                         </div>
                     </div>
 
-                    {!isSecondaryUser && (
-                        <button
-                            type="button"
-                            onClick={() => setIsClosingModalOpen(true)}
-                            className="flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-xl shadow-xs hover:opacity-95 transition-all tracking-wider uppercase cursor-pointer border border-orange-400/30 active:scale-95 shrink-0 self-start sm:self-auto"
-                            title="Realizar Fechamento & Transferir Saldo"
-                        >
-                            <Building2 className="w-3.5 h-3.5" />
-                            <span>Fechamento</span>
-                        </button>
-                    )}
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {monthClosingRecord && (
+                            <div 
+                                onClick={() => !isSecondaryUser && setIsClosingModalOpen(true)}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-xs ${
+                                    !isSecondaryUser ? 'cursor-pointer hover:opacity-90' : ''
+                                } ${
+                                    monthClosingRecord.signatures && monthClosingRecord.signatures.length > 0
+                                        ? 'bg-emerald-50/90 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
+                                        : 'bg-amber-50/90 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300'
+                                }`}
+                                title={monthClosingRecord.integrityHash ? `Hash SHA-256: ${monthClosingRecord.integrityHash}` : 'Mês Fechado'}
+                            >
+                                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                <div className="flex flex-col text-left">
+                                    <span className="text-[10px] uppercase tracking-wider font-black leading-tight">
+                                        Mês Fechado
+                                    </span>
+                                    <span className="text-[9.5px] font-medium opacity-90 leading-tight">
+                                        {monthClosingRecord.signatures && monthClosingRecord.signatures.length > 0
+                                            ? `✓ ${monthClosingRecord.signatures.length} Assinatura(s) Digital(is)`
+                                            : 'Sem assinaturas digitais'}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+
+                        {!isSecondaryUser && (
+                            <button
+                                type="button"
+                                onClick={() => setIsClosingModalOpen(true)}
+                                className="flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-xl shadow-xs hover:opacity-95 transition-all tracking-wider uppercase cursor-pointer border border-orange-400/30 active:scale-95 shrink-0 self-start sm:self-auto"
+                                title="Realizar Fechamento & Assinaturas Digitais"
+                            >
+                                <Building2 className="w-3.5 h-3.5" />
+                                <span>{monthClosingRecord ? 'Ver / Editar Fechamento' : 'Fechamento'}</span>
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -1036,9 +1193,53 @@ export const LivroCaixaView: React.FC = memo(() => {
 
                 {/* Livro Caixa Table (Extrato Analítico) */}
                 <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
-                    <div className="px-4 py-2.5 bg-slate-50 dark:bg-black/20 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center text-xs font-bold text-slate-500 dark:text-slate-400">
-                        <span>Extrato Analítico ({financialTotals.totalTransactions} registros)</span>
-                        <span>IgGestor Módulo Financeiro</span>
+                    <div className="px-4 py-2.5 bg-slate-50 dark:bg-black/20 border-b border-slate-200 dark:border-slate-800 flex flex-wrap justify-between items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400">
+                        <div className="flex items-center gap-2">
+                            <span>Extrato Analítico ({financialTotals.totalTransactions} registros)</span>
+                        </div>
+
+                        {/* Filtro de Comprovantes / Documentos das Saídas */}
+                        <div className="flex items-center gap-1 bg-white dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs">
+                            <button
+                                type="button"
+                                onClick={() => { setAttachmentFilter('all'); setCurrentPage(1); }}
+                                className={`px-2 py-1 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                                    attachmentFilter === 'all'
+                                        ? 'bg-orange-500 text-white shadow-xs'
+                                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                                }`}
+                            >
+                                Todos
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => { setAttachmentFilter('with_attachments'); setCurrentPage(1); }}
+                                className={`px-2 py-1 rounded text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                                    attachmentFilter === 'with_attachments'
+                                        ? 'bg-emerald-600 text-white shadow-xs'
+                                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                                }`}
+                                title="Filtrar saídas com fatura ou comprovante anexado"
+                            >
+                                <CheckCircle2 className="w-3 h-3" />
+                                <span>Com Comprovante ({expenseAttachmentStats.withAttachments})</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => { setAttachmentFilter('without_attachments'); setCurrentPage(1); }}
+                                className={`px-2 py-1 rounded text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                                    attachmentFilter === 'without_attachments'
+                                        ? 'bg-rose-600 text-white shadow-xs'
+                                        : expenseAttachmentStats.pendingAttachments > 0
+                                            ? 'text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40'
+                                            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                                }`}
+                                title="Filtrar saídas pendentes de comprovante"
+                            >
+                                <Paperclip className="w-3 h-3" />
+                                <span>Sem Comprovante ({expenseAttachmentStats.pendingAttachments})</span>
+                            </button>
+                        </div>
                     </div>
 
                     <div className="overflow-x-auto custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}>
@@ -1069,6 +1270,12 @@ export const LivroCaixaView: React.FC = memo(() => {
                                         const formaLabel = tx.paymentMethod || tx.forma || tx.formaPagamento || tx.payment_method || tx.raw?.payment_method || 'Pix';
                                         const payerName = tx.payer || tx.contribuinte || tx.nome || tx.title || 'Lançamento de Caixa';
                                         const descText = tx.desc || tx.description || tx.historico || '';
+                                        const txAttachments: ExpenseAttachment[] = tx.attachments || tx.raw?.attachments || tx.raw?.transaction?.attachments || [];
+                                        const nfAtt = txAttachments.find(a => a.documentRole === 'nota_fiscal' || (a.extractedData && a.extractedData.documentType === 'nota_fiscal'));
+                                        const invoiceAtt = txAttachments.find(a => a.documentRole === 'fatura' || (a.extractedData && (a.extractedData.documentType === 'fatura' || a.extractedData.documentType === 'boleto')));
+                                        const serviceReceiptAtt = txAttachments.find(a => a.documentRole === 'recibo' || a.extractedData?.documentType === 'recibo');
+                                        const receiptAtt = txAttachments.find(a => a !== serviceReceiptAtt && (a.documentRole === 'comprovante' || (a.extractedData && (a.extractedData.documentType === 'comprovante_pix' || a.extractedData.documentType === 'comprovante_pagamento'))));
+                                        const identifiedCount = (nfAtt ? 1 : 0) + (invoiceAtt ? 1 : 0) + (receiptAtt ? 1 : 0) + (serviceReceiptAtt ? 1 : 0);
 
                                         return (
                                             <tr key={tx.id || idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
@@ -1094,6 +1301,91 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                     {descText && (
                                                         <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 line-clamp-1 max-w-sm">
                                                             {descText}
+                                                        </div>
+                                                    )}
+                                                    {isExpense && (
+                                                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                                            {nfAtt && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setPreviewAttachment(nfAtt)}
+                                                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 hover:bg-indigo-200 transition-colors border border-indigo-300/80 dark:border-indigo-800/80 cursor-pointer shadow-2xs"
+                                                                    title="Clique para visualizar a Nota Fiscal (NF-e/NFC-e)"
+                                                                >
+                                                                    <Receipt className="w-2.5 h-2.5" />
+                                                                    <span>NF</span>
+                                                                </button>
+                                                            )}
+                                                            {invoiceAtt && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setPreviewAttachment(invoiceAtt)}
+                                                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 hover:bg-amber-200 transition-colors border border-amber-300/80 dark:border-amber-800/80 cursor-pointer shadow-2xs"
+                                                                    title="Clique para visualizar o Boleto / Fatura"
+                                                                >
+                                                                    <FileText className="w-2.5 h-2.5" />
+                                                                    <span>Boleto/Fatura</span>
+                                                                </button>
+                                                            )}
+                                                            {receiptAtt && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setPreviewAttachment(receiptAtt)}
+                                                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 transition-colors border border-emerald-300/80 dark:border-emerald-800/80 cursor-pointer shadow-2xs"
+                                                                    title="Clique para visualizar o Comprovante de Pagamento"
+                                                                >
+                                                                    <CheckCircle2 className="w-2.5 h-2.5" />
+                                                                    <span>Comprovante</span>
+                                                                </button>
+                                                            )}
+                                                            {serviceReceiptAtt && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setPreviewAttachment(serviceReceiptAtt)}
+                                                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 hover:bg-amber-200 transition-colors border border-amber-300 dark:border-amber-800 cursor-pointer shadow-2xs"
+                                                                    title="Clique para visualizar o Recibo de Prestação de Serviços Assinado"
+                                                                >
+                                                                    <FileSignature className="w-2.5 h-2.5 text-amber-700 dark:text-amber-400" />
+                                                                    <span>Recibo</span>
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setServiceReceiptTx(tx)}
+                                                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold transition-all cursor-pointer shadow-2xs ${
+                                                                    serviceReceiptAtt
+                                                                        ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800/80'
+                                                                        : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/60'
+                                                                }`}
+                                                                title="Emitir ou Assinar Digitalmente o Recibo de Pagamento para o Prestador de Serviço"
+                                                            >
+                                                                <FileSignature className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
+                                                                <span>{serviceReceiptAtt ? 'Novo Recibo' : 'Emitir Recibo'}</span>
+                                                            </button>
+                                                            {txAttachments.length > identifiedCount && (
+                                                                <span className="text-[9px] text-slate-400 font-bold">
+                                                                    +{txAttachments.length - identifiedCount} anexo(s)
+                                                                </span>
+                                                            )}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setQuickAttachTx(tx)}
+                                                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold transition-all cursor-pointer ${
+                                                                    txAttachments.length === 0
+                                                                        ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50'
+                                                                        : 'bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                                                                }`}
+                                                                title={txAttachments.length === 0 ? "Nenhum comprovante anexado. Clique para anexar fatura ou comprovante." : "Gerenciar ou anexar mais documentos"}
+                                                            >
+                                                                {txAttachments.length === 0 ? (
+                                                                    <>
+                                                                        <Paperclip className="w-2.5 h-2.5" />
+                                                                        <span>Anexar</span>
+                                                                    </>
+                                                                ) : (
+                                                                    <Plus className="w-2.5 h-2.5" />
+                                                                )}
+                                                            </button>
                                                         </div>
                                                     )}
                                                 </td>
@@ -1476,6 +1768,46 @@ export const LivroCaixaView: React.FC = memo(() => {
                 isOpen={isClosingModalOpen}
                 onClose={() => setIsClosingModalOpen(false)}
                 currentChurchId={selectedChurchIds.length === 1 ? selectedChurchIds[0] : null}
+                initialMonth={selectedMonth}
+                initialYear={selectedYear}
+            />
+
+            <AttachmentPreviewModal
+                isOpen={!!previewAttachment}
+                attachment={previewAttachment}
+                onClose={() => setPreviewAttachment(null)}
+            />
+
+            <QuickAttachModal
+                isOpen={!!quickAttachTx}
+                transaction={quickAttachTx}
+                onClose={() => setQuickAttachTx(null)}
+                onSaved={(txId, atts) => {
+                    setAttachmentsMap(prev => {
+                        const next = new Map(prev);
+                        next.set(txId, atts);
+                        return next;
+                    });
+                    showToast('Comprovante(s) salvo(s) com sucesso!', 'success');
+                }}
+            />
+
+            <ServiceReceiptModal
+                isOpen={!!serviceReceiptTx}
+                transaction={serviceReceiptTx}
+                church={churches.find((c: any) => c.id === serviceReceiptTx?.churchId || c.name === serviceReceiptTx?.church) || (selectedChurchIds.length === 1 ? churches.find((c: any) => c.id === selectedChurchIds[0]) : churches[0])}
+                onClose={() => setServiceReceiptTx(null)}
+                onReceiptGenerated={(att) => {
+                    if (serviceReceiptTx?.id) {
+                        setAttachmentsMap(prev => {
+                            const next = new Map(prev);
+                            const currentList = next.get(serviceReceiptTx.id) || [];
+                            next.set(serviceReceiptTx.id, [...currentList, att]);
+                            return next;
+                        });
+                        showToast('Recibo assinado e anexado com sucesso ao Livro Caixa!', 'success');
+                    }
+                }}
             />
         </div>
     );

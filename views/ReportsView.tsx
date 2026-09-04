@@ -252,12 +252,12 @@ export const ReportsView: React.FC = () => {
                     {/* Barra de Ações Rápidas & Seleção de Mês e Período */}
                     <div className="flex flex-wrap items-center justify-between gap-3 shrink-0">
                         {/* Filtro de Mês e Período (Lado Esquerdo) */}
-                        <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 dark:bg-slate-800/90 p-1 rounded-xl border border-slate-200/80 dark:border-slate-700/80 text-xs shadow-xs">
-                            <div className="flex items-center gap-0.5 bg-white dark:bg-slate-900 p-0.5 rounded-lg font-bold shadow-xs border border-slate-100 dark:border-slate-800">
+                        <div className="flex flex-wrap items-center gap-1.5 bg-slate-100/90 dark:bg-slate-800/90 p-1 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 text-xs shadow-xs">
+                            <div className="flex items-center gap-0.5 bg-white dark:bg-slate-900 p-0.5 rounded-xl font-bold shadow-xs border border-slate-100 dark:border-slate-800">
                                 <button
                                     type="button"
                                     onClick={() => setSelectionMode('month')}
-                                    className={`px-2.5 py-1 rounded-md text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                                         selectionMode === 'month'
                                             ? 'bg-orange-500 text-white shadow-xs'
                                             : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
@@ -268,7 +268,7 @@ export const ReportsView: React.FC = () => {
                                 <button
                                     type="button"
                                     onClick={() => setSelectionMode('dates')}
-                                    className={`px-2.5 py-1 rounded-md text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                                         selectionMode === 'dates'
                                             ? 'bg-orange-500 text-white shadow-xs'
                                             : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
@@ -283,7 +283,7 @@ export const ReportsView: React.FC = () => {
                                     <select
                                         value={selectedMonth}
                                         onChange={(e) => handleMonthYearSelect(Number(e.target.value), selectedYear)}
-                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-white px-2.5 py-1 rounded-lg text-xs focus:outline-none focus:border-orange-500 cursor-pointer"
+                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-white px-2.5 py-1 rounded-xl text-xs focus:outline-none focus:border-orange-500 cursor-pointer"
                                     >
                                         {monthsList.map(m => (
                                             <option key={m.val} value={m.val}>{m.name}</option>
@@ -292,7 +292,7 @@ export const ReportsView: React.FC = () => {
                                     <select
                                         value={selectedYear}
                                         onChange={(e) => handleMonthYearSelect(selectedMonth, Number(e.target.value))}
-                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-white px-2.5 py-1 rounded-lg text-xs focus:outline-none focus:border-orange-500 cursor-pointer"
+                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-white px-2.5 py-1 rounded-xl text-xs focus:outline-none focus:border-orange-500 cursor-pointer"
                                     >
                                         {yearsList.map(y => (
                                             <option key={y} value={y}>{y}</option>
@@ -305,19 +305,19 @@ export const ReportsView: React.FC = () => {
                                         type="date"
                                         value={customStart}
                                         onChange={(e) => setCustomStart(e.target.value)}
-                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-semibold text-slate-800 dark:text-white px-2 py-1 rounded-lg text-xs focus:outline-none focus:border-orange-500"
+                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-semibold text-slate-800 dark:text-white px-2 py-1 rounded-xl text-xs focus:outline-none focus:border-orange-500"
                                     />
                                     <span className="text-slate-400 font-bold text-[10px] uppercase">até</span>
                                     <input
                                         type="date"
                                         value={customEnd}
                                         onChange={(e) => setCustomEnd(e.target.value)}
-                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-semibold text-slate-800 dark:text-white px-2 py-1 rounded-lg text-xs focus:outline-none focus:border-orange-500"
+                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-semibold text-slate-800 dark:text-white px-2 py-1 rounded-xl text-xs focus:outline-none focus:border-orange-500"
                                     />
                                     <button
                                         type="button"
                                         onClick={handleApplyCustomDates}
-                                        className="px-2.5 py-1 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-black uppercase text-[10px] tracking-wider rounded-lg shadow-xs transition-all cursor-pointer"
+                                        className="px-2.5 py-1 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-black uppercase text-[10px] tracking-wider rounded-xl shadow-xs transition-all cursor-pointer"
                                     >
                                         Aplicar
                                     </button>
@@ -325,12 +325,12 @@ export const ReportsView: React.FC = () => {
                             )}
                         </div>
 
-                        {/* Botões Lançar e Livro Caixa (Posicionados no final à direita, debaixo dos ícones de baixar/imprimir) */}
-                        <div className="flex items-center gap-1.5 ml-auto">
+                        {/* Grupo de Ações Financeiras Primárias (Lançar + Livro Caixa) */}
+                        <div className="flex items-center gap-1.5 p-1 bg-orange-500/10 dark:bg-orange-950/30 rounded-2xl border border-orange-200/80 dark:border-orange-800/50 shadow-xs ml-auto">
                             <button
                                 type="button"
                                 onClick={() => handleManualLaunch('entrada')}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 shadow-xs transition-all cursor-pointer active:scale-95 border border-orange-400/30"
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 shadow-xs hover:shadow-sm transition-all cursor-pointer active:scale-95 border border-orange-400/30"
                                 title="Criar Novo Lançamento Manual"
                             >
                                 <PlusCircleIcon className="w-3.5 h-3.5" />

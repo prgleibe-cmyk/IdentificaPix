@@ -11,6 +11,9 @@ import { Contributor, MatchResult, ReconciliationStatus, MatchMethod } from '../
 import { extractNameAndCpf, findSimilarContributors } from '../../utils/contributorHelper';
 import { getStoredWhatsAppSettings } from './WhatsAppReceiptModal';
 import { getCachedContributors } from '../../services/contributorsCache';
+import { ExpenseDocumentUploader } from '../financial/ExpenseDocumentUploader';
+import { ExpenseAttachment } from '../../types/domain';
+import { getAttachmentsForTransaction } from '../../services/expenseAttachmentService';
 
 const formatCpfCnpj = (value: string) => {
     const clean = value.replace(/\D/g, '');
@@ -61,9 +64,22 @@ export const ManualIdModal: React.FC = () => {
     const [manualDescription, setManualDescription] = useState<string>('');
     const [manualAmount, setManualAmount] = useState<string>('');
     const [manualType, setManualType] = useState<'entrada' | 'saida' | null>(null);
+    const [attachments, setAttachments] = useState<ExpenseAttachment[]>([]);
     const [isSaving, setIsSaving] = useState(false);
 
+    const parsedCurrentAmount = useMemo(() => {
+        if (!manualAmount) return 0;
+        const sanitized = manualAmount.replace(/\./g, '').replace(',', '.').trim();
+        return parseFloat(sanitized) || 0;
+    }, [manualAmount]);
+
+    // Refs para rastrear e proteger campos preenchidos manualmente contra sobrescritas automáticas
+    const isDateManuallyChangedRef = React.useRef<boolean>(false);
+    const isAmountManuallyChangedRef = React.useRef<boolean>(false);
+    const isDescManuallyChangedRef = React.useRef<boolean>(false);
+
     const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        isAmountManuallyChangedRef.current = true;
         const rawDigits = e.target.value.replace(/\D/g, '');
         if (!rawDigits || parseInt(rawDigits, 10) === 0) {
             setManualAmount('');
@@ -179,10 +195,32 @@ export const ManualIdModal: React.FC = () => {
     // --- FUNÇÃO PARA ALTERNAR ENTRE ENTRADA E SAÍDA ---
     const handleTypeSwitch = (type: 'entrada' | 'saida') => {
         setManualType(type);
+
+        // Se houver transação manual temporária, mantém a data e o tipo sincronizados
+        if (bulkIdentificationTxs?.[0] && bulkIdentificationTxs[0].id?.startsWith('ghost-manual-')) {
+            bulkIdentificationTxs[0].description = type === 'saida' ? 'Lançamento Manual Saída' : 'Lançamento Manual Entrada';
+            if (selectedDate) {
+                bulkIdentificationTxs[0].date = selectedDate;
+            }
+        }
+
+        // Preserva a categoria/tipo sem resetar dados preenchidos pelo usuário caso já compatível
         if (type === 'saida') {
-            setSelectedType(defaultSaidaType);
+            setSelectedType(prev => {
+                const isEntrada = (contributionTypes || []).some((ct: any) => ct.name === prev && (ct.type === 'entrada' || !ct.type));
+                if (!prev || isEntrada || prev === 'Dízimo' || prev === 'Oferta') {
+                    return defaultSaidaType;
+                }
+                return prev;
+            });
         } else {
-            setSelectedType(defaultEntradaType);
+            setSelectedType(prev => {
+                const isSaida = (contributionTypes || []).some((ct: any) => ct.name === prev && ct.type === 'saida');
+                if (!prev || isSaida || prev === 'Despesa Geral') {
+                    return defaultEntradaType;
+                }
+                return prev;
+            });
         }
     };
 
@@ -371,6 +409,24 @@ export const ManualIdModal: React.FC = () => {
         const tx = bulkIdentificationTxs[0];
         const isManual = tx.id?.startsWith('ghost-manual-');
 
+        // Se mudou de transação, reseta os sinalizadores manuais
+        if (initializedTxIdRef.current !== activeTxId) {
+            isDateManuallyChangedRef.current = false;
+            isAmountManuallyChangedRef.current = false;
+            isDescManuallyChangedRef.current = false;
+
+            const existingAtts = tx.attachments || (findMatchResult ? findMatchResult(tx.id)?.attachments : null);
+            if (Array.isArray(existingAtts) && existingAtts.length > 0) {
+                setAttachments(existingAtts);
+            } else if (tx.id && !tx.id.startsWith('ghost-')) {
+                getAttachmentsForTransaction(tx.id).then(loaded => {
+                    setAttachments(loaded || []);
+                }).catch(() => setAttachments([]));
+            } else {
+                setAttachments([]);
+            }
+        }
+
         // Se já foi inicializado para a mesma transação, não sobreescreve escolhas do usuário
         if (initializedTxIdRef.current === activeTxId) return;
         initializedTxIdRef.current = activeTxId || null;
@@ -378,29 +434,35 @@ export const ManualIdModal: React.FC = () => {
         if (isManual) {
             const matchedResult = findMatchResult ? findMatchResult(tx.id) : null;
             
-            // 1. Data/Date
-            if (tx.date) {
-                setSelectedDate(tx.date);
-            } else if (matchedResult?.transaction?.date) {
-                setSelectedDate(matchedResult.transaction.date);
-            } else {
-                setSelectedDate(new Date().toISOString().split('T')[0]);
+            // 1. Data/Date (Preserva estritamente se o usuário já alterou manualmente)
+            if (!isDateManuallyChangedRef.current) {
+                if (tx.date) {
+                    setSelectedDate(tx.date);
+                } else if (matchedResult?.transaction?.date) {
+                    setSelectedDate(matchedResult.transaction.date);
+                } else {
+                    setSelectedDate(new Date().toISOString().split('T')[0]);
+                }
             }
 
             // 2. Amount
-            if (tx.amount) {
-                const num = Math.abs(tx.amount);
-                setManualAmount(num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-            } else {
-                setManualAmount('');
+            if (!isAmountManuallyChangedRef.current) {
+                if (tx.amount) {
+                    const num = Math.abs(tx.amount);
+                    setManualAmount(num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+                } else {
+                    setManualAmount('');
+                }
             }
 
             // 3. Description
             const desc = tx.description || '';
-            if (desc === 'Lançamento Manual Entrada' || desc === 'Lançamento Manual Saída' || desc === 'Lançamento Manual') {
-                setManualDescription('');
-            } else {
-                setManualDescription(desc);
+            if (!isDescManuallyChangedRef.current) {
+                if (desc === 'Lançamento Manual Entrada' || desc === 'Lançamento Manual Saída' || desc === 'Lançamento Manual') {
+                    setManualDescription('');
+                } else {
+                    setManualDescription(desc);
+                }
             }
 
             // 4. Church ID & Bank ID
@@ -548,7 +610,8 @@ export const ManualIdModal: React.FC = () => {
                     manualAmount,
                     selectedAssociationType === 'unify' ? selectedUnifiedField : undefined,
                     isManualLaunch ? manualType : undefined,
-                    selectedBankId || undefined
+                    selectedBankId || undefined,
+                    attachments.length > 0 ? attachments : undefined
                 );
 
                 if (setActiveView) {
@@ -715,7 +778,14 @@ export const ManualIdModal: React.FC = () => {
                                     <input
                                         type="date"
                                         value={selectedDate}
-                                        onChange={e => setSelectedDate(e.target.value)}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            setSelectedDate(val);
+                                            isDateManuallyChangedRef.current = true;
+                                            if (bulkIdentificationTxs?.[0] && bulkIdentificationTxs[0].id?.startsWith('ghost-manual-')) {
+                                                bulkIdentificationTxs[0].date = val;
+                                            }
+                                        }}
                                         className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 pl-10 pr-3 transition-all outline-none text-xs font-bold"
                                     />
                                 </div>
@@ -757,6 +827,7 @@ export const ManualIdModal: React.FC = () => {
                                     value={manualDescription}
                                     onChange={e => {
                                         const val = e.target.value;
+                                        isDescManuallyChangedRef.current = true;
                                         setManualDescription(val);
                                         setShowSuggestions(true);
                                         
@@ -1125,6 +1196,27 @@ export const ManualIdModal: React.FC = () => {
                                 )}
                             </div>
                         </div>
+
+                        {/* Comprovantes e Faturas para Saídas / Despesas */}
+                        {manualType === 'saida' && (
+                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 animate-fade-in">
+                                <ExpenseDocumentUploader
+                                    attachments={attachments}
+                                    onChangeAttachments={setAttachments}
+                                    currentAmount={parsedCurrentAmount}
+                                    onApplyExtractedAmount={(val) => {
+                                        setManualAmount(val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+                                        isAmountManuallyChangedRef.current = true;
+                                    }}
+                                    onApplyExtractedRecipient={(recipient) => {
+                                        if (!manualDescription || manualDescription.trim().length === 0) {
+                                            setManualDescription(recipient);
+                                            isDescManuallyChangedRef.current = true;
+                                        }
+                                    }}
+                                />
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -1425,7 +1517,11 @@ export const ManualIdModal: React.FC = () => {
                                 <input
                                     type="date"
                                     value={selectedDate}
-                                    onChange={e => setSelectedDate(e.target.value)}
+                                    onChange={e => {
+                                        const val = e.target.value;
+                                        setSelectedDate(val);
+                                        isDateManuallyChangedRef.current = true;
+                                    }}
                                     className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 pl-10 pr-3 transition-all outline-none text-xs font-bold"
                                 />
                             </div>
@@ -1608,6 +1704,17 @@ export const ManualIdModal: React.FC = () => {
                             )}
                         </div>
                     </div>
+
+                    {/* Comprovantes e Faturas para Saídas Bancárias */}
+                    {bulkIdentificationTxs.some(t => Number(t.amount) < 0 || t.type === 'expense') && (
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 animate-fade-in">
+                            <ExpenseDocumentUploader
+                                attachments={attachments}
+                                onChangeAttachments={setAttachments}
+                                currentAmount={Math.abs(bulkIdentificationTxs[0]?.amount || 0)}
+                            />
+                        </div>
+                    )}
                 </div>
             </div>
 

@@ -59,6 +59,7 @@ export interface RefreshTokenRecord {
   token_hash: string;
   expires_at: Date;
   revoked: boolean;
+  revoked_at?: Date | null;
   created_at: Date;
   ip_address?: string | null;
   user_agent?: string | null;

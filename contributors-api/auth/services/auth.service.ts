@@ -548,6 +548,29 @@ export class AuthService {
     }
 
     if (tokenRecord.revoked) {
+      // Grace period de 30 segundos para acomodar requisições concorrentes em trânsito de SPAs
+      const isWithinGracePeriod = tokenRecord.revoked_at && (Date.now() - tokenRecord.revoked_at.getTime() < 30000);
+      if (isWithinGracePeriod) {
+        const user = await this.repo.findUserById(tokenRecord.user_id);
+        if (user && user.is_active) {
+          const accessInfo = generateAccessToken({
+            userId: user.id,
+            email: user.email,
+            ownerId: user.owner_id || user.id,
+            churchId: user.church_id,
+            role: user.role,
+            permissions: user.permissions,
+            congregationIds: extractAllowedChurchIds(user),
+            allowedChurchIds: extractAllowedChurchIds(user)
+          });
+          return {
+            accessToken: accessInfo.token,
+            refreshToken: rawRefreshToken,
+            expiresIn: accessInfo.expiresIn
+          };
+        }
+      }
+
       await this.repo.revokeAllUserRefreshTokens(tokenRecord.user_id);
       await this.repo.createAuditLog({
         user_id: tokenRecord.user_id,

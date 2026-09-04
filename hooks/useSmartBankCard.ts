@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useUI } from '../contexts/UIContext';
 import { processFileContent } from '../services/processingService';
 import { LaunchService } from '../services/LaunchService';
+import { getEffectiveUserId } from '../services/ConsolidationService';
 
 interface UseSmartBankCardProps {
     bank: any;
@@ -131,18 +132,19 @@ export const useSmartBankCard = ({ bank }: UseSmartBankCardProps) => {
         setIsMenuOpen(false);
         
         try {
+            const effectiveUserId = (await getEffectiveUserId(user.id)) || user.id;
             // No modo blindado, qualquer remoção física exige re-sincronia do banco
             // 1. Identifica os arquivos que permanecerão
             const remainingFiles = bankFiles.filter((f: any) => f !== fileToRemove);
             
             // 2. Limpa todos os pendentes deste banco
-            await LaunchService.clearBankLaunch(user.id, bank.id);
+            await LaunchService.clearBankLaunch(effectiveUserId, bank.id);
             
             // 3. Re-insere apenas os que sobraram (o launchToBank fará o dedupe novamente)
             if (remainingFiles.length > 0) {
                 const allTxs = remainingFiles.flatMap((f: any) => f.processedTransactions || []);
                 if (allTxs.length > 0) {
-                    await LaunchService.launchToBank(user.id, bank.id, allTxs);
+                    await LaunchService.launchToBank(effectiveUserId, bank.id, allTxs);
                 }
             }
 

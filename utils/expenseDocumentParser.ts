@@ -21,6 +21,7 @@ export type DocumentType =
 
 export type ValidationStatus = 'validated' | 'divergent' | 'pending_attachment' | 'manual_review';
 export type ExpenseValidationStatus = ValidationStatus;
+export type DocumentRole = 'nota_fiscal' | 'fatura' | 'comprovante' | 'recibo' | 'outro';
 
 export interface ExtractedExpenseDoc {
     documentType: DocumentType;
@@ -45,6 +46,119 @@ export interface ExpenseAttachment {
     extractedData?: ExtractedExpenseDoc;
     validationStatus: ValidationStatus;
     validationNotes?: string;
+    documentRole?: DocumentRole;
+}
+
+/**
+ * Infere se o documento é uma Nota Fiscal (compra), Fatura/Boleto (cobrança),
+ * um Comprovante de Pagamento (quitação bancária) ou Outro.
+ */
+export function inferDocumentRole(docType: DocumentType, fileName?: string): DocumentRole {
+    if (docType === 'nota_fiscal') {
+        return 'nota_fiscal';
+    }
+    if (docType === 'fatura' || docType === 'boleto') {
+        return 'fatura';
+    }
+    if (docType === 'comprovante_pix' || docType === 'comprovante_pagamento' || docType === 'recibo') {
+        return 'comprovante';
+    }
+    if (fileName) {
+        const lower = fileName.toLowerCase();
+        if (lower.includes('danfe') || lower.includes('nota fiscal') || lower.includes('nfe') || lower.includes('nf-e') || lower.includes('cupom') || lower.includes('sat')) {
+            return 'nota_fiscal';
+        }
+        if (lower.includes('fatura') || lower.includes('boleto') || lower.includes('cobranca') || lower.includes('conta')) {
+            return 'fatura';
+        }
+        if (lower.includes('comprovante') || lower.includes('pix') || lower.includes('pagamento') || lower.includes('recibo') || lower.includes('ted') || lower.includes('quitad') || lower.includes('pago')) {
+            return 'comprovante';
+        }
+    }
+    return 'outro';
+}
+
+/**
+ * Redimensiona e comprime imagens fotográficas (comprovantes ou faturas fotografadas no celular)
+ * para evitar sobrecarga de memória e lentidão de upload, mantendo excelente nitidez para leitura.
+ */
+export async function compressImageIfNeeded(
+    file: File, 
+    maxDimension = 1600, 
+    quality = 0.82
+): Promise<{ dataUrl: string; size: number }> {
+    return new Promise((resolve) => {
+        // Se não for imagem comum, fallback direto via FileReader
+        if (!file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = () => resolve({ dataUrl: reader.result as string, size: file.size });
+            reader.onerror = () => resolve({ dataUrl: '', size: file.size });
+            reader.readAsDataURL(file);
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const initialDataUrl = e.target?.result as string;
+            if (!initialDataUrl) {
+                resolve({ dataUrl: '', size: file.size });
+                return;
+            }
+
+            // Se o arquivo for menor que 600KB, não necessita de re-compressão
+            if (file.size < 600 * 1024) {
+                resolve({ dataUrl: initialDataUrl, size: file.size });
+                return;
+            }
+
+            try {
+                const img = new Image();
+                img.onload = () => {
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > maxDimension || height > maxDimension) {
+                        if (width > height) {
+                            height = Math.round((height * maxDimension) / width);
+                            width = maxDimension;
+                        } else {
+                            width = Math.round((width * maxDimension) / height);
+                            height = maxDimension;
+                        }
+                    }
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) {
+                        resolve({ dataUrl: initialDataUrl, size: file.size });
+                        return;
+                    }
+
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillRect(0, 0, width, height);
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+                    const approxSize = Math.round((compressedDataUrl.length - 22) * 3 / 4);
+                    resolve({ 
+                        dataUrl: compressedDataUrl, 
+                        size: approxSize > 0 ? approxSize : file.size 
+                    });
+                };
+                img.onerror = () => {
+                    resolve({ dataUrl: initialDataUrl, size: file.size });
+                };
+                img.src = initialDataUrl;
+            } catch (err) {
+                console.warn('[ImageCompressor] Fallback para original:', err);
+                resolve({ dataUrl: initialDataUrl, size: file.size });
+            }
+        };
+        reader.onerror = () => resolve({ dataUrl: '', size: file.size });
+        reader.readAsDataURL(file);
+    });
 }
 
 /**

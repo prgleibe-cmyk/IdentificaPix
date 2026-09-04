@@ -504,6 +504,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 status: r.status,
                 isConfirmed: r.isConfirmed,
                 splits: (Array.isArray(r.splits) && r.splits.length > 0) ? r.splits : ((Array.isArray(tx.splits) && tx.splits.length > 0) ? tx.splits : null),
+                attachments: r.attachments || tx.attachments || null,
                 raw: r
             };
         });

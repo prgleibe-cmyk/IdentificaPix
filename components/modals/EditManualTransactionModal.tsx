@@ -21,6 +21,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import { MatchResult, Church } from '../../types';
 import { getCachedContributors } from '../../services/contributorsCache';
 import { resolveContributionType, resolvePaymentMethod } from '../../utils/formatters';
+import { ExpenseDocumentUploader } from '../financial/ExpenseDocumentUploader';
+import { ExpenseAttachment } from '../../types/domain';
+import { getAttachmentsForTransaction, saveAttachmentsForTransaction } from '../../services/expenseAttachmentService';
 
 interface EditManualTransactionModalProps {
     isOpen: boolean;
@@ -115,15 +118,22 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
     const [bankId, setBankId] = useState<string>(initialBankId);
     const [contributionType, setContributionType] = useState<string>(initialContributionType);
     const [paymentMethod, setPaymentMethod] = useState<string>(initialPaymentMethod);
+    const [attachments, setAttachments] = useState<ExpenseAttachment[]>([]);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+
+    const parsedCurrentAmount = useMemo(() => {
+        if (!amountStr) return 0;
+        const sanitized = amountStr.replace(/\./g, '').replace(',', '.').trim();
+        return parseFloat(sanitized) || 0;
+    }, [amountStr]);
 
     // Contributor suggestions
     const [dbContributors, setDbContributors] = useState<any[]>([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
 
     useEffect(() => {
-        if (isOpen) {
+        if (isOpen && row) {
             setType(isInitialExpense ? 'saida' : 'entrada');
             setAmountStr(initialAmount);
             setDescription(initialDescription);
@@ -134,8 +144,20 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
             setPaymentMethod(initialPaymentMethod);
             setErrorMessage(null);
             setIsSaving(false);
+
+            // Carrega anexos da linha ou do IndexedDB
+            const existingAtts = row.attachments || row.transaction?.attachments;
+            if (Array.isArray(existingAtts) && existingAtts.length > 0) {
+                setAttachments(existingAtts);
+            } else if (row.transaction?.id) {
+                getAttachmentsForTransaction(row.transaction.id).then(loaded => {
+                    setAttachments(loaded || []);
+                }).catch(() => setAttachments([]));
+            } else {
+                setAttachments([]);
+            }
         }
-    }, [isOpen, isInitialExpense, initialAmount, initialDescription, initialDate, initialChurchId, initialBankId, initialContributionType, initialPaymentMethod]);
+    }, [isOpen, row, isInitialExpense, initialAmount, initialDescription, initialDate, initialChurchId, initialBankId, initialContributionType, initialPaymentMethod]);
 
     useEffect(() => {
         let isMounted = true;
@@ -230,8 +252,10 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
                     paymentMethod: paymentMethod,
                     contributionType: contributionType,
                     source: 'manual',
-                    isManual: true
+                    isManual: true,
+                    attachments: attachments && attachments.length > 0 ? attachments : undefined
                 },
+                attachments: attachments && attachments.length > 0 ? attachments : undefined,
                 contributor: row.contributor ? {
                     ...row.contributor,
                     name: cleanDesc,
@@ -257,6 +281,15 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
                 paymentMethod: paymentMethod,
                 updatedAt: nowIso
             };
+
+            // Persiste anexos no armazenamento local
+            if (row.transaction.id) {
+                try {
+                    await saveAttachmentsForTransaction(row.transaction.id, attachments);
+                } catch (attErr) {
+                    console.error('[EditManualTransactionModal] Erro ao persistir anexos:', attErr);
+                }
+            }
 
             // Call in-memory updater
             onSave(updatedRow);
@@ -544,6 +577,25 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
                             </select>
                         </div>
                     </div>
+
+                    {/* Anexos: Comprovantes e Faturas para Saídas */}
+                    {type === 'saida' && (
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 animate-fade-in">
+                            <ExpenseDocumentUploader
+                                attachments={attachments}
+                                onChangeAttachments={setAttachments}
+                                currentAmount={parsedCurrentAmount}
+                                onApplyExtractedAmount={(val) => {
+                                    setAmountStr(val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+                                }}
+                                onApplyExtractedRecipient={(recipient) => {
+                                    if (!description || description.trim().length === 0) {
+                                        setDescription(recipient);
+                                    }
+                                }}
+                            />
+                        </div>
+                    )}
                 </div>
 
                 {/* Rodapé / Ações */}

@@ -45,6 +45,7 @@ import { formatCurrency, formatDate, isPeriodClosed } from '../utils/formatters'
 import { PastorAutomationTab } from '../components/PastorAutomationTab';
 import { ExpenseDocumentUploader } from '../components/financial/ExpenseDocumentUploader';
 import { ExpenseAttachment, ExpenseValidationStatus, validateExpenseAgainstDocument } from '../utils/expenseDocumentParser';
+import { getAuthToken } from '../services/auth/authAdapter';
 
 interface FinancialRecord {
     id: string;
@@ -386,14 +387,36 @@ export const FinancialView: React.FC = memo(() => {
         const currentAmountNum = parseFloat(formAmount);
 
         if (formAttachments && formAttachments.length > 0) {
-            const primaryAttachment = formAttachments[0];
-            if (primaryAttachment.extractedData) {
-                const validation = validateExpenseAgainstDocument(currentAmountNum, primaryAttachment.extractedData);
-                docValidationStatus = validation.status;
-                docValidationNotes = validation.message;
-            } else {
-                docValidationStatus = primaryAttachment.validationStatus || 'manual_review';
-                docValidationNotes = primaryAttachment.validationNotes || 'Comprovante anexado sem dados estruturados';
+            let foundValidated = false;
+            let divergentNote: string | null = null;
+
+            for (const att of formAttachments) {
+                if (att.extractedData) {
+                    const validation = validateExpenseAgainstDocument(currentAmountNum, att.extractedData);
+                    if (validation.status === 'validated') {
+                        docValidationStatus = 'validated';
+                        docValidationNotes = validation.message;
+                        foundValidated = true;
+                        break;
+                    } else if (validation.status === 'divergent' && !divergentNote) {
+                        divergentNote = validation.message;
+                    }
+                } else if (att.validationStatus === 'validated') {
+                    docValidationStatus = 'validated';
+                    docValidationNotes = att.validationNotes || 'Documento validado com sucesso';
+                    foundValidated = true;
+                    break;
+                }
+            }
+
+            if (!foundValidated) {
+                if (divergentNote) {
+                    docValidationStatus = 'divergent';
+                    docValidationNotes = divergentNote;
+                } else {
+                    docValidationStatus = formAttachments[0].validationStatus || 'manual_review';
+                    docValidationNotes = formAttachments[0].validationNotes || 'Documento anexado sem divergência identificada';
+                }
             }
         }
 
@@ -420,17 +443,21 @@ export const FinancialView: React.FC = memo(() => {
         };
 
         try {
+            const token = await getAuthToken();
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+
             let res;
             if (editingRecord) {
                 res = await fetch(`/api/v1/financial_records/${editingRecord.id}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify(payload)
                 });
             } else {
                 res = await fetch('/api/v1/financial_records', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify(payload)
                 });
             }

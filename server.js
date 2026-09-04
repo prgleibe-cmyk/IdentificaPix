@@ -290,11 +290,12 @@ try {
                 }
 
                 let response;
+                const isLocalDirect = cleanBaseUrl.includes('127.0.0.1') || cleanBaseUrl.includes('localhost');
+                const timeoutMs = isLocalDirect ? 30000 : 3000;
+
                 try {
-                    // Adiciona timeout rápido (1500ms) para evitar que a requisição fique travada 
-                    // caso o domínio do microserviço na VPS esteja inacessível no ambiente local.
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 1500);
+                    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
                     response = await fetch(targetUrl, {
                         ...fetchOptions,
@@ -302,10 +303,19 @@ try {
                     });
                     clearTimeout(timeoutId);
                 } catch (fetchErr) {
-                    console.warn(`[Proxy Warning] Direct forward to ${targetUrl} failed or timed out: ${fetchErr.message}. Trying local fallback on http://127.0.0.1:3010...`);
-                    // Fallback para o processo local em segundo plano
-                    const localUrl = `http://127.0.0.1:3010${req.originalUrl}`;
-                    response = await fetch(localUrl, fetchOptions);
+                    if (!isLocalDirect) {
+                        console.warn(`[Proxy Warning] Direct forward to ${targetUrl} failed: ${fetchErr.message}. Trying local fallback on http://127.0.0.1:3010...`);
+                        const localUrl = `http://127.0.0.1:3010${req.originalUrl}`;
+                        const fallbackController = new AbortController();
+                        const fallbackTimeoutId = setTimeout(() => fallbackController.abort(), 30000);
+                        response = await fetch(localUrl, {
+                            ...fetchOptions,
+                            signal: fallbackController.signal
+                        });
+                        clearTimeout(fallbackTimeoutId);
+                    } else {
+                        throw fetchErr;
+                    }
                 }
 
                 const data = await response.json().catch(() => null);

@@ -7,6 +7,8 @@ import { getAuthSession } from '../services/auth/authAdapter';
 import { LaunchService } from '../services/LaunchService';
 import { extractNameAndCpf } from '../utils/contributorHelper';
 import { CommunicationEventService } from '../services/CommunicationEventService';
+import { ExpenseAttachment } from '../types/domain';
+import { saveAttachmentsForTransaction } from '../services/expenseAttachmentService';
 
 interface UseReconciliationActionsProps {
   reconciliation: any;
@@ -105,7 +107,8 @@ export const useReconciliationActions = ({
     manualAmount?: string,
     unifiedContributorId?: string,
     manualType?: 'entrada' | 'saida',
-    selectedBankId?: string
+    selectedBankId?: string,
+    attachments?: ExpenseAttachment[]
   ) => {
     const church = referenceData.churches.find((c: Church) => c.id === churchId);
     if (!church) return;
@@ -261,14 +264,25 @@ export const useReconciliationActions = ({
           throw new Error(`Falha ao identificar a transação com ID REAL no updateTransactionStatus.`);
         }
 
+        // Salva os comprovantes e faturas no armazenamento persistente
+        if (attachments && attachments.length > 0) {
+          try {
+            await saveAttachmentsForTransaction(realId, attachments);
+          } catch (attErr) {
+            console.error('[confirmBulkManualIdentification] Erro ao persistir anexos:', attErr);
+          }
+        }
+
         // 4. Registrar o aprendizado (Association) usando o ID real
         const updatedMatchResult: MatchResult = {
           ...tempOriginal,
           transaction: {
             ...tempOriginal.transaction,
             type: txType,
-            bank_id: selectedBankId || undefined
+            bank_id: selectedBankId || undefined,
+            attachments: attachments && attachments.length > 0 ? attachments : undefined
           },
+          attachments: attachments && attachments.length > 0 ? attachments : undefined,
           status: ReconciliationStatus.IDENTIFIED,
           isConfirmed: false,
           contributor,
@@ -374,6 +388,17 @@ export const useReconciliationActions = ({
         affectedCount++;
       }
 
+      // Salva anexos para as transações identificadas se houver
+      if (attachments && attachments.length > 0) {
+        try {
+          for (const id of txIds) {
+            await saveAttachmentsForTransaction(id, attachments);
+          }
+        } catch (attErr) {
+          console.error('[confirmBulkManualIdentification] Erro ao salvar anexos não-manual:', attErr);
+        }
+      }
+
       // 2. Atualização Atômica de Estado (Padrão idêntico ao toggleConfirmation com consistência total)
       batchState.isAtomicUpdate = true;
       reconciliation.setMatchResults((prev: MatchResult[]) => {
@@ -429,8 +454,10 @@ export const useReconciliationActions = ({
             transaction: { 
               ...r.transaction,
               reference_date: finalRefDate,
-              isConfirmed: false 
+              isConfirmed: false,
+              attachments: (attachments && attachments.length > 0) ? attachments : r.transaction.attachments
             },
+            attachments: (attachments && attachments.length > 0) ? attachments : r.attachments,
             updatedAt: new Date().toISOString()
           };
 

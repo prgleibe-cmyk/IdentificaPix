@@ -1,11 +1,20 @@
 import { profileService } from './profileService';
 import { Database } from '../types/supabase';
 import { DateResolver } from '../core/processors/DateResolver';
-import { getAuthSession } from './auth/authAdapter';
+import { getAuthSession, getAuthToken } from './auth/authAdapter';
 
 const ownerIdCache = new Map<string, string>();
 
-const getEffectiveUserId = async (currentUserId: string | undefined): Promise<string | undefined> => {
+async function getAuthHeaders(): Promise<Record<string, string>> {
+    const token = await getAuthToken();
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
+}
+
+export const getEffectiveUserId = async (currentUserId: string | undefined): Promise<string | undefined> => {
     if (!currentUserId) return undefined;
     if (ownerIdCache.has(currentUserId)) {
         return ownerIdCache.get(currentUserId);
@@ -128,9 +137,10 @@ export const consolidationService = {
             // Log do primeiro item para amostragem
             console.log(`[WRITE:FIX] Inserindo transações com effectiveUserId: ${sanitizedPayload[0].user_id}`);
 
+            const headers = await getAuthHeaders();
             const response = await fetch('/api/v1/consolidated_transactions/bulk', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 body: JSON.stringify({ transactions: sanitizedPayload })
             });
 
@@ -281,9 +291,10 @@ export const consolidationService = {
 
             const dbUpdatePayload = safeUpdateData;
 
+            const headers = await getAuthHeaders();
             const response = await fetch(`/api/v1/consolidated_transactions/${id}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 body: JSON.stringify(dbUpdatePayload)
             });
 
@@ -409,11 +420,12 @@ export const consolidationService = {
                 return false; // Bloqueia o PATCH
             }
 
+            const headers = await getAuthHeaders();
             // Executa as atualizações em paralelo via VPS PUT
             const updatePromises = ids.map(async (id) => {
                 const response = await fetch(`/api/v1/consolidated_transactions/${id}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify(updateData)
                 });
                 if (!response.ok) {
@@ -493,15 +505,25 @@ export const consolidationService = {
 
         try {
             const maxRecords = 5000;
-            const allTransactions = await consolidationService._fetchPaginated((offset, limit) => 
-                `/api/v1/consolidated_transactions?user_id=${userId}&status=pending&limit=${limit}&offset=${offset}`,
-                1000,
-                maxRecords
-            );
+            // Busca tanto pendentes quanto identificadas não confirmadas (ativas na sessão e sem fechamento)
+            const [pendingTxs, identifiedTxs] = await Promise.all([
+                consolidationService._fetchPaginated((offset, limit) => 
+                    `/api/v1/consolidated_transactions?user_id=${userId}&status=pending&limit=${limit}&offset=${offset}`,
+                    1000,
+                    maxRecords
+                ),
+                consolidationService._fetchPaginated((offset, limit) => 
+                    `/api/v1/consolidated_transactions?user_id=${userId}&status=identified&limit=${limit}&offset=${offset}`,
+                    1000,
+                    maxRecords
+                )
+            ]);
 
-            // Filtro de segurança para is_confirmed = false (e garantir consistência de tipo)
+            const allTransactions = [...pendingTxs, ...identifiedTxs];
+
+            // Filtro de segurança para is_confirmed = false e report_id vazio (garante consistência de tipo)
             const filteredTransactions = allTransactions
-                .filter(tx => tx.is_confirmed === false || tx.is_confirmed === 'false')
+                .filter(tx => (tx.is_confirmed === false || tx.is_confirmed === 'false') && !tx.report_id)
                 .map(tx => ({
                     ...tx,
                     amount: Number(tx.amount), // Garante consistência de tipo float vs numeric-string

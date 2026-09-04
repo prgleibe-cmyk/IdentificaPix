@@ -63,11 +63,13 @@ export class AuthRepository {
           token_hash VARCHAR(255) UNIQUE NOT NULL,
           expires_at TIMESTAMP NOT NULL,
           revoked BOOLEAN NOT NULL DEFAULT FALSE,
+          revoked_at TIMESTAMP,
           created_at TIMESTAMP NOT NULL DEFAULT NOW(),
           ip_address VARCHAR(100),
           user_agent TEXT
         );
       `);
+      await client.query('ALTER TABLE app_refresh_tokens ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMP;');
       await client.query('CREATE INDEX IF NOT EXISTS idx_app_refresh_tokens_hash ON app_refresh_tokens(token_hash);');
       await client.query('CREATE INDEX IF NOT EXISTS idx_app_refresh_tokens_user ON app_refresh_tokens(user_id);');
 
@@ -337,6 +339,7 @@ export class AuthRepository {
       token_hash: row.token_hash,
       expires_at: new Date(row.expires_at),
       revoked: Boolean(row.revoked),
+      revoked_at: row.revoked_at ? new Date(row.revoked_at) : null,
       created_at: new Date(row.created_at),
       ip_address: row.ip_address,
       user_agent: row.user_agent
@@ -345,7 +348,7 @@ export class AuthRepository {
 
   async revokeRefreshToken(tokenHash: string): Promise<void> {
     await this.pool.query(
-      'UPDATE app_refresh_tokens SET revoked = TRUE WHERE token_hash = $1',
+      'UPDATE app_refresh_tokens SET revoked = TRUE, revoked_at = NOW() WHERE token_hash = $1',
       [tokenHash]
     );
   }

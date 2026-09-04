@@ -24,7 +24,7 @@ export const CategoryPills: React.FC<CategoryPillsProps> = ({ activeCategory, on
     }
 
     return (
-        <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-1.5 bg-slate-100/90 dark:bg-slate-900/70 p-1 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-x-auto no-scrollbar">
             {categories.map(cat => {
                 const isActive = activeCategory === cat.id;
                 let activeClass = isActive 
