@@ -61,6 +61,7 @@ export interface Church {
   whatsapp_responsible?: 'tesouraria' | 'pastor' | 'outro' | string;
   auto_comm_enabled?: boolean;
   auto_send_on_confirmation?: boolean;
+  is_general_cash?: boolean;
 }
 
 export interface PastoralMessage {
@@ -144,6 +145,7 @@ export interface ChurchFormData {
   whatsapp_responsible?: string;
   auto_comm_enabled?: boolean;
   auto_send_on_confirmation?: boolean;
+  is_general_cash?: boolean;
 }
 
 export interface Transaction {
