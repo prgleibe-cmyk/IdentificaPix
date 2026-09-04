@@ -5025,12 +5025,12 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
         pix_key = COALESCE($4, pix_key), 
         source = COALESCE($5, source), 
         status = COALESCE($6, status), 
-        bank_id = COALESCE($7, bank_id), 
+        bank_id = CASE WHEN $19::boolean THEN $7 ELSE bank_id END, 
         row_hash = COALESCE($8, row_hash), 
         is_confirmed = COALESCE($9, is_confirmed), 
         transaction_date = COALESCE($10, transaction_date),
-        church_id = COALESCE($11, church_id),
-        contributor_id = COALESCE($12, contributor_id),
+        church_id = CASE WHEN $20::boolean THEN $11 ELSE church_id END,
+        contributor_id = CASE WHEN $21::boolean THEN $12 ELSE contributor_id END,
         report_id = COALESCE($13, report_id),
         payment_method = COALESCE($14, payment_method),
         contribution_type = COALESCE($15, contribution_type),
@@ -5038,7 +5038,29 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
         splits = CASE WHEN $17::text IS NOT NULL THEN $17::jsonb ELSE splits END,
         updated_at = NOW()
       WHERE id = $18 RETURNING *`,
-      [amount, description, type, pix_key, source, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, finalContribReqId || null, splits !== undefined ? JSON.stringify(splits) : null, id]
+      [
+        amount, 
+        description, 
+        type, 
+        pix_key, 
+        source, 
+        status, 
+        bank_id !== undefined ? bank_id : null, 
+        row_hash, 
+        is_confirmed, 
+        transaction_date, 
+        church_id !== undefined ? church_id : null, 
+        contributor_id !== undefined ? contributor_id : null, 
+        report_id, 
+        payment_method, 
+        contribution_type, 
+        finalContribReqId || null, 
+        splits !== undefined ? JSON.stringify(splits) : null, 
+        id,
+        bank_id !== undefined,
+        church_id !== undefined,
+        contributor_id !== undefined
+      ]
     );
 
     const updatedRow = result.rows[0];

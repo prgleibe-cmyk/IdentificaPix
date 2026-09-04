@@ -460,8 +460,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const bankDateClean = bankDateRaw ? String(bankDateRaw).split('T')[0] : '';
             const refDateClean = refDateRaw ? String(refDateRaw).split('T')[0] : '';
 
+            const isManual = r.isManual || tx.isManual || tx.source === 'manual';
             const desc = tx.description || tx.rawDescription || contrib.name || 'Lançamento de Caixa';
-            const payer = contrib.name || (r.status === 'IDENTIFICADO' ? (contrib.cleanedName || contrib.name) : null) || 'NÃO IDENTIFICADO';
+            const payer = isManual
+                ? (tx.description || contrib.name || 'Lançamento de Caixa')
+                : (contrib.name || (r.status === 'IDENTIFICADO' ? (contrib.cleanedName || contrib.name) : null) || 'NÃO IDENTIFICADO');
             const resolvedType = resolveContributionType(r, referenceData.contributionTypes, referenceData.contributionKeywords);
             const category = r.contributionType || tx.contributionType || contrib.contributionType || resolvedType || 'Geral';
             const paymentMethod = r.paymentMethod || tx.paymentMethod || contrib.paymentMethod || 'PIX';

@@ -4,6 +4,7 @@ import { useUI } from '../contexts/UIContext';
 import { useAuth } from '../contexts/AuthContext';
 import { ExportService } from '../services/ExportService';
 import { ChurchClosingModal } from '../components/modals/ChurchClosingModal';
+import { EditManualTransactionModal } from '../components/modals/EditManualTransactionModal';
 import { AttachmentPreviewModal } from '../components/financial/AttachmentPreviewModal';
 import { QuickAttachModal } from '../components/modals/QuickAttachModal';
 import { ServiceReceiptModal } from '../components/modals/ServiceReceiptModal';
@@ -38,7 +39,8 @@ import {
     Paperclip,
     Plus,
     Receipt,
-    FileSignature
+    FileSignature,
+    Pencil
 } from 'lucide-react';
 
 export const LivroCaixaView: React.FC = memo(() => {
@@ -91,6 +93,7 @@ export const LivroCaixaView: React.FC = memo(() => {
     const [showExportLivroCaixa, setShowExportLivroCaixa] = useState<boolean>(false);
     const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
     const [isClosingModalOpen, setIsClosingModalOpen] = useState<boolean>(false);
+    const [editingManualTx, setEditingManualTx] = useState<any | null>(null);
     const [previewAttachment, setPreviewAttachment] = useState<ExpenseAttachment | null>(null);
     const [quickAttachTx, setQuickAttachTx] = useState<any | null>(null);
     const [serviceReceiptTx, setServiceReceiptTx] = useState<any | null>(null);
@@ -818,6 +821,40 @@ export const LivroCaixaView: React.FC = memo(() => {
         );
     };
 
+    if (isClosingModalOpen) {
+        return (
+            <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full min-h-full flex flex-col animate-fade-in pb-8 md:pb-4">
+                <ChurchClosingModal
+                    isOpen={true}
+                    onClose={() => setIsClosingModalOpen(false)}
+                    currentChurchId={selectedChurchIds.length === 1 ? selectedChurchIds[0] : null}
+                    initialMonth={selectedMonth}
+                    initialYear={selectedYear}
+                    asView={true}
+                />
+            </div>
+        );
+    }
+
+    if (editingManualTx) {
+        return (
+            <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full min-h-full flex flex-col animate-fade-in pb-8 md:pb-4">
+                <EditManualTransactionModal
+                    isOpen={true}
+                    row={editingManualTx}
+                    onClose={() => setEditingManualTx(null)}
+                    onSave={(updatedRow) => {
+                        if (context?.updateReportData) {
+                            context.updateReportData(updatedRow);
+                        }
+                        setEditingManualTx(null);
+                    }}
+                    asView={true}
+                />
+            </div>
+        );
+    }
+
     return (
         <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full min-h-full flex flex-col animate-fade-in pb-8 md:pb-4">
             {/* Header Card */}
@@ -1276,6 +1313,15 @@ export const LivroCaixaView: React.FC = memo(() => {
                                         const serviceReceiptAtt = txAttachments.find(a => a.documentRole === 'recibo' || a.extractedData?.documentType === 'recibo');
                                         const receiptAtt = txAttachments.find(a => a !== serviceReceiptAtt && (a.documentRole === 'comprovante' || (a.extractedData && (a.extractedData.documentType === 'comprovante_pix' || a.extractedData.documentType === 'comprovante_pagamento'))));
                                         const identifiedCount = (nfAtt ? 1 : 0) + (invoiceAtt ? 1 : 0) + (receiptAtt ? 1 : 0) + (serviceReceiptAtt ? 1 : 0);
+                                        const isManualRow = tx.isManual || 
+                                            tx.source === 'manual' || 
+                                            tx.raw?.transaction?.source === 'manual' || 
+                                            tx.raw?.transaction?.isManual === true || 
+                                            (tx.raw as any)?.isManual === true ||
+                                            String(tx.id).startsWith('ghost-manual-') || 
+                                            String(tx.raw?.transaction?.id).startsWith('ghost-manual-') || 
+                                            (tx.raw?.transaction?.row_hash && tx.raw?.transaction?.row_hash.includes('|bmanual|')) ||
+                                            (tx.row_hash && tx.row_hash.includes('|bmanual|'));
 
                                         return (
                                             <tr key={tx.id || idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
@@ -1295,8 +1341,19 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                     )}
                                                 </td>
                                                 <td className="px-4 py-2.5">
-                                                    <div className="font-bold text-slate-800 dark:text-slate-100 uppercase flex items-center gap-1.5">
+                                                    <div className="font-bold text-slate-800 dark:text-slate-100 uppercase flex items-center gap-1.5 flex-wrap">
                                                         <span>{payerName}</span>
+                                                        {isManualRow && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setEditingManualTx(tx.raw || tx)}
+                                                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800/80 cursor-pointer shadow-2xs transition-all active:scale-95 ml-1"
+                                                                title="Editar Lançamento Manual"
+                                                            >
+                                                                <Pencil className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
+                                                                <span>Editar</span>
+                                                            </button>
+                                                        )}
                                                     </div>
                                                     {descText && (
                                                         <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 line-clamp-1 max-w-sm">
@@ -1763,14 +1820,6 @@ export const LivroCaixaView: React.FC = memo(() => {
                     </div>
                 </div>
             </div>
-
-            <ChurchClosingModal
-                isOpen={isClosingModalOpen}
-                onClose={() => setIsClosingModalOpen(false)}
-                currentChurchId={selectedChurchIds.length === 1 ? selectedChurchIds[0] : null}
-                initialMonth={selectedMonth}
-                initialYear={selectedYear}
-            />
 
             <AttachmentPreviewModal
                 isOpen={!!previewAttachment}

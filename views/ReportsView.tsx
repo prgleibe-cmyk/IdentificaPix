@@ -218,6 +218,23 @@ export const ReportsView: React.FC = () => {
         ctrl.activeCategory === 'unidentified' ? 'Transações Pendentes' :
         ctrl.activeCategory === 'contributors' ? 'Relatório de Cadastros / Contribuintes' : 'Saídas e Despesas';
 
+    if (editingManualRow) {
+        return (
+            <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full min-h-full flex flex-col animate-fade-in pb-8 md:pb-4">
+                <EditManualTransactionModal
+                    isOpen={true}
+                    row={editingManualRow}
+                    onClose={() => setEditingManualRow(null)}
+                    onSave={(updatedRow) => {
+                        ctrl.updateReportData(updatedRow);
+                        setEditingManualRow(null);
+                    }}
+                    asView={true}
+                />
+            </div>
+        );
+    }
+
     return (
         <div className="flex flex-col min-h-full animate-fade-in gap-2 pb-8 md:pb-4 px-1">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 flex-shrink-0">
@@ -404,18 +421,6 @@ export const ReportsView: React.FC = () => {
                         };
                         ctrl.updateReportData(updatedRow);
                         setSplitRow(null);
-                    }}
-                />
-            )}
-
-            {editingManualRow && (
-                <EditManualTransactionModal
-                    isOpen={!!editingManualRow}
-                    row={editingManualRow}
-                    onClose={() => setEditingManualRow(null)}
-                    onSave={(updatedRow) => {
-                        ctrl.updateReportData(updatedRow);
-                        setEditingManualRow(null);
                     }}
                 />
             )}

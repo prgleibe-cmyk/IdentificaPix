@@ -368,11 +368,15 @@ export const useCloudSync = ({
                     const rawNameCandidate = regName || assoc?.contributorNormalizedName;
                     const validContribName = (rawNameCandidate && !isInvalidOrNumericName(rawNameCandidate, t.description)) ? rawNameCandidate : null;
 
-                    const contributor: Contributor | null = validContribName ? {
+                    const effectiveContribName = (isManualTx && t.description && t.description.trim()) 
+                        ? t.description.trim() 
+                        : validContribName;
+
+                    const contributor: Contributor | null = effectiveContribName ? {
                         id: t.contributor_id || undefined,
-                        name: validContribName,
+                        name: effectiveContribName,
                         amount: t.amount,
-                        cleanedName: validContribName,
+                        cleanedName: effectiveContribName,
                         contributionType: savedContribType,
                         paymentMethod: savedPaymentMethod
                     } : null;

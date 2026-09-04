@@ -1,6 +1,6 @@
 
 import React, { useState, useContext, useEffect, useMemo } from 'react';
-import { Calendar, FileText, DollarSign } from 'lucide-react';
+import { Calendar, FileText, DollarSign, PlusCircle, ArrowLeft, ArrowUpRight, ArrowDownRight, CheckCircle2 } from 'lucide-react';
 import { AppContext } from '../../contexts/AppContext';
 import { useUI } from '../../contexts/UIContext';
 import { useTranslation } from '../../contexts/I18nContext';
@@ -43,8 +43,15 @@ export const ManualIdModal: React.FC = () => {
         openWhatsAppReceiptModal
     } = useContext(AppContext);
     const { t, language } = useTranslation();
-    const { setActiveView } = useUI();
+    const { setActiveView, activeView } = useUI();
     const { subscription, user } = useAuth();
+
+    const handleClose = () => {
+        closeManualIdentify();
+        if (activeView === 'novo_lancamento') {
+            setActiveView('livro_caixa');
+        }
+    };
 
     const isSecondaryUser = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
         subscription?.role !== 'owner' &&
@@ -549,12 +556,12 @@ export const ManualIdModal: React.FC = () => {
     // --- ATALHOS DE TECLADO ---
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') closeManualIdentify();
+            if (e.key === 'Escape') handleClose();
             if (e.key === 'Enter' && selectedChurchId && (!isManualLaunch || (selectedBankId && manualType)) && !isSaving) handleConfirm();
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [closeManualIdentify, selectedChurchId, selectedBankId, isManualLaunch, manualType, isSaving]);
+    }, [handleClose, selectedChurchId, selectedBankId, isManualLaunch, manualType, isSaving]);
 
     useEffect(() => {
         if (churches.length === 1 && !selectedChurchId) {
@@ -615,7 +622,11 @@ export const ManualIdModal: React.FC = () => {
                 );
 
                 if (setActiveView) {
-                    setActiveView('reports');
+                    if (activeView === 'novo_lancamento') {
+                        setActiveView('livro_caixa');
+                    } else {
+                        setActiveView('reports');
+                    }
                 }
             }
         } catch (error) {
@@ -630,618 +641,581 @@ export const ManualIdModal: React.FC = () => {
 
     if (isManualLaunch) {
         return (
-            <div className="absolute inset-0 z-40 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full overflow-hidden">
-                {/* Header */}
-                <div className="px-6 py-4.5 border-b border-slate-100 dark:border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shrink-0">
-                    <div className="flex flex-row flex-wrap items-center gap-3 sm:gap-6 w-full sm:w-auto">
+            <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full min-h-full flex flex-col animate-fade-in pb-8 md:pb-4">
+                {/* Header Card */}
+                <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-white/5 shadow-sm flex-shrink-0">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div className="flex items-center gap-3">
-                            <div className="p-2.5 rounded-xl bg-brand-blue text-white shadow-md shadow-blue-500/20">
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            <div className="p-2 bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl text-white shadow-md shadow-orange-500/20 shrink-0">
+                                <PlusCircle className="w-5 h-5" />
                             </div>
                             <div>
-                                <h3 className="text-base sm:text-lg font-black text-slate-800 dark:text-white tracking-tight uppercase">
+                                <h1 className="text-xl font-black text-slate-800 dark:text-white tracking-tight">
                                     Novo Lançamento
-                                </h3>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">
-                                    Lançamento Manual
+                                </h1>
+                                <p className="text-xs text-slate-400">
+                                    Cadastre manualmente uma nova entrada (receita) ou saída (despesa) no livro caixa.
                                 </p>
                             </div>
                         </div>
 
-                        {/* Selector buttons right in front of the name */}
-                        {manualType === null ? (
-                            <div className="inline-flex items-center gap-1.5 p-1 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 shadow-xs">
-                                <span className="text-[9px] font-black text-amber-700 dark:text-amber-300 uppercase px-1 flex items-center gap-1">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
-                                    Tipo:
-                                </span>
-                                <button
-                                    type="button"
-                                    onClick={() => handleTypeSwitch('entrada')}
-                                    className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer flex items-center gap-1.5 bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 shadow-xs hover:scale-105"
-                                    id="modal-btn-entrada"
-                                >
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                    <span>• Entrada</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => handleTypeSwitch('saida')}
-                                    className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer flex items-center gap-1.5 bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 border border-rose-300 dark:border-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/50 shadow-xs hover:scale-105"
-                                    id="modal-btn-saida"
-                                >
-                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                                    <span>• Saída</span>
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="inline-flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 text-[10px]">
-                                <button
-                                    type="button"
-                                    onClick={() => handleTypeSwitch('entrada')}
-                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
-                                        manualType === 'entrada'
-                                            ? 'bg-emerald-600 text-white shadow-xs'
-                                            : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-                                    }`}
-                                    id="modal-btn-entrada"
-                                >
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-300"></span>
-                                    <span>• Entrada</span>
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={() => handleTypeSwitch('saida')}
-                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
-                                        manualType === 'saida'
-                                            ? 'bg-rose-600 text-white shadow-xs'
-                                            : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-                                    }`}
-                                    id="modal-btn-saida"
-                                >
-                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-300"></span>
-                                    <span>• Saída</span>
-                                </button>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="flex items-center gap-2 self-end sm:self-auto">
-                        <span className="text-[8px] font-black text-slate-400 uppercase border border-slate-200 dark:border-slate-800 px-1.5 py-0.5 rounded">Esc</span>
-                        <button type="button" onClick={closeManualIdentify} className="p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors">
-                            <XMarkIcon className="w-5 h-5" />
-                        </button>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <button
+                                type="button"
+                                onClick={handleClose}
+                                className="flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-black text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-xl transition-all tracking-wider uppercase cursor-pointer border border-slate-200 dark:border-slate-700 active:scale-95"
+                            >
+                                <ArrowLeft className="w-3.5 h-3.5" />
+                                <span>Voltar</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleConfirm}
+                                disabled={!manualType || !selectedChurchId || !selectedBankId || isSaving}
+                                className={`flex items-center gap-1.5 px-4 py-1.5 text-[11px] font-black text-white rounded-xl shadow-xs transition-all tracking-wider uppercase border border-orange-400/30 active:scale-95 ${
+                                    !manualType || !selectedChurchId || !selectedBankId || isSaving
+                                        ? 'bg-slate-400 dark:bg-slate-700 opacity-60 cursor-not-allowed'
+                                        : 'bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 hover:opacity-95 cursor-pointer shadow-orange-500/20'
+                                }`}
+                            >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>{isSaving ? 'Salvando...' : 'Salvar Lançamento'}</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                {/* Form fields */}
-                <div className="p-5 sm:p-6 flex-1 overflow-y-auto w-full custom-scrollbar">
-                    <div className="space-y-4 max-w-5xl mx-auto">
-                        {/* Banner Obrigatório para Escolha de Entrada ou Saída */}
-                        {!manualType ? (
-                            <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-700/60 rounded-xl p-3 shadow-2xs text-center space-y-2">
-                                <div className="flex items-center justify-center gap-1.5">
-                                    <span className="text-sm">⚠️</span>
-                                    <h4 className="text-[11px] font-bold text-amber-900 dark:text-amber-200 uppercase tracking-wide">
-                                        Selecione o Tipo do Lançamento
-                                    </h4>
-                                </div>
-                                <div className="flex flex-wrap items-center justify-center gap-2 max-w-md mx-auto pt-0.5">
-                                    <button
-                                        type="button"
-                                        onClick={() => handleTypeSwitch('entrada')}
-                                        className="flex items-center justify-center gap-2 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[11px] uppercase tracking-wide shadow-xs active:scale-95 transition-all cursor-pointer"
-                                        id="banner-btn-entrada"
-                                    >
-                                        <span className="w-2 h-2 rounded-full bg-white"></span>
-                                        <span>Entrada (Receita)</span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => handleTypeSwitch('saida')}
-                                        className="flex items-center justify-center gap-2 px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold text-[11px] uppercase tracking-wide shadow-xs active:scale-95 transition-all cursor-pointer"
-                                        id="banner-btn-saida"
-                                    >
-                                        <span className="w-2 h-2 rounded-full bg-white"></span>
-                                        <span>Saída (Despesa)</span>
-                                    </button>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className={`flex items-center justify-between px-3.5 py-2 rounded-xl border text-[10px] font-bold uppercase tracking-wider transition-all ${
-                                manualType === 'entrada'
-                                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300'
-                                    : 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300'
-                            }`}>
-                                <div className="flex items-center gap-2">
-                                    <span className={`w-2 h-2 rounded-full ${manualType === 'entrada' ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
-                                    <span>Tipo Selecionado: <strong>{manualType === 'entrada' ? 'ENTRADA (Receitas / Dízimos / Ofertas)' : 'SAÍDA (Despesas / Pagamentos)'}</strong></span>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => handleTypeSwitch(manualType === 'entrada' ? 'saida' : 'entrada')}
-                                    className="text-[9px] font-black underline hover:opacity-80 cursor-pointer ml-2"
-                                >
-                                    Mudar para {manualType === 'entrada' ? 'Saída' : 'Entrada'}
-                                </button>
-                            </div>
-                        )}
-                        {/* Linha 1: Data e Valor */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
-                                    Data
-                                </label>
-                                <div className="relative group">
-                                    <Calendar className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
-                                    <input
-                                        type="date"
-                                        value={selectedDate}
-                                        onChange={e => {
-                                            const val = e.target.value;
-                                            setSelectedDate(val);
-                                            isDateManuallyChangedRef.current = true;
-                                            if (bulkIdentificationTxs?.[0] && bulkIdentificationTxs[0].id?.startsWith('ghost-manual-')) {
-                                                bulkIdentificationTxs[0].date = val;
-                                            }
-                                        }}
-                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 pl-10 pr-3 transition-all outline-none text-xs font-bold"
-                                    />
-                                </div>
-                            </div>
+                {/* Main Content Card - Idêntico ao Livro Caixa */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl p-4 md:p-6 shadow-sm space-y-5">
+                    {/* Header de Controle Interno */}
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-100 dark:border-white/5">
+                        <div>
+                            <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                                <PlusCircle className="w-4 h-4 text-orange-500" />
+                                Formulário de Lançamento
+                            </h3>
+                            <p className="text-xs text-slate-400">Preencha as informações contábeis para registro no Livro Caixa.</p>
+                        </div>
 
-                            <div className="space-y-1.5">
-                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
-                                    Valor (R$)
-                                </label>
-                                <div className="relative group">
-                                    <DollarSign className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
-                                    <input
-                                        type="text"
-                                        inputMode="numeric"
-                                        value={manualAmount}
-                                        onChange={handleAmountChange}
-                                        placeholder="0,00"
-                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 pl-10 pr-3 transition-all outline-none text-xs font-bold font-mono placeholder:text-slate-400 dark:placeholder:text-slate-600"
-                                        id="manual-launch-amount-input"
-                                    />
-                                </div>
+                        {/* Alternador Rápido de Tipo: Entrada / Saída */}
+                        <div className="grid grid-cols-2 gap-2 min-w-[280px]">
+                            <button
+                                type="button"
+                                onClick={() => handleTypeSwitch('entrada')}
+                                className={`py-2 px-3 rounded-xl font-bold uppercase text-[11px] flex items-center justify-center gap-1.5 transition-all border cursor-pointer ${
+                                    manualType === 'entrada'
+                                        ? 'bg-emerald-500 text-white border-emerald-600 shadow-sm shadow-emerald-500/20'
+                                        : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-300'
+                                }`}
+                                id="modal-btn-entrada"
+                            >
+                                <ArrowUpRight className="w-3.5 h-3.5" />
+                                <span>Entrada (Receita)</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleTypeSwitch('saida')}
+                                className={`py-2 px-3 rounded-xl font-bold uppercase text-[11px] flex items-center justify-center gap-1.5 transition-all border cursor-pointer ${
+                                    manualType === 'saida'
+                                        ? 'bg-rose-500 text-white border-rose-600 shadow-sm shadow-rose-500/20'
+                                        : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-rose-300'
+                                }`}
+                                id="modal-btn-saida"
+                            >
+                                <ArrowDownRight className="w-3.5 h-3.5" />
+                                <span>Saída (Despesa)</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Banner Informativo para Escolha de Entrada ou Saída se ainda não selecionado */}
+                    {!manualType && (
+                        <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-700/60 rounded-xl p-3 shadow-2xs text-center space-y-2">
+                            <div className="flex items-center justify-center gap-1.5">
+                                <span className="text-sm">⚠️</span>
+                                <h4 className="text-[11px] font-bold text-amber-900 dark:text-amber-200 uppercase tracking-wide">
+                                    Selecione o Tipo do Lançamento Acima (Entrada ou Saída)
+                                </h4>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Linha 1: Data e Valor */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
+                                Data
+                            </label>
+                            <div className="relative group">
+                                <Calendar className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-orange-500 transition-colors pointer-events-none" />
+                                <input
+                                    type="date"
+                                    value={selectedDate}
+                                    onChange={e => {
+                                        const val = e.target.value;
+                                        setSelectedDate(val);
+                                        isDateManuallyChangedRef.current = true;
+                                        if (bulkIdentificationTxs?.[0] && bulkIdentificationTxs[0].id?.startsWith('ghost-manual-')) {
+                                            bulkIdentificationTxs[0].date = val;
+                                        }
+                                    }}
+                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2.5 pl-10 pr-3 transition-all outline-none text-xs font-bold"
+                                />
                             </div>
                         </div>
 
-                        {/* Linha 2: Busca de Contribuinte */}
-                        <div className="space-y-1.5" id="manual-description-container">
-                            <div className="flex items-center justify-between flex-wrap gap-1">
-                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
-                                    Buscar Contribuinte Cadastrado / Nome
-                                </label>
-                                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                                    ⚡ Selecionar preenche a igreja automaticamente
-                                </span>
-                            </div>
+                        <div className="space-y-1.5">
+                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
+                                Valor (R$)
+                            </label>
                             <div className="relative group">
-                                <FileText className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
+                                <DollarSign className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-orange-500 transition-colors pointer-events-none" />
                                 <input
                                     type="text"
-                                    value={manualDescription}
-                                    onChange={e => {
-                                        const val = e.target.value;
-                                        isDescManuallyChangedRef.current = true;
-                                        setManualDescription(val);
-                                        setShowSuggestions(true);
-                                        
-                                        if (selectedAssociationType === 'unify') {
-                                            const matchedCol = allContributors.find(c => c.id === selectedUnifiedField);
-                                            if (matchedCol && matchedCol.name !== val) {
-                                                setSelectedAssociationType('create_new');
-                                                setSelectedUnifiedField('');
-                                            }
-                                        }
-                                    }}
-                                    onFocus={() => setShowSuggestions(true)}
-                                    placeholder="Digite o nome ou CPF do contribuinte..."
-                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 pl-10 pr-3 transition-all outline-none text-xs font-bold placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                                    inputMode="numeric"
+                                    value={manualAmount}
+                                    onChange={handleAmountChange}
+                                    placeholder="0,00"
+                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2.5 pl-10 pr-3 transition-all outline-none text-xs font-bold font-mono placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                                    id="manual-launch-amount-input"
                                 />
-                                {showSuggestions && filteredContributors.length > 0 && (
-                                    <div className="absolute left-0 right-0 top-[105%] z-50 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl overflow-hidden max-h-56 overflow-y-auto custom-scrollbar">
-                                        <div className="p-2 border-b border-slate-100 dark:border-white/5 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider px-3 py-1.5 flex justify-between items-center bg-slate-50 dark:bg-slate-900/80">
-                                            <span>🔍 Pessoas / Empresas Cadastradas</span>
-                                            <span className="text-[8px] font-semibold text-emerald-600 dark:text-emerald-400">Preenche a Igreja</span>
-                                        </div>
-                                        {filteredContributors.map((col, cIdx) => (
-                                            <button
-                                                key={col.id || cIdx}
-                                                type="button"
-                                                onClick={() => {
-                                                    setManualDescription(col.name);
-                                                    if (col._churchId) {
-                                                        setSelectedChurchId(col._churchId);
-                                                    }
-                                                    setSelectedAssociationType('unify');
-                                                    setSelectedUnifiedField(col.id);
-                                                    setShowSuggestions(false);
-                                                }}
-                                                className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-800 dark:text-slate-200 text-xs font-semibold transition-colors flex justify-between items-center border-b border-slate-50 dark:border-white/5 last:border-none cursor-pointer"
-                                            >
-                                                <div className="flex flex-col min-w-0 pr-2">
-                                                    <span className="font-bold text-slate-800 dark:text-slate-200 truncate">{col.name}</span>
-                                                    {col.cpf && (
-                                                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">
-                                                            {col.cpf.replace(/\D/g, '').length === 14 ? 'CNPJ' : 'CPF'}: {formatCpfCnpj(col.cpf)}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <span className="text-[9px] font-black bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded border border-emerald-200/50 dark:border-emerald-800/50 shrink-0 max-w-[170px] truncate">
-                                                    🏛️ {col._churchName}
-                                                </span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
                             </div>
+                        </div>
+                    </div>
 
-                            {/* Feedback de Vínculo Automático */}
-                            {selectedAssociationType === 'unify' && selectedUnifiedField && (
-                                <div className="flex items-center justify-between gap-2 p-2.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl text-xs text-emerald-800 dark:text-emerald-300 animate-fade-in">
-                                    <div className="flex items-center gap-2 min-w-0">
-                                        <CheckBadgeIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                                        <span className="truncate text-xs">
-                                            Contribuinte vinculado: <strong className="font-extrabold">{manualDescription}</strong>
-                                            {churches.find(c => c.id === selectedChurchId) && (
-                                                <span className="ml-1 text-[11px] font-medium opacity-90">
-                                                    • Igreja: <strong className="font-bold">{churches.find(c => c.id === selectedChurchId)?.name}</strong>
-                                                </span>
-                                            )}
-                                        </span>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
+                    {/* Linha 2: Busca de Contribuinte */}
+                    <div className="space-y-1.5" id="manual-description-container">
+                        <div className="flex items-center justify-between flex-wrap gap-1">
+                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
+                                Buscar Contribuinte Cadastrado / Nome
+                            </label>
+                            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                ⚡ Selecionar preenche a igreja automaticamente
+                            </span>
+                        </div>
+                        <div className="relative group">
+                            <FileText className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-orange-500 transition-colors pointer-events-none" />
+                            <input
+                                type="text"
+                                value={manualDescription}
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    isDescManuallyChangedRef.current = true;
+                                    setManualDescription(val);
+                                    setShowSuggestions(true);
+                                    
+                                    if (selectedAssociationType === 'unify') {
+                                        const matchedCol = allContributors.find(c => c.id === selectedUnifiedField);
+                                        if (matchedCol && matchedCol.name !== val) {
                                             setSelectedAssociationType('create_new');
                                             setSelectedUnifiedField('');
-                                        }}
-                                        className="text-[10px] font-bold text-slate-500 hover:text-slate-800 dark:hover:text-white underline cursor-pointer shrink-0"
-                                    >
-                                        Desvincular
-                                    </button>
+                                        }
+                                    }
+                                }}
+                                onFocus={() => setShowSuggestions(true)}
+                                placeholder="Digite o nome ou CPF do contribuinte..."
+                                className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2.5 pl-10 pr-3 transition-all outline-none text-xs font-bold placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                            />
+                            {showSuggestions && filteredContributors.length > 0 && (
+                                <div className="absolute left-0 right-0 top-[105%] z-50 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl overflow-hidden max-h-56 overflow-y-auto custom-scrollbar">
+                                    <div className="p-2 border-b border-slate-100 dark:border-white/5 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider px-3 py-1.5 flex justify-between items-center bg-slate-50 dark:bg-slate-900/80">
+                                        <span>🔍 Pessoas / Empresas Cadastradas</span>
+                                        <span className="text-[8px] font-semibold text-emerald-600 dark:text-emerald-400">Preenche a Igreja</span>
+                                    </div>
+                                    {filteredContributors.map((col, cIdx) => (
+                                        <button
+                                            key={col.id || cIdx}
+                                            type="button"
+                                            onClick={() => {
+                                                setManualDescription(col.name);
+                                                if (col._churchId) {
+                                                    setSelectedChurchId(col._churchId);
+                                                }
+                                                setSelectedAssociationType('unify');
+                                                setSelectedUnifiedField(col.id);
+                                                setShowSuggestions(false);
+                                            }}
+                                            className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-800 dark:text-slate-200 text-xs font-semibold transition-colors flex justify-between items-center border-b border-slate-50 dark:border-white/5 last:border-none cursor-pointer"
+                                        >
+                                            <div className="flex flex-col min-w-0 pr-2">
+                                                <span className="font-bold text-slate-800 dark:text-slate-200 truncate">{col.name}</span>
+                                                {col.cpf && (
+                                                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">
+                                                        {col.cpf.replace(/\D/g, '').length === 14 ? 'CNPJ' : 'CPF'}: {formatCpfCnpj(col.cpf)}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <span className="text-[9px] font-black bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded border border-emerald-200/50 dark:border-emerald-800/50 shrink-0 max-w-[170px] truncate">
+                                                🏛️ {col._churchName}
+                                            </span>
+                                        </button>
+                                    ))}
                                 </div>
                             )}
                         </div>
 
-                        {/* SELEÇÃO DE ANÁLISE DE SIMILARIDADE E UNIFICAÇÃO DE CONTRIBUINTES */}
-                        {similarMatches.length > 0 && (
-                            <div className="bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 p-4 rounded-2xl space-y-3">
-                                <div className="flex items-center gap-2">
-                                    <div className="p-1 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-600">
-                                        <SparklesIcon className="w-3.5 h-3.5" />
-                                    </div>
-                                    <h4 className="text-xs font-black text-blue-800 dark:text-blue-300 uppercase tracking-wider">
-                                        {similarMatches[0].score >= 80 ? '🎯 Contribuinte Correspondente Encontrado' : '⚡ Semelhança Possível Detectada'}
-                                    </h4>
-                                </div>
-
-                                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold leading-relaxed">
-                                    Identificamos contribuintes similares cadastrados na VPS. Quer unificar com um existente ou cadastrar como NOVO?
-                                </p>
-
-                                <div className="grid grid-cols-2 gap-2 bg-slate-100/50 dark:bg-black/30 p-1 rounded-xl">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setSelectedAssociationType('create_new');
-                                            if (churches.length !== 1) {
-                                                setSelectedChurchId('');
-                                            } else {
-                                                setSelectedChurchId(churches[0].id);
-                                            }
-                                        }}
-                                        className={`py-1.5 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${
-                                            selectedAssociationType === 'create_new'
-                                                ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-xs'
-                                                : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-                                        }`}
-                                    >
-                                        Cadastrar Novo
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setSelectedAssociationType('unify');
-                                            if (similarMatches.length > 0) {
-                                                const match = similarMatches[0];
-                                                setSelectedUnifiedField(match.contributor.id);
-                                                const chId = match.contributor._churchId || match.contributor.church_id || match.church?.id;
-                                                if (chId) setSelectedChurchId(chId);
-                                            }
-                                        }}
-                                        className={`py-1.5 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${
-                                            selectedAssociationType === 'unify'
-                                                ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-xs'
-                                                : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-                                        }`}
-                                    >
-                                        Unificar Cadastro
-                                    </button>
-                                </div>
-
-                                {selectedAssociationType === 'unify' && (
-                                    <div className="space-y-2 pt-1">
-                                        <label className="block text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                                            Selecione o Contribuinte VPS Correspondente:
-                                        </label>
-                                        <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1 custom-scrollbar">
-                                            {similarMatches.map((m, idx) => {
-                                                const chId = m.contributor._churchId || m.contributor.church_id || m.church?.id;
-                                                const churchName = m.church?.name || 'Igreja Desconhecida';
-                                                const isSelected = selectedUnifiedField === m.contributor.id;
-                                                
-                                                return (
-                                                    <div
-                                                        key={m.contributor.id || idx}
-                                                        onClick={() => {
-                                                            setSelectedUnifiedField(m.contributor.id);
-                                                            if (chId) setSelectedChurchId(chId);
-                                                        }}
-                                                        className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
-                                                            isSelected
-                                                                ? 'border-blue-500/85 bg-blue-100/30 dark:bg-blue-950/40 text-blue-900 dark:text-blue-100'
-                                                                : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300'
-                                                        }`}
-                                                    >
-                                                        <div className="flex justify-between items-center">
-                                                            <span className="text-xs font-black uppercase tracking-tight">{m.contributor.name || m.contributor.canonical_name}</span>
-                                                            <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 uppercase">
-                                                                Score: {m.score}%
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex gap-2 text-[9px] text-slate-400 font-semibold mt-0.5 uppercase">
-                                                            <span>Igreja: {churchName}</span>
-                                                            {m.contributor.cpf && (
-                                                                <>
-                                                                    <span>•</span>
-                                                                    <span>CPF: {m.contributor.cpf}</span>
-                                                                </>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Linha 3: Igreja e Conta / Caixa */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                                <div className="flex items-center justify-between flex-wrap gap-1">
-                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
-                                        Escolha a Igreja de Destino
-                                    </label>
-                                    {selectedAssociationType === 'unify' && selectedChurchId && (
-                                        <span className="text-[9px] font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-900/50 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
-                                            ✓ Auto-preenchida
-                                        </span>
-                                    )}
-                                </div>
-                                <div className="relative group">
-                                    <BuildingOfficeIcon className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
-                                    <select
-                                        value={selectedChurchId}
-                                        onChange={e => setSelectedChurchId(e.target.value)}
-                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 pl-10 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer"
-                                    >
-                                        <option value="">-- Clique para ver as igrejas --</option>
-                                        {churches.map(church => (
-                                            <option key={church.id} value={church.id}>
-                                                {church.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                        <ChevronDownIcon className="w-3.5 h-3.5" />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <div className="flex items-center justify-between flex-wrap gap-1">
-                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-1">
-                                        Conta / Caixa de Destino <span className="text-amber-500 font-bold">*</span>
-                                    </label>
-                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border transition-colors ${
-                                        !selectedBankId 
-                                            ? 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 animate-pulse' 
-                                            : 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200/60 dark:border-emerald-800/60'
-                                    }`}>
-                                        {!selectedBankId ? '⚠️ Seleção Obrigatória' : '✓ Destino Selecionado'}
+                        {/* Feedback de Vínculo Automático */}
+                        {selectedAssociationType === 'unify' && selectedUnifiedField && (
+                            <div className="flex items-center justify-between gap-2 p-2.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl text-xs text-emerald-800 dark:text-emerald-300 animate-fade-in">
+                                <div className="flex items-center gap-2 min-w-0">
+                                    <CheckBadgeIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                    <span className="truncate text-xs">
+                                        Contribuinte vinculado: <strong className="font-extrabold">{manualDescription}</strong>
+                                        {churches.find(c => c.id === selectedChurchId) && (
+                                            <span className="ml-1 text-[11px] font-medium opacity-90">
+                                                • Igreja: <strong className="font-bold">{churches.find(c => c.id === selectedChurchId)?.name}</strong>
+                                            </span>
+                                        )}
                                     </span>
                                 </div>
-                                <div className="relative group">
-                                    <svg className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                                    </svg>
-                                    <select
-                                        value={selectedBankId}
-                                        onChange={e => setSelectedBankId(e.target.value)}
-                                        className={`block w-full rounded-xl border ${
-                                            !selectedBankId 
-                                                ? 'border-amber-300/80 dark:border-amber-700/80 bg-amber-50/30 dark:bg-amber-950/20' 
-                                                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'
-                                        } text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 pl-10 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer`}
-                                    >
-                                        <option value="">-- Selecione a Conta / Caixa (Obrigatório) --</option>
-                                        {availableBanks.map((bank: any) => (
-                                            <option key={bank.id} value={bank.id}>
-                                                {bank.account_name || bank.name || 'Conta Bancária / Caixa'}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                        <ChevronDownIcon className="w-3.5 h-3.5" />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Linha 4: Descrição e Forma de Pagamento */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                                <div className="flex items-center justify-between flex-wrap gap-1.5">
-                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
-                                        Descrição / Categoria
-                                    </label>
-                                    <div className="flex items-center gap-1.5">
-                                        <select
-                                            value=""
-                                            onChange={e => {
-                                                if (e.target.value) {
-                                                    setSelectedType(e.target.value);
-                                                }
-                                            }}
-                                            className="bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold py-0.5 px-2 rounded-lg border border-indigo-200/70 dark:border-indigo-800/70 cursor-pointer outline-none transition-colors"
-                                            title="Escolher modelo ou categoria pré-definida"
-                                        >
-                                            <option value="" disabled>📋 Carregar Modelo...</option>
-                                            {typeOptions.map((type: string) => (
-                                                <option key={type} value={type}>{type}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </div>
-                                <div className="relative w-full">
-                                    <input
-                                        type="text"
-                                        value={selectedType}
-                                        onChange={e => setSelectedType(e.target.value)}
-                                        placeholder="Digite a descrição detalhada ou selecione um modelo..."
-                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 px-3.5 transition-all outline-none text-xs font-bold"
-                                    />
-                                </div>
-                                {/* Atalhos rápidos de modelos mais frequentes */}
-                                <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 custom-scrollbar">
-                                    {typeOptions.slice(0, 6).map((type: string) => (
-                                        <button
-                                            key={type}
-                                            type="button"
-                                            onClick={() => setSelectedType(type)}
-                                            className={`text-[9px] font-bold px-2 py-0.5 rounded-md border transition-colors whitespace-nowrap cursor-pointer ${
-                                                selectedType === type
-                                                    ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'
-                                                    : 'bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
-                                            }`}
-                                        >
-                                            {type}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <div className="flex items-center justify-between flex-wrap gap-1">
-                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
-                                        Forma de Pagamento
-                                    </label>
-                                    <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200/50 dark:border-amber-800/50">
-                                        💵 Padrão Dinheiro (Lançamento Manual)
-                                    </span>
-                                </div>
-                                {isCustomPaymentMethod ? (
-                                    <div className="flex gap-2 items-center">
-                                        <input
-                                            type="text"
-                                            value={selectedPaymentMethod}
-                                            onChange={e => setSelectedPaymentMethod(e.target.value.toUpperCase())}
-                                            placeholder="Digite a forma (ex: DINHEIRO, PIX)"
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 px-3 transition-all outline-none text-xs font-bold"
-                                            autoFocus
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setIsCustomPaymentMethod(false);
-                                                setSelectedPaymentMethod('DINHEIRO');
-                                            }}
-                                            className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[10px] font-bold rounded-xl text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-pointer transition-all shrink-0"
-                                        >
-                                            Lista
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div className="relative">
-                                        <select
-                                            value={selectedPaymentMethod}
-                                            onChange={e => {
-                                                const val = e.target.value;
-                                                if (val === '__CUSTOM__') {
-                                                    setIsCustomPaymentMethod(true);
-                                                    setSelectedPaymentMethod('');
-                                                } else {
-                                                    setSelectedPaymentMethod(val);
-                                                }
-                                            }}
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 px-3 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer"
-                                        >
-                                            {paymentMethodsOptions.map((method: string) => (
-                                                <option key={method} value={method}>{method}</option>
-                                            ))}
-                                            <option value="__CUSTOM__">✍️ Outro (Digitar manual...)</option>
-                                        </select>
-                                        <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                            <ChevronDownIcon className="w-3.5 h-3.5" />
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Comprovantes e Faturas para Saídas / Despesas */}
-                        {manualType === 'saida' && (
-                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 animate-fade-in">
-                                <ExpenseDocumentUploader
-                                    attachments={attachments}
-                                    onChangeAttachments={setAttachments}
-                                    currentAmount={parsedCurrentAmount}
-                                    onApplyExtractedAmount={(val) => {
-                                        setManualAmount(val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-                                        isAmountManuallyChangedRef.current = true;
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedAssociationType('create_new');
+                                        setSelectedUnifiedField('');
                                     }}
-                                    onApplyExtractedRecipient={(recipient) => {
-                                        if (!manualDescription || manualDescription.trim().length === 0) {
-                                            setManualDescription(recipient);
-                                            isDescManuallyChangedRef.current = true;
-                                        }
-                                    }}
-                                />
+                                    className="text-[10px] font-bold text-slate-500 hover:text-slate-800 dark:hover:text-white underline cursor-pointer shrink-0"
+                                >
+                                    Desvincular
+                                </button>
                             </div>
                         )}
                     </div>
-                </div>
 
-                {/* Footer */}
-                <div className="px-6 py-3.5 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-white/5 flex justify-end gap-3 shrink-0">
-                    <button 
-                        type="button" 
-                        onClick={closeManualIdentify} 
-                        className="px-5 py-2 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-xl shadow-xs hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
-                    >
-                        {t('common.cancel')}
-                    </button>
-                    <button 
-                        type="button" 
-                        onClick={handleConfirm} 
-                        disabled={!manualType || !selectedChurchId || !selectedBankId || isSaving} 
-                        className={`px-6 py-2 text-[10px] font-black text-white rounded-xl shadow-md transition-all tracking-wider uppercase flex items-center gap-2 ${
-                            !manualType || !selectedChurchId || !selectedBankId || isSaving
-                                ? 'bg-slate-400 dark:bg-slate-700 opacity-60 cursor-not-allowed'
-                                : 'bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer'
-                        }`}
-                    >
-                         {isSaving ? 'Processando...' : !manualType ? '⚠️ Selecione Entrada ou Saída' : 'Salvar Lançamento'}
-                         {!isSaving && selectedChurchId && selectedBankId && manualType && <span className="ml-1 text-[8px] opacity-70 bg-white/20 px-1 rounded">Enter</span>}
-                    </button>
+                    {/* SELEÇÃO DE ANÁLISE DE SIMILARIDADE E UNIFICAÇÃO DE CONTRIBUINTES */}
+                    {similarMatches.length > 0 && (
+                        <div className="bg-orange-50/40 dark:bg-orange-950/20 border border-orange-100 dark:border-orange-900/30 p-4 rounded-2xl space-y-3">
+                            <div className="flex items-center gap-2">
+                                <div className="p-1 rounded bg-orange-100 dark:bg-orange-900/40 text-orange-600">
+                                    <SparklesIcon className="w-3.5 h-3.5" />
+                                </div>
+                                <h4 className="text-xs font-black text-orange-800 dark:text-orange-300 uppercase tracking-wider">
+                                    {similarMatches[0].score >= 80 ? '🎯 Contribuinte Correspondente Encontrado' : '⚡ Semelhança Possível Detectada'}
+                                </h4>
+                            </div>
+
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold leading-relaxed">
+                                Identificamos contribuintes similares cadastrados na VPS. Quer unificar com um existente ou cadastrar como NOVO?
+                            </p>
+
+                            <div className="grid grid-cols-2 gap-2 bg-slate-100/50 dark:bg-black/30 p-1 rounded-xl">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedAssociationType('create_new');
+                                        if (churches.length !== 1) {
+                                            setSelectedChurchId('');
+                                        } else {
+                                            setSelectedChurchId(churches[0].id);
+                                        }
+                                    }}
+                                    className={`py-1.5 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${
+                                        selectedAssociationType === 'create_new'
+                                            ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-xs'
+                                            : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                                    }`}
+                                >
+                                    Cadastrar Novo
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedAssociationType('unify');
+                                        if (similarMatches.length > 0) {
+                                            const match = similarMatches[0];
+                                            setSelectedUnifiedField(match.contributor.id);
+                                            const chId = match.contributor._churchId || match.contributor.church_id || match.church?.id;
+                                            if (chId) setSelectedChurchId(chId);
+                                        }
+                                    }}
+                                    className={`py-1.5 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${
+                                        selectedAssociationType === 'unify'
+                                            ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-xs'
+                                            : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                                    }`}
+                                >
+                                    Unificar Cadastro
+                                </button>
+                            </div>
+
+                            {selectedAssociationType === 'unify' && (
+                                <div className="space-y-2 pt-1">
+                                    <label className="block text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                                        Selecione o Contribuinte VPS Correspondente:
+                                    </label>
+                                    <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1 custom-scrollbar">
+                                        {similarMatches.map((m, idx) => {
+                                            const chId = m.contributor._churchId || m.contributor.church_id || m.church?.id;
+                                            const churchName = m.church?.name || 'Igreja Desconhecida';
+                                            const isSelected = selectedUnifiedField === m.contributor.id;
+                                            
+                                            return (
+                                                <div
+                                                    key={m.contributor.id || idx}
+                                                    onClick={() => {
+                                                        setSelectedUnifiedField(m.contributor.id);
+                                                        if (chId) setSelectedChurchId(chId);
+                                                    }}
+                                                    className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
+                                                        isSelected
+                                                            ? 'border-orange-500/85 bg-orange-100/30 dark:bg-orange-950/40 text-orange-900 dark:text-orange-100'
+                                                            : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300'
+                                                    }`}
+                                                >
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-xs font-black uppercase tracking-tight">{m.contributor.name || m.contributor.canonical_name}</span>
+                                                        <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-300 uppercase">
+                                                            Score: {m.score}%
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex gap-2 text-[9px] text-slate-400 font-semibold mt-0.5 uppercase">
+                                                        <span>Igreja: {churchName}</span>
+                                                        {m.contributor.cpf && (
+                                                            <>
+                                                                <span>•</span>
+                                                                <span>CPF: {m.contributor.cpf}</span>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Linha 3: Igreja e Conta / Caixa */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <div className="flex items-center justify-between flex-wrap gap-1">
+                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
+                                    Escolha a Igreja de Destino
+                                </label>
+                                {selectedAssociationType === 'unify' && selectedChurchId && (
+                                    <span className="text-[9px] font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-900/50 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                                        ✓ Auto-preenchida
+                                    </span>
+                                )}
+                            </div>
+                            <div className="relative group">
+                                <BuildingOfficeIcon className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-orange-500 transition-colors pointer-events-none" />
+                                <select
+                                    value={selectedChurchId}
+                                    onChange={e => setSelectedChurchId(e.target.value)}
+                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2.5 pl-10 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer"
+                                >
+                                    <option value="">-- Clique para ver as igrejas --</option>
+                                    {churches.map(church => (
+                                        <option key={church.id} value={church.id}>
+                                            {church.name}
+                                        </option>
+                                    ))}
+                                </select>
+                                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                    <ChevronDownIcon className="w-3.5 h-3.5" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <div className="flex items-center justify-between flex-wrap gap-1">
+                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-1">
+                                    Conta / Caixa de Destino <span className="text-amber-500 font-bold">*</span>
+                                </label>
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border transition-colors ${
+                                    !selectedBankId 
+                                        ? 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 animate-pulse' 
+                                        : 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200/60 dark:border-emerald-800/60'
+                                }`}>
+                                    {!selectedBankId ? '⚠️ Seleção Obrigatória' : '✓ Destino Selecionado'}
+                                </span>
+                            </div>
+                            <div className="relative group">
+                                <svg className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-orange-500 transition-colors pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                                </svg>
+                                <select
+                                    value={selectedBankId}
+                                    onChange={e => setSelectedBankId(e.target.value)}
+                                    className={`block w-full rounded-xl border ${
+                                        !selectedBankId 
+                                            ? 'border-amber-300/80 dark:border-amber-700/80 bg-amber-50/30 dark:bg-amber-950/20' 
+                                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'
+                                    } text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2.5 pl-10 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer`}
+                                >
+                                    <option value="">-- Selecione a Conta / Caixa (Obrigatório) --</option>
+                                    {availableBanks.map((bank: any) => (
+                                        <option key={bank.id} value={bank.id}>
+                                            {bank.account_name || bank.name || 'Conta Bancária / Caixa'}
+                                        </option>
+                                    ))}
+                                </select>
+                                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                    <ChevronDownIcon className="w-3.5 h-3.5" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Linha 4: Descrição e Forma de Pagamento */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <div className="flex items-center justify-between flex-wrap gap-1.5">
+                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
+                                    Descrição / Categoria
+                                </label>
+                                <div className="flex items-center gap-1.5">
+                                    <select
+                                        value=""
+                                        onChange={e => {
+                                            if (e.target.value) {
+                                                setSelectedType(e.target.value);
+                                            }
+                                        }}
+                                        className="bg-orange-50 hover:bg-orange-100 dark:bg-orange-950/60 dark:hover:bg-orange-900/60 text-orange-700 dark:text-orange-300 text-[10px] font-bold py-0.5 px-2 rounded-lg border border-orange-200/70 dark:border-orange-800/70 cursor-pointer outline-none transition-colors"
+                                        title="Escolher modelo ou categoria pré-definida"
+                                    >
+                                        <option value="" disabled>📋 Carregar Modelo...</option>
+                                        {typeOptions.map((type: string) => (
+                                            <option key={type} value={type}>{type}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="relative w-full">
+                                <input
+                                    type="text"
+                                    value={selectedType}
+                                    onChange={e => setSelectedType(e.target.value)}
+                                    placeholder="Digite a descrição detalhada ou selecione um modelo..."
+                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2.5 px-3.5 transition-all outline-none text-xs font-bold"
+                                />
+                            </div>
+                            {/* Atalhos rápidos de modelos mais frequentes */}
+                            <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 custom-scrollbar">
+                                {typeOptions.slice(0, 6).map((type: string) => (
+                                    <button
+                                        key={type}
+                                        type="button"
+                                        onClick={() => setSelectedType(type)}
+                                        className={`text-[9px] font-bold px-2 py-0.5 rounded-md border transition-colors whitespace-nowrap cursor-pointer ${
+                                            selectedType === type
+                                                ? 'bg-orange-50 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800'
+                                                : 'bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
+                                        }`}
+                                    >
+                                        {type}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <div className="flex items-center justify-between flex-wrap gap-1">
+                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
+                                    Forma de Pagamento
+                                </label>
+                                <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200/50 dark:border-amber-800/50">
+                                    💵 Padrão Dinheiro (Lançamento Manual)
+                                </span>
+                            </div>
+                            {isCustomPaymentMethod ? (
+                                <div className="flex gap-2 items-center">
+                                    <input
+                                        type="text"
+                                        value={selectedPaymentMethod}
+                                        onChange={e => setSelectedPaymentMethod(e.target.value.toUpperCase())}
+                                        placeholder="Digite a forma (ex: DINHEIRO, PIX)"
+                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2.5 px-3 transition-all outline-none text-xs font-bold"
+                                        autoFocus
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsCustomPaymentMethod(false);
+                                            setSelectedPaymentMethod('DINHEIRO');
+                                        }}
+                                        className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[10px] font-bold rounded-xl text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-pointer transition-all shrink-0"
+                                    >
+                                        Lista
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="relative">
+                                    <select
+                                        value={selectedPaymentMethod}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            if (val === '__CUSTOM__') {
+                                                setIsCustomPaymentMethod(true);
+                                                setSelectedPaymentMethod('');
+                                            } else {
+                                                setSelectedPaymentMethod(val);
+                                            }
+                                        }}
+                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2.5 px-3 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer"
+                                    >
+                                        {paymentMethodsOptions.map((method: string) => (
+                                            <option key={method} value={method}>{method}</option>
+                                        ))}
+                                        <option value="__CUSTOM__">✍️ Outro (Digitar manual...)</option>
+                                    </select>
+                                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                        <ChevronDownIcon className="w-3.5 h-3.5" />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Comprovantes e Faturas para Saídas / Despesas */}
+                    {manualType === 'saida' && (
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 animate-fade-in">
+                            <ExpenseDocumentUploader
+                                attachments={attachments}
+                                onChangeAttachments={setAttachments}
+                                currentAmount={parsedCurrentAmount}
+                                onApplyExtractedAmount={(val) => {
+                                    setManualAmount(val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+                                    isAmountManuallyChangedRef.current = true;
+                                }}
+                                onApplyExtractedRecipient={(recipient) => {
+                                    if (!manualDescription || manualDescription.trim().length === 0) {
+                                        setManualDescription(recipient);
+                                        isDescManuallyChangedRef.current = true;
+                                    }
+                                }}
+                            />
+                        </div>
+                    )}
+
+                    {/* Rodapé / Ações */}
+                    <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2.5">
+                        <button 
+                            type="button" 
+                            onClick={handleClose} 
+                            disabled={isSaving}
+                            className="px-4 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                        >
+                            {t('common.cancel')}
+                        </button>
+                        <button 
+                            type="button" 
+                            onClick={handleConfirm} 
+                            disabled={!manualType || !selectedChurchId || !selectedBankId || isSaving} 
+                            className={`px-6 py-2.5 text-xs font-black uppercase tracking-wider rounded-xl shadow-md transition-all tracking-wider flex items-center gap-2 border border-orange-400/30 active:scale-95 ${
+                                !manualType || !selectedChurchId || !selectedBankId || isSaving
+                                    ? 'bg-slate-400 dark:bg-slate-700 opacity-60 cursor-not-allowed text-white'
+                                    : 'bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 shadow-orange-500/20 hover:opacity-95 text-white cursor-pointer'
+                            }`}
+                        >
+                             <CheckCircle2 className="w-4 h-4" />
+                             <span>{isSaving ? 'Processando...' : !manualType ? '⚠️ Selecione Entrada ou Saída' : 'Salvar Lançamento'}</span>
+                             {!isSaving && selectedChurchId && selectedBankId && manualType && <span className="ml-1 text-[8px] opacity-70 bg-white/20 px-1 rounded">Enter</span>}
+                        </button>
+                    </div>
                 </div>
             </div>
         );
