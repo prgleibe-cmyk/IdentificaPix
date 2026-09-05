@@ -187,6 +187,15 @@ try {
     app.use('/api/inbox', inboxRoutes(null));
     app.use('/api/ai', aiRoutes(null));
 
+    // Alias direto para o manifest dinâmico do portal
+    app.get(['/api/portal/manifest.json', '/portal/manifest.json'], (req, res, next) => {
+        req.url = `/api/v1/portal/manifest.json${req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : ''}`;
+        if (contributorsApp) {
+            return contributorsApp(req, res, next);
+        }
+        next();
+    });
+
     // Endpoint de depuração do microserviço Contributors API
     app.get('/api/admin/debug-contributors-api', async (req, res) => {
         const diagnostics = {

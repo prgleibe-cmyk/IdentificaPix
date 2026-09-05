@@ -475,11 +475,14 @@ export const useCloudSync = ({
                 const reconstructed = Array.from(reconstructedMap.values());
 
                 setMatchResults(prev => {
-                    const map = new Map(prev.map(p => [p.transaction.id, p]));
+                    // 🛡️ BLINDAGEM DEFINITIVA CONTRA RESSURREIÇÃO: O banco de dados (reconstructed) é a única fonte da verdade.
+                    // Lançamentos antigos do cache local ou de outros usuários que não estão no retorno do banco são descartados.
+                    const prevMap = new Map(prev.map(p => [p.transaction.id, p]));
+                    const map = new Map<string, MatchResult>();
                     let hasChanges = false;
 
                     reconstructed.forEach(r => {
-                        const current = map.get(r.transaction.id);
+                        const current = prevMap.get(r.transaction.id);
                         
                         // 🛡️ BLOCK_REGRESSION: Proteção contra updates atrasados do banco
                         const currentUpdatedAt = current?.updatedAt ? new Date(current.updatedAt).getTime() : 0;
@@ -490,6 +493,7 @@ export const useCloudSync = ({
 
                         if (current && incomingUpdatedAt > 0 && currentUpdatedAt > 0 && incomingUpdatedAt < currentUpdatedAt && !isUndoingHydrate) {
                             console.log('[BLOCK_REGRESSION:HYDRATE] Ignorando item antigo do banco:', r.transaction.id);
+                            map.set(r.transaction.id, current);
                             return;
                         }
 

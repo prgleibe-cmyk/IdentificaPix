@@ -1,3 +1,5 @@
+import { clear as clearIdb } from 'idb-keyval';
+
 export interface AuthResponse {
   success: boolean;
   message?: string;
@@ -66,6 +68,11 @@ export const authService = {
         localStorage.removeItem(key);
       }
     });
+    try {
+      clearIdb().catch(() => {});
+    } catch {
+      // Ignora falhas em ambientes sem IndexedDB
+    }
   },
 
   async login(email: string, password: string): Promise<AuthResponse> {

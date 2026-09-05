@@ -432,7 +432,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // 📊 DADOS CONSOLIDADOS PARA RELATÓRIOS E LIVRO CAIXA
     const reportData = useMemo(() => {
-        const results = reconciliation.fullMatchResults || reconciliation.matchResults || [];
+        // 🛡️ BLINDAGEM DE SEGURANÇA: Usa matchResults com os filtros de congregações/bancos aplicados
+        const results = reconciliation.matchResults || [];
 
         const churchMap = new Map<string, any>();
         (referenceData.churches || []).forEach((c: any) => {

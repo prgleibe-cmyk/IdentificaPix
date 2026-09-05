@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { PortalChurch } from '../types/portal';
-import { Smartphone, Download, Share2, PlusSquare, X, Check, ArrowRight, ShieldCheck, ExternalLink } from 'lucide-react';
+import { Smartphone, Download, Share2, PlusSquare, X, Check, ShieldCheck, ExternalLink, Sparkles } from 'lucide-react';
 
 interface PortalPwaInstallModalProps {
     church?: PortalChurch | null;
@@ -18,9 +18,12 @@ export const PortalPwaInstallModal: React.FC<PortalPwaInstallModalProps> = ({
     const [isIos, setIsIos] = useState(false);
     const [isInIframe, setIsInIframe] = useState(false);
     const [isStandalone, setIsStandalone] = useState(false);
+    const [activePrompt, setActivePrompt] = useState<any>(
+        deferredPrompt || (typeof window !== 'undefined' ? (window as any).deferredPwaPrompt : null)
+    );
 
     useEffect(() => {
-        const userAgent = window.navigator.userAgent.toLowerCase();
+        const userAgent = typeof window !== 'undefined' ? window.navigator.userAgent.toLowerCase() : '';
         setIsIos(/iphone|ipad|ipod/.test(userAgent));
         try {
             setIsInIframe(window.self !== window.top);
@@ -29,28 +32,53 @@ export const PortalPwaInstallModal: React.FC<PortalPwaInstallModalProps> = ({
                 (window.navigator as any).standalone === true
             );
         } catch (_) {}
+
+        // Listen for beforeinstallprompt in case it fires while modal is mounted
+        const handlePrompt = (e: Event) => {
+            e.preventDefault();
+            (window as any).deferredPwaPrompt = e;
+            setActivePrompt(e);
+        };
+        window.addEventListener('beforeinstallprompt', handlePrompt);
+        return () => window.removeEventListener('beforeinstallprompt', handlePrompt);
     }, []);
 
-    const activePrompt = deferredPrompt || (window as any).deferredPwaPrompt;
+    // Sincroniza se deferredPrompt mudar por props
+    useEffect(() => {
+        if (deferredPrompt) {
+            setActivePrompt(deferredPrompt);
+        } else if ((window as any).deferredPwaPrompt) {
+            setActivePrompt((window as any).deferredPwaPrompt);
+        }
+    }, [deferredPrompt]);
 
     const handleDirectInstall = async () => {
-        const promptToUse = activePrompt;
+        const promptToUse = activePrompt || (window as any).deferredPwaPrompt;
         if (!promptToUse) return;
         try {
             promptToUse.prompt();
             const { outcome } = await promptToUse.userChoice;
             if (outcome === 'accepted') {
                 (window as any).deferredPwaPrompt = null;
+                setActivePrompt(null);
                 setInstalled(true);
                 setTimeout(() => onClose(), 2500);
             }
         } catch (err) {
-            console.error('Erro ao instalar PWA:', err);
+            console.error('[PWA Modal] Erro ao disparar prompt nativo:', err);
         }
     };
 
-    const appName = church?.name || 'IgGestor';
-    const appLogo = church?.logoUrl || '/pwa/icon-512.png';
+    const handleOpenInBrowser = () => {
+        const churchId = church?.id;
+        const targetUrl = churchId 
+            ? `${window.location.origin}/portal?church=${encodeURIComponent(churchId)}`
+            : `${window.location.origin}/portal`;
+        window.open(targetUrl, '_blank');
+    };
+
+    const appName = church?.name || 'Portal do Contribuinte';
+    const appLogo = (church?.logoUrl && church.logoUrl.trim()) ? church.logoUrl.trim() : '/pwa/icon-512.png?v=15';
 
     const modalContent = (
         <div className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
@@ -62,7 +90,7 @@ export const PortalPwaInstallModal: React.FC<PortalPwaInstallModalProps> = ({
                 <button
                     onClick={onClose}
                     type="button"
-                    className="absolute top-4 right-4 p-2 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    className="absolute top-4 right-4 p-2 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                 >
                     <X className="w-5 h-5" />
                 </button>
@@ -74,9 +102,10 @@ export const PortalPwaInstallModal: React.FC<PortalPwaInstallModalProps> = ({
                             <img
                                 src={appLogo}
                                 alt={appName}
+                                referrerPolicy="no-referrer"
                                 className="w-full h-full object-cover rounded-xl"
                                 onError={(e) => {
-                                    (e.target as HTMLImageElement).src = '/pwa/icon-512.png';
+                                    (e.target as HTMLImageElement).src = '/pwa/icon-512.png?v=15';
                                 }}
                             />
                         </div>
@@ -89,10 +118,10 @@ export const PortalPwaInstallModal: React.FC<PortalPwaInstallModalProps> = ({
                         {appName}
                     </h3>
                     <p className="text-xs font-bold text-brand-blue dark:text-blue-400 uppercase tracking-wider mt-0.5">
-                        App do Portal do Contribuinte
+                        App Oficial do Portal do Contribuinte
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 max-w-xs leading-relaxed">
-                        Instale o atalho direto no seu celular para acessar rapidamente suas ofertas, carnês e comprovantes com um toque!
+                        Instale o aplicativo da congregação no seu celular para acessar rapidamente suas ofertas, carnês e comprovantes com um toque!
                     </p>
                 </div>
 
@@ -113,44 +142,49 @@ export const PortalPwaInstallModal: React.FC<PortalPwaInstallModalProps> = ({
                     </div>
                 ) : (
                     <div className="space-y-4 my-2">
-                        {/* If in iframe, suggest opening in new tab */}
-                        {isInIframe && (
-                            <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 text-slate-800 dark:text-slate-200 text-xs space-y-2">
-                                <div className="flex items-center gap-2 font-bold text-amber-600 dark:text-amber-400">
-                                    <ExternalLink className="w-4 h-4 shrink-0" />
-                                    <span>Navegação Incorporada</span>
+                        {/* Direct One-Click Install Button (when prompt is captured) */}
+                        {activePrompt ? (
+                            <div className="space-y-2">
+                                <button
+                                    type="button"
+                                    onClick={handleDirectInstall}
+                                    className="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black rounded-2xl shadow-lg shadow-emerald-500/25 transition-all text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transform hover:-translate-y-0.5 active:translate-y-0"
+                                >
+                                    <Download className="w-4 h-4" />
+                                    <span>Instalar Aplicativo Agora</span>
+                                </button>
+                                <p className="text-[11px] text-center text-slate-500 dark:text-slate-400">
+                                    Toque acima e confirme na janela do navegador para adicionar à tela inicial.
+                                </p>
+                            </div>
+                        ) : null}
+
+                        {/* If in iframe preview, provide 1-click button to open in top-level browser where PWA install is 100% unlocked */}
+                        {isInIframe && !activePrompt && (
+                            <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-500/30 rounded-2xl p-4 text-slate-800 dark:text-slate-200 text-xs space-y-2.5">
+                                <div className="flex items-center gap-2 font-bold text-emerald-700 dark:text-emerald-400">
+                                    <Sparkles className="w-4 h-4 shrink-0 text-emerald-500" />
+                                    <span>Baixar App no Navegador</span>
                                 </div>
                                 <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
-                                    Navegadores bloqueiam o botão de instalação automática quando a página está dentro de um preview ou quadro (iframe). Abra em uma nova aba para baixar.
+                                    Como você está visualizando dentro do painel ou janela incorporada, toque no botão abaixo para abrir diretamente no navegador e instalar com 1 toque:
                                 </p>
                                 <button
                                     type="button"
-                                    onClick={() => window.open(window.location.href, '_blank')}
-                                    className="w-full mt-1 py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-sm transition-all"
+                                    onClick={handleOpenInBrowser}
+                                    className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-emerald-600/20 transition-all uppercase tracking-wider"
                                 >
-                                    <ExternalLink className="w-3.5 h-3.5" />
-                                    <span>Abrir Portal em Nova Aba para Baixar</span>
+                                    <ExternalLink className="w-4 h-4" />
+                                    <span>Abrir no Navegador e Baixar</span>
                                 </button>
                             </div>
                         )}
-
-                        {/* Direct One-Click Install Button (if browser supports beforeinstallprompt) */}
-                        {activePrompt ? (
-                            <button
-                                type="button"
-                                onClick={handleDirectInstall}
-                                className="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black rounded-2xl shadow-lg shadow-emerald-500/25 transition-all text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transform hover:-translate-y-0.5 active:translate-y-0"
-                            >
-                                <Download className="w-4 h-4" />
-                                <span>Instalar Aplicativo Agora</span>
-                            </button>
-                        ) : null}
 
                         {/* Step-by-Step Instruction Guide for Mobile / Safari / Chrome */}
                         <div className="bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-700/80 space-y-3">
                             <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-slate-700 pb-2">
                                 <Smartphone className="w-4 h-4 text-brand-orange" />
-                                <span>Como baixar na tela do celular:</span>
+                                <span>Como instalar no celular manualmente:</span>
                             </div>
 
                             {isIos ? (
@@ -158,19 +192,19 @@ export const PortalPwaInstallModal: React.FC<PortalPwaInstallModalProps> = ({
                                     <li className="flex items-start gap-2.5">
                                         <span className="w-5 h-5 rounded-full bg-brand-orange/10 text-brand-orange font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5">1</span>
                                         <span>
-                                            No Safari, toque no ícone de <strong className="text-slate-800 dark:text-white inline-flex items-center gap-1">Compartilhar <Share2 className="w-3.5 h-3.5 text-blue-500" /></strong> no rodapé da tela.
+                                            No Safari, toque no ícone de <strong className="text-slate-800 dark:text-white inline-flex items-center gap-1">Compartilhar <Share2 className="w-3.5 h-3.5 text-blue-500" /></strong> na barra do navegador.
                                         </span>
                                     </li>
                                     <li className="flex items-start gap-2.5">
                                         <span className="w-5 h-5 rounded-full bg-brand-orange/10 text-brand-orange font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5">2</span>
                                         <span>
-                                            Role a lista e selecione <strong className="text-slate-800 dark:text-white inline-flex items-center gap-1">Adicionar à Tela de Início <PlusSquare className="w-3.5 h-3.5 text-emerald-500" /></strong>.
+                                            Role as opções e toque em <strong className="text-slate-800 dark:text-white inline-flex items-center gap-1">Adicionar à Tela de Início <PlusSquare className="w-3.5 h-3.5 text-emerald-500" /></strong>.
                                         </span>
                                     </li>
                                     <li className="flex items-start gap-2.5">
                                         <span className="w-5 h-5 rounded-full bg-brand-orange/10 text-brand-orange font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5">3</span>
                                         <span>
-                                            Toque em <strong className="text-slate-800 dark:text-white">Adicionar</strong> no canto superior. Pronto!
+                                            Toque em <strong className="text-slate-800 dark:text-white">Adicionar</strong>. O app com a logo oficial da igreja aparecerá na sua tela inicial!
                                         </span>
                                     </li>
                                 </ol>
@@ -179,7 +213,7 @@ export const PortalPwaInstallModal: React.FC<PortalPwaInstallModalProps> = ({
                                     <li className="flex items-start gap-2.5">
                                         <span className="w-5 h-5 rounded-full bg-brand-blue/10 text-brand-blue font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5">1</span>
                                         <span>
-                                            Toque no menu do seu navegador <strong className="text-slate-800 dark:text-white">(três pontinhos no canto superior)</strong>.
+                                            Toque no menu do navegador <strong className="text-slate-800 dark:text-white">(três pontinhos no canto superior)</strong>.
                                         </span>
                                     </li>
                                     <li className="flex items-start gap-2.5">
@@ -191,7 +225,7 @@ export const PortalPwaInstallModal: React.FC<PortalPwaInstallModalProps> = ({
                                     <li className="flex items-start gap-2.5">
                                         <span className="w-5 h-5 rounded-full bg-brand-blue/10 text-brand-blue font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5">3</span>
                                         <span>
-                                            Confirme para criar o atalho com a logo oficial da congregação.
+                                            Confirme a instalação para adicionar o app com a logo da {appName}.
                                         </span>
                                     </li>
                                 </ol>

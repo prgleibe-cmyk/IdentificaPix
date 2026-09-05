@@ -552,6 +552,18 @@ export const ContributorsList: React.FC = () => {
 
     useEffect(() => {
         fetchContributors();
+
+        const handleRealtimeUpdate = () => {
+            fetchContributors(true);
+        };
+
+        window.addEventListener('contributor_updated', handleRealtimeUpdate);
+        window.addEventListener('storage', handleRealtimeUpdate);
+
+        return () => {
+            window.removeEventListener('contributor_updated', handleRealtimeUpdate);
+            window.removeEventListener('storage', handleRealtimeUpdate);
+        };
     }, []);
 
     const handleNewContributorClick = () => {
@@ -792,6 +804,33 @@ export const ContributorsList: React.FC = () => {
                 handleCloseModal();
                 invalidateContributorsCache();
                 fetchContributors(true);
+
+                // Seamlessly sync portal profile in localStorage if it corresponds to the edited contributor
+                try {
+                    const portalRaw = localStorage.getItem('iggestor_portal_contributor');
+                    if (portalRaw) {
+                        const portalParsed = JSON.parse(portalRaw);
+                        const cleanPayloadCpf = payload.cpf ? String(payload.cpf).replace(/\D/g, '') : '';
+                        const cleanPortalCpf = portalParsed.cpf ? String(portalParsed.cpf).replace(/\D/g, '') : '';
+                        const isSameId = Boolean(editingContributor?.id && portalParsed.id === editingContributor.id);
+                        const isSameCpf = Boolean(cleanPayloadCpf && cleanPortalCpf && cleanPayloadCpf === cleanPortalCpf);
+
+                        if (isSameId || isSameCpf) {
+                            const updatedPortal = {
+                                ...portalParsed,
+                                ...payload,
+                                name: fullName.trim() || payload.canonical_name || portalParsed.name,
+                                canonical_name: payload.canonical_name || portalParsed.canonical_name,
+                                photo_url: payload.photo_url !== undefined ? payload.photo_url : portalParsed.photo_url,
+                                avatarUrl: payload.photo_url !== undefined ? payload.photo_url : portalParsed.photo_url,
+                                updated_at: new Date().toISOString()
+                            };
+                            localStorage.setItem('iggestor_portal_contributor', JSON.stringify(updatedPortal));
+                            window.dispatchEvent(new Event('storage'));
+                        }
+                    }
+                    window.dispatchEvent(new CustomEvent('contributor_updated', { detail: payload }));
+                } catch (_) {}
             } else if (response.status === 409) {
                 showToast("Já existe um cadastro ativo com este CPF/CNPJ nesta igreja.", "error");
             } else if (response.status === 400) {

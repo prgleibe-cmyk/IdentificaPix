@@ -89,4 +89,20 @@ As seguintes funcionalidades e diretrizes foram validadas e estão **RIGOROSAMEN
 - **Comportamento**: A alternância de mês ou período personalizado em relatórios deve ser instantânea, sem travar a thread principal do navegador nem acionar spinners globais de desmonte de DOM (`setIsLoading(true)` desnecessário).
 - **Regra**: O cálculo de filtros de datas e agregação de resumos deve utilizar comparações diretas de strings ISO e indexação O(1) via `Map`, evitando criação de milhares de instâncias `new Date()` em loops ou buscas aninhadas O(N*M).
 
+### 6. Persistência em Tempo Real, Anti-Ressurreição & Isolamento Absoluto de Usuários
+- **Comportamento**: O banco de dados central na nuvem é a única fonte da verdade em tempo real. É estritamente proibido haver ressurreição de dados antigos através de caches locais do navegador (localStorage ou IndexedDB) e proibido qualquer vazamento de lançamentos entre contas ou entre usuários secundários de congregações diferentes.
+- **Regra**: 
+  1. Na hidratação da sessão ativa (`useCloudSync`), a reconstrução deve ser populada estritamente com os registros autênticos retornados do banco (`reconstructed`), nunca mesclando itens antigos/estranhos do cache anterior do navegador.
+  2. O sufixo de armazenamento local e IndexedDB (`userSuffix`) deve ser estritamente isolado pelo `user.id` físico autenticado, nunca compartilhado entre usuários secundários ou proprietário.
+  3. No logout, tanto o `localStorage` quanto o `IndexedDB` (`idb-keyval`) devem ser limpos imediatamente.
+  4. Lançamentos manuais devem sempre gravar o `church_id` e transações de usuários secundários no backend e frontend são estritamente filtradas pelas congregações permitidas do usuário, impedindo retorno de itens não atribuídos ou de outras filiais.
+
+### 7. Sincronização e Coerência Bidirecional de Cadastros (Sistema Principal vs. Portal do Contribuinte)
+- **Comportamento**: Os cadastros de contribuintes e suas fotos/mídias devem persistir e sincronizar bidirecionalmente em tempo real entre a lista de cadastros do sistema e o Portal do Contribuinte.
+- **Regra**:
+  1. O motor de persistência de `contributors-api` utiliza o `SmartPool` com mecanismo de dupla camada (PostgreSQL quando acessível, e motor SQLite local persistente em `data/contributors_local.sqlite` com espelhamento mútuo e redundância total), garantindo persistência sem perda de dados e sem falhas 500 por instabilidade de rede.
+  2. O body-parser do backend aceita payloads de imagens e base64 de até 50MB (`express.json({ limit: '50mb' })`).
+  3. Salvar no Portal invalida o cache singleton (`invalidateContributorsCache()`) e dispara o evento unificado `contributor_updated`.
+  4. A Lista de Cadastros do Sistema (`ContributorsList`) escuta `contributor_updated` para recarregar automaticamente a tabela, e ao editar um contribuinte no Sistema, sincroniza imediatamente o perfil ativo do portal caso pertença à mesma pessoa.
+
 

@@ -39,6 +39,18 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
     const isMounted = useRef(false);
     const timeoutRef = useRef<any>(null);
     const lastSavedValue = useRef<string>('');
+    const currentKeyRef = useRef(key);
+
+    // 🛡️ BLINDAGEM DE ISOLAMENTO: Redefine imediatamente o estado se a chave do usuário mudar
+    if (currentKeyRef.current !== key) {
+        currentKeyRef.current = key;
+        isHydrated.current = false;
+        hasExternalUpdateRef.current = false;
+        lastSavedValue.current = '';
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        const cached = typeof window !== 'undefined' ? window.localStorage.getItem(key) : null;
+        setState(parseRaw(cached));
+    }
 
     useEffect(() => {
         isMounted.current = true;

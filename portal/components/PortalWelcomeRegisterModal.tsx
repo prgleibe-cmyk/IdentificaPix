@@ -166,7 +166,7 @@ export const PortalWelcomeRegisterModal: React.FC<PortalWelcomeRegisterModalProp
             {showPwaModal && (
                 <PortalPwaInstallModal
                     church={church}
-                    deferredPrompt={deferredPrompt}
+                    deferredPrompt={deferredPrompt || (typeof window !== 'undefined' ? (window as any).deferredPwaPrompt : null)}
                     onClose={() => {
                         setShowPwaModal(false);
                         onClose();

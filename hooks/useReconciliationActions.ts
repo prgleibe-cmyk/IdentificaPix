@@ -157,6 +157,7 @@ export const useReconciliationActions = ({
 
         const newTxPayload = {
           user_id: userId,
+          church_id: churchId || null,
           status: 'pending' as const,
           is_confirmed: false,
           amount: finalAmount,

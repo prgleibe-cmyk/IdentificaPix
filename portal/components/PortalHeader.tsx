@@ -28,7 +28,16 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({ church, onNavigate }
     }, []);
 
     const handleDownloadApp = async () => {
-        const promptEvent = deferredPrompt || (window as any).deferredPwaPrompt;
+        const isStandalone = typeof window !== 'undefined' && (
+            window.matchMedia('(display-mode: standalone)').matches || 
+            (window.navigator as any).standalone === true
+        );
+        if (isStandalone) {
+            setShowInstallModal(true);
+            return;
+        }
+
+        const promptEvent = deferredPrompt || (typeof window !== 'undefined' ? (window as any).deferredPwaPrompt : null);
         if (promptEvent) {
             try {
                 promptEvent.prompt();
@@ -36,14 +45,15 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({ church, onNavigate }
                 if (outcome === 'accepted') {
                     (window as any).deferredPwaPrompt = null;
                     setDeferredPrompt(null);
+                    return;
                 }
             } catch (err) {
-                console.error('Erro ao acionar prompt PWA:', err);
+                console.error('[PortalHeader] Erro ao acionar prompt PWA:', err);
                 setShowInstallModal(true);
+                return;
             }
-        } else {
-            setShowInstallModal(true);
         }
+        setShowInstallModal(true);
     };
 
     useEffect(() => {
@@ -63,7 +73,11 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({ church, onNavigate }
 
         updateContributor();
         window.addEventListener('storage', updateContributor);
-        return () => window.removeEventListener('storage', updateContributor);
+        window.addEventListener('contributor_updated', updateContributor);
+        return () => {
+            window.removeEventListener('storage', updateContributor);
+            window.removeEventListener('contributor_updated', updateContributor);
+        };
     }, []);
 
     const handleLogout = () => {
@@ -273,7 +287,7 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({ church, onNavigate }
             {showInstallModal && (
                 <PortalPwaInstallModal
                     church={church}
-                    deferredPrompt={deferredPrompt}
+                    deferredPrompt={deferredPrompt || (typeof window !== 'undefined' ? (window as any).deferredPwaPrompt : null)}
                     onClose={() => setShowInstallModal(false)}
                 />
             )}

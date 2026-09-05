@@ -93,6 +93,7 @@ export const consolidationService = {
                         pix_key: t.pix_key || null,
                         source: t.source || 'file',
                         user_id: effectiveUserId || t.user_id,
+                        church_id: (t as any).church_id || null,
                         bank_id: t.bank_id || null,
                         status: t.status || 'pending',
                         row_hash: t.row_hash,

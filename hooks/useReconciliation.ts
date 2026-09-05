@@ -36,7 +36,8 @@ export const useReconciliation = (props: any) => {
     } = props;
 
     const effectiveUserId = subscription?.ownerId || user?.id;
-    const userSuffix = effectiveUserId ? `-${effectiveUserId}` : '-guest';
+    // 🛡️ BLINDAGEM DE CACHE: O sufixo de armazenamento local e IndexedDB deve ser estritamente isolado pelo user.id autenticado
+    const userSuffix = user?.id ? `-${user.id}` : '-guest';
     
     // ESTADOS PERSISTENTES
     const [activeReportId, setActiveReportId] = usePersistentState<string | null>(`identificapix-active-report-id${userSuffix}`, null);
@@ -211,8 +212,8 @@ export const useReconciliation = (props: any) => {
         if (subscription?.congregationIds && subscription.congregationIds.length > 0) {
             filtered = filtered.filter(r => {
                 if (!r) return false;
-                const churchId = r.church?.id || r._churchId || (r.transaction as any)?.church_id || 'unidentified';
-                return churchId === 'unidentified' || subscription.congregationIds.includes(churchId);
+                const churchId = r.church?.id || r._churchId || (r.transaction as any)?.church_id;
+                return Boolean(churchId && subscription.congregationIds.includes(churchId));
             });
         }
 
