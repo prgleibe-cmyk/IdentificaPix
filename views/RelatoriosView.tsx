@@ -2221,7 +2221,21 @@ export const RelatoriosView: React.FC = memo(() => {
 
                                                                             return (
                                                                                 <tr key={tIdx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                                                                                    <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px] whitespace-nowrap">{formatDateBRL(tx.date) || '---'}</td>
+                                                                                    <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px] whitespace-nowrap">
+                                                                                        {tx.reference_date && tx.bank_date && tx.reference_date !== tx.bank_date ? (
+                                                                                            <div className="flex flex-col leading-tight">
+                                                                                                <span className="font-bold text-slate-800 dark:text-white" title={`Data de Referência (Competência): ${formatDateBRL(tx.date)}`}>
+                                                                                                    {formatDateBRL(tx.date)}
+                                                                                                </span>
+                                                                                                <span className="text-[9.5px] text-slate-400 dark:text-slate-500 font-normal mt-0.5" title={`Data no Banco: ${formatDateBRL(tx.bank_date)}`}>
+                                                                                                    <span className="text-[8.5px] uppercase font-semibold text-slate-400 mr-0.5">Banco:</span>
+                                                                                                    {formatDateBRL(tx.bank_date)}
+                                                                                                </span>
+                                                                                            </div>
+                                                                                        ) : (
+                                                                                            <span>{formatDateBRL(tx.date) || '---'}</span>
+                                                                                        )}
+                                                                                    </td>
                                                                                     <td className="py-1.5 px-3 whitespace-nowrap">
                                                                                         <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
                                                                                             isExp ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300' : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'

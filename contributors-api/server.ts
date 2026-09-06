@@ -608,6 +608,34 @@ class LocalSqliteEngine {
     }
 
     // Translate common Postgres constructs to SQLite
+    // Intercept information_schema.tables queries for SQLite compatibility
+    if (/FROM\s+information_schema\.tables/i.test(s)) {
+      try {
+        const rows = this.db.prepare("SELECT name as table_name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name ASC").all();
+        return { rows, rowCount: rows.length, command: 'SELECT', oid: 0, fields: [] };
+      } catch (err: any) {
+        return { rows: [], rowCount: 0, command: 'SELECT', oid: 0, fields: [] };
+      }
+    }
+
+    // Intercept information_schema.columns queries for SQLite compatibility
+    if (/FROM\s+information_schema\.columns/i.test(s)) {
+      try {
+        const tableParam = params[0] || '';
+        if (tableParam) {
+          const pragmaCols = this.db.prepare(`PRAGMA table_info("${tableParam}")`).all() as any[];
+          const rows = pragmaCols.map(c => ({
+            column_name: c.name,
+            data_type: c.type || 'text',
+            is_nullable: c.notnull === 1 ? 'NO' : 'YES'
+          }));
+          return { rows, rowCount: rows.length, command: 'SELECT', oid: 0, fields: [] };
+        }
+      } catch (err: any) {
+        return { rows: [], rowCount: 0, command: 'SELECT', oid: 0, fields: [] };
+      }
+    }
+
     // Strip type casts first (e.g. ::uuid[], ::varchar, ::int)
     s = s.replace(/::[a-zA-Z0-9_]+(\[\])?/g, '');
     s = s.replace(/\bILIKE\b/gi, 'LIKE');
@@ -5683,7 +5711,7 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
   try {
     const { id } = req.params;
     const ctx = getTenantContext(req);
-    const { amount, description, type, pix_key, source, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits } = req.body;
+    const { amount, description, type, pix_key, source, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits } = req.body;
     
     const oldTxRes = await pool.query('SELECT * FROM consolidated_transactions WHERE id = $1', [id]);
     const oldTx = oldTxRes.rows[0] || null;
@@ -5716,6 +5744,7 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
         row_hash = COALESCE($8, row_hash), 
         is_confirmed = COALESCE($9, is_confirmed), 
         transaction_date = COALESCE($10, transaction_date),
+        reference_date = CASE WHEN $23::boolean THEN $22 ELSE reference_date END,
         church_id = CASE WHEN $20::boolean THEN $11 ELSE church_id END,
         contributor_id = CASE WHEN $21::boolean THEN $12 ELSE contributor_id END,
         report_id = COALESCE($13, report_id),
@@ -5746,7 +5775,9 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
         id,
         bank_id !== undefined,
         church_id !== undefined,
-        contributor_id !== undefined
+        contributor_id !== undefined,
+        reference_date !== undefined ? (reference_date || null) : null,
+        reference_date !== undefined
       ]
     );
 

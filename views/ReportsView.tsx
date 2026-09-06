@@ -415,9 +415,20 @@ export const ReportsView: React.FC = () => {
                     onClose={() => setSplitRow(null)}
                     matchResult={splitRow}
                     onSave={(splits) => {
+                        const firstSplitChurchId = splits[0]?.churchId;
+                        const firstSplitChurchName = splits[0]?.churchName;
+
                         const updatedRow: MatchResult = {
                             ...splitRow,
-                            splits: splits
+                            splits: splits,
+                            // Sincroniza a congregação da transação caso tenha sido selecionada no split
+                            ...(firstSplitChurchId && firstSplitChurchId !== 'unidentified' ? {
+                                church: {
+                                    ...(splitRow.church || { address: '', logoUrl: '', pastor: '' }),
+                                    id: firstSplitChurchId,
+                                    name: firstSplitChurchName || splitRow.church?.name || 'Igreja'
+                                }
+                            } : {})
                         };
                         ctrl.updateReportData(updatedRow);
                         setSplitRow(null);

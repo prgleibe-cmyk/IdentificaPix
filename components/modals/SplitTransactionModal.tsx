@@ -192,8 +192,8 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
     const difference = Math.round((absoluteOriginal - totalSplitAmount) * 100) / 100;
     const isSumPerfect = Math.abs(difference) < 0.01;
     const hasInvalidAmount = splits.some(s => (Number(s.amount) || 0) <= 0);
-    const isAllDescriptionsFilled = splits.every(s => (s.description || '').trim().length > 0);
-    const isSaveEnabled = isSumPerfect && !hasInvalidAmount && isAllDescriptionsFilled;
+    const hasInvalidDestination = splits.some(s => !(s.contributionType || '').trim());
+    const isSaveEnabled = isSumPerfect && !hasInvalidAmount && !hasInvalidDestination;
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -295,18 +295,24 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
             return;
         }
 
-        if (!isAllDescriptionsFilled) {
-            setErrorMessage('O campo "Observação / Destino Específico" é obrigatório em todas as linhas do rateio.');
+        const hasEmptyDestination = splits.some(s => !(s.contributionType || '').trim());
+        if (hasEmptyDestination) {
+            setErrorMessage('Selecione a "Descrição / Destino" em todas as linhas do rateio.');
             return;
         }
 
         // Ajusta o sinal dos valores das distribuições para manter fidelidade com o lançamento original (positivo p/ receitas, negativo p/ despesas)
-        const finalSplits: TransactionSplit[] = splits.map(s => ({
-            ...s,
-            amount: isExpense ? -Math.abs(Number(s.amount)) : Math.abs(Number(s.amount)),
-            description: (s.description || '').trim(),
-            date: matchResult.transaction.date
-        }));
+        // e define o campo description com o valor do destino selecionado
+        const finalSplits: TransactionSplit[] = splits.map(s => {
+            const dest = (s.contributionType || '').trim();
+            return {
+                ...s,
+                amount: isExpense ? -Math.abs(Number(s.amount)) : Math.abs(Number(s.amount)),
+                description: dest,
+                contributionType: dest,
+                date: matchResult.transaction.date
+            };
+        });
 
         onSave(finalSplits);
         onClose();
@@ -443,7 +449,7 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
                                             </button>
                                         </div>
 
-                                        {/* Row 1: Core Fields (Valor, Categoria, Igreja, Forma de Pagamento) */}
+                                        {/* Row 1: Core Fields (Valor, Descrição/Destino, Igreja, Forma de Pagamento) */}
                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
                                             
                                             {/* Valor (R$) */}
@@ -466,11 +472,11 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
                                                 </div>
                                             </div>
 
-                                            {/* Tipo de Contribuição / Categoria (Cadastros Reais) */}
+                                            {/* Descrição / Destino (Cadastros Reais) */}
                                             <div>
                                                 <label className="block text-[8px] font-black uppercase tracking-widest text-slate-400 mb-1 ml-0.5 flex items-center gap-1">
                                                     <Tag className="w-2.5 h-2.5 text-indigo-500" />
-                                                    Tipo / Categoria <span className="text-rose-500">*</span>
+                                                    Descrição / Destino <span className="text-rose-500">*</span>
                                                 </label>
                                                 <select
                                                     value={split.contributionType}
@@ -521,8 +527,8 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
                                             </div>
                                         </div>
 
-                                        {/* Row 2: Contribuinte com busca + Observação */}
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+                                        {/* Row 2: Contribuinte / Membro / Favorecido */}
+                                        <div className="w-full">
                                             
                                             {/* Contribuinte / Membro / Favorecido (Busca e Auto-Complete Real) */}
                                             <div className="relative contributor-suggestion-box">
@@ -573,33 +579,6 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
                                                     </div>
                                                 )}
                                             </div>
-
-                                            {/* Observação / Finalidade / Destino */}
-                                            <div>
-                                                <label className="block text-[8px] font-black uppercase tracking-widest text-slate-400 mb-1 ml-0.5 flex items-center justify-between">
-                                                    <span className="flex items-center gap-1">
-                                                        <FileText className="w-2.5 h-2.5 text-amber-500" />
-                                                        Observação / Destino Específico
-                                                    </span>
-                                                    <span className="text-[7px] font-black text-amber-600 dark:text-amber-400 uppercase bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.2 rounded border border-amber-200/60 dark:border-amber-800/40">
-                                                        * Obrigatório
-                                                    </span>
-                                                </label>
-                                                <input 
-                                                    type="text"
-                                                    value={split.description || ''}
-                                                    onChange={(e) => {
-                                                        handleSplitChange(split.id, 'description', e.target.value);
-                                                        if (errorMessage) setErrorMessage(null);
-                                                    }}
-                                                    placeholder="Ex: Oferta Especial, Missões, Reforma, etc."
-                                                    className={`w-full px-3 py-2 text-xs font-semibold border rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs outline-none transition-all ${
-                                                        !(split.description || '').trim() 
-                                                            ? 'border-amber-300 dark:border-amber-700/60 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500' 
-                                                            : 'border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue'
-                                                    }`}
-                                                />
-                                            </div>
                                         </div>
                                     </div>
                                 );
@@ -646,10 +625,10 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
                                 </div>
                             )}
 
-                            {!isAllDescriptionsFilled && (
+                            {hasInvalidDestination && (
                                 <div className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 rounded-lg border border-amber-200/80 dark:border-amber-800/60">
                                     <AlertCircle className="w-3 h-3" />
-                                    Preencha o campo "Observação / Destino Específico" em todas as linhas para liberar o botão Salvar.
+                                    Selecione a "Descrição / Destino" em todas as linhas para liberar o botão Salvar.
                                 </div>
                             )}
                         </div>

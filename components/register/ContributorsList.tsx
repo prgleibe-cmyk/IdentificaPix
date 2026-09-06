@@ -4,7 +4,7 @@ import { useUI } from '../../contexts/UIContext';
 import { AppContext } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { UsersIcon, PlusCircleIcon, SearchIcon, XMarkIcon } from '../Icons';
-import { Camera, Trash2, Edit2, Loader2, Upload, Check, AlertTriangle, FileUp, Sparkles, User, Building2, Landmark, MapPin, Phone, Mail, FileText, Tag, Calendar, ShieldCheck, Globe } from 'lucide-react';
+import { Camera, Trash2, Edit2, Loader2, Upload, Check, AlertTriangle, FileUp, Sparkles, User, Building2, Landmark, MapPin, Phone, Mail, FileText, Tag, Calendar, ShieldCheck, Globe, ChevronDown, ChevronUp } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { InlineRoleSelector } from './InlineRoleSelector';
 
@@ -199,6 +199,7 @@ export const ContributorsList: React.FC = () => {
     const [bankName, setBankName] = useState('');
     const [bankAgency, setBankAgency] = useState('');
     const [bankAccount, setBankAccount] = useState('');
+    const [showBankDetails, setShowBankDetails] = useState(false);
     const [addressCep, setAddressCep] = useState('');
     const [addressStreet, setAddressStreet] = useState('');
     const [addressNumber, setAddressNumber] = useState('');
@@ -608,6 +609,15 @@ export const ContributorsList: React.FC = () => {
         setBankName(contributor.bank_name || '');
         setBankAgency(contributor.bank_agency || '');
         setBankAccount(contributor.bank_account || '');
+        
+        const hasExistingBankData = Boolean(
+            (contributor.pix_key && contributor.pix_key.trim()) ||
+            (contributor.bank_name && contributor.bank_name.trim()) ||
+            (contributor.bank_agency && contributor.bank_agency.trim()) ||
+            (contributor.bank_account && contributor.bank_account.trim())
+        );
+        setShowBankDetails(hasExistingBankData);
+
         setAddressCep(contributor.address_cep || '');
         setAddressStreet(contributor.address_street || '');
         setAddressNumber(contributor.address_number || '');
@@ -708,6 +718,7 @@ export const ContributorsList: React.FC = () => {
         setBankName('');
         setBankAgency('');
         setBankAccount('');
+        setShowBankDetails(false);
         setAddressCep('');
         setAddressStreet('');
         setAddressNumber('');
@@ -1121,7 +1132,7 @@ export const ContributorsList: React.FC = () => {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+                                <div className={`grid grid-cols-1 ${personType === 'PJ' ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-3 pt-2 border-t border-slate-100 dark:border-slate-800`}>
                                     <div>
                                         <label htmlFor="contributor-cpf" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
                                             {personType === 'PF' ? 'CPF' : 'CNPJ'}
@@ -1141,19 +1152,21 @@ export const ContributorsList: React.FC = () => {
                                         )}
                                     </div>
 
-                                    <div>
-                                        <label htmlFor="contributor-rgie" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                            {personType === 'PF' ? 'RG' : 'Inscrição Estadual (IE)'}
-                                        </label>
-                                        <input 
-                                            type="text" 
-                                            id="contributor-rgie" 
-                                            value={rgIe} 
-                                            onChange={(e) => setRgIe(e.target.value)} 
-                                            placeholder={personType === 'PF' ? "00.000.000-0" : "Isento ou Nº IE"}
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
-                                        />
-                                    </div>
+                                    {personType === 'PJ' && (
+                                        <div>
+                                            <label htmlFor="contributor-rgie" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                                Inscrição Estadual (IE)
+                                            </label>
+                                            <input 
+                                                type="text" 
+                                                id="contributor-rgie" 
+                                                value={rgIe} 
+                                                onChange={(e) => setRgIe(e.target.value)} 
+                                                placeholder="Isento ou Nº IE"
+                                                className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                            />
+                                        </div>
+                                    )}
 
                                     <div>
                                         <label htmlFor="contributor-birth" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
@@ -1335,72 +1348,101 @@ export const ContributorsList: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* BLOCO 3: DADOS BANCÁRIOS & PIX */}
-                            <div className="p-4 bg-white dark:bg-slate-900/60 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-3 shadow-xs">
-                                <div className="flex items-center space-x-2 text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider">
-                                    <Landmark className="w-4 h-4 text-cyan-500" />
-                                    <span>Dados Bancários & Chave Pix (Pagamentos / Transferências)</span>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <div>
-                                        <label htmlFor="contributor-pix" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                            Chave Pix Principal
-                                        </label>
-                                        <input 
-                                            type="text" 
-                                            id="contributor-pix" 
-                                            value={pixKey} 
-                                            onChange={(e) => setPixKey(e.target.value)} 
-                                            placeholder="E-mail, CPF/CNPJ, Telefone ou Aleatória"
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
-                                        />
+                            {/* BLOCO 3: DADOS BANCÁRIOS & PIX (OCULTO POR PADRÃO / BOTÃO DISCRETO) */}
+                            <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/60 overflow-hidden shadow-xs transition-all">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowBankDetails(prev => !prev)}
+                                    className="w-full p-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors cursor-pointer group"
+                                >
+                                    <div className="flex items-center space-x-2 text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider">
+                                        <Landmark className="w-4 h-4 text-cyan-500 group-hover:scale-110 transition-transform" />
+                                        <span>Dados Bancários & Chave Pix</span>
+                                        {(pixKey || bankName || bankAccount) ? (
+                                            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-full border border-emerald-200/60 dark:border-emerald-800/60">
+                                                Preenchido
+                                            </span>
+                                        ) : (
+                                            <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 lowercase">
+                                                (opcional)
+                                            </span>
+                                        )}
                                     </div>
-
-                                    <div>
-                                        <label htmlFor="contributor-bankname" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                            Instituição Bancária / Banco
-                                        </label>
-                                        <input 
-                                            type="text" 
-                                            id="contributor-bankname" 
-                                            value={bankName} 
-                                            onChange={(e) => setBankName(e.target.value)} 
-                                            placeholder="Ex: Itaú, Bradesco, Banco do Brasil, Nubank, Sicoob"
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
-                                        />
+                                    <div className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300 transition-colors">
+                                        <span className="text-[11px] font-semibold hidden sm:inline">
+                                            {showBankDetails ? 'Recolher' : 'Adicionar / Visualizar'}
+                                        </span>
+                                        {showBankDetails ? (
+                                            <ChevronUp className="w-4 h-4 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300" />
+                                        ) : (
+                                            <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300" />
+                                        )}
                                     </div>
-                                </div>
+                                </button>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <div>
-                                        <label htmlFor="contributor-bankagency" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                            Agência
-                                        </label>
-                                        <input 
-                                            type="text" 
-                                            id="contributor-bankagency" 
-                                            value={bankAgency} 
-                                            onChange={(e) => setBankAgency(e.target.value)} 
-                                            placeholder="0000"
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
-                                        />
-                                    </div>
+                                {showBankDetails && (
+                                    <div className="p-4 pt-1 border-t border-slate-100 dark:border-slate-800/60 space-y-3">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <div>
+                                                <label htmlFor="contributor-pix" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                                    Chave Pix Principal
+                                                </label>
+                                                <input 
+                                                    type="text" 
+                                                    id="contributor-pix" 
+                                                    value={pixKey} 
+                                                    onChange={(e) => setPixKey(e.target.value)} 
+                                                    placeholder="E-mail, CPF/CNPJ, Telefone ou Aleatória"
+                                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                                />
+                                            </div>
 
-                                    <div>
-                                        <label htmlFor="contributor-bankaccount" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                            Conta Corrente / Poupança
-                                        </label>
-                                        <input 
-                                            type="text" 
-                                            id="contributor-bankaccount" 
-                                            value={bankAccount} 
-                                            onChange={(e) => setBankAccount(e.target.value)} 
-                                            placeholder="00000-0"
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
-                                        />
+                                            <div>
+                                                <label htmlFor="contributor-bankname" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                                    Instituição Bancária / Banco
+                                                </label>
+                                                <input 
+                                                    type="text" 
+                                                    id="contributor-bankname" 
+                                                    value={bankName} 
+                                                    onChange={(e) => setBankName(e.target.value)} 
+                                                    placeholder="Ex: Itaú, Bradesco, Banco do Brasil, Nubank, Sicoob"
+                                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <div>
+                                                <label htmlFor="contributor-bankagency" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                                    Agência
+                                                </label>
+                                                <input 
+                                                    type="text" 
+                                                    id="contributor-bankagency" 
+                                                    value={bankAgency} 
+                                                    onChange={(e) => setBankAgency(e.target.value)} 
+                                                    placeholder="0000"
+                                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label htmlFor="contributor-bankaccount" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                                    Conta Corrente / Poupança
+                                                </label>
+                                                <input 
+                                                    type="text" 
+                                                    id="contributor-bankaccount" 
+                                                    value={bankAccount} 
+                                                    onChange={(e) => setBankAccount(e.target.value)} 
+                                                    placeholder="00000-0"
+                                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
+                                )}
                             </div>
 
                             {/* BLOCO 4: OBSERVAÇÕES INTERNAS */}

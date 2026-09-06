@@ -350,6 +350,7 @@ export const useCloudSync = ({
                     const transaction: Transaction = {
                         id: t.id,
                         date: t.transaction_date,
+                        reference_date: t.reference_date || null,
                         description: t.description,
                         rawDescription: isManualTx ? '' : t.description,
                         amount: t.amount,
@@ -378,7 +379,8 @@ export const useCloudSync = ({
                         amount: t.amount,
                         cleanedName: effectiveContribName,
                         contributionType: savedContribType,
-                        paymentMethod: savedPaymentMethod
+                        paymentMethod: savedPaymentMethod,
+                        reference_date: t.reference_date || null
                     } : null;
 
                     let status = ReconciliationStatus.UNIDENTIFIED;
@@ -408,6 +410,7 @@ export const useCloudSync = ({
                         similarity: 100,
                         contributionType: savedContribType,
                         paymentMethod: savedPaymentMethod,
+                        reference_date: t.reference_date || null,
                         splits: (Array.isArray(t.splits) && t.splits.length > 0) ? t.splits : undefined,
                         updatedAt: t.updated_at
                     };
@@ -434,6 +437,7 @@ export const useCloudSync = ({
                                 ...saved.transaction,
                                 ...r.transaction, // Campos autênticos do banco sobressaem sempre
                                 date: r.transaction.date, // Garantia imutável da data do banco
+                                reference_date: r.transaction.reference_date || saved.transaction?.reference_date || null,
                                 source: r.transaction.source || saved.transaction?.source, // Garantia da origem do banco
                                 contributionType: r.transaction.contributionType || saved.transaction?.contributionType,
                                 paymentMethod: r.transaction.paymentMethod || saved.transaction?.paymentMethod

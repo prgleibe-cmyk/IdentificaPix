@@ -60,7 +60,10 @@ export const ManualIdModal: React.FC = () => {
     
     const [selectedChurchId, setSelectedChurchId] = useState<string>('');
     const [selectedBankId, setSelectedBankId] = useState<string>('');
-    const [selectedType, setSelectedType] = useState<string>(contributionKeywords?.[0] || 'Dízimo');
+    const [selectedType, setSelectedType] = useState<string>(() => {
+        const isManual = bulkIdentificationTxs?.some(tx => tx.id.startsWith('ghost-manual-'));
+        return isManual ? '' : (contributionKeywords?.[0] || 'Dízimo');
+    });
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>(() => {
         const isManual = bulkIdentificationTxs?.some(tx => tx.id.startsWith('ghost-manual-'));
         return isManual ? 'DINHEIRO' : 'PIX';
@@ -100,6 +103,9 @@ export const ManualIdModal: React.FC = () => {
         });
         setManualAmount(formatted);
     };
+
+    // Auto-busca de categorias/descrições cadastradas ao digitar
+    const [showTypeSuggestions, setShowTypeSuggestions] = useState(false);
 
     // Auto-busca de contribuintes cadastrados ao digitar
     const [showSuggestions, setShowSuggestions] = useState(false);
@@ -199,6 +205,17 @@ export const ManualIdModal: React.FC = () => {
         return list;
     }, [manualType, contributionTypes, contributionKeywords]);
 
+    const filteredTypeOptions = useMemo(() => {
+        if (!selectedType || !selectedType.trim()) {
+            return typeOptions;
+        }
+        const normQuery = selectedType.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        return typeOptions.filter((t: string) => {
+            const normT = t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            return normT.includes(normQuery);
+        });
+    }, [typeOptions, selectedType]);
+
     // --- FUNÇÃO PARA ALTERNAR ENTRE ENTRADA E SAÍDA ---
     const handleTypeSwitch = (type: 'entrada' | 'saida') => {
         setManualType(type);
@@ -211,20 +228,22 @@ export const ManualIdModal: React.FC = () => {
             }
         }
 
-        // Preserva a categoria/tipo sem resetar dados preenchidos pelo usuário caso já compatível
+        // Preserva a categoria/tipo sem forçar valor prévio se o usuário ainda não escolheu
         if (type === 'saida') {
             setSelectedType(prev => {
+                if (!prev) return '';
                 const isEntrada = (contributionTypes || []).some((ct: any) => ct.name === prev && (ct.type === 'entrada' || !ct.type));
-                if (!prev || isEntrada || prev === 'Dízimo' || prev === 'Oferta') {
-                    return defaultSaidaType;
+                if (isEntrada || prev === 'Dízimo' || prev === 'Oferta') {
+                    return '';
                 }
                 return prev;
             });
         } else {
             setSelectedType(prev => {
+                if (!prev) return '';
                 const isSaida = (contributionTypes || []).some((ct: any) => ct.name === prev && ct.type === 'saida');
-                if (!prev || isSaida || prev === 'Despesa Geral') {
-                    return defaultEntradaType;
+                if (isSaida || prev === 'Despesa Geral') {
+                    return '';
                 }
                 return prev;
             });
@@ -494,10 +513,10 @@ export const ManualIdModal: React.FC = () => {
             
             if (isExplicitSaida) {
                 setManualType('saida');
-                setSelectedType(matchedResult?.contributionType || defaultSaidaType);
+                setSelectedType(matchedResult?.contributionType || '');
             } else if (isExplicitEntrada) {
                 setManualType('entrada');
-                setSelectedType(matchedResult?.contributionType || defaultEntradaType);
+                setSelectedType(matchedResult?.contributionType || '');
             } else {
                 setManualType(null);
                 setSelectedType('');
@@ -557,11 +576,11 @@ export const ManualIdModal: React.FC = () => {
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') handleClose();
-            if (e.key === 'Enter' && selectedChurchId && (!isManualLaunch || (selectedBankId && manualType)) && !isSaving) handleConfirm();
+            if (e.key === 'Enter' && selectedChurchId && (!isManualLaunch || (selectedBankId && manualType && selectedType.trim())) && !isSaving) handleConfirm();
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [handleClose, selectedChurchId, selectedBankId, isManualLaunch, manualType, isSaving]);
+    }, [handleClose, selectedChurchId, selectedBankId, isManualLaunch, manualType, selectedType, isSaving]);
 
     useEffect(() => {
         if (churches.length === 1 && !selectedChurchId) {
@@ -587,6 +606,11 @@ export const ManualIdModal: React.FC = () => {
 
         if (isManualLaunch && !selectedBankId) {
             alert("Por favor, selecione uma Conta / Caixa de Destino para direcionar o lançamento.");
+            return;
+        }
+
+        if (isManualLaunch && !selectedType.trim()) {
+            alert("Por favor, informe a Descrição / Categoria do lançamento antes de salvar.");
             return;
         }
 
@@ -671,9 +695,9 @@ export const ManualIdModal: React.FC = () => {
                             <button
                                 type="button"
                                 onClick={handleConfirm}
-                                disabled={!manualType || !selectedChurchId || !selectedBankId || isSaving}
+                                disabled={!manualType || !selectedChurchId || !selectedBankId || !selectedType.trim() || isSaving}
                                 className={`flex items-center gap-1.5 px-4 py-1.5 text-[11px] font-black text-white rounded-xl shadow-xs transition-all tracking-wider uppercase border border-orange-400/30 active:scale-95 ${
-                                    !manualType || !selectedChurchId || !selectedBankId || isSaving
+                                    !manualType || !selectedChurchId || !selectedBankId || !selectedType.trim() || isSaving
                                         ? 'bg-slate-400 dark:bg-slate-700 opacity-60 cursor-not-allowed'
                                         : 'bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 hover:opacity-95 cursor-pointer shadow-orange-500/20'
                                 }`}
@@ -702,27 +726,27 @@ export const ManualIdModal: React.FC = () => {
                             <button
                                 type="button"
                                 onClick={() => handleTypeSwitch('entrada')}
-                                className={`py-2 px-3 rounded-xl font-bold uppercase text-[11px] flex items-center justify-center gap-1.5 transition-all border cursor-pointer ${
+                                className={`py-2 px-3 rounded-xl font-black uppercase text-[11px] flex items-center justify-center gap-1.5 transition-all border cursor-pointer select-none ${
                                     manualType === 'entrada'
-                                        ? 'bg-emerald-500 text-white border-emerald-600 shadow-sm shadow-emerald-500/20'
-                                        : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-300'
+                                        ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-600/30'
+                                        : 'bg-emerald-50 hover:bg-emerald-100/80 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/80 font-bold'
                                 }`}
                                 id="modal-btn-entrada"
                             >
-                                <ArrowUpRight className="w-3.5 h-3.5" />
+                                <ArrowUpRight className={`w-3.5 h-3.5 ${manualType === 'entrada' ? 'text-white' : 'text-emerald-600 dark:text-emerald-400'}`} />
                                 <span>Entrada (Receita)</span>
                             </button>
                             <button
                                 type="button"
                                 onClick={() => handleTypeSwitch('saida')}
-                                className={`py-2 px-3 rounded-xl font-bold uppercase text-[11px] flex items-center justify-center gap-1.5 transition-all border cursor-pointer ${
+                                className={`py-2 px-3 rounded-xl font-black uppercase text-[11px] flex items-center justify-center gap-1.5 transition-all border cursor-pointer select-none ${
                                     manualType === 'saida'
-                                        ? 'bg-rose-500 text-white border-rose-600 shadow-sm shadow-rose-500/20'
-                                        : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-rose-300'
+                                        ? 'bg-rose-600 text-white border-rose-500 shadow-md shadow-rose-600/30'
+                                        : 'bg-rose-50 hover:bg-rose-100/80 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/80 font-bold'
                                 }`}
                                 id="modal-btn-saida"
                             >
-                                <ArrowDownRight className="w-3.5 h-3.5" />
+                                <ArrowDownRight className={`w-3.5 h-3.5 ${manualType === 'saida' ? 'text-white' : 'text-rose-600 dark:text-rose-400'}`} />
                                 <span>Saída (Despesa)</span>
                             </button>
                         </div>
@@ -1061,17 +1085,19 @@ export const ManualIdModal: React.FC = () => {
 
                     {/* Linha 4: Descrição e Forma de Pagamento */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
+                        <div className="space-y-1.5 relative">
                             <div className="flex items-center justify-between flex-wrap gap-1.5">
-                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
-                                    Descrição / Categoria
+                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-1">
+                                    <span>Descrição / Categoria</span>
+                                    <span className="text-rose-500 font-bold">*</span>
                                 </label>
                                 <div className="flex items-center gap-1.5">
                                     <select
                                         value=""
                                         onChange={e => {
                                             if (e.target.value) {
-                                                setSelectedType(e.target.value);
+                                                setSelectedType(e.target.value.toUpperCase());
+                                                setShowTypeSuggestions(false);
                                             }
                                         }}
                                         className="bg-orange-50 hover:bg-orange-100 dark:bg-orange-950/60 dark:hover:bg-orange-900/60 text-orange-700 dark:text-orange-300 text-[10px] font-bold py-0.5 px-2 rounded-lg border border-orange-200/70 dark:border-orange-800/70 cursor-pointer outline-none transition-colors"
@@ -1088,20 +1114,72 @@ export const ManualIdModal: React.FC = () => {
                                 <input
                                     type="text"
                                     value={selectedType}
-                                    onChange={e => setSelectedType(e.target.value)}
-                                    placeholder="Digite a descrição detalhada ou selecione um modelo..."
-                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2.5 px-3.5 transition-all outline-none text-xs font-bold"
+                                    onChange={e => {
+                                        setSelectedType(e.target.value.toUpperCase());
+                                        setShowTypeSuggestions(true);
+                                    }}
+                                    onFocus={() => setShowTypeSuggestions(true)}
+                                    placeholder="DIGITE A DESCRIÇÃO (OBRIGATÓRIO)..."
+                                    className={`block w-full rounded-xl border bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs py-2.5 px-3.5 transition-all outline-none text-xs font-bold uppercase ${
+                                        !selectedType.trim()
+                                            ? 'border-amber-300 dark:border-amber-600/60 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500'
+                                            : 'border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500'
+                                    }`}
                                 />
+                                {selectedType && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSelectedType('');
+                                            setShowTypeSuggestions(false);
+                                        }}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 text-xs"
+                                        title="Limpar campo"
+                                    >
+                                        ✕
+                                    </button>
+                                )}
+
+                                {/* Dropdown de Autocomplete Inteligente */}
+                                {showTypeSuggestions && filteredTypeOptions.length > 0 && (
+                                    <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto custom-scrollbar">
+                                        <div className="p-1.5 space-y-0.5">
+                                            {filteredTypeOptions.map((opt: string) => (
+                                                <button
+                                                    key={opt}
+                                                    type="button"
+                                                    onMouseDown={(e) => {
+                                                        e.preventDefault();
+                                                        setSelectedType(opt.toUpperCase());
+                                                        setShowTypeSuggestions(false);
+                                                    }}
+                                                    className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold uppercase transition-colors flex items-center justify-between cursor-pointer ${
+                                                        selectedType.toUpperCase() === opt.toUpperCase()
+                                                            ? 'bg-orange-50 dark:bg-orange-950/60 text-orange-600 dark:text-orange-400'
+                                                            : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
+                                                    }`}
+                                                >
+                                                    <span>{opt}</span>
+                                                    <span className="text-[10px] text-slate-400 opacity-60">Modelo</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
+
                             {/* Atalhos rápidos de modelos mais frequentes */}
                             <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 custom-scrollbar">
                                 {typeOptions.slice(0, 6).map((type: string) => (
                                     <button
                                         key={type}
                                         type="button"
-                                        onClick={() => setSelectedType(type)}
-                                        className={`text-[9px] font-bold px-2 py-0.5 rounded-md border transition-colors whitespace-nowrap cursor-pointer ${
-                                            selectedType === type
+                                        onClick={() => {
+                                            setSelectedType(type.toUpperCase());
+                                            setShowTypeSuggestions(false);
+                                        }}
+                                        className={`text-[9px] font-bold px-2 py-0.5 rounded-md border transition-colors whitespace-nowrap cursor-pointer uppercase ${
+                                            selectedType.toUpperCase() === type.toUpperCase()
                                                 ? 'bg-orange-50 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800'
                                                 : 'bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
                                         }`}
@@ -1204,16 +1282,16 @@ export const ManualIdModal: React.FC = () => {
                         <button 
                             type="button" 
                             onClick={handleConfirm} 
-                            disabled={!manualType || !selectedChurchId || !selectedBankId || isSaving} 
+                            disabled={!manualType || !selectedChurchId || !selectedBankId || !selectedType.trim() || isSaving} 
                             className={`px-6 py-2.5 text-xs font-black uppercase tracking-wider rounded-xl shadow-md transition-all tracking-wider flex items-center gap-2 border border-orange-400/30 active:scale-95 ${
-                                !manualType || !selectedChurchId || !selectedBankId || isSaving
+                                !manualType || !selectedChurchId || !selectedBankId || !selectedType.trim() || isSaving
                                     ? 'bg-slate-400 dark:bg-slate-700 opacity-60 cursor-not-allowed text-white'
                                     : 'bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 shadow-orange-500/20 hover:opacity-95 text-white cursor-pointer'
                             }`}
                         >
                              <CheckCircle2 className="w-4 h-4" />
-                             <span>{isSaving ? 'Processando...' : !manualType ? '⚠️ Selecione Entrada ou Saída' : 'Salvar Lançamento'}</span>
-                             {!isSaving && selectedChurchId && selectedBankId && manualType && <span className="ml-1 text-[8px] opacity-70 bg-white/20 px-1 rounded">Enter</span>}
+                             <span>{isSaving ? 'Processando...' : !manualType ? '⚠️ Selecione Entrada ou Saída' : !selectedType.trim() ? '⚠️ Informe a Descrição' : 'Salvar Lançamento'}</span>
+                             {!isSaving && selectedChurchId && selectedBankId && manualType && selectedType.trim() && <span className="ml-1 text-[8px] opacity-70 bg-white/20 px-1 rounded">Enter</span>}
                         </button>
                     </div>
                 </div>
@@ -1580,7 +1658,7 @@ export const ManualIdModal: React.FC = () => {
                                         value=""
                                         onChange={e => {
                                             if (e.target.value) {
-                                                setSelectedType(e.target.value);
+                                                setSelectedType(e.target.value.toUpperCase());
                                             }
                                         }}
                                         className="bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold py-0.5 px-2 rounded-lg border border-indigo-200/70 dark:border-indigo-800/70 cursor-pointer outline-none transition-colors"
@@ -1597,9 +1675,9 @@ export const ManualIdModal: React.FC = () => {
                                 <input
                                     type="text"
                                     value={selectedType}
-                                    onChange={e => setSelectedType(e.target.value)}
+                                    onChange={e => setSelectedType(e.target.value.toUpperCase())}
                                     placeholder="Digite a descrição detalhada ou selecione um modelo..."
-                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 px-3.5 transition-all outline-none text-xs font-bold"
+                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 px-3.5 transition-all outline-none text-xs font-bold uppercase"
                                 />
                             </div>
                             {/* Atalhos rápidos de modelos mais frequentes */}
@@ -1608,9 +1686,9 @@ export const ManualIdModal: React.FC = () => {
                                     <button
                                         key={type}
                                         type="button"
-                                        onClick={() => setSelectedType(type)}
-                                        className={`text-[9px] font-bold px-2 py-0.5 rounded-md border transition-colors whitespace-nowrap cursor-pointer ${
-                                            selectedType === type
+                                        onClick={() => setSelectedType(type.toUpperCase())}
+                                        className={`text-[9px] font-bold px-2 py-0.5 rounded-md border transition-colors whitespace-nowrap cursor-pointer uppercase ${
+                                            selectedType.toUpperCase() === type.toUpperCase()
                                                 ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'
                                                 : 'bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
                                         }`}
