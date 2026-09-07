@@ -401,10 +401,20 @@ export const LivroCaixaView: React.FC = memo(() => {
             if (selectedChurchIds.length > 0) {
                 const itemChurchId = item.churchId;
                 const itemChurchName = item.church;
+                const itemSplits = (Array.isArray(item.splits) && item.splits.length > 0)
+                    ? item.splits
+                    : (Array.isArray(item.raw?.splits) && item.raw.splits.length > 0)
+                        ? item.raw.splits
+                        : null;
+
                 const matchesAny = selectedChurchIds.some(cId => {
                     if (itemChurchId && itemChurchId === cId) return true;
                     const chObj = churches.find((c: any) => c.id === cId);
-                    return chObj && (itemChurchName === chObj.name || itemChurchId === chObj.id);
+                    if (chObj && (itemChurchName === chObj.name || itemChurchId === chObj.id)) return true;
+                    if (itemSplits && itemSplits.length > 0) {
+                        return itemSplits.some((s: any) => s.churchId === cId || (chObj && s.churchName === chObj.name));
+                    }
+                    return false;
                 });
                 if (!matchesAny) return false;
             }
@@ -569,35 +579,91 @@ export const LivroCaixaView: React.FC = memo(() => {
         }
 
         filteredReportData.forEach((item: any) => {
-            const amt = Math.abs(Number(item.amount) || Number(item.val) || 0);
-            const pm = (item.paymentMethod || item.forma || '').toString().toUpperCase();
-            const cat = (item.category || item.categoria || '').toString().toUpperCase();
-            const desc = (item.desc || item.description || item.historico || '').toString().toUpperCase();
-            const isExp = item.type === 'expense' || Number(item.amount) < 0 || cat.includes('SAIDA') || cat.includes('SAÍDA');
+            const itemSplits = (Array.isArray(item.splits) && item.splits.length > 0)
+                ? item.splits
+                : (Array.isArray(item.raw?.splits) && item.raw.splits.length > 0)
+                    ? item.raw.splits
+                    : null;
 
-            const isTransf = pm.includes('TRANSFER') || pm.includes('TED') || pm.includes('DOC') || cat.includes('TRANSFER') || desc.includes('TRANSFER');
+            const isBaseExp = item.type === 'expense' || Number(item.amount) < 0 || (item.category && (item.category.toLowerCase().includes('saida') || item.category.toLowerCase().includes('saída')));
 
-            if (isExp) {
-                if (isTransf) {
-                    transfEnviadas += amt;
-                } else if (pm.includes('DINHEIRO') || pm.includes('ESPÉCIE') || pm.includes('ESPECIE')) {
-                    saidasDinheiro += amt;
-                } else if (pm.includes('PIX')) {
-                    saidasPix += amt;
-                } else if (pm.includes('BOLETO') || pm.includes('FATURA') || pm.includes('CARTÃO') || pm.includes('CARTAO')) {
-                    saidasBoletoFaturas += amt;
-                } else {
-                    saidasOutras += amt;
-                }
+            if (itemSplits && itemSplits.length > 0) {
+                itemSplits.forEach((s: any) => {
+                    if (selectedChurchIds.length > 0) {
+                        const sChurchId = s.churchId || item.churchId;
+                        const sChurchName = s.churchName || item.church;
+                        const matchChurch = selectedChurchIds.some(cId => {
+                            if (sChurchId && sChurchId === cId) return true;
+                            const chObj = churches.find((c: any) => c.id === cId);
+                            return chObj && (sChurchName === chObj.name || sChurchId === chObj.id);
+                        });
+                        if (!matchChurch) return;
+                    }
+
+                    const splitAmt = Math.abs(Number(s.amount) || 0);
+                    if (splitAmt <= 0) return;
+
+                    const pm = (s.paymentMethod || item.paymentMethod || item.forma || '').toString().toUpperCase();
+                    const cat = (s.contributionType || s.category || item.category || item.categoria || '').toString().toUpperCase();
+                    const desc = (s.description || item.desc || item.description || item.historico || '').toString().toUpperCase();
+                    const isExp = s.amount < 0 || isBaseExp || cat.includes('SAIDA') || cat.includes('SAÍDA');
+                    const isTransf = pm.includes('TRANSFER') || pm.includes('TED') || pm.includes('DOC') || cat.includes('TRANSFER') || desc.includes('TRANSFER');
+
+                    if (isExp) {
+                        if (isTransf) {
+                            transfEnviadas += splitAmt;
+                        } else if (pm.includes('DINHEIRO') || pm.includes('ESPÉCIE') || pm.includes('ESPECIE')) {
+                            saidasDinheiro += splitAmt;
+                        } else if (pm.includes('PIX')) {
+                            saidasPix += splitAmt;
+                        } else if (pm.includes('BOLETO') || pm.includes('FATURA') || pm.includes('CARTÃO') || pm.includes('CARTAO')) {
+                            saidasBoletoFaturas += splitAmt;
+                        } else {
+                            saidasOutras += splitAmt;
+                        }
+                    } else {
+                        if (isTransf) {
+                            transfRecebidas += splitAmt;
+                        } else if (pm.includes('DINHEIRO') || pm.includes('ESPÉCIE') || pm.includes('ESPECIE')) {
+                            entradasDinheiro += splitAmt;
+                        } else if (pm.includes('PIX')) {
+                            entradasPix += splitAmt;
+                        } else {
+                            entradasOutras += splitAmt;
+                        }
+                    }
+                });
             } else {
-                if (isTransf) {
-                    transfRecebidas += amt;
-                } else if (pm.includes('DINHEIRO') || pm.includes('ESPÉCIE') || pm.includes('ESPECIE')) {
-                    entradasDinheiro += amt;
-                } else if (pm.includes('PIX')) {
-                    entradasPix += amt;
+                const amt = Math.abs(Number(item.amount) || Number(item.val) || 0);
+                const pm = (item.paymentMethod || item.forma || '').toString().toUpperCase();
+                const cat = (item.category || item.categoria || '').toString().toUpperCase();
+                const desc = (item.desc || item.description || item.historico || '').toString().toUpperCase();
+                const isExp = isBaseExp || cat.includes('SAIDA') || cat.includes('SAÍDA');
+
+                const isTransf = pm.includes('TRANSFER') || pm.includes('TED') || pm.includes('DOC') || cat.includes('TRANSFER') || desc.includes('TRANSFER');
+
+                if (isExp) {
+                    if (isTransf) {
+                        transfEnviadas += amt;
+                    } else if (pm.includes('DINHEIRO') || pm.includes('ESPÉCIE') || pm.includes('ESPECIE')) {
+                        saidasDinheiro += amt;
+                    } else if (pm.includes('PIX')) {
+                        saidasPix += amt;
+                    } else if (pm.includes('BOLETO') || pm.includes('FATURA') || pm.includes('CARTÃO') || pm.includes('CARTAO')) {
+                        saidasBoletoFaturas += amt;
+                    } else {
+                        saidasOutras += amt;
+                    }
                 } else {
-                    entradasOutras += amt;
+                    if (isTransf) {
+                        transfRecebidas += amt;
+                    } else if (pm.includes('DINHEIRO') || pm.includes('ESPÉCIE') || pm.includes('ESPECIE')) {
+                        entradasDinheiro += amt;
+                    } else if (pm.includes('PIX')) {
+                        entradasPix += amt;
+                    } else {
+                        entradasOutras += amt;
+                    }
                 }
             }
         });
@@ -648,6 +714,17 @@ export const LivroCaixaView: React.FC = memo(() => {
             if (txSplits && txSplits.length > 0) {
                 // Se a transação possui rateio, computa cada fatia com seu respectivo destino/categoria/observação
                 txSplits.forEach((s: any) => {
+                    if (selectedChurchIds.length > 0) {
+                        const sChurchId = s.churchId || tx.churchId;
+                        const sChurchName = s.churchName || tx.church;
+                        const matchChurch = selectedChurchIds.some(cId => {
+                            if (sChurchId && sChurchId === cId) return true;
+                            const chObj = churches.find((c: any) => c.id === cId);
+                            return chObj && (sChurchName === chObj.name || sChurchId === chObj.id);
+                        });
+                        if (!matchChurch) return;
+                    }
+
                     const splitAmt = Math.abs(Number(s.amount) || 0);
                     if (splitAmt <= 0) return;
 
@@ -743,10 +820,20 @@ export const LivroCaixaView: React.FC = memo(() => {
             if (selectedChurchIds.length > 0) {
                 const itemChurchId = item.churchId;
                 const itemChurchName = item.church;
+                const itemSplits = (Array.isArray(item.splits) && item.splits.length > 0)
+                    ? item.splits
+                    : (Array.isArray(item.raw?.splits) && item.raw.splits.length > 0)
+                        ? item.raw.splits
+                        : null;
+
                 const matchesAny = selectedChurchIds.some(cId => {
                     if (itemChurchId && itemChurchId === cId) return true;
                     const chObj = churches.find((c: any) => c.id === cId);
-                    return chObj && (itemChurchName === chObj.name || itemChurchId === chObj.id);
+                    if (chObj && (itemChurchName === chObj.name || itemChurchId === chObj.id)) return true;
+                    if (itemSplits && itemSplits.length > 0) {
+                        return itemSplits.some((s: any) => s.churchId === cId || (chObj && s.churchName === chObj.name));
+                    }
+                    return false;
                 });
                 if (!matchesAny) return false;
             }
@@ -1307,6 +1394,11 @@ export const LivroCaixaView: React.FC = memo(() => {
                                         const formaLabel = tx.paymentMethod || tx.forma || tx.formaPagamento || tx.payment_method || tx.raw?.payment_method || 'Pix';
                                         const payerName = tx.payer || tx.contribuinte || tx.nome || tx.title || 'Lançamento de Caixa';
                                         const descText = tx.desc || tx.description || tx.historico || '';
+                                        const txSplits = (Array.isArray(tx.splits) && tx.splits.length > 0)
+                                            ? tx.splits
+                                            : (Array.isArray(tx.raw?.splits) && tx.raw.splits.length > 0)
+                                                ? tx.raw.splits
+                                                : null;
                                         const txAttachments: ExpenseAttachment[] = tx.attachments || tx.raw?.attachments || tx.raw?.transaction?.attachments || [];
                                         const nfAtt = txAttachments.find(a => a.documentRole === 'nota_fiscal' || (a.extractedData && a.extractedData.documentType === 'nota_fiscal'));
                                         const invoiceAtt = txAttachments.find(a => a.documentRole === 'fatura' || (a.extractedData && (a.extractedData.documentType === 'fatura' || a.extractedData.documentType === 'boleto')));
@@ -1358,6 +1450,45 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                     {descText && (
                                                         <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 line-clamp-1 max-w-sm">
                                                             {descText}
+                                                        </div>
+                                                    )}
+                                                    {txSplits && txSplits.length > 0 && (
+                                                        <div className="mt-1.5 text-[9.5px] bg-slate-50 dark:bg-slate-800/70 p-2 rounded-lg border border-slate-200/80 dark:border-slate-700/80 space-y-1 max-w-md">
+                                                            <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-700/60 pb-0.5">
+                                                                <span className="font-extrabold text-orange-600 dark:text-orange-400 uppercase tracking-wider text-[8px]">
+                                                                    Divisões do Rateio ({txSplits.length} destinos):
+                                                                </span>
+                                                                <span className="text-[8px] font-semibold text-slate-400">Total: {formatBRL(amt)}</span>
+                                                            </div>
+                                                            <div className="space-y-1">
+                                                                {txSplits.map((s: any, sIdx: number) => {
+                                                                    const sAmt = Math.abs(Number(s.amount) || 0);
+                                                                    const sType = s.contributionType || s.category || s.destino || 'Rateio';
+                                                                    const sChurch = s.churchName || (s.churchId ? getChurchName(s.churchId) : '');
+                                                                    return (
+                                                                        <div key={s.id || sIdx} className="flex items-center justify-between gap-1.5 bg-white dark:bg-slate-900/80 px-2 py-0.5 rounded border border-slate-100 dark:border-slate-800">
+                                                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                                                <span className="bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.2 rounded text-[8px] font-bold uppercase">
+                                                                                    {sType}
+                                                                                </span>
+                                                                                {sChurch && (
+                                                                                    <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-1.5 py-0.2 rounded text-[8px] font-bold truncate">
+                                                                                        {sChurch}
+                                                                                    </span>
+                                                                                )}
+                                                                                {s.paymentMethod && (
+                                                                                    <span className="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 px-1 py-0.2 rounded text-[8px] font-bold uppercase">
+                                                                                        {s.paymentMethod}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                            <span className="font-bold text-slate-800 dark:text-slate-200 tabular-nums">
+                                                                                {formatBRL(sAmt)}
+                                                                            </span>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
                                                         </div>
                                                     )}
                                                     {isExpense && (
@@ -1452,13 +1583,19 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                     </span>
                                                 </td>
                                                 <td className="px-4 py-2.5">
-                                                    <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase whitespace-nowrap ${
-                                                        isExpense 
-                                                            ? 'bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border border-rose-200/50 dark:border-rose-900/30' 
-                                                            : 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-900/30'
-                                                    }`}>
-                                                        {tipoLabel}
-                                                    </span>
+                                                    {txSplits && txSplits.length > 0 ? (
+                                                        <span className="px-2.5 py-1 rounded-md text-[10px] font-black uppercase whitespace-nowrap bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-900/30">
+                                                            Rateado ({txSplits.length})
+                                                        </span>
+                                                    ) : (
+                                                        <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase whitespace-nowrap ${
+                                                            isExpense 
+                                                                ? 'bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border border-rose-200/50 dark:border-rose-900/30' 
+                                                                : 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-900/30'
+                                                        }`}>
+                                                            {tipoLabel}
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className="px-4 py-2.5">
                                                     <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200/60 dark:border-slate-700/50 uppercase whitespace-nowrap">
@@ -1466,12 +1603,34 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                     </span>
                                                 </td>
                                                 <td className="px-4 py-2.5">
-                                                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                                                        {tx.category || tx.categoria || 'Geral'}
-                                                    </span>
+                                                    {txSplits && txSplits.length > 0 ? (
+                                                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50/70 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300">
+                                                            Diversas ({txSplits.length})
+                                                        </span>
+                                                    ) : (
+                                                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                                            {tx.category || tx.categoria || 'Geral'}
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className={`px-4 py-2.5 text-right font-mono font-bold whitespace-nowrap ${isExpense ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                                                    {isExpense ? `- ${formatBRL(amt)}` : `+ ${formatBRL(amt)}`}
+                                                    {txSplits && txSplits.length > 0 ? (
+                                                        <div className="flex flex-col items-end gap-0.5">
+                                                            <span className="text-xs font-black">
+                                                                {isExpense ? `- ${formatBRL(amt)}` : `+ ${formatBRL(amt)}`}
+                                                            </span>
+                                                            <div className="flex flex-col items-end text-[9px] font-mono text-slate-500 dark:text-slate-400 font-medium">
+                                                                {txSplits.map((s: any, sIdx: number) => (
+                                                                    <span key={s.id || sIdx} className="whitespace-nowrap flex items-center gap-1">
+                                                                        <span className="text-[8px] font-sans font-bold uppercase text-indigo-600 dark:text-indigo-400">{s.contributionType || 'Destino'}:</span>
+                                                                        <span>{formatBRL(Math.abs(Number(s.amount) || 0))}</span>
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        isExpense ? `- ${formatBRL(amt)}` : `+ ${formatBRL(amt)}`
+                                                    )}
                                                 </td>
                                             </tr>
                                         );

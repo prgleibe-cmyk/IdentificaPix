@@ -212,32 +212,69 @@ export const useReportsController = () => {
         }
 
         periodResults.forEach(r => {
-            const churchId = (r.church?.id && r.church.id !== 'unidentified') 
-                ? r.church.id 
-                : (r._churchId && r._churchId !== 'unidentified' ? r._churchId : (r.transaction as any)?.church_id);
-            const hasValidChurch = churchId && churchId !== 'unidentified';
-            if (hasValidChurch) {
-                if (allowedIds && !allowedIds.includes(churchId)) return;
-                
-                const realChurch = churchesMap.get(churchId) || r.church;
-                const churchName = realChurch?.name || r.church?.name || 'Igreja';
-                
-                const isExp = isExpenseTx(r);
-                const rawAmount = r.status === 'PENDENTE' ? r.contributorAmount : r.transaction?.amount;
-                const amount = Math.abs(Number(rawAmount) || 0);
-                const effectiveAmount = isExp ? -amount : amount;
+            const txSplits = (Array.isArray(r.splits) && r.splits.length > 0)
+                ? r.splits
+                : (Array.isArray((r.transaction as any)?.splits) && (r.transaction as any).splits.length > 0)
+                    ? (r.transaction as any).splits
+                    : null;
 
-                const existing = churchMap.get(churchId);
-                if (existing) {
-                    existing.count++;
-                    existing.total += effectiveAmount;
-                } else {
-                    churchMap.set(churchId, {
-                        id: churchId,
-                        name: churchName,
-                        count: 1,
-                        total: effectiveAmount
-                    });
+            if (txSplits && txSplits.length > 0) {
+                // Quando há rateio, distribui proporcionalmente cada fatia para sua respectiva igreja
+                txSplits.forEach((s: any) => {
+                    const splitChurchId = (s.churchId && s.churchId !== 'unidentified')
+                        ? s.churchId
+                        : (r.church?.id && r.church.id !== 'unidentified' ? r.church.id : (r._churchId && r._churchId !== 'unidentified' ? r._churchId : (r.transaction as any)?.church_id));
+                    const hasValidChurch = splitChurchId && splitChurchId !== 'unidentified';
+                    if (hasValidChurch) {
+                        if (allowedIds && !allowedIds.includes(splitChurchId)) return;
+                        const realChurch = churchesMap.get(splitChurchId) || (s.churchName ? { id: splitChurchId, name: s.churchName } : r.church);
+                        const churchName = realChurch?.name || s.churchName || r.church?.name || 'Igreja';
+                        const isExp = isExpenseTx(r) || s.amount < 0;
+                        const splitAmt = Math.abs(Number(s.amount) || 0);
+                        const effectiveAmount = isExp ? -splitAmt : splitAmt;
+
+                        const existing = churchMap.get(splitChurchId);
+                        if (existing) {
+                            existing.count++;
+                            existing.total += effectiveAmount;
+                        } else {
+                            churchMap.set(splitChurchId, {
+                                id: splitChurchId,
+                                name: churchName,
+                                count: 1,
+                                total: effectiveAmount
+                            });
+                        }
+                    }
+                });
+            } else {
+                const churchId = (r.church?.id && r.church.id !== 'unidentified') 
+                    ? r.church.id 
+                    : (r._churchId && r._churchId !== 'unidentified' ? r._churchId : (r.transaction as any)?.church_id);
+                const hasValidChurch = churchId && churchId !== 'unidentified';
+                if (hasValidChurch) {
+                    if (allowedIds && !allowedIds.includes(churchId)) return;
+                    
+                    const realChurch = churchesMap.get(churchId) || r.church;
+                    const churchName = realChurch?.name || r.church?.name || 'Igreja';
+                    
+                    const isExp = isExpenseTx(r);
+                    const rawAmount = r.status === 'PENDENTE' ? r.contributorAmount : r.transaction?.amount;
+                    const amount = Math.abs(Number(rawAmount) || 0);
+                    const effectiveAmount = isExp ? -amount : amount;
+
+                    const existing = churchMap.get(churchId);
+                    if (existing) {
+                        existing.count++;
+                        existing.total += effectiveAmount;
+                    } else {
+                        churchMap.set(churchId, {
+                            id: churchId,
+                            name: churchName,
+                            count: 1,
+                            total: effectiveAmount
+                        });
+                    }
                 }
             }
         });
@@ -411,7 +448,18 @@ export const useReportsController = () => {
                 const churchId = (item.church?.id && item.church.id !== 'unidentified') 
                     ? item.church.id 
                     : (item._churchId && item._churchId !== 'unidentified' ? item._churchId : (item.transaction as any)?.church_id);
-                matchesCat = churchId === targetChurchId;
+                
+                const itemSplits = (Array.isArray(item.splits) && item.splits.length > 0)
+                    ? item.splits
+                    : (Array.isArray((item.transaction as any)?.splits) && (item.transaction as any).splits.length > 0)
+                        ? (item.transaction as any).splits
+                        : null;
+
+                if (itemSplits && itemSplits.length > 0) {
+                    matchesCat = churchId === targetChurchId || itemSplits.some((s: any) => s.churchId === targetChurchId);
+                } else {
+                    matchesCat = churchId === targetChurchId;
+                }
             }
 
             if (!matchesCat) return false;
@@ -667,6 +715,14 @@ export const useReportsController = () => {
         };
 
         const isChurchesCat = activeCategory === 'churches';
+        const targetChurchId = isChurchesCat
+            ? ((isSecondary && subscription?.congregationIds && subscription.congregationIds.length > 0)
+                ? (selectedReportId && subscription.congregationIds.includes(selectedReportId) ? selectedReportId : subscription.congregationIds[0])
+                : ((selectedReportId && selectedReportId !== 'general_all' && selectedReportId !== 'unidentified' && selectedReportId !== 'all_expenses_group' && cacheRef.current.churchList.some(c => c.id === selectedReportId))
+                    ? selectedReportId 
+                    : (cacheRef.current.churchList.length > 0 ? cacheRef.current.churchList[0].id : null)))
+            : null;
+
         let total = 0;
         let count = 0;
         let auto = 0;
@@ -678,8 +734,25 @@ export const useReportsController = () => {
 
         for (let i = 0; i < activeData.length; i++) {
             const r = activeData[i];
-            const rawAmount = r.status === 'PENDENTE' ? r.contributorAmount : r.transaction?.amount;
-            const amount = parseNumeric(rawAmount);
+            const rSplits = (Array.isArray(r.splits) && r.splits.length > 0)
+                ? r.splits
+                : (Array.isArray((r.transaction as any)?.splits) && (r.transaction as any).splits.length > 0)
+                    ? (r.transaction as any).splits
+                    : null;
+
+            let amount = 0;
+            if (isChurchesCat && targetChurchId && rSplits && rSplits.length > 0) {
+                const churchSplits = rSplits.filter((s: any) => s.churchId === targetChurchId || (!s.churchId && r.church?.id === targetChurchId));
+                if (churchSplits.length > 0) {
+                    amount = churchSplits.reduce((acc: number, s: any) => acc + parseNumeric(s.amount), 0);
+                } else {
+                    amount = parseNumeric(r.status === 'PENDENTE' ? r.contributorAmount : r.transaction?.amount);
+                }
+            } else {
+                const rawAmount = r.status === 'PENDENTE' ? r.contributorAmount : r.transaction?.amount;
+                amount = parseNumeric(rawAmount);
+            }
+
             const isExp = amount < 0 || 
                           r.transaction?.type?.toLowerCase() === 'expense' || 
                           r.transaction?.type?.toLowerCase() === 'saida' || 

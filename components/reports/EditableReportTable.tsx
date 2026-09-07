@@ -191,27 +191,32 @@ const MobileCard = memo(({
                             </div>
                         )}
                         {row.splits && row.splits.length > 0 && (
-                            <div className="mt-2 text-[10px] bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80 space-y-1.5">
-                                <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-700/60 pb-1">
-                                    <span className="font-black text-orange-600 dark:text-orange-400 uppercase tracking-wider text-[8px] flex items-center gap-1">
-                                        Distribuição do Rateio ({row.splits.length} Destinos):
+                            <div className="mt-2 text-[10px] bg-indigo-50/40 dark:bg-indigo-950/40 p-2.5 rounded-xl border border-indigo-200/80 dark:border-indigo-800/80 space-y-1.5">
+                                <div className="flex items-center justify-between border-b border-indigo-200/60 dark:border-indigo-800/60 pb-1">
+                                    <span className="font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-wider text-[8.5px] flex items-center gap-1">
+                                        Fatias do Rateio ({row.splits.length} Divisões):
                                     </span>
                                 </div>
                                 <div className="space-y-1.5">
                                     {row.splits.map((s, idx) => (
-                                        <div key={s.id || idx} className="flex flex-col gap-0.5 bg-white dark:bg-slate-900/60 p-1.5 rounded-lg border border-slate-100 dark:border-slate-800 text-[10px]">
+                                        <div key={s.id || idx} className="flex flex-col gap-1 bg-white dark:bg-slate-900/80 p-2 rounded-lg border border-indigo-100 dark:border-indigo-900/60 text-[10px] shadow-2xs">
                                             <div className="flex items-center justify-between font-bold">
-                                                <span className="uppercase text-slate-800 dark:text-slate-200 truncate">
-                                                    {s.contributorName && s.contributorName !== displayName ? s.contributorName : s.contributionType}
-                                                </span>
-                                                <span className="font-black text-slate-900 dark:text-white tabular-nums shrink-0">
+                                                <div className="flex items-center gap-1.5 min-w-0">
+                                                    <span className="text-[8px] font-black uppercase px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300">
+                                                        Fatia {idx + 1}
+                                                    </span>
+                                                    <span className="uppercase text-slate-800 dark:text-slate-200 truncate">
+                                                        {s.contributorName && s.contributorName !== displayName ? s.contributorName : displayName}
+                                                    </span>
+                                                </div>
+                                                <span className="font-black text-emerald-600 dark:text-emerald-400 tabular-nums shrink-0 ml-2">
                                                     {formatCurrency(s.amount, language)}
                                                 </span>
                                             </div>
                                             <div className="flex items-center flex-wrap gap-1 text-[9px] text-slate-500 dark:text-slate-400 font-semibold">
-                                                <span className="bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 px-1 py-0.2 rounded font-bold uppercase">{s.contributionType}</span>
-                                                {s.churchName && <span className="bg-slate-100 dark:bg-slate-800 px-1 py-0.2 rounded truncate">{s.churchName}</span>}
-                                                {s.paymentMethod && <span className="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 px-1 py-0.2 rounded uppercase">{s.paymentMethod}</span>}
+                                                <span className="bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.2 rounded font-bold uppercase">{s.contributionType || 'Dízimo'}</span>
+                                                {s.churchName && <span className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.2 rounded truncate">{s.churchName}</span>}
+                                                {s.paymentMethod && <span className="bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.2 rounded uppercase">{s.paymentMethod}</span>}
                                                 {s.description && <span className="italic text-slate-400">({s.description})</span>}
                                             </div>
                                         </div>
@@ -221,7 +226,12 @@ const MobileCard = memo(({
                         )}
                     </div>
                 </div>
-                <div className="text-right">
+                <div className="text-right shrink-0">
+                    {row.splits && row.splits.length > 0 && (
+                        <span className="text-[8px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider block mb-0.5">
+                            Total Original
+                        </span>
+                    )}
                     <span className={`text-sm font-black tabular-nums ${isExpense ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>
                         {formatCurrency(displayAmount, language)}
                     </span>
@@ -401,229 +411,387 @@ const IncomeRow = memo(({
         (row.transaction?.row_hash && row.transaction?.row_hash.includes('|bmanual|'));
     const canDeleteRow = !isSecondaryUser || isManualRow;
 
+    const hasSplits = Boolean(row.splits && row.splits.length > 0);
+
     return (
-        <tr className={`group transition-colors border-b border-slate-200 dark:border-slate-700 ${
-            confirmed 
-                ? 'bg-indigo-50/10 hover:bg-indigo-50/20' 
-                : isGhost 
-                    ? 'bg-amber-50/50' 
-                    : isManualRow 
-                        ? 'bg-amber-50/40 dark:bg-amber-950/20 hover:bg-amber-100/60 dark:hover:bg-amber-900/30 border-l-4 border-l-amber-500' 
-                        : 'odd:bg-white even:bg-slate-50 hover:bg-blue-50/60 dark:hover:bg-blue-900/20'
-        } ${isSelected ? 'bg-blue-50/80 dark:bg-blue-900/30' : ''}`}>
-            <td className="px-4 py-2.5 text-center">
-                <input 
-                    type="checkbox" 
-                    checked={isSelected} 
-                    onChange={() => onToggleSelection(row.transaction.id)}
-                    className="w-4 h-4 rounded-full border-slate-300 text-brand-blue cursor-pointer accent-blue-600"
-                />
-            </td>
-            <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
-                {hasRefDate ? (
-                    <div className="flex flex-col leading-tight">
-                        <span className="font-bold text-slate-800 dark:text-white" title={`Data de Referência (Competência): ${displayDate}`}>
-                            {displayDate}
-                        </span>
-                        <span className="text-[9.5px] text-slate-400 dark:text-slate-500 font-normal mt-0.5" title={`Data no Banco: ${originalBankDate}`}>
-                            <span className="text-[8.5px] uppercase font-semibold text-slate-400 mr-0.5">Banco:</span>
-                            {originalBankDate}
-                        </span>
-                    </div>
-                ) : (
-                    <span>{displayDate}</span>
-                )}
-            </td>
-            <td className="px-1.5 py-2.5 text-center shrink-0">
-                {waSent ? (
-                    <button
-                        type="button"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            sendWhatsAppDirect({
-                                contributorName: displayName,
-                                phone: row.contributor?.phone || row.contributor?.mobile || row.contributor?.whatsapp || '',
-                                amount: displayAmount,
-                                contributionType: displayType,
-                                churchName: row.church?.name,
-                                date: refDate || row.transaction.date,
-                                transactionId: row.transaction.id
-                            }, { contributors, churches, showToast });
-                        }}
-                        className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-700 hover:scale-115 transition-all cursor-pointer shadow-2xs mx-auto"
-                        title="WhatsApp ENVIADO (Clique para reenviar direto)"
-                    >
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                    </button>
-                ) : (isIdentified || confirmed) ? (
-                    <button
-                        type="button"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            sendWhatsAppDirect({
-                                contributorName: displayName,
-                                phone: row.contributor?.phone || row.contributor?.mobile || row.contributor?.whatsapp || '',
-                                amount: displayAmount,
-                                contributionType: displayType,
-                                churchName: row.church?.name,
-                                date: refDate || row.transaction.date,
-                                transactionId: row.transaction.id
-                            }, { contributors, churches, showToast });
-                        }}
-                        className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400 border border-amber-300 dark:border-amber-800/80 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-400 hover:scale-115 transition-all cursor-pointer shadow-2xs mx-auto"
-                        title="WhatsApp PENDENTE (Clique para disparar direto)"
-                    >
-                        <MessageCircle className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
-                    </button>
-                ) : (
-                    <span className="text-slate-300 dark:text-slate-700 text-[10px] font-bold block text-center">-</span>
-                )}
-            </td>
-            <td className="px-4 py-2.5">
-                <div className="flex flex-col gap-1">
-                    <div className="flex items-center gap-2">
-                        {(row.contributor || isGhost) ? <UserIcon className="w-3.5 h-3.5 text-indigo-500 shrink-0" /> : <BanknotesIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
-                        <span className={`text-xs font-bold break-words uppercase ${confirmed ? 'text-slate-500/70' : isGhost ? 'text-slate-500' : 'text-slate-900 dark:text-white'}`}>{displayName}</span>
-                        {isManualRow && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.2 bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 rounded border border-amber-200 dark:border-amber-800 uppercase tracking-wider shrink-0">
-                                Manual
+        <React.Fragment key={row.transaction.id}>
+            <tr className={`group transition-colors border-b ${hasSplits ? 'border-indigo-100 dark:border-indigo-900/50 bg-indigo-50/15 dark:bg-indigo-950/15' : 'border-slate-200 dark:border-slate-700'} ${
+                confirmed 
+                    ? 'bg-indigo-50/10 hover:bg-indigo-50/20' 
+                    : isGhost 
+                        ? 'bg-amber-50/50' 
+                        : isManualRow 
+                            ? 'bg-amber-50/40 dark:bg-amber-950/20 hover:bg-amber-100/60 dark:hover:bg-amber-900/30 border-l-4 border-l-amber-500' 
+                            : 'odd:bg-white even:bg-slate-50 hover:bg-blue-50/60 dark:hover:bg-blue-900/20'
+            } ${isSelected ? 'bg-blue-50/80 dark:bg-blue-900/30' : ''}`}>
+                <td className="px-4 py-2.5 text-center">
+                    <input 
+                        type="checkbox" 
+                        checked={isSelected} 
+                        onChange={() => onToggleSelection(row.transaction.id)}
+                        className="w-4 h-4 rounded-full border-slate-300 text-brand-blue cursor-pointer accent-blue-600"
+                    />
+                </td>
+                <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
+                    {hasRefDate ? (
+                        <div className="flex flex-col leading-tight">
+                            <span className="font-bold text-slate-800 dark:text-white" title={`Data de Referência (Competência): ${displayDate}`}>
+                                {displayDate}
                             </span>
+                            <span className="text-[9.5px] text-slate-400 dark:text-slate-500 font-normal mt-0.5" title={`Data no Banco: ${originalBankDate}`}>
+                                <span className="text-[8.5px] uppercase font-semibold text-slate-400 mr-0.5">Banco:</span>
+                                {originalBankDate}
+                            </span>
+                        </div>
+                    ) : (
+                        <span>{displayDate}</span>
+                    )}
+                </td>
+                <td className="px-1.5 py-2.5 text-center shrink-0">
+                    {waSent ? (
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                sendWhatsAppDirect({
+                                    contributorName: displayName,
+                                    phone: row.contributor?.phone || row.contributor?.mobile || row.contributor?.whatsapp || '',
+                                    amount: displayAmount,
+                                    contributionType: displayType,
+                                    churchName: row.church?.name,
+                                    date: refDate || row.transaction.date,
+                                    transactionId: row.transaction.id
+                                }, { contributors, churches, showToast });
+                            }}
+                            className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-700 hover:scale-115 transition-all cursor-pointer shadow-2xs mx-auto"
+                            title="WhatsApp ENVIADO (Clique para reenviar direto)"
+                        >
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                        </button>
+                    ) : (isIdentified || confirmed) ? (
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                sendWhatsAppDirect({
+                                    contributorName: displayName,
+                                    phone: row.contributor?.phone || row.contributor?.mobile || row.contributor?.whatsapp || '',
+                                    amount: displayAmount,
+                                    contributionType: displayType,
+                                    churchName: row.church?.name,
+                                    date: refDate || row.transaction.date,
+                                    transactionId: row.transaction.id
+                                }, { contributors, churches, showToast });
+                            }}
+                            className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400 border border-amber-300 dark:border-amber-800/80 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-400 hover:scale-115 transition-all cursor-pointer shadow-2xs mx-auto"
+                            title="WhatsApp PENDENTE (Clique para disparar direto)"
+                        >
+                            <MessageCircle className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
+                        </button>
+                    ) : (
+                        <span className="text-slate-300 dark:text-slate-700 text-[10px] font-bold block text-center">-</span>
+                    )}
+                </td>
+                <td className="px-4 py-2.5">
+                    <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            {(row.contributor || isGhost) ? <UserIcon className="w-3.5 h-3.5 text-indigo-500 shrink-0" /> : <BanknotesIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
+                            <span className={`text-xs font-bold break-words uppercase ${confirmed ? 'text-slate-500/70' : isGhost ? 'text-slate-500' : 'text-slate-900 dark:text-white'}`}>{displayName}</span>
+                            {isManualRow && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.2 bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 rounded border border-amber-200 dark:border-amber-800 uppercase tracking-wider shrink-0">
+                                    Manual
+                                </span>
+                            )}
+                            {hasSplits && (
+                                <span className="text-[8.5px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80 shrink-0">
+                                    Lançamento Rateado ({row.splits!.length} divisões abaixo)
+                                </span>
+                            )}
+                        </div>
+                        {!isManualRow && rawBankDesc && rawBankDesc !== displayName && (
+                            <div className="text-[10px] text-slate-400 dark:text-slate-500 font-normal tracking-tight pl-5.5 leading-tight break-words max-w-md" title={`Extrato Original: ${rawBankDesc}`}>
+                                <span className="text-[9px] font-semibold uppercase text-slate-400/80 mr-1">Extrato:</span>
+                                <span className="font-mono text-slate-500 dark:text-slate-400">{rawBankDesc}</span>
+                            </div>
                         )}
                     </div>
-                    {!isManualRow && rawBankDesc && rawBankDesc !== displayName && (
-                        <div className="text-[10px] text-slate-400 dark:text-slate-500 font-normal tracking-tight pl-5.5 leading-tight break-words max-w-md" title={`Extrato Original: ${rawBankDesc}`}>
-                            <span className="text-[9px] font-semibold uppercase text-slate-400/80 mr-1">Extrato:</span>
-                            <span className="font-mono text-slate-500 dark:text-slate-400">{rawBankDesc}</span>
-                        </div>
+                </td>
+                <td className="px-4 py-2.5 text-center">
+                    <span className={`inline-block text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wide border ${
+                        sourceInfo.isManual
+                            ? 'bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border-amber-300/80 dark:border-amber-700/60 shadow-2xs'
+                            : sourceInfo.isSms 
+                                ? 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border-sky-200 dark:border-sky-800' 
+                                : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                    }`}>
+                        {sourceInfo.label}
+                    </span>
+                </td>
+                <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-2">
+                        <BuildingOfficeIcon className={`w-3.5 h-3.5 shrink-0 ${isIdentified ? 'text-indigo-400' : 'text-slate-300'}`} />
+                        <span className={`text-[11px] font-bold break-words ${isIdentified ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400'}`}>
+                            {hasSplits && new Set(row.splits!.map(s => s.churchName || s.churchId)).size > 1 
+                                ? `Múltiplas Igrejas (${new Set(row.splits!.map(s => s.churchName || s.churchId)).size})`
+                                : (row.church?.name || '---')}
+                        </span>
+                    </div>
+                </td>
+                <td className="px-4 py-2.5 text-center">
+                    {confirmed ? (
+                        <span className="text-[9px] font-bold px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100 uppercase flex items-center justify-center gap-1">
+                            <LockClosedIcon className="w-2.5 h-2.5" /> Fechado
+                        </span>
+                    ) : isIdentified ? (
+                        isManualRow ? (
+                            <span className="text-[9px] font-bold px-2 py-0.5 bg-amber-50 text-amber-800 rounded-full border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 uppercase">Manual</span>
+                        ) : (
+                            <span className="text-[9px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100 uppercase">Auto</span>
+                        )
+                    ) : (
+                        <span className="text-[9px] font-bold px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full border border-amber-100 uppercase">Pendente</span>
                     )}
-                    {row.splits && row.splits.length > 0 && (
-                        <div className="mt-1.5 text-[10px] bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80 space-y-1.5 max-w-xl">
-                            <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-700/60 pb-1">
-                                <span className="font-black text-orange-600 dark:text-orange-400 uppercase tracking-wider text-[8px]">
-                                    Distribuição do Rateio ({row.splits.length} Destinos):
+                </td>
+                <td className="px-4 py-2.5">
+                    {hasSplits ? (
+                        <span className="text-[9px] font-bold uppercase bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-100 dark:border-indigo-900/30">
+                            Rateado ({row.splits!.length})
+                        </span>
+                    ) : (
+                        <span className="text-[9px] font-bold uppercase bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-1.5 py-0.5 rounded">{displayType}</span>
+                    )}
+                </td>
+                <td className="px-4 py-2.5"><span className="text-[10px] font-bold text-slate-500 uppercase">{displayForm}</span></td>
+                <td className="px-4 py-2.5 text-right font-mono text-xs font-bold tabular-nums">
+                    {hasSplits ? (
+                        <div className="flex flex-col items-end gap-0.5">
+                            <span className="text-[8px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.2 rounded border border-indigo-200/60 dark:border-indigo-800/40">
+                                Total Original
+                            </span>
+                            <span className={isExpense ? 'text-red-600 dark:text-red-400 font-black' : 'text-slate-900 dark:text-white font-black'} title="Valor Total Original da Movimentação Bancária">
+                                {formatCurrency(displayAmount, language)}
+                            </span>
+                        </div>
+                    ) : (
+                        <span className={isExpense ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}>
+                            {formatCurrency(displayAmount, language)}
+                        </span>
+                    )}
+                </td>
+                <td className="px-4 py-2.5 text-center">
+                    <div className="flex gap-1.5 items-center justify-center">
+                        {/* Ações adicionais no hover */}
+                        <div className="flex gap-1 items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                            {canPrintReceipt && (
+                                <button 
+                                    onClick={() => onGenerateReceipt(row)} 
+                                    className="p-1.5 rounded-lg text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400 dark:hover:bg-blue-900/30 transition-all border border-blue-100/50 dark:border-blue-900/20 cursor-pointer shadow-sm" 
+                                    title="Gerar e Imprimir Recibo"
+                                >
+                                    <Printer className="w-3.5 h-3.5" />
+                                </button>
+                            )}
+
+                            {confirmed ? (
+                                (!isClosedPeriod && canConfirmFinal) && (
+                                    <button onClick={() => onToggleLock(row.transaction.id, false)} className="p-1.5 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 cursor-pointer" title="Remover Bloqueio">
+                                        <LockOpenIcon className="w-3.5 h-3.5" />
+                                    </button>
+                                )
+                            ) : (
+                                !isClosedPeriod && (
+                                    <>
+                                        {isManualRow && onEdit && (
+                                            <button 
+                                                onClick={() => onEdit(row)} 
+                                                className="p-1.5 rounded-lg text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-900/30 transition-colors cursor-pointer border border-amber-200/60 dark:border-amber-800/40 shadow-xs" 
+                                                title="Editar Lançamento Manual"
+                                            >
+                                                <Pencil className="w-3.5 h-3.5" />
+                                            </button>
+                                        )}
+                                        {isIdentified && canUndoIdentification && <button onClick={() => onUndo(row.transaction.id)} className="p-1.5 rounded-lg text-amber-600 bg-amber-50 hover:bg-amber-100 cursor-pointer" title="Desfazer auto-identificação"><ArrowUturnLeftIcon className="w-3.5 h-3.5" /></button>}
+                                        {canDeleteRow && (
+                                            <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg text-rose-600 bg-rose-50 hover:bg-rose-100 cursor-pointer" title="Excluir"><TrashIcon className="w-3.5 h-3.5" /></button>
+                                        )}
+                                        {onSplit && (
+                                            <button 
+                                                onClick={() => onSplit(row)} 
+                                                className="p-1.5 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors cursor-pointer" 
+                                                title="Desmembrar / Ratear Lançamento"
+                                            >
+                                                <GitFork className="w-3.5 h-3.5" />
+                                            </button>
+                                        )}
+                                    </>
+                                )
+                            )}
+                        </div>
+                    </div>
+                </td>
+            </tr>
+
+            {/* SUBLINHAS DAS DIVISÕES DO RATEIO (DISTRIBUÍDAS EM CADA UMA DAS COLUNAS CERTAS) */}
+            {hasSplits && row.splits!.map((s, sIdx) => {
+                const splitContributorName = s.contributorName && s.contributorName.trim() ? s.contributorName : displayName;
+                const splitChurchName = s.churchName || row.church?.name || '---';
+                const splitType = s.contributionType || 'Dízimo';
+                const splitForm = s.paymentMethod || displayForm;
+                const splitAmount = Math.abs(Number(s.amount) || 0);
+                const isSplitExp = s.amount < 0 || isExpense;
+                const matchedContributor = contributors?.find(c => 
+                    (c.name && c.name.toUpperCase() === splitContributorName.toUpperCase()) || 
+                    (c.cleanedName && c.cleanedName.toUpperCase() === splitContributorName.toUpperCase())
+                );
+                const splitPhone = (s as any).contributorPhone || matchedContributor?.phone || matchedContributor?.mobile || (splitContributorName === displayName ? (row.contributor?.phone || row.contributor?.mobile || '') : '');
+
+                return (
+                    <tr 
+                        key={`${row.transaction.id}-split-${s.id || sIdx}`}
+                        className="group bg-indigo-50/25 dark:bg-indigo-950/25 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/45 border-b border-indigo-100/60 dark:border-indigo-900/40 transition-colors"
+                    >
+                        {/* Checkbox col: marcador visual de divisão vinculada */}
+                        <td className="px-4 py-2 text-center">
+                            <span className="text-indigo-400 dark:text-indigo-500 font-mono text-xs select-none pl-1" title="Divisão vinculada ao lançamento principal acima">↳</span>
+                        </td>
+                        {/* Data col */}
+                        <td className="px-4 py-2 font-mono text-[10px] text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                            <div className="flex items-center gap-1">
+                                <span className="text-indigo-400 text-xs">↳</span>
+                                <span>{displayDate}</span>
+                            </div>
+                        </td>
+                        {/* WhatsApp col */}
+                        <td className="px-1.5 py-2 text-center shrink-0">
+                            {splitPhone ? (
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        sendWhatsAppDirect({
+                                            contributorName: splitContributorName,
+                                            phone: splitPhone,
+                                            amount: splitAmount,
+                                            contributionType: splitType,
+                                            churchName: splitChurchName,
+                                            date: refDate || row.transaction.date,
+                                            transactionId: `${row.transaction.id}-split-${s.id || sIdx}`
+                                        }, { contributors, churches, showToast });
+                                    }}
+                                    className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100 hover:scale-115 transition-all cursor-pointer shadow-2xs mx-auto"
+                                    title={`WhatsApp direto para ${splitContributorName} (${formatCurrency(splitAmount, language)})`}
+                                >
+                                    <MessageCircle className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                </button>
+                            ) : (
+                                <span className="text-slate-300 dark:text-slate-700 text-[10px] font-bold block text-center">-</span>
+                            )}
+                        </td>
+                        {/* Nome / Contribuinte col */}
+                        <td className="px-4 py-2">
+                            <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                                <span className="text-indigo-500 font-mono text-xs shrink-0">↳</span>
+                                <span className="text-xs font-bold uppercase text-slate-800 dark:text-slate-200">
+                                    {splitContributorName}
+                                </span>
+                                <span className="text-[8px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/60 shrink-0">
+                                    Divisão {sIdx + 1}/{row.splits!.length}
+                                </span>
+                                {s.description && (
+                                    <span className="text-[9.5px] text-slate-400 italic">
+                                        ({s.description})
+                                    </span>
+                                )}
+                            </div>
+                        </td>
+                        {/* Origem col */}
+                        <td className="px-4 py-2 text-center">
+                            <span className="inline-block text-[8px] font-bold px-1.5 py-0.2 rounded uppercase bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/40">
+                                RATEIO
+                            </span>
+                        </td>
+                        {/* Igreja col */}
+                        <td className="px-4 py-2">
+                            <div className="flex items-center gap-1.5">
+                                <BuildingOfficeIcon className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                                    {splitChurchName}
                                 </span>
                             </div>
-                            <div className="space-y-1.5">
-                                {row.splits.map((s, idx) => (
-                                    <div key={s.id || idx} className="flex items-center justify-between gap-2 bg-white dark:bg-slate-900/60 px-2 py-1 rounded-lg border border-slate-100 dark:border-slate-800 text-[10px]">
-                                        <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-                                            <span className="font-bold text-slate-800 dark:text-slate-200 uppercase truncate">
-                                                {s.contributorName && s.contributorName !== displayName ? s.contributorName : displayName}
-                                            </span>
-                                            <span className="bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.2 rounded text-[8px] font-bold uppercase">{s.contributionType}</span>
-                                            {s.churchName && <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-1.5 py-0.2 rounded text-[8px] font-bold truncate">{s.churchName}</span>}
-                                            {s.paymentMethod && <span className="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.2 rounded text-[8px] font-bold uppercase">{s.paymentMethod}</span>}
-                                            {s.description && <span className="italic text-slate-400 text-[9px]">({s.description})</span>}
-                                        </div>
-                                        <span className="font-black text-slate-900 dark:text-white tabular-nums shrink-0 ml-auto pl-2">
-                                            {formatCurrency(s.amount, language)}
-                                        </span>
-                                    </div>
-                                ))}
+                        </td>
+                        {/* Status col */}
+                        <td className="px-4 py-2 text-center">
+                            <span className="text-[9px] font-bold px-2 py-0.5 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 rounded-full border border-indigo-200/60 dark:border-indigo-900/30 uppercase">
+                                Rateado
+                            </span>
+                        </td>
+                        {/* Descrição / Tipo de Contribuição col */}
+                        <td className="px-4 py-2">
+                            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">
+                                {splitType}
+                            </span>
+                        </td>
+                        {/* Forma de Pagamento col */}
+                        <td className="px-4 py-2">
+                            <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase">
+                                {splitForm}
+                            </span>
+                        </td>
+                        {/* Valor col: O VALOR EXATO DA DIVISÃO! */}
+                        <td className="px-4 py-2 text-right font-mono text-xs font-bold tabular-nums">
+                            <div className="flex flex-col items-end">
+                                <span className={isSplitExp ? 'text-red-600 dark:text-red-400 font-black' : 'text-emerald-600 dark:text-emerald-400 font-black'}>
+                                    {formatCurrency(splitAmount, language)}
+                                </span>
+                                <span className="text-[8px] font-bold uppercase text-indigo-500/80">
+                                    Fatia {sIdx + 1}
+                                </span>
                             </div>
-                        </div>
-                    )}
-                </div>
-            </td>
-            <td className="px-4 py-2.5 text-center">
-                <span className={`inline-block text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wide border ${
-                    sourceInfo.isManual
-                        ? 'bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border-amber-300/80 dark:border-amber-700/60 shadow-2xs'
-                        : sourceInfo.isSms 
-                            ? 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border-sky-200 dark:border-sky-800' 
-                            : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700'
-                }`}>
-                    {sourceInfo.label}
-                </span>
-            </td>
-            <td className="px-4 py-2.5">
-                <div className="flex items-center gap-2">
-                    <BuildingOfficeIcon className={`w-3.5 h-3.5 shrink-0 ${isIdentified ? 'text-indigo-400' : 'text-slate-300'}`} />
-                    <span className={`text-[11px] font-bold break-words ${isIdentified ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400'}`}>
-                        {row.church?.name || '---'}
-                    </span>
-                </div>
-            </td>
-            <td className="px-4 py-2.5 text-center">
-                {confirmed ? (
-                    <span className="text-[9px] font-bold px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100 uppercase flex items-center justify-center gap-1">
-                        <LockClosedIcon className="w-2.5 h-2.5" /> Fechado
-                    </span>
-                ) : isIdentified ? (
-                    isManualRow ? (
-                        <span className="text-[9px] font-bold px-2 py-0.5 bg-amber-50 text-amber-800 rounded-full border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 uppercase">Manual</span>
-                    ) : (
-                        <span className="text-[9px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100 uppercase">Auto</span>
-                    )
-                ) : (
-                    <span className="text-[9px] font-bold px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full border border-amber-100 uppercase">Pendente</span>
-                )}
-            </td>
-            <td className="px-4 py-2.5">
-                {row.splits && row.splits.length > 0 ? (
-                    <span className="text-[9px] font-bold uppercase bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-100 dark:border-indigo-900/30">Rateado</span>
-                ) : (
-                    <span className="text-[9px] font-bold uppercase bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-1.5 py-0.5 rounded">{displayType}</span>
-                )}
-            </td>
-            <td className="px-4 py-2.5"><span className="text-[10px] font-bold text-slate-500 uppercase">{displayForm}</span></td>
-            <td className="px-4 py-2.5 text-right font-mono text-xs font-bold tabular-nums">
-                <span className={isExpense ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}>
-                    {formatCurrency(displayAmount, language)}
-                </span>
-            </td>
-            <td className="px-4 py-2.5 text-center">
-                <div className="flex gap-1.5 items-center justify-center">
-                    {/* Ações adicionais no hover */}
-                    <div className="flex gap-1 items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                        {canPrintReceipt && (
-                            <button 
-                                onClick={() => onGenerateReceipt(row)} 
-                                className="p-1.5 rounded-lg text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400 dark:hover:bg-blue-900/30 transition-all border border-blue-100/50 dark:border-blue-900/20 cursor-pointer shadow-sm" 
-                                title="Gerar e Imprimir Recibo"
-                            >
-                                <Printer className="w-3.5 h-3.5" />
-                            </button>
-                        )}
-
-                        {confirmed ? (
-                            (!isClosedPeriod && canConfirmFinal) && (
-                                <button onClick={() => onToggleLock(row.transaction.id, false)} className="p-1.5 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 cursor-pointer" title="Remover Bloqueio">
-                                    <LockOpenIcon className="w-3.5 h-3.5" />
-                                </button>
-                            )
-                        ) : (
-                            !isClosedPeriod && (
-                                <>
-                                    {isManualRow && onEdit && (
-                                        <button 
-                                            onClick={() => onEdit(row)} 
-                                            className="p-1.5 rounded-lg text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-900/30 transition-colors cursor-pointer border border-amber-200/60 dark:border-amber-800/40 shadow-xs" 
-                                            title="Editar Lançamento Manual"
-                                        >
-                                            <Pencil className="w-3.5 h-3.5" />
-                                        </button>
-                                    )}
-                                    {isIdentified && canUndoIdentification && <button onClick={() => onUndo(row.transaction.id)} className="p-1.5 rounded-lg text-amber-600 bg-amber-50 hover:bg-amber-100 cursor-pointer" title="Desfazer auto-identificação"><ArrowUturnLeftIcon className="w-3.5 h-3.5" /></button>}
-                                    {canDeleteRow && (
-                                        <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg text-rose-600 bg-rose-50 hover:bg-rose-100 cursor-pointer" title="Excluir"><TrashIcon className="w-3.5 h-3.5" /></button>
-                                    )}
-                                    {onSplit && (
-                                        <button 
-                                            onClick={() => onSplit(row)} 
-                                            className="p-1.5 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors cursor-pointer" 
-                                            title="Desmembrar / Ratear Lançamento"
-                                        >
-                                            <GitFork className="w-3.5 h-3.5" />
-                                        </button>
-                                    )}
-                                </>
-                            )
-                        )}
-                    </div>
-                </div>
-            </td>
-        </tr>
+                        </td>
+                        {/* Ações col */}
+                        <td className="px-4 py-2 text-center">
+                            <div className="flex gap-1 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                {canPrintReceipt && (
+                                    <button 
+                                        onClick={() => {
+                                            const splitReceiptRow: MatchResult = {
+                                                ...row,
+                                                transaction: {
+                                                    ...row.transaction,
+                                                    id: `${row.transaction.id}-split-${s.id || sIdx}`,
+                                                    amount: splitAmount
+                                                },
+                                                contributorAmount: splitAmount,
+                                                contributor: {
+                                                    ...(row.contributor || {}),
+                                                    id: (row.contributor as any)?.id || `split-contributor-${s.id || sIdx}`,
+                                                    name: splitContributorName,
+                                                    amount: splitAmount,
+                                                    contributionType: splitType,
+                                                    paymentMethod: splitForm
+                                                } as any,
+                                                church: {
+                                                    ...(row.church || {}),
+                                                    id: s.churchId || row.church?.id || 'unidentified',
+                                                    name: splitChurchName
+                                                } as any,
+                                                contributionType: splitType,
+                                                paymentMethod: splitForm
+                                            };
+                                            onGenerateReceipt(splitReceiptRow);
+                                        }} 
+                                        className="p-1 rounded text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-200/50 cursor-pointer shadow-2xs" 
+                                        title={`Imprimir Recibo da Divisão: ${splitType} (${formatCurrency(splitAmount, language)})`}
+                                    >
+                                        <Printer className="w-3 h-3" />
+                                    </button>
+                                )}
+                            </div>
+                        </td>
+                    </tr>
+                );
+            })}
+        </React.Fragment>
     );
 });
 

@@ -313,19 +313,41 @@ export const RelatoriosView: React.FC = memo(() => {
         let pendingCount = 0;
 
         filteredReportData.forEach((tx: any) => {
-            const amount = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
-            const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
+            const txSplits = (Array.isArray(tx.splits) && tx.splits.length > 0)
+                ? tx.splits
+                : (Array.isArray(tx.raw?.splits) && tx.raw.splits.length > 0)
+                    ? tx.raw.splits
+                    : null;
+            const isBaseExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
             const isPending = tx.status === 'pending' || tx.unidentified || tx.isPending;
 
-            if (isPending) {
-                pending += amount;
-                pendingCount++;
-            }
-
-            if (isExpense) {
-                expenses += amount;
+            if (txSplits && txSplits.length > 0) {
+                txSplits.forEach((s: any) => {
+                    const splitAmt = Math.abs(Number(s.amount) || 0);
+                    const isSplitExpense = s.amount < 0 || isBaseExpense;
+                    if (isPending) {
+                        pending += splitAmt;
+                    }
+                    if (isSplitExpense) {
+                        expenses += splitAmt;
+                    } else {
+                        income += splitAmt;
+                    }
+                });
+                if (isPending) {
+                    pendingCount++;
+                }
             } else {
-                income += amount;
+                const amount = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
+                if (isPending) {
+                    pending += amount;
+                    pendingCount++;
+                }
+                if (isBaseExpense) {
+                    expenses += amount;
+                } else {
+                    income += amount;
+                }
             }
         });
 
@@ -346,20 +368,47 @@ export const RelatoriosView: React.FC = memo(() => {
         const churchDataMap = new Map<string, { txCount: number; totalIncome: number; totalExpenses: number }>();
         
         (reportData || []).forEach((tx: any) => {
-            const cId = tx.churchId || tx.church;
-            if (!cId) return;
-            let entry = churchDataMap.get(cId);
-            if (!entry) {
-                entry = { txCount: 0, totalIncome: 0, totalExpenses: 0 };
-                churchDataMap.set(cId, entry);
-            }
-            entry.txCount++;
-            const amt = Number(tx.amount) || Number(tx.val) || 0;
-            const isExpense = tx.type === 'expense' || amt < 0;
-            if (isExpense) {
-                entry.totalExpenses += Math.abs(amt);
+            const txSplits = (Array.isArray(tx.splits) && tx.splits.length > 0)
+                ? tx.splits
+                : (Array.isArray(tx.raw?.splits) && tx.raw.splits.length > 0)
+                    ? tx.raw.splits
+                    : null;
+            const isBaseExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
+
+            if (txSplits && txSplits.length > 0) {
+                txSplits.forEach((s: any) => {
+                    const cId = s.churchId || s.church || tx.churchId || tx.church;
+                    if (!cId) return;
+                    let entry = churchDataMap.get(cId);
+                    if (!entry) {
+                        entry = { txCount: 0, totalIncome: 0, totalExpenses: 0 };
+                        churchDataMap.set(cId, entry);
+                    }
+                    entry.txCount++;
+                    const amt = Math.abs(Number(s.amount) || 0);
+                    const isSplitExpense = s.amount < 0 || isBaseExpense;
+                    if (isSplitExpense) {
+                        entry.totalExpenses += amt;
+                    } else {
+                        entry.totalIncome += amt;
+                    }
+                });
             } else {
-                entry.totalIncome += amt;
+                const cId = tx.churchId || tx.church;
+                if (!cId) return;
+                let entry = churchDataMap.get(cId);
+                if (!entry) {
+                    entry = { txCount: 0, totalIncome: 0, totalExpenses: 0 };
+                    churchDataMap.set(cId, entry);
+                }
+                entry.txCount++;
+                const amt = Number(tx.amount) || Number(tx.val) || 0;
+                const isExpense = isBaseExpense || amt < 0;
+                if (isExpense) {
+                    entry.totalExpenses += Math.abs(amt);
+                } else {
+                    entry.totalIncome += amt;
+                }
             }
         });
 
@@ -396,8 +445,28 @@ export const RelatoriosView: React.FC = memo(() => {
         const map: { [key: string]: { category: string; amount: number; count: number } } = {};
         
         filteredReportData.forEach((tx: any) => {
-            const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
-            if (isExpense) {
+            const isBaseExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
+            const txSplits = (Array.isArray(tx.splits) && tx.splits.length > 0)
+                ? tx.splits
+                : (Array.isArray(tx.raw?.splits) && tx.raw.splits.length > 0)
+                    ? tx.raw.splits
+                    : null;
+
+            if (txSplits && txSplits.length > 0) {
+                txSplits.forEach((s: any) => {
+                    const splitAmt = Math.abs(Number(s.amount) || 0);
+                    if (splitAmt <= 0) return;
+                    const isSplitExpense = s.amount < 0 || isBaseExpense;
+                    if (isSplitExpense) {
+                        const catName = s.contributionType || s.category || s.categoria || s.destino || tx.category || tx.categoria || 'Despesas Gerais / Manutenção';
+                        if (!map[catName]) {
+                            map[catName] = { category: catName, amount: 0, count: 0 };
+                        }
+                        map[catName].amount += splitAmt;
+                        map[catName].count += 1;
+                    }
+                });
+            } else if (isBaseExpense) {
                 const catName = tx.category || tx.categoria || 'Despesas Gerais / Manutenção';
                 const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
                 if (!map[catName]) {
@@ -416,8 +485,28 @@ export const RelatoriosView: React.FC = memo(() => {
         const map: { [key: string]: { category: string; amount: number; count: number } } = {};
         
         filteredReportData.forEach((tx: any) => {
-            const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
-            if (!isExpense) {
+            const isBaseExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
+            const txSplits = (Array.isArray(tx.splits) && tx.splits.length > 0)
+                ? tx.splits
+                : (Array.isArray(tx.raw?.splits) && tx.raw.splits.length > 0)
+                    ? tx.raw.splits
+                    : null;
+
+            if (txSplits && txSplits.length > 0) {
+                txSplits.forEach((s: any) => {
+                    const splitAmt = Math.abs(Number(s.amount) || 0);
+                    if (splitAmt <= 0) return;
+                    const isSplitExpense = s.amount < 0 || isBaseExpense;
+                    if (!isSplitExpense) {
+                        const catName = s.contributionType || s.category || s.categoria || s.destino || tx.category || tx.categoria || 'Dízimos & Ofertas';
+                        if (!map[catName]) {
+                            map[catName] = { category: catName, amount: 0, count: 0 };
+                        }
+                        map[catName].amount += splitAmt;
+                        map[catName].count += 1;
+                    }
+                });
+            } else if (!isBaseExpense) {
                 const catName = tx.category || tx.categoria || 'Dízimos & Ofertas';
                 const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
                 if (!map[catName]) {

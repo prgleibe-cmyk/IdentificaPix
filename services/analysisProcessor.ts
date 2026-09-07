@@ -58,7 +58,7 @@ export const analysisProcessor = {
         
         return results.map((r: any) => {
             // Tenta localizar ID da igreja em várias propriedades possíveis (legado vs novo)
-            const savedChurchId = r.church?.id || r._churchId || (r.contributor && r.contributor._churchId);
+            const savedChurchId = r.church?.id || r._churchId || r.churchId || r.church_id || (r.transaction && (r.transaction.church_id || r.transaction.churchId)) || (r.contributor && (r.contributor._churchId || r.contributor.churchId || r.contributor.church_id));
             let completeChurch = r.church;
             
             // Se tiver um ID, tenta buscar o objeto atualizado na lista de igrejas do contexto

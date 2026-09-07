@@ -1252,22 +1252,51 @@ ${itemsOfx}
     downloadLivroCaixaExcel: (transactions: any[], churches: any[], filename: string = 'livro_caixa.xlsx') => {
         const getChurchName = (item: any) => item.church || churches.find(c => c.id === item.churchId)?.name || 'Igreja Sede';
         
-        const excelRows = transactions.map(tx => {
-            const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
-            const amount = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
+        const excelRows: any[] = [];
+        transactions.forEach(tx => {
+            const isBaseExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
             const dateStr = tx.date || '---';
             const bankDateStr = tx.bank_date || tx.bankDate || tx.date || '---';
+            const baseDesc = (tx.desc || tx.description || tx.historico || 'Lançamento').toUpperCase();
+            const payer = tx.payer || tx.contribuinte || tx.nome || '---';
 
-            return {
-                "Data": dateStr,
-                "Data do Banco": bankDateStr,
-                "Descrição / Histórico": (tx.desc || tx.description || tx.historico || 'Lançamento').toUpperCase(),
-                "Contribuinte / Favorecido": tx.payer || tx.contribuinte || tx.nome || '---',
-                "Categoria": tx.category || tx.categoria || 'Geral',
-                "Igreja": getChurchName(tx),
-                "Descrição": isExpense ? 'Saída' : 'Entrada',
-                "Valor (R$)": isExpense ? -amount : amount
-            };
+            const txSplits = (Array.isArray(tx.splits) && tx.splits.length > 0)
+                ? tx.splits
+                : (Array.isArray(tx.raw?.splits) && tx.raw.splits.length > 0)
+                    ? tx.raw.splits
+                    : null;
+
+            if (txSplits && txSplits.length > 0) {
+                txSplits.forEach((s: any, idx: number) => {
+                    const splitAmt = Math.abs(Number(s.amount) || 0);
+                    const isSplitExpense = s.amount < 0 || isBaseExpense;
+                    const cat = s.contributionType || s.category || s.categoria || s.destino || tx.category || 'Rateio';
+                    const church = s.churchName || (s.churchId ? churches.find(c => c.id === s.churchId)?.name : null) || getChurchName(tx);
+
+                    excelRows.push({
+                        "Data": dateStr,
+                        "Data do Banco": bankDateStr,
+                        "Descrição / Histórico": `${baseDesc} (RATEIO ${idx + 1}/${txSplits.length})`,
+                        "Contribuinte / Favorecido": s.contributorName || payer,
+                        "Categoria": cat,
+                        "Igreja": church,
+                        "Descrição": isSplitExpense ? 'Saída' : 'Entrada',
+                        "Valor (R$)": isSplitExpense ? -splitAmt : splitAmt
+                    });
+                });
+            } else {
+                const amount = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
+                excelRows.push({
+                    "Data": dateStr,
+                    "Data do Banco": bankDateStr,
+                    "Descrição / Histórico": baseDesc,
+                    "Contribuinte / Favorecido": payer,
+                    "Categoria": tx.category || tx.categoria || 'Geral',
+                    "Igreja": getChurchName(tx),
+                    "Descrição": isBaseExpense ? 'Saída' : 'Entrada',
+                    "Valor (R$)": isBaseExpense ? -amount : amount
+                });
+            }
         });
 
         const worksheet = XLSX.utils.json_to_sheet(excelRows);
@@ -1308,35 +1337,80 @@ ${itemsOfx}
         }
 
         transactions.forEach((item: any) => {
-            const amt = Math.abs(Number(item.amount) || Number(item.val) || 0);
-            const pm = (item.paymentMethod || item.forma || '').toString().toUpperCase();
-            const cat = (item.category || item.categoria || '').toString().toUpperCase();
-            const desc = (item.desc || item.description || item.historico || '').toString().toUpperCase();
-            const isExp = item.type === 'expense' || Number(item.amount) < 0 || cat.includes('SAIDA') || cat.includes('SAÍDA');
+            const itemSplits = (Array.isArray(item.splits) && item.splits.length > 0)
+                ? item.splits
+                : (Array.isArray(item.raw?.splits) && item.raw.splits.length > 0)
+                    ? item.raw.splits
+                    : null;
 
-            const isTransf = pm.includes('TRANSFER') || pm.includes('TED') || pm.includes('DOC') || cat.includes('TRANSFER') || desc.includes('TRANSFER');
+            const isBaseExp = item.type === 'expense' || Number(item.amount) < 0 || (item.category && (item.category.toLowerCase().includes('saida') || item.category.toLowerCase().includes('saída')));
 
-            if (isExp) {
-                if (isTransf) {
-                    transfEnviadas += amt;
-                } else if (pm.includes('DINHEIRO') || pm.includes('ESPÉCIE') || pm.includes('ESPECIE')) {
-                    saidasDinheiro += amt;
-                } else if (pm.includes('PIX')) {
-                    saidasPix += amt;
-                } else if (pm.includes('BOLETO') || pm.includes('FATURA') || pm.includes('CARTÃO') || pm.includes('CARTAO')) {
-                    saidasBoletoFaturas += amt;
-                } else {
-                    saidasOutras += amt;
-                }
+            if (itemSplits && itemSplits.length > 0) {
+                itemSplits.forEach((s: any) => {
+                    const splitAmt = Math.abs(Number(s.amount) || 0);
+                    if (splitAmt <= 0) return;
+
+                    const pm = (s.paymentMethod || item.paymentMethod || item.forma || '').toString().toUpperCase();
+                    const cat = (s.contributionType || s.category || item.category || item.categoria || '').toString().toUpperCase();
+                    const desc = (s.description || item.desc || item.description || item.historico || '').toString().toUpperCase();
+                    const isExp = s.amount < 0 || isBaseExp || cat.includes('SAIDA') || cat.includes('SAÍDA');
+                    const isTransf = pm.includes('TRANSFER') || pm.includes('TED') || pm.includes('DOC') || cat.includes('TRANSFER') || desc.includes('TRANSFER');
+
+                    if (isExp) {
+                        if (isTransf) {
+                            transfEnviadas += splitAmt;
+                        } else if (pm.includes('DINHEIRO') || pm.includes('ESPÉCIE') || pm.includes('ESPECIE')) {
+                            saidasDinheiro += splitAmt;
+                        } else if (pm.includes('PIX')) {
+                            saidasPix += splitAmt;
+                        } else if (pm.includes('BOLETO') || pm.includes('FATURA') || pm.includes('CARTÃO') || pm.includes('CARTAO')) {
+                            saidasBoletoFaturas += splitAmt;
+                        } else {
+                            saidasOutras += splitAmt;
+                        }
+                    } else {
+                        if (isTransf) {
+                            transfRecebidas += splitAmt;
+                        } else if (pm.includes('DINHEIRO') || pm.includes('ESPÉCIE') || pm.includes('ESPECIE')) {
+                            entradasDinheiro += splitAmt;
+                        } else if (pm.includes('PIX')) {
+                            entradasPix += splitAmt;
+                        } else {
+                            entradasOutras += splitAmt;
+                        }
+                    }
+                });
             } else {
-                if (isTransf) {
-                    transfRecebidas += amt;
-                } else if (pm.includes('DINHEIRO') || pm.includes('ESPÉCIE') || pm.includes('ESPECIE')) {
-                    entradasDinheiro += amt;
-                } else if (pm.includes('PIX')) {
-                    entradasPix += amt;
+                const amt = Math.abs(Number(item.amount) || Number(item.val) || 0);
+                const pm = (item.paymentMethod || item.forma || '').toString().toUpperCase();
+                const cat = (item.category || item.categoria || '').toString().toUpperCase();
+                const desc = (item.desc || item.description || item.historico || '').toString().toUpperCase();
+                const isExp = isBaseExp || cat.includes('SAIDA') || cat.includes('SAÍDA');
+
+                const isTransf = pm.includes('TRANSFER') || pm.includes('TED') || pm.includes('DOC') || cat.includes('TRANSFER') || desc.includes('TRANSFER');
+
+                if (isExp) {
+                    if (isTransf) {
+                        transfEnviadas += amt;
+                    } else if (pm.includes('DINHEIRO') || pm.includes('ESPÉCIE') || pm.includes('ESPECIE')) {
+                        saidasDinheiro += amt;
+                    } else if (pm.includes('PIX')) {
+                        saidasPix += amt;
+                    } else if (pm.includes('BOLETO') || pm.includes('FATURA') || pm.includes('CARTÃO') || pm.includes('CARTAO')) {
+                        saidasBoletoFaturas += amt;
+                    } else {
+                        saidasOutras += amt;
+                    }
                 } else {
-                    entradasOutras += amt;
+                    if (isTransf) {
+                        transfRecebidas += amt;
+                    } else if (pm.includes('DINHEIRO') || pm.includes('ESPÉCIE') || pm.includes('ESPECIE')) {
+                        entradasDinheiro += amt;
+                    } else if (pm.includes('PIX')) {
+                        entradasPix += amt;
+                    } else {
+                        entradasOutras += amt;
+                    }
                 }
             }
         });
