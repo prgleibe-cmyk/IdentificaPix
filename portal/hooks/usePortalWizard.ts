@@ -5,7 +5,7 @@ import {
     ContributionItemMock, 
     IdentificationType 
 } from '../types/portal';
-import { generateMockReferenceNumber } from '../utils/portalFormatters';
+import { generateMockReferenceNumber, formatDateToDmy } from '../utils/portalFormatters';
 
 const DEFAULT_CONTRIBUTION_CATEGORIES: ContributionItemMock[] = [
     { id: 'dizimo', label: 'Dízimo', description: 'Contribuição regular de dízimo senhorial', selected: true, amount: 100 },
@@ -164,7 +164,7 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
                     phone: matched.phone || matched.whatsapp || (type === 'phone' ? val : ''),
                     whatsapp: matched.whatsapp || matched.phone || '',
                     email: matched.email || (type === 'email' ? val : ''),
-                    birth_date: matched.birth_date || '',
+                    birth_date: formatDateToDmy(matched.birth_date) || '',
                     person_type: matched.person_type || 'PF',
                     trade_name: matched.trade_name || '',
                     rg_ie: matched.rg_ie || '',

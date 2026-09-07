@@ -9,7 +9,8 @@ import {
     formatPhone, 
     validateCpfVisual, 
     validatePhoneVisual, 
-    validateEmailVisual 
+    validateEmailVisual,
+    formatDateToDmy 
 } from '../utils/portalFormatters';
 import { 
     ShieldCheck, 
@@ -343,7 +344,7 @@ export const PortalIdentifyStep: React.FC<PortalIdentifyStepProps> = ({
                                             {contributor.birth_date && (
                                                 <div className="flex items-center justify-between">
                                                     <span className="text-[11px] text-slate-400">Nascimento:</span>
-                                                    <span className="font-bold">{contributor.birth_date}</span>
+                                                    <span className="font-bold">{formatDateToDmy(contributor.birth_date)}</span>
                                                 </div>
                                             )}
                                             {(contributor.address_city || contributor.address_street) && (

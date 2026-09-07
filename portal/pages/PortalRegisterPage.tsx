@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PortalContainer } from '../components/PortalContainer';
 import { PortalChurch, ContributorMockProfile } from '../types/portal';
-import { formatCpf, formatPhone, validateEmailVisual, validateCpfVisual } from '../utils/portalFormatters';
+import { formatCpf, formatPhone, validateEmailVisual, validateCpfVisual, formatDateToDmy, formatDateToYmd } from '../utils/portalFormatters';
 import { invalidateContributorsCache } from '../../services/contributorsCache';
 import { 
     Building2, 
@@ -139,9 +139,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                         setEmail(c.email);
                     }
                     if (c.birth_date) {
-                        // Format to YYYY-MM-DD for date input
-                        const bDate = String(c.birth_date).split('T')[0];
-                        setBirthDate(bDate);
+                        setBirthDate(formatDateToYmd(c.birth_date));
                     }
                     if (c.address_city) setCity(c.address_city);
                     if (c.address_state) setState(c.address_state);
@@ -165,7 +163,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                 }
                 if (localFound.email) setEmail(localFound.email);
                 if (localFound.birth_date) {
-                    setBirthDate(String(localFound.birth_date).split('T')[0]);
+                    setBirthDate(formatDateToYmd(localFound.birth_date));
                 }
                 if (localFound.address_city) setCity(localFound.address_city);
                 if (localFound.address_state) setState(localFound.address_state);
@@ -276,7 +274,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
         if (c.cpf) setCpf(formatCpf(c.cpf));
         if (c.phone || c.whatsapp) setPhone(formatPhone(c.phone || c.whatsapp));
         if (c.email) setEmail(c.email);
-        if (c.birth_date) setBirthDate(String(c.birth_date).split('T')[0]);
+        if (c.birth_date) setBirthDate(formatDateToYmd(c.birth_date));
         if (c.address_city) setCity(c.address_city);
         if (c.address_state) setState(c.address_state);
         if (c.photo_url || c.photo || c.avatarUrl) setPhotoUrl(c.photo_url || c.photo || c.avatarUrl);
@@ -353,7 +351,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                     phone: cleanPhone,
                     whatsapp: cleanPhone,
                     email: cleanEmail || null,
-                    birth_date: birthDate || null,
+                    birth_date: formatDateToDmy(birthDate) || null,
                     address_city: city || null,
                     address_state: state || null,
                     role_position: 'Membro',
@@ -394,7 +392,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                     congregation: congregation || selectedChurch?.name || 'Sede Central',
                     city: city,
                     state: state,
-                    birth_date: birthDate,
+                    birth_date: formatDateToDmy(birthDate) || undefined,
                     photo_url: photoUrl || undefined,
                     avatarUrl: photoUrl || undefined,
                     isExisting: true
@@ -419,7 +417,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                 phone: cleanPhone,
                 whatsapp: cleanPhone,
                 email: cleanEmail || null,
-                birth_date: birthDate || null,
+                birth_date: formatDateToDmy(birthDate) || null,
                 address_city: city || null,
                 address_state: state || null,
                 role_position: 'Membro',
@@ -453,7 +451,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                     congregation: congregation || selectedChurch?.name || 'Sede Central',
                     city: city,
                     state: state,
-                    birth_date: birthDate,
+                    birth_date: formatDateToDmy(birthDate) || undefined,
                     photo_url: photoUrl || undefined,
                     avatarUrl: photoUrl || undefined,
                     isExisting: true
@@ -488,7 +486,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                 congregation: congregation || selectedChurch?.name || 'Sede Central',
                 city: city,
                 state: state,
-                birth_date: birthDate,
+                birth_date: formatDateToDmy(birthDate) || undefined,
                 isExisting: true
             };
 

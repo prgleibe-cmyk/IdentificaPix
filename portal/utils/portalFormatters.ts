@@ -44,3 +44,29 @@ export const validatePhoneVisual = (phone: string): boolean => {
 export const validateEmailVisual = (email: string): boolean => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 };
+
+export const formatDateToDmy = (value?: string | null): string => {
+    if (!value) return '';
+    const clean = String(value).trim();
+    const dmy = clean.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (dmy) return clean;
+    const ymd = clean.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (ymd) {
+        return `${ymd[3]}/${ymd[2]}/${ymd[1]}`;
+    }
+    return clean;
+};
+
+export const formatDateToYmd = (value?: string | null): string => {
+    if (!value) return '';
+    const clean = String(value).trim();
+    const dmy = clean.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (dmy) {
+        return `${dmy[3]}-${dmy[2]}-${dmy[1]}`;
+    }
+    const ymd = clean.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (ymd) {
+        return `${ymd[1]}-${ymd[2]}-${ymd[3]}`;
+    }
+    return '';
+};

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ContributorMockProfile, PortalChurch } from '../types/portal';
 import { checkProfileCompleteness } from '../utils/portalProfileCompleteness';
-import { formatCpf, formatPhone, validateCpfVisual, validatePhoneVisual, validateEmailVisual } from '../utils/portalFormatters';
+import { formatCpf, formatPhone, validateCpfVisual, validatePhoneVisual, validateEmailVisual, formatDateToDmy } from '../utils/portalFormatters';
 import { invalidateContributorsCache } from '../../services/contributorsCache';
 import { 
     X, 
@@ -72,7 +72,7 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
             setCpf(contributor.cpf ? formatCpf(contributor.cpf) : '');
             setPhone(contributor.phone || contributor.whatsapp ? formatPhone(contributor.phone || contributor.whatsapp || '') : '');
             setEmail(contributor.email || '');
-            setBirthDate(contributor.birth_date || '');
+            setBirthDate(formatDateToDmy(contributor.birth_date));
             setAddressCep(contributor.address_cep || '');
             setAddressStreet(contributor.address_street || '');
             setAddressNumber(contributor.address_number || '');
@@ -262,7 +262,7 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                 phone: cleanPhoneDigits,
                 whatsapp: cleanPhoneDigits,
                 email: email.trim() || null,
-                birth_date: birthDate.trim() || null,
+                birth_date: formatDateToDmy(birthDate.trim()) || null,
                 address_cep: addressCep.trim() || null,
                 address_street: addressStreet.trim() || null,
                 address_number: addressNumber.trim() || null,
@@ -343,7 +343,7 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                 phone: cleanPhoneDigits ? formatPhone(cleanPhoneDigits) : phone,
                 whatsapp: cleanPhoneDigits ? formatPhone(cleanPhoneDigits) : phone,
                 email: email.trim() || undefined,
-                birth_date: birthDate.trim() || undefined,
+                birth_date: formatDateToDmy(birthDate.trim()) || undefined,
                 address_cep: addressCep.trim() || undefined,
                 address_street: addressStreet.trim() || undefined,
                 address_number: addressNumber.trim() || undefined,

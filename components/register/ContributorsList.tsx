@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useContext, useMemo } from 'react';
 import { getCachedContributors, invalidateContributorsCache } from '../../services/contributorsCache';
+import { formatDateToDmy, formatDateToYmd } from '../../portal/utils/portalFormatters';
 import { useUI } from '../../contexts/UIContext';
 import { AppContext } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -580,7 +581,7 @@ export const ContributorsList: React.FC = () => {
         setIsGlobal(Boolean(contributor.is_global));
         setCpf(contributor.cpf || '');
         setRgIe(contributor.rg_ie || '');
-        setBirthDate(contributor.birth_date || '');
+        setBirthDate(formatDateToYmd(contributor.birth_date));
         setContactPerson(contributor.contact_person || '');
 
         const savedCat = contributor.category || '';
@@ -775,7 +776,7 @@ export const ContributorsList: React.FC = () => {
                 person_type: personType,
                 trade_name: tradeName.trim() || null,
                 rg_ie: rgIe.trim() || null,
-                birth_date: birthDate || null,
+                birth_date: formatDateToDmy(birthDate) || null,
                 contact_person: contactPerson.trim() || null,
                 category: category || rolePosition || null,
                 pix_key: pixKey.trim() || null,
