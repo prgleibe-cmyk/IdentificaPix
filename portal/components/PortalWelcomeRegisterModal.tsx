@@ -85,7 +85,7 @@ export const PortalWelcomeRegisterModal: React.FC<PortalWelcomeRegisterModalProp
                                     <img
                                         src={church.logoUrl}
                                         alt={churchName}
-                                        className="w-full h-full object-cover rounded-[1.3rem] bg-white"
+                                        className="w-full h-full object-contain p-2 rounded-[1.3rem] bg-white"
                                     />
                                 ) : (
                                     <div className="w-full h-full rounded-[1.3rem] bg-white dark:bg-slate-800 flex items-center justify-center text-emerald-600">

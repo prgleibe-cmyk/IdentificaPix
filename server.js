@@ -196,6 +196,15 @@ try {
         next();
     });
 
+    // Alias direto para o ícone com safe-zone do portal
+    app.get(['/api/portal/church-icon', '/portal/church-icon'], (req, res, next) => {
+        req.url = `/api/v1/portal/church-icon${req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : ''}`;
+        if (contributorsApp) {
+            return contributorsApp(req, res, next);
+        }
+        next();
+    });
+
     // Endpoint de depuração do microserviço Contributors API
     app.get('/api/admin/debug-contributors-api', async (req, res) => {
         const diagnostics = {

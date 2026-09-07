@@ -69,6 +69,23 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
     const [apiError, setApiError] = useState<string | null>(null);
 
     useEffect(() => {
+        if (churchName && churchName !== 'Igreja') {
+            setWizardState(prev => {
+                if (!prev.contributor.congregation || prev.contributor.congregation === 'Sede Central') {
+                    return {
+                        ...prev,
+                        contributor: {
+                            ...prev.contributor,
+                            congregation: churchName
+                        }
+                    };
+                }
+                return prev;
+            });
+        }
+    }, [churchName]);
+
+    useEffect(() => {
         let isMounted = true;
         const fetchPublicTypes = async () => {
             try {

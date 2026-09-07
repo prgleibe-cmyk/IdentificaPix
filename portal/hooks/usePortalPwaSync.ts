@@ -18,15 +18,19 @@ export const usePortalPwaSync = (church?: PortalChurch | null) => {
             metaAppTitle.setAttribute('content', name);
         }
 
-        // 3. Update Favicon & Apple Touch Icons
+        // 3. Update Favicon & Apple Touch Icons (com Safe Zone para evitar cortes no iOS e Android)
+        const safeIconUrl = churchId
+            ? `/api/portal/church-icon?church_id=${encodeURIComponent(churchId)}&size=512`
+            : logo;
+
         let faviconLink = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
         if (faviconLink) {
-            faviconLink.href = logo;
+            faviconLink.href = safeIconUrl;
         }
 
         let appleTouchLink = document.querySelector('link[rel="apple-touch-icon"]') as HTMLLinkElement;
         if (appleTouchLink) {
-            appleTouchLink.href = logo;
+            appleTouchLink.href = safeIconUrl;
         }
 
         // 4. Set Dynamic Church PWA Manifest

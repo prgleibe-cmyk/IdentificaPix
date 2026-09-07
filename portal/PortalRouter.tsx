@@ -8,77 +8,80 @@ import { PortalReportsPage } from './pages/PortalReportsPage';
 import { PortalPledgesPage } from './pages/PortalPledgesPage';
 import { PortalComingSoonPage } from './pages/PortalComingSoonPage';
 import { PortalNotFoundPage } from './pages/PortalNotFoundPage';
+import { PortalLoading } from './components/PortalLoading';
 import { usePortalChurchResolver } from './hooks/usePortalChurchResolver';
 import { PortalRoute } from './types/portal';
 
+export const parsePortalLocation = (): { route: PortalRoute; slug?: string } => {
+    if (typeof window === 'undefined') return { route: 'home', slug: undefined };
+    const path = window.location.pathname.toLowerCase();
+    const hash = window.location.hash.toLowerCase();
+
+    // Normalize path & hash
+    let clean = hash.startsWith('#') ? hash.slice(1) : path;
+    clean = clean.split('?')[0]; // strip query parameters
+    if (clean.startsWith('/portal')) {
+        clean = clean.replace(/^\/portal/, '');
+    }
+
+    const parts = clean.split('/').filter(Boolean);
+
+    // Query params fallback
+    const urlParams = new URLSearchParams(window.location.search);
+    const querySlug = urlParams.get('church') || urlParams.get('igreja') || urlParams.get('c') || undefined;
+
+    if (parts.length === 0) {
+        return { route: 'home', slug: querySlug };
+    } else if (parts[0] === 'cadastro' || parts[0] === 'cadastrar' || parts[0] === 'register') {
+        return { route: 'register', slug: parts[1] || querySlug };
+    } else if (parts[0] === 'identify' || parts[0] === 'identificar') {
+        return { route: 'identify', slug: querySlug };
+    } else if (parts[0] === 'reports' || parts[0] === 'relatorios') {
+        return { route: 'reports', slug: querySlug };
+    } else if (parts[0] === 'pledges' || parts[0] === 'carnes') {
+        return { route: 'pledges', slug: querySlug };
+    } else if (parts[0] === 'coming_soon') {
+        return { route: 'coming_soon', slug: querySlug };
+    } else if (parts[0] === 'church' && parts[1]) {
+        if (parts[2] === 'cadastro' || parts[2] === 'cadastrar' || parts[2] === 'register') {
+            return { route: 'register', slug: parts[1] };
+        } else {
+            return { route: 'church', slug: parts[1] };
+        }
+    } else if (parts[0]) {
+        if (parts[1] === 'cadastro' || parts[1] === 'cadastrar' || parts[1] === 'register') {
+            return { route: 'register', slug: parts[0] };
+        } else {
+            return { route: 'church', slug: parts[0] };
+        }
+    } else {
+        return { route: 'not_found', slug: querySlug };
+    }
+};
+
 export const PortalRouter: React.FC = () => {
-    const [currentRoute, setCurrentRoute] = useState<PortalRoute>('home');
-    const [churchSlug, setChurchSlug] = useState<string | undefined>(undefined);
+    const [currentRoute, setCurrentRoute] = useState<PortalRoute>(() => parsePortalLocation().route);
+    const [churchSlug, setChurchSlug] = useState<string | undefined>(() => parsePortalLocation().slug);
 
     // Sync route from URL path or hash
     useEffect(() => {
-        const parseLocation = () => {
-            const path = window.location.pathname.toLowerCase();
-            const hash = window.location.hash.toLowerCase();
-            const fullTarget = hash.startsWith('#/portal') 
-                ? hash.replace('#/portal', '') 
-                : path.replace('/portal', '');
-
-            // Normalize path & hash
-            let clean = hash.startsWith('#') ? hash.slice(1) : path;
-            clean = clean.split('?')[0]; // strip query parameters
-            if (clean.startsWith('/portal')) {
-                clean = clean.replace(/^\/portal/, '');
-            }
-
-            const parts = clean.split('/').filter(Boolean);
-
-            if (parts.length === 0) {
-                setCurrentRoute('home');
-                setChurchSlug(undefined);
-            } else if (parts[0] === 'cadastro' || parts[0] === 'cadastrar' || parts[0] === 'register') {
-                setCurrentRoute('register');
-                if (parts[1]) setChurchSlug(parts[1]);
-            } else if (parts[0] === 'identify' || parts[0] === 'identificar') {
-                setCurrentRoute('identify');
-            } else if (parts[0] === 'reports' || parts[0] === 'relatorios') {
-                setCurrentRoute('reports');
-            } else if (parts[0] === 'pledges' || parts[0] === 'carnes') {
-                setCurrentRoute('pledges');
-            } else if (parts[0] === 'coming_soon') {
-                setCurrentRoute('coming_soon');
-            } else if (parts[0] === 'church' && parts[1]) {
-                if (parts[2] === 'cadastro' || parts[2] === 'cadastrar' || parts[2] === 'register') {
-                    setCurrentRoute('register');
-                    setChurchSlug(parts[1]);
-                } else {
-                    setCurrentRoute('church');
-                    setChurchSlug(parts[1]);
-                }
-            } else if (parts[0]) {
-                if (parts[1] === 'cadastro' || parts[1] === 'cadastrar' || parts[1] === 'register') {
-                    setCurrentRoute('register');
-                    setChurchSlug(parts[0]);
-                } else {
-                    setCurrentRoute('church');
-                    setChurchSlug(parts[0]);
-                }
-            } else {
-                setCurrentRoute('not_found');
-            }
+        const syncLocation = () => {
+            const loc = parsePortalLocation();
+            setCurrentRoute(loc.route);
+            setChurchSlug(loc.slug);
         };
 
-        parseLocation();
-        window.addEventListener('popstate', parseLocation);
-        window.addEventListener('hashchange', parseLocation);
+        syncLocation();
+        window.addEventListener('popstate', syncLocation);
+        window.addEventListener('hashchange', syncLocation);
 
         return () => {
-            window.removeEventListener('popstate', parseLocation);
-            window.removeEventListener('hashchange', parseLocation);
+            window.removeEventListener('popstate', syncLocation);
+            window.removeEventListener('hashchange', syncLocation);
         };
     }, []);
 
-    const { church, churchesList } = usePortalChurchResolver(churchSlug);
+    const { church, churchesList, isLoading } = usePortalChurchResolver(churchSlug);
 
     const handleNavigate = (route: string, params?: Record<string, string>) => {
         const routeKey = route as PortalRoute;
@@ -115,6 +118,16 @@ export const PortalRouter: React.FC = () => {
                 return <PortalHome church={church} onNavigate={handleNavigate} />;
         }
     };
+
+    if (isLoading && !church) {
+        return (
+            <PortalLayout church={null} onNavigate={handleNavigate}>
+                <div className="flex-1 flex items-center justify-center p-8 min-h-[50vh]">
+                    <PortalLoading message="Carregando portal da congregação..." />
+                </div>
+            </PortalLayout>
+        );
+    }
 
     return (
         <PortalLayout church={church} onNavigate={handleNavigate}>

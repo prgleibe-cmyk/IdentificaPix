@@ -6340,6 +6340,117 @@ app.delete('/api/v1/pastor_automations/:id', async (req: Request, res: Response)
 // GET /api/v1/admin/migrate-supabase-to-postgres
 
 
+// GET /api/v1/portal/church-icon - Gera ícone otimizado para PWA/Apple Touch com margem segura (Safe Zone)
+app.get('/api/v1/portal/church-icon', async (req: Request, res: Response) => {
+  try {
+    const { church_id, church_slug, size } = req.query;
+    const targetSize = Number(size) === 192 ? 192 : 512;
+    let targetChurch: any = null;
+
+    if (church_id && typeof church_id === 'string' && church_id.trim()) {
+      const q = await pool.query('SELECT id, name, "logoUrl" FROM churches WHERE id = $1 LIMIT 1', [church_id.trim()]);
+      if (q.rows && q.rows.length > 0) {
+        targetChurch = q.rows[0];
+      }
+    }
+
+    if (!targetChurch && church_slug && typeof church_slug === 'string' && church_slug.trim()) {
+      const slugVal = church_slug.trim().toLowerCase();
+      const allChurches = await pool.query('SELECT id, name, "logoUrl" FROM churches');
+      if (allChurches.rows && allChurches.rows.length > 0) {
+        targetChurch = allChurches.rows.find((c: any) => {
+          const s = (c.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+          return s === slugVal || s.includes(slugVal) || c.id === slugVal;
+        }) || null;
+      }
+    }
+
+    if (!targetChurch) {
+      const fallbackQ = await pool.query('SELECT id, name, "logoUrl" FROM churches ORDER BY created_at ASC LIMIT 1');
+      if (fallbackQ.rows && fallbackQ.rows.length > 0) {
+        targetChurch = fallbackQ.rows[0];
+      }
+    }
+
+    const rawLogoUrl = targetChurch?.logoUrl ? targetChurch.logoUrl.trim() : '';
+
+    if (!rawLogoUrl) {
+      const defaultIconPath = path.resolve(process.cwd(), 'public/pwa/icon-512.png');
+      if (fs.existsSync(defaultIconPath)) {
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        return fs.createReadStream(defaultIconPath).pipe(res);
+      }
+      return res.redirect('/pwa/icon-512.png?v=15');
+    }
+
+    // Se for SVG, renderizar SVG em container seguro com margem interna
+    if (rawLogoUrl.includes('image/svg') || rawLogoUrl.endsWith('.svg')) {
+      const safePadding = Math.round(targetSize * 0.16); // 16% safe zone
+      const safeDimension = targetSize - (safePadding * 2);
+      const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${targetSize} ${targetSize}" width="${targetSize}" height="${targetSize}">
+        <rect width="${targetSize}" height="${targetSize}" fill="#ffffff" rx="${Math.round(targetSize * 0.18)}"/>
+        <image href="${rawLogoUrl.replace(/"/g, '&quot;')}" x="${safePadding}" y="${safePadding}" width="${safeDimension}" height="${safeDimension}" preserveAspectRatio="xMidYMid meet"/>
+      </svg>`;
+      res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      return res.send(svgContent);
+    }
+
+    // Processar imagem com Jimp para compor em canvas quadrado branco com safe zone
+    try {
+      const { Jimp } = await import('jimp');
+      let logoBuffer: Buffer | null = null;
+
+      if (rawLogoUrl.startsWith('data:image/')) {
+        const base64Data = rawLogoUrl.replace(/^data:image\/[a-z0-9+.-]+;base64,/, '');
+        logoBuffer = Buffer.from(base64Data, 'base64');
+      } else if (rawLogoUrl.startsWith('http://') || rawLogoUrl.startsWith('https://')) {
+        const fetchRes = await fetch(rawLogoUrl);
+        if (fetchRes.ok) {
+          const arrayBuf = await fetchRes.arrayBuffer();
+          logoBuffer = Buffer.from(arrayBuf);
+        }
+      } else if (rawLogoUrl.startsWith('/')) {
+        const localPath = path.resolve(process.cwd(), 'public', rawLogoUrl.replace(/^\//, ''));
+        if (fs.existsSync(localPath)) {
+          logoBuffer = fs.readFileSync(localPath);
+        }
+      }
+
+      if (logoBuffer) {
+        const logoImg = await (Jimp as any).read(logoBuffer);
+        const canvas = new (Jimp as any)({ width: targetSize, height: targetSize, color: 0xffffffff });
+
+        // Margem segura para ícones adaptativos (Android Maskable e iOS):
+        // Escala máxima de 68% garante que todo o conteúdo fique 100% visível em qualquer máscara (círculo, squircle, cantos arredondados)
+        const maxDim = Math.round(targetSize * 0.68);
+        const scale = Math.min(maxDim / logoImg.width, maxDim / logoImg.height);
+        const scaledW = Math.max(1, Math.round(logoImg.width * scale));
+        const scaledH = Math.max(1, Math.round(logoImg.height * scale));
+
+        logoImg.resize({ w: scaledW, h: scaledH });
+        const posX = Math.round((targetSize - scaledW) / 2);
+        const posY = Math.round((targetSize - scaledH) / 2);
+
+        canvas.composite(logoImg, posX, posY);
+        const finalPngBuffer = await canvas.getBuffer('image/png');
+
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        return res.send(finalPngBuffer);
+      }
+    } catch (jimpErr) {
+      console.warn('[Contributors API] Falha ao processar ícone com Jimp, aplicando fallback:', jimpErr);
+    }
+
+    return res.redirect(rawLogoUrl);
+  } catch (err: any) {
+    console.error('[Contributors API] Erro ao servir ícone do portal:', err);
+    return res.redirect('/pwa/icon-512.png?v=15');
+  }
+});
+
 // GET /api/v1/portal/manifest.json - Manifest dinâmico para PWA do Portal da Igreja
 app.get('/api/v1/portal/manifest.json', async (req: Request, res: Response) => {
   try {
@@ -6374,36 +6485,30 @@ app.get('/api/v1/portal/manifest.json', async (req: Request, res: Response) => {
 
     const churchName = targetChurch?.name || 'Portal do Contribuinte';
     const cleanChurchId = targetChurch?.id || 'default';
-    const logoUrl = (targetChurch && targetChurch.logoUrl && targetChurch.logoUrl.trim()) 
-      ? targetChurch.logoUrl.trim() 
-      : '/pwa/icon-512.png?v=15';
+    const churchIdParam = cleanChurchId !== 'default' ? `?church_id=${encodeURIComponent(cleanChurchId)}` : '';
+    const sep = churchIdParam ? '&' : '?';
 
-    // Determinar tipo do ícone (SVG, PNG, JPG ou data URI)
-    let iconType = 'image/png';
-    if (logoUrl.includes('image/svg') || logoUrl.endsWith('.svg')) {
-      iconType = 'image/svg+xml';
-    } else if (logoUrl.includes('image/jpeg') || logoUrl.endsWith('.jpg') || logoUrl.endsWith('.jpeg')) {
-      iconType = 'image/jpeg';
-    } else if (logoUrl.includes('image/webp') || logoUrl.endsWith('.webp')) {
-      iconType = 'image/webp';
-    }
+    // Apontar os ícones para o endpoint de ícone seguro (/api/portal/church-icon)
+    // Isso garante que a logo fique menor, centralizada e nunca cortada em máscaras do Android ou iOS
+    const dynamicIconUrl192 = `/api/portal/church-icon${churchIdParam}${sep}size=192`;
+    const dynamicIconUrl512 = `/api/portal/church-icon${churchIdParam}${sep}size=512`;
 
     const icons = [
       {
-        src: logoUrl,
-        type: iconType,
+        src: dynamicIconUrl192,
+        type: "image/png",
         sizes: "192x192",
         purpose: "any"
       },
       {
-        src: logoUrl,
-        type: iconType,
+        src: dynamicIconUrl512,
+        type: "image/png",
         sizes: "512x512",
         purpose: "any"
       },
       {
-        src: logoUrl,
-        type: iconType,
+        src: dynamicIconUrl512,
+        type: "image/png",
         sizes: "512x512",
         purpose: "maskable"
       }

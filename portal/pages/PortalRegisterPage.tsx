@@ -41,7 +41,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
     const [phone, setPhone] = useState('');
     const [email, setEmail] = useState('');
     const [birthDate, setBirthDate] = useState('');
-    const [congregation, setCongregation] = useState('Sede Central');
+    const [congregation, setCongregation] = useState(() => (church?.name && church.name !== 'Igreja') ? church.name : '');
     const [city, setCity] = useState('');
     const [state, setState] = useState('SP');
     const [photoUrl, setPhotoUrl] = useState<string | null>(null);
@@ -69,9 +69,15 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
         if (church) {
             setSelectedChurch(church);
             setSelectedChurchId(church.id);
+            if (church.name && church.name !== 'Igreja') {
+                setCongregation(prev => (!prev || prev === 'Sede Central') ? church.name : prev);
+            }
         } else if (churchesList.length > 0 && !selectedChurchId) {
             setSelectedChurch(churchesList[0]);
             setSelectedChurchId(churchesList[0].id);
+            if (churchesList[0].name && churchesList[0].name !== 'Igreja') {
+                setCongregation(prev => (!prev || prev === 'Sede Central') ? churchesList[0].name : prev);
+            }
         }
     }, [church, churchesList]);
 
@@ -521,7 +527,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                                 <img
                                     src={selectedChurch.logoUrl}
                                     alt={churchName}
-                                    className="w-full h-full object-cover rounded-xl bg-white"
+                                    className="w-full h-full object-contain p-1.5 rounded-xl bg-white"
                                 />
                             ) : (
                                 <div className="w-full h-full rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center text-emerald-600">

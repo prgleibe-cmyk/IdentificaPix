@@ -98,19 +98,19 @@ export const PortalPwaInstallModal: React.FC<PortalPwaInstallModalProps> = ({
                 {/* App Icon & Name Preview Header */}
                 <div className="flex flex-col items-center text-center pt-2 pb-4">
                     <div className="relative mb-3 group">
-                        <div className="w-20 h-20 rounded-2xl bg-white p-1.5 shadow-xl border border-slate-200/80 dark:border-slate-700 flex items-center justify-center overflow-hidden transition-transform duration-300 group-hover:scale-105">
+                        <div className="w-24 h-24 rounded-3xl bg-white p-3 shadow-xl border border-slate-200/90 dark:border-slate-700 flex items-center justify-center overflow-hidden transition-transform duration-300 group-hover:scale-105">
                             <img
                                 src={appLogo}
                                 alt={appName}
                                 referrerPolicy="no-referrer"
-                                className="w-full h-full object-cover rounded-xl"
+                                className="w-full h-full object-contain p-0.5 rounded-xl transition-all"
                                 onError={(e) => {
                                     (e.target as HTMLImageElement).src = '/pwa/icon-512.png?v=15';
                                 }}
                             />
                         </div>
-                        <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white p-1 rounded-full shadow-md">
-                            <ShieldCheck className="w-3.5 h-3.5" />
+                        <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white p-1.5 rounded-full shadow-md">
+                            <ShieldCheck className="w-4 h-4" />
                         </div>
                     </div>
 
