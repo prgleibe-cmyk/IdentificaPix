@@ -5638,6 +5638,111 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/v1/church-closings/reopen - Desfaz o fechamento final e reabre o período para novos lançamentos
+app.post('/api/v1/church-closings/reopen', async (req: Request, res: Response) => {
+  try {
+    const ctx = getTenantContext(req);
+    const { churchId, church_id, year, month } = req.body || {};
+    const effChurchId = String(churchId || church_id || '');
+    const effYear = parseInt(String(year), 10);
+    const effMonth = parseInt(String(month), 10);
+
+    if (!effChurchId || isNaN(effYear) || isNaN(effMonth)) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'churchId, year e month são obrigatórios.' });
+    }
+
+    // Permissão: Apenas usuário principal pode desfazer o fechamento contábil
+    if (ctx.isSecondaryUser) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Apenas o usuário principal tem autorização para reabrir períodos contábeis com fechamento final homologado.' });
+    }
+
+    // 1. Atualiza status para 'reopened' no banco central (libera imediatamente a checagem isChurchPeriodClosed)
+    const result = await pool.query(
+      `UPDATE church_closings 
+       SET status = 'reopened', updated_at = NOW() 
+       WHERE church_id::text = $1 AND year = $2 AND month = $3 
+       RETURNING *`,
+      [effChurchId, effYear, effMonth]
+    );
+
+    // Se não encontrou registro com UPDATE, tenta remover por garantia
+    if (!result.rows || result.rows.length === 0) {
+      await pool.query(
+        `DELETE FROM church_closings WHERE church_id::text = $1 AND year = $2 AND month = $3`,
+        [effChurchId, effYear, effMonth]
+      );
+    }
+
+    // 2. Remove eventuais transações automáticas de transferência geradas pelo fechamento anterior
+    try {
+      const monthPrefix = `${effYear}-${String(effMonth).padStart(2, '0')}`;
+      await pool.query(
+        `DELETE FROM consolidated_transactions 
+         WHERE (church_id::text = $1 OR user_id = $2) 
+           AND (id LIKE 'closing-outflow-%' OR id LIKE 'closing-inflow-%')
+           AND (transaction_date::text LIKE $3 OR reference_date::text LIKE $3)`,
+        [effChurchId, ctx.userId || '', `${monthPrefix}%`]
+      );
+    } catch (cleanupErr) {
+      console.warn('[ChurchClosings] Aviso ao limpar transações de fechamento automático:', cleanupErr);
+    }
+
+    try {
+      await logAudit(pool, {
+        action: 'UPDATE',
+        entity: 'church_closings',
+        entityId: `closing_${effChurchId}_${effYear}_${effMonth}`,
+        churchId: effChurchId,
+        userId: ctx.userId || null,
+        newValues: { status: 'reopened', reopened_at: new Date().toISOString() },
+        req
+      });
+    } catch (auditErr) {
+      console.warn('[Audit] Erro ao gravar audit log de reabertura de fechamento:', auditErr);
+    }
+
+    console.log(`[ChurchClosings] 🔓 Fechamento Final DESFEITO / REABERTO no banco: Igreja ${effChurchId}, Período ${effMonth}/${effYear}`);
+    return res.json({ 
+      success: true, 
+      status: 'reopened', 
+      churchId: effChurchId, 
+      year: effYear, 
+      month: effMonth,
+      message: `Período ${String(effMonth).padStart(2, '0')}/${effYear} reaberto com sucesso. Lançamentos liberados.` 
+    });
+  } catch (err) {
+    console.error('[ChurchClosings] Erro ao reabrir fechamento:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// DELETE /api/v1/church-closings/:churchId/:year/:month
+app.delete('/api/v1/church-closings/:churchId/:year/:month', async (req: Request, res: Response) => {
+  try {
+    const ctx = getTenantContext(req);
+    const { churchId, year, month } = req.params;
+    const effChurchId = String(churchId || '');
+    const effYear = parseInt(String(year), 10);
+    const effMonth = parseInt(String(month), 10);
+
+    if (ctx.isSecondaryUser) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Apenas o usuário principal tem autorização para reabrir períodos contábeis.' });
+    }
+
+    await pool.query(
+      `UPDATE church_closings 
+       SET status = 'reopened', updated_at = NOW() 
+       WHERE church_id::text = $1 AND year = $2 AND month = $3`,
+      [effChurchId, effYear, effMonth]
+    );
+
+    return res.json({ success: true, status: 'reopened', churchId: effChurchId, year: effYear, month: effMonth });
+  } catch (err) {
+    console.error('[ChurchClosings] Erro ao deletar fechamento:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
 // GET /api/v1/consolidated_transactions
 app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response) => {
   try {

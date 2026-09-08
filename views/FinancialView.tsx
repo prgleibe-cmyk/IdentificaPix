@@ -375,7 +375,7 @@ export const FinancialView: React.FC = memo(() => {
         }
 
         const targetDate = formPaymentDate || formDueDate || new Date().toISOString().split('T')[0];
-        if (isSecondaryUser && isPeriodClosed(targetDate, matchResults)) {
+        if (isSecondaryUser && isPeriodClosed(targetDate, matchResults, formChurchId)) {
             showToast("Este período já foi fechado de forma definitiva pelo usuário principal. Não é permitido realizar novos lançamentos ou edições.", "error");
             return;
         }

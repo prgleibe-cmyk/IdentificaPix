@@ -7,7 +7,7 @@ import { formatCurrency } from '../../utils/formatters';
 import { MatchResult, Church, ReconciliationStatus } from '../../types';
 import { DigitalSignature, MonthClosingRecord } from '../../types/domain';
 import { DigitalSignatureCollectionSection } from './DigitalSignatureCollectionSection';
-import { saveMonthClosingRecord, getMonthClosingRecord, generateClosingIntegrityHash } from '../../services/monthClosingService';
+import { saveMonthClosingRecord, getMonthClosingRecord, generateClosingIntegrityHash, reopenMonthClosingRecord } from '../../services/monthClosingService';
 
 const formatDateBRL = (dateStr: string) => {
     if (!dateStr) return '';
@@ -39,7 +39,8 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
         setMatchResults, 
         saveCurrentReportChanges,
         openWhatsAppReceiptModal,
-        language 
+        language,
+        showToast 
     } = useContext(AppContext);
     
     const { t } = useTranslation();
@@ -434,6 +435,81 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
         }
     };
 
+    const [isReopening, setIsReopening] = useState(false);
+
+    const handleReopenClosing = async () => {
+        if (!isPrincipalUser) {
+            alert('Apenas o Usuário Principal tem autorização para desfazer fechamentos e reabrir períodos contábeis.');
+            return;
+        }
+
+        const originChurch = churches?.find(c => c.id === originChurchId);
+        const churchName = originChurch?.name || 'Congregação Selecionada';
+        const formattedPeriod = `${String(closingMonth).padStart(2, '0')}/${closingYear}`;
+
+        const confirmText = `⚠️ ATENÇÃO: DESFAZER FECHAMENTO FINAL\n\n` +
+            `Deseja realmente desfazer o Fechamento Final de ${formattedPeriod} para a igreja "${churchName}"?\n\n` +
+            `• O bloqueio será removido imediatamente.\n` +
+            `• O período será reaberto para novos lançamentos, edições e correções.\n` +
+            `• Eventuais transferências automáticas de saldo deste fechamento serão revertidas.\n\n` +
+            `Deseja prosseguir com a reabertura imediata?`;
+
+        if (!window.confirm(confirmText)) {
+            return;
+        }
+
+        setIsReopening(true);
+        setErrorMessage(null);
+        try {
+            const success = await reopenMonthClosingRecord(originChurchId, closingYear, closingMonth);
+            if (!success) {
+                throw new Error('Falha ao registrar a reabertura no servidor.');
+            }
+
+            // Remove transações de fechamento automático que estavam no state ativo
+            const targetMonthStr = `${closingYear}-${String(closingMonth).padStart(2, '0')}`;
+            let hasRemovedTxs = false;
+            let updatedList: MatchResult[] = [];
+
+            setMatchResults((prev: any) => {
+                if (!Array.isArray(prev)) return prev;
+                const next = prev.filter((r: MatchResult) => {
+                    const txId = r.transaction?.id || (r as any).id || '';
+                    const isClosingTx = txId.startsWith('closing-outflow-') || txId.startsWith('closing-inflow-');
+                    const txDate = r.transaction?.date || (r as any).date || '';
+                    if (isClosingTx && txDate.startsWith(targetMonthStr)) {
+                        hasRemovedTxs = true;
+                        return false;
+                    }
+                    return true;
+                });
+                updatedList = next;
+                return next;
+            });
+
+            if (hasRemovedTxs && saveCurrentReportChanges) {
+                await saveCurrentReportChanges(updatedList);
+            }
+
+            setExistingRecord(null);
+            setSignatures([]);
+            setSuccessMessage(null);
+
+            if (showToast) {
+                showToast(`Fechamento desfeito com sucesso! O período ${formattedPeriod} foi reaberto para novos lançamentos.`, 'success');
+            } else {
+                alert(`Fechamento desfeito com sucesso! O período ${formattedPeriod} foi reaberto.`);
+            }
+
+            onClose();
+        } catch (err: any) {
+            console.error('[ChurchClosingModal] Erro ao reabrir período contábil:', err);
+            setErrorMessage(err.message || 'Erro ao reabrir período contábil.');
+        } finally {
+            setIsReopening(false);
+        }
+    };
+
     const renderInnerContent = () => (
         <div className="space-y-5">
             {successMessage ? (
@@ -497,10 +573,10 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                         </div>
                     )}
 
-                    {existingRecord && existingRecord.signatures && existingRecord.signatures.length > 0 && (
-                        <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-between gap-3">
+                    {existingRecord && existingRecord.status !== 'reopened' && (
+                        <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                             <div className="flex items-center gap-2.5">
-                                <div className="p-2 rounded-xl bg-emerald-600 text-white shadow-xs">
+                                <div className="p-2 rounded-xl bg-emerald-600 text-white shadow-xs shrink-0">
                                     <ShieldCheck className="w-4 h-4" />
                                 </div>
                                 <div>
@@ -508,13 +584,29 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                                         Fechamento de {String(closingMonth).padStart(2, '0')}/{closingYear} Já Homologado
                                     </h5>
                                     <p className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium">
-                                        Possui {existingRecord.signatures.length} assinatura(s) colhida(s). Você pode adicionar novos signatários ou atualizar abaixo.
+                                        {existingRecord.signatures && existingRecord.signatures.length > 0 
+                                            ? `Possui ${existingRecord.signatures.length} assinatura(s) colhida(s). Novos lançamentos estão bloqueados.` 
+                                            : 'Período contábil fechado. Novos lançamentos bloqueados.'}
                                     </p>
                                 </div>
                             </div>
-                            <span className="text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 px-2.5 py-1 rounded-lg">
-                                STATUS: HOMOLOGADO
-                            </span>
+                            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                                <span className="text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 px-2.5 py-1 rounded-lg shrink-0">
+                                    STATUS: HOMOLOGADO
+                                </span>
+                                {isPrincipalUser && (
+                                    <button
+                                        type="button"
+                                        disabled={isReopening}
+                                        onClick={handleReopenClosing}
+                                        className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:hover:bg-rose-900/60 dark:text-rose-300 border border-rose-300 dark:border-rose-800 transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95 shrink-0"
+                                        title="Desfazer o fechamento final e liberar os lançamentos deste período"
+                                    >
+                                        <Lock className="w-3 h-3 text-rose-600 dark:text-rose-400" />
+                                        <span>{isReopening ? 'Reabrindo...' : 'Desfazer Fechamento'}</span>
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     )}
 
@@ -785,13 +877,26 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
 
                     {/* Action Footer */}
                     <div className="pt-4 border-t border-slate-100 dark:border-white/5 flex flex-col sm:flex-row justify-between items-center gap-3">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="w-full sm:w-auto px-5 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-300 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xs transition-all tracking-wider uppercase cursor-pointer"
-                        >
-                            Voltar ao Livro Caixa
-                        </button>
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="w-full sm:w-auto px-5 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-300 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xs transition-all tracking-wider uppercase cursor-pointer"
+                            >
+                                Voltar ao Livro Caixa
+                            </button>
+                            {existingRecord && existingRecord.status !== 'reopened' && isPrincipalUser && (
+                                <button
+                                    type="button"
+                                    disabled={isReopening}
+                                    onClick={handleReopenClosing}
+                                    className="w-full sm:w-auto px-4 py-2.5 text-xs font-black text-rose-700 dark:text-rose-300 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 border border-rose-300 dark:border-rose-800 rounded-xl shadow-xs transition-all tracking-wider uppercase cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
+                                >
+                                    <Lock className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                                    <span>{isReopening ? 'Reabrindo...' : 'Desfazer Fechamento'}</span>
+                                </button>
+                            )}
+                        </div>
                         <button
                             type="button"
                             disabled={isSubmitting || !originChurchId || (isTransferEnabled && destinationChurches.length === 0)}

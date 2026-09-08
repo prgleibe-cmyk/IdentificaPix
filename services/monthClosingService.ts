@@ -162,27 +162,64 @@ export async function getMonthClosingRecord(
 }
 
 /**
- * Remove um fechamento mensal caso precise ser reaberto
+ * Remove ou desfaz um fechamento mensal caso precise ser reaberto
  */
 export async function deleteMonthClosingRecord(
     churchId: string, 
     year: number, 
     month: number
 ): Promise<void> {
+    await reopenMonthClosingRecord(churchId, year, month);
+}
+
+/**
+ * Desfaz o fechamento final e reabre o período para novos lançamentos
+ * (Garante a desativação da trava imediatamente em memória, IndexedDB e no Backend PostgreSQL)
+ */
+export async function reopenMonthClosingRecord(
+    churchId: string, 
+    year: number, 
+    month: number
+): Promise<boolean> {
     try {
-        const key = buildKey(churchId, year, month);
-        await del(key);
-
         const cacheKey = `${churchId}_${year}_${month}`;
-        memoryClosedCache.delete(cacheKey);
+        // 1. Liberação IMEDIATA da memória
+        memoryClosedCache.set(cacheKey, false);
 
+        // 2. Atualização no IndexedDB para evitar ressurreição por cache local
+        const key = buildKey(churchId, year, month);
+        const existing = await get<MonthClosingRecord>(key);
+        if (existing) {
+            await set(key, { ...existing, status: 'reopened' });
+        } else {
+            await del(key);
+        }
+
+        // 3. Atualização no Backend Central
+        try {
+            const res = await fetch('/api/v1/church-closings/reopen', {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ churchId, year, month })
+            });
+            if (!res.ok) {
+                console.warn('[MonthClosingService] Resposta do backend ao reabrir:', res.status);
+            }
+        } catch (apiErr) {
+            console.warn('[MonthClosingService] Erro ao comunicar reabertura ao backend:', apiErr);
+        }
+
+        // 4. Notificação em tempo real para toda a aplicação
         if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('month_closing_updated', { 
-                detail: { churchId, year, month } 
+                detail: { churchId, year, month, status: 'reopened' } 
             }));
         }
+
+        return true;
     } catch (err) {
-        console.error('[MonthClosingService] Erro ao deletar fechamento:', err);
+        console.error('[MonthClosingService] Erro ao reabrir fechamento:', err);
+        return false;
     }
 }
 
@@ -229,6 +266,9 @@ export async function syncAllChurchClosings(churchId?: string): Promise<void> {
                         signatures: typeof item.signatures === 'string' ? JSON.parse(item.signatures) : (item.signatures || []),
                         notes: item.notes || undefined
                     });
+                } else if (existing.status !== item.status) {
+                    // Atualiza status se mudou no servidor (ex: reaberto)
+                    await set(key, { ...existing, status: item.status });
                 }
             }
         }
@@ -251,6 +291,47 @@ export function isChurchPeriodClosedSync(churchId: string | null | undefined, da
 
     const cacheKey = `${churchId}_${year}_${month}`;
     return memoryClosedCache.get(cacheKey) === true;
+}
+
+/**
+ * 🛡️ Verifica se qualquer congregação possui o período fechado para a data informada
+ */
+export function isAnyChurchPeriodClosedSync(dateStr: string | null | undefined): boolean {
+    if (!dateStr) return false;
+    const cleanDate = dateStr.split(/[T ]/)[0];
+    const parts = cleanDate.split('-');
+    if (parts.length < 2) return false;
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    if (isNaN(year) || isNaN(month)) return false;
+
+    const targetSuffix = `_${year}_${month}`;
+    for (const [key, isClosed] of memoryClosedCache.entries()) {
+        if (isClosed === true && key.endsWith(targetSuffix)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * 🛡️ Retorna o conjunto de períodos (YYYY-MM) autoritativamente fechados
+ */
+export function getClosedPeriodsSetFromCache(churchId?: string): Set<string> {
+    const set = new Set<string>();
+    for (const [key, isClosed] of memoryClosedCache.entries()) {
+        if (isClosed !== true) continue;
+        const parts = key.split('_');
+        if (parts.length >= 3) {
+            const cId = parts[0];
+            const yr = parts[1];
+            const mo = parts[2].padStart(2, '0');
+            if (!churchId || churchId === 'geral' || cId === churchId) {
+                set.add(`${yr}-${mo}`);
+            }
+        }
+    }
+    return set;
 }
 
 /**

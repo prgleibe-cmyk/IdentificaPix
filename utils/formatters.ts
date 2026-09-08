@@ -1,6 +1,10 @@
 
 import { Language } from '../types';
-import { isChurchPeriodClosedSync } from '../services/monthClosingService';
+import { 
+    isChurchPeriodClosedSync, 
+    isAnyChurchPeriodClosedSync, 
+    getClosedPeriodsSetFromCache 
+} from '../services/monthClosingService';
 
 /**
  * Formats a number as a currency string according to Brazilian (BRL) standards.
@@ -37,32 +41,11 @@ export const formatDate = (isoDate: string): string => {
 };
 
 /**
- * Checks if a given period (month and year) is definitively closed.
- * A period is closed if there is any confirmed transaction in that month and year
- * that represents a period closure (e.g., description containing "FECHAMENTO").
+ * 🛡️ Retorna o conjunto de períodos (YYYY-MM) autoritativamente fechados.
+ * Consulta o estado real dos fechamentos sem heurísticas frágeis baseadas em palavras em descrições.
  */
-export const getClosedPeriodsSet = (matchResults: any[]): Set<string> => {
-    const set = new Set<string>();
-    if (!matchResults || !Array.isArray(matchResults)) return set;
-    
-    for (let i = 0; i < matchResults.length; i++) {
-        const r = matchResults[i];
-        const isConfirmed = r.isConfirmed || r.transaction?.isConfirmed || r.is_confirmed;
-        if (!isConfirmed) continue;
-        
-        const desc = (r.transaction?.description || r.description || '').toUpperCase();
-        if (desc.includes('FECHAMENTO') || desc.includes('RECEBIMENTO') || desc.includes('FECHAMENTO DE CAIXA')) {
-            const txDateStr = r.transaction?.date || r.transaction_date || r.date;
-            if (txDateStr && typeof txDateStr === 'string') {
-                const cleanDate = txDateStr.split(/[T ]/)[0];
-                const parts = cleanDate.split('-');
-                if (parts.length >= 2) {
-                    set.add(`${parts[0]}-${parts[1].padStart(2, '0')}`);
-                }
-            }
-        }
-    }
-    return set;
+export const getClosedPeriodsSet = (matchResults?: any[], churchId?: string): Set<string> => {
+    return getClosedPeriodsSetFromCache(churchId);
 };
 
 export const isDateInClosedPeriods = (dateStr: string, closedPeriodsSet: Set<string>): boolean => {
@@ -73,35 +56,21 @@ export const isDateInClosedPeriods = (dateStr: string, closedPeriodsSet: Set<str
     return closedPeriodsSet.has(`${parts[0]}-${parts[1].padStart(2, '0')}`);
 };
 
+/**
+ * 🛡️ Verifica de forma autoritativa se o período está fechado.
+ * Respeita estritamente o estado real do fechamento (aberto vs reaberto vs fechado).
+ * Quando o Usuário Principal desfaz o fechamento, o período é imediatamente liberado sem ressurreição.
+ */
 export const isPeriodClosed = (dateStr: string, matchResults?: any[], churchId?: string): boolean => {
     if (!dateStr) return false;
 
-    // 🛡️ 1. Verificação autoritativa por Congregação + Período (Mês/Ano)
-    if (churchId && isChurchPeriodClosedSync(churchId, dateStr)) {
-        return true;
+    // 1. Verificação autoritativa por Congregação + Período (Mês/Ano)
+    if (churchId && churchId !== 'unidentified' && churchId !== 'geral') {
+        return isChurchPeriodClosedSync(churchId, dateStr);
     }
 
-    if (!matchResults || !Array.isArray(matchResults)) return false;
-    const cleanDate = dateStr.split(/[T ]/)[0];
-    const parts = cleanDate.split('-');
-    if (parts.length < 2) return false;
-    const targetYM = `${parts[0]}-${parts[1].padStart(2, '0')}`;
-    
-    for (let i = 0; i < matchResults.length; i++) {
-        const r = matchResults[i];
-        const isConfirmed = r.isConfirmed || r.transaction?.isConfirmed || r.is_confirmed;
-        if (!isConfirmed) continue;
-        const txDateStr = r.transaction?.date || r.transaction_date || r.date;
-        if (!txDateStr) continue;
-        const txClean = txDateStr.split(/[T ]/)[0];
-        if (txClean.startsWith(targetYM)) {
-            const desc = (r.transaction?.description || r.description || '').toUpperCase();
-            if (desc.includes('FECHAMENTO') || desc.includes('RECEBIMENTO') || desc.includes('FECHAMENTO DE CAIXA')) {
-                return true;
-            }
-        }
-    }
-    return false;
+    // 2. Se nenhuma congregação específica foi informada, checa se qualquer congregação possui fechamento ativo
+    return isAnyChurchPeriodClosedSync(dateStr);
 };
 
 /**

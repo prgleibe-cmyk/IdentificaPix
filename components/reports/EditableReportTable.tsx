@@ -909,13 +909,21 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
     const receiptRecordId = selectedReceipt ? selectedReceipt.transaction.id : '';
 
     const [waSentMap, setWaSentMap] = useState<Record<string, string>>(() => getWhatsAppSentMap());
+    const [closingVersion, setClosingVersion] = useState(0);
 
     useEffect(() => {
         const handleUpdate = () => {
             setWaSentMap(getWhatsAppSentMap());
         };
+        const handleClosingUpdate = () => {
+            setClosingVersion(v => v + 1);
+        };
         window.addEventListener('whatsapp_sent_updated', handleUpdate);
-        return () => window.removeEventListener('whatsapp_sent_updated', handleUpdate);
+        window.addEventListener('month_closing_updated', handleClosingUpdate);
+        return () => {
+            window.removeEventListener('whatsapp_sent_updated', handleUpdate);
+            window.removeEventListener('month_closing_updated', handleClosingUpdate);
+        };
     }, []);
 
     const totalPages = Math.ceil(data.length / ITEMS_PER_PAGE);
@@ -923,7 +931,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
     const closedPeriodsSet = useMemo(() => {
         if (!isSecondaryUser) return new Set<string>();
         return getClosedPeriodsSet(matchResults);
-    }, [isSecondaryUser, matchResults]);
+    }, [isSecondaryUser, matchResults, closingVersion]);
 
     useEffect(() => {
         setCurrentPage(1);

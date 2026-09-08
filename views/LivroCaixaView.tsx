@@ -158,17 +158,17 @@ export const LivroCaixaView: React.FC = memo(() => {
 
         if (m && y) {
             getMonthClosingRecord(churchId, y, m).then(record => {
-                if (isMounted) setMonthClosingRecord(record);
+                if (isMounted) setMonthClosingRecord(record?.status === 'reopened' ? null : record);
             });
         }
 
         const handleClosingUpdate = (e: any) => {
             const updated = e?.detail as MonthClosingRecord | undefined;
             if (updated && updated.churchId === churchId && updated.year === y && updated.month === m) {
-                if (isMounted) setMonthClosingRecord(updated);
+                if (isMounted) setMonthClosingRecord(updated.status === 'reopened' ? null : updated);
             } else if (m && y) {
                 getMonthClosingRecord(churchId, y, m).then(record => {
-                    if (isMounted) setMonthClosingRecord(record);
+                    if (isMounted) setMonthClosingRecord(record?.status === 'reopened' ? null : record);
                 });
             }
         };

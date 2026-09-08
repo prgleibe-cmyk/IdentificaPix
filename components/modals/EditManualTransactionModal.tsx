@@ -23,7 +23,7 @@ import { useTranslation } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { MatchResult, Church } from '../../types';
 import { getCachedContributors } from '../../services/contributorsCache';
-import { resolveContributionType, resolvePaymentMethod } from '../../utils/formatters';
+import { resolveContributionType, resolvePaymentMethod, isPeriodClosed } from '../../utils/formatters';
 import { ExpenseDocumentUploader } from '../financial/ExpenseDocumentUploader';
 import { ExpenseAttachment } from '../../types/domain';
 import { getAttachmentsForTransaction, saveAttachmentsForTransaction } from '../../services/expenseAttachmentService';
@@ -344,6 +344,11 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
             const selectedChurch = churches.find(c => c.id === churchId) || row.church || churches[0];
             if (!selectedChurch) {
                 setErrorMessage('Selecione uma igreja/congregação.');
+                return;
+            }
+
+            if (isSecondaryUser && isPeriodClosed(date, undefined, selectedChurch.id)) {
+                setErrorMessage("Este período contábil já foi fechado de forma definitiva pelo usuário principal. Não é permitido editar lançamentos neste período.");
                 return;
             }
 
