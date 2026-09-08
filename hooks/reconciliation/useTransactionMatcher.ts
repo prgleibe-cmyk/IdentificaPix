@@ -499,6 +499,24 @@ export const useTransactionMatcher = ({
                 const headers: Record<string, string> = { 'Content-Type': 'application/json' };
                 if (token) headers['Authorization'] = `Bearer ${token}`;
 
+                // Normalização cirúrgica de church_id e status para a coluna no banco de dados ('pending' | 'identified' | 'resolved')
+                const churchIdToPersist = (updatedRow.church?.id && updatedRow.church.id !== 'unidentified')
+                    ? updatedRow.church.id
+                    : (updatedRow._churchId && updatedRow._churchId !== 'unidentified'
+                        ? updatedRow._churchId
+                        : ((updatedRow.transaction as any)?.church_id && (updatedRow.transaction as any).church_id !== 'unidentified'
+                            ? (updatedRow.transaction as any).church_id
+                            : (Array.isArray(updatedRow.splits) && updatedRow.splits.find(s => s.churchId && s.churchId !== 'unidentified')?.churchId || null)));
+
+                const hasChurch = Boolean(churchIdToPersist || (Array.isArray(updatedRow.splits) && updatedRow.splits.some((s: any) => s.churchId && s.churchId !== 'unidentified')));
+
+                let dbStatus: 'pending' | 'identified' | 'resolved' = 'pending';
+                if (updatedRow.isConfirmed || updatedRow.status === ReconciliationStatus.RESOLVED || (updatedRow.status as any) === 'RESOLVIDO') {
+                    dbStatus = 'resolved';
+                } else if (updatedRow.status === ReconciliationStatus.IDENTIFIED || (updatedRow.status as any) === 'IDENTIFICADO' || hasChurch) {
+                    dbStatus = 'identified';
+                }
+
                 await fetch(`/api/v1/consolidated_transactions/${updatedRow.transaction.id}`, {
                     method: 'PUT',
                     headers,
@@ -508,12 +526,12 @@ export const useTransactionMatcher = ({
                         type: updatedRow.transaction.type,
                         transaction_date: updatedRow.transaction.date,
                         bank_id: updatedRow.transaction.bank_id || null,
-                        church_id: updatedRow.church?.id && updatedRow.church.id !== 'unidentified' ? updatedRow.church.id : null,
+                        church_id: churchIdToPersist,
                         contributor_id: updatedRow.contributor?.id || null,
                         contribution_type: updatedRow.contributionType || null,
                         payment_method: updatedRow.paymentMethod || null,
                         splits: updatedRow.splits && updatedRow.splits.length > 0 ? updatedRow.splits : null,
-                        status: updatedRow.status || 'identified',
+                        status: dbStatus,
                         is_confirmed: updatedRow.isConfirmed
                     })
                 });

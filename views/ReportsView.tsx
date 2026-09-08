@@ -8,7 +8,7 @@ import { EditableReportTable } from '../components/reports/EditableReportTable';
 import { ChartBarIcon, PlusCircleIcon } from '../components/Icons';
 import { useReportsController } from '../hooks/useReportsController';
 import { Calendar, Check, Building2, BookOpen } from 'lucide-react';
-import { MatchResult, Transaction, ReconciliationStatus } from '../types';
+import { MatchResult, Transaction, ReconciliationStatus, MatchMethod } from '../types';
 import { SplitTransactionModal } from '../components/modals/SplitTransactionModal';
 import { EditManualTransactionModal } from '../components/modals/EditManualTransactionModal';
 
@@ -417,19 +417,53 @@ export const ReportsView: React.FC = () => {
                     onSave={(splits) => {
                         const firstSplitChurchId = splits[0]?.churchId;
                         const firstSplitChurchName = splits[0]?.churchName;
+                        const hasIdentifiedChurch = splits.some(s => s.churchId && s.churchId !== 'unidentified');
+                        const targetChurchId = (firstSplitChurchId && firstSplitChurchId !== 'unidentified')
+                            ? firstSplitChurchId
+                            : (splits.find(s => s.churchId && s.churchId !== 'unidentified')?.churchId || null);
+
+                        const targetChurch = targetChurchId
+                            ? (churches.find((c: any) => c.id === targetChurchId) || {
+                                id: targetChurchId,
+                                name: firstSplitChurchName || 'Igreja',
+                                address: '',
+                                logoUrl: '',
+                                pastor: ''
+                            })
+                            : splitRow.church;
+
+                        const firstSplitContribName = splits[0]?.contributorName;
+                        const firstSplitContribId = splits[0]?.contributorId;
 
                         const updatedRow: MatchResult = {
                             ...splitRow,
                             splits: splits,
                             // Sincroniza a congregação da transação caso tenha sido selecionada no split
-                            ...(firstSplitChurchId && firstSplitChurchId !== 'unidentified' ? {
-                                church: {
-                                    ...(splitRow.church || { address: '', logoUrl: '', pastor: '' }),
-                                    id: firstSplitChurchId,
-                                    name: firstSplitChurchName || splitRow.church?.name || 'Igreja'
-                                },
-                                _churchId: firstSplitChurchId
-                            } : {})
+                            ...(targetChurchId ? {
+                                church: targetChurch,
+                                _churchId: targetChurchId
+                            } : {}),
+                            // Quando rateado com igreja válida, a transação é promovida a IDENTIFICADO
+                            ...(hasIdentifiedChurch ? {
+                                status: splitRow.isConfirmed ? ReconciliationStatus.RESOLVED : ReconciliationStatus.IDENTIFIED,
+                                matchMethod: splitRow.matchMethod || MatchMethod.MANUAL
+                            } : {}),
+                            // Sincroniza contribuinte se preenchido no rateio
+                            ...(firstSplitContribName ? {
+                                contributor: {
+                                    ...(splitRow.contributor || {}),
+                                    id: firstSplitContribId || splitRow.contributor?.id || '',
+                                    name: firstSplitContribName,
+                                    cleanedName: firstSplitContribName,
+                                    contributionType: splits[0]?.contributionType || splitRow.contributionType,
+                                    paymentMethod: splits[0]?.paymentMethod || splitRow.paymentMethod
+                                }
+                            } : {}),
+                            transaction: {
+                                ...splitRow.transaction,
+                                ...(targetChurchId ? { church_id: targetChurchId } : {}),
+                                splits: splits
+                            }
                         };
                         ctrl.updateReportData(updatedRow);
                         setSplitRow(null);

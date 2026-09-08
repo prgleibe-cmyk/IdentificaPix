@@ -384,13 +384,26 @@ export const useCloudSync = ({
                     } : null;
 
                     let status = ReconciliationStatus.UNIDENTIFIED;
-                    if (t.status === 'resolved') status = ReconciliationStatus.RESOLVED;
-                    else if (t.status === 'identified') status = ReconciliationStatus.IDENTIFIED;
+                    const rawStatus = String(t.status || '').toLowerCase().trim();
+                    if (rawStatus === 'resolved' || t.is_confirmed) {
+                        status = ReconciliationStatus.RESOLVED;
+                    } else if (rawStatus === 'identified' || rawStatus === 'identificado') {
+                        status = ReconciliationStatus.IDENTIFIED;
+                    }
+
+                    // Se a transação possui congregação associada válida (diretamente ou via splits), garante status IDENTIFIED
+                    const hasValidChurch = (church && church.id && church.id !== 'unidentified') || 
+                                           (t.church_id && t.church_id !== 'unidentified') ||
+                                           (Array.isArray(t.splits) && t.splits.some((s: any) => s.churchId && s.churchId !== 'unidentified'));
+
+                    if (hasValidChurch && status === ReconciliationStatus.UNIDENTIFIED) {
+                        status = t.is_confirmed ? ReconciliationStatus.RESOLVED : ReconciliationStatus.IDENTIFIED;
+                    }
 
                     // ⚡ AUTO-IDENTIFICAÇÃO DE VÍNCULOS SALVOS (SEM IA)
                     // Se a transação no banco está 'pending', mas existe uma associação aprendida (assoc),
                     // promovemos localmente para IDENTIFIED e agendamos a atualização no banco em segundo plano (sequencialmente).
-                    if (assoc && t.status === 'pending') {
+                    if (assoc && (rawStatus === 'pending' || rawStatus === 'pendente') && !hasValidChurch) {
                         status = ReconciliationStatus.IDENTIFIED;
                         pendingPromotions.push({
                             id: t.id,
