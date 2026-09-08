@@ -207,6 +207,30 @@ class LocalSqliteEngine {
         created_at TEXT DEFAULT (now())
       );
 
+      CREATE TABLE IF NOT EXISTS church_closings (
+        id TEXT PRIMARY KEY,
+        church_id TEXT NOT NULL,
+        year INTEGER NOT NULL,
+        month INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'closed',
+        closed_at TEXT NOT NULL DEFAULT (now()),
+        closed_by TEXT,
+        total_income REAL DEFAULT 0,
+        total_expenses REAL DEFAULT 0,
+        final_balance REAL DEFAULT 0,
+        transferred_balance REAL,
+        target_church_id TEXT,
+        target_church_name TEXT,
+        integrity_hash TEXT,
+        signatures TEXT,
+        notes TEXT,
+        created_at TEXT DEFAULT (now()),
+        updated_at TEXT DEFAULT (now()),
+        UNIQUE(church_id, year, month)
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_church_closings_unique ON church_closings(church_id, year, month);
+      CREATE INDEX IF NOT EXISTS idx_church_closings_lookup ON church_closings(church_id, year, month, status);
+
       CREATE TABLE IF NOT EXISTS audit_logs (
         id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()),
         user_id TEXT,
@@ -1331,6 +1355,51 @@ async function initializeDatabase() {
     await client.query("CREATE INDEX IF NOT EXISTS idx_contrib_types_bank ON contribution_types(bank_id);");
     console.log('[Contributors API] Table "contribution_types" verified or successfully created.');
 
+    // Create table church_closings
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS church_closings (
+        id VARCHAR(255) PRIMARY KEY,
+        church_id VARCHAR(255) NOT NULL,
+        year INT NOT NULL,
+        month INT NOT NULL,
+        status VARCHAR(50) NOT NULL DEFAULT 'closed',
+        closed_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        closed_by VARCHAR(255),
+        total_income NUMERIC(12, 2) DEFAULT 0,
+        total_expenses NUMERIC(12, 2) DEFAULT 0,
+        final_balance NUMERIC(12, 2) DEFAULT 0,
+        transferred_balance NUMERIC(12, 2),
+        target_church_id VARCHAR(255),
+        target_church_name VARCHAR(255),
+        integrity_hash VARCHAR(255),
+        signatures JSONB,
+        notes TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(church_id, year, month)
+      );
+    `);
+    await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS church_id VARCHAR(255);');
+    await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS year INT;');
+    await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS month INT;');
+    await client.query("ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'closed';");
+    await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP DEFAULT NOW();');
+    await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS closed_by VARCHAR(255);');
+    await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS total_income NUMERIC(12, 2) DEFAULT 0;');
+    await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS total_expenses NUMERIC(12, 2) DEFAULT 0;');
+    await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS final_balance NUMERIC(12, 2) DEFAULT 0;');
+    await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS transferred_balance NUMERIC(12, 2);');
+    await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS target_church_id VARCHAR(255);');
+    await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS target_church_name VARCHAR(255);');
+    await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS integrity_hash VARCHAR(255);');
+    await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS signatures JSONB;');
+    await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS notes TEXT;');
+    await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();');
+    await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();');
+    await client.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_church_closings_unique ON church_closings(church_id, year, month);');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_church_closings_lookup ON church_closings(church_id, year, month, status);');
+    console.log('[Contributors API] Table "church_closings" verified or successfully created.');
+
     // Initialize Audit Logs Database
     await initAuditDatabase(pool);
 
@@ -1783,6 +1852,10 @@ app.get('/api/v1/audit-logs', async (req: Request, res: Response) => {
 // GET /api/v1/contributors
 app.get('/api/v1/contributors', async (req: Request, res: Response) => {
   try {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+
     const ctx = getTenantContext(req);
     const requestedChurchId = req.query.church_id as string | undefined;
     const { status, search, q } = req.query;
@@ -1861,6 +1934,10 @@ app.get('/api/v1/contributors', async (req: Request, res: Response) => {
 // POST & GET /api/v1/contributors/identify (Single-record & search identification endpoint for Portal do Contribuinte - LGPD & Multi-church secure)
 const identifyContributorHandler = async (req: Request, res: Response) => {
   try {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+
     const rawChurchId = (req.body.church_id || req.query.church_id) as string | undefined;
     const identifier = (req.body.identifier || req.query.identifier || req.query.q || req.body.q) as string | undefined;
     const identifier_type = (req.body.identifier_type || req.query.identifier_type || req.query.type || req.body.type) as string | undefined;
@@ -2206,6 +2283,10 @@ app.post('/api/v1/contributors/update-profile', async (req: Request, res: Respon
 
     // 5. If existing record found, perform UPDATE
     if (targetId) {
+      // Fetch current record to avoid unwanted church_id overwrite
+      const curRecRes = await pool.query('SELECT church_id, is_global, photo_url FROM contributors WHERE id = $1', [targetId]);
+      const currentRecord = curRecRes.rows[0];
+
       const updates: string[] = ['updated_at = NOW()'];
       const params: any[] = [targetId];
       let counter = 2;
@@ -2256,8 +2337,16 @@ app.post('/api/v1/contributors/update-profile', async (req: Request, res: Respon
       if (photo_url !== undefined || photo !== undefined) {
         addField('photo_url', cleanPhoto && typeof cleanPhoto === 'string' ? cleanPhoto.trim() : null);
       }
+      
+      // Always ensure is_global = true so all church views stay unified and accessible
+      addField('is_global', true);
+
+      // Only change church_id if explicitly valid and not default church downgrading an existing custom church
       if (church_id && typeof church_id === 'string' && uuidRegex.test(church_id)) {
-        addField('church_id', church_id);
+        const isDefaultReplacingCustom = church_id === '00000000-0000-0000-0000-000000000001' && currentRecord?.church_id && currentRecord.church_id !== '00000000-0000-0000-0000-000000000001';
+        if (!isDefaultReplacingCustom) {
+          addField('church_id', church_id);
+        }
       }
 
       const updateQuery = `UPDATE contributors SET ${updates.join(', ')} WHERE id = $1 RETURNING *`;
@@ -2276,13 +2365,13 @@ app.post('/api/v1/contributors/update-profile', async (req: Request, res: Respon
         birth_date, person_type, trade_name, rg_ie, contact_person,
         category, role_position, pix_key, bank_name, bank_agency, bank_account,
         address_cep, address_street, address_number, address_city, address_state, notes,
-        photo_url, status
+        photo_url, is_global, status
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8,
         $9, $10, $11, $12, $13,
         $14, $15, $16, $17, $18, $19,
         $20, $21, $22, $23, $24, $25,
-        $26, 'active'
+        $26, $27, 'active'
       ) RETURNING *`,
       [
         finalNewId,
@@ -2310,7 +2399,8 @@ app.post('/api/v1/contributors/update-profile', async (req: Request, res: Respon
         address_city ? String(address_city).trim() : null,
         address_state ? String(address_state).trim() : null,
         notes ? String(notes).trim() : null,
-        cleanPhoto && typeof cleanPhoto === 'string' ? cleanPhoto.trim() : null
+        cleanPhoto && typeof cleanPhoto === 'string' ? cleanPhoto.trim() : null,
+        true
       ]
     );
 
@@ -3869,11 +3959,13 @@ app.post('/api/v1/churches', async (req: Request, res: Response) => {
     }
     const pastorsVal = pastors ? (typeof pastors === 'string' ? pastors : JSON.stringify(pastors)) : null;
     const treasurersVal = treasurers ? (typeof treasurers === 'string' ? treasurers : JSON.stringify(treasurers)) : null;
+    const generatedChurchId = crypto.randomUUID();
 
     const result = await pool.query(
-      `INSERT INTO churches (name, address, "logoUrl", pastor, cnpj, phone, email, "pixKey", cep, city, state, treasurer, pastors, treasurers, whatsapp_official, whatsapp_responsible, auto_comm_enabled, auto_send_on_confirmation, user_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING *`,
+      `INSERT INTO churches (id, name, address, "logoUrl", pastor, cnpj, phone, email, "pixKey", cep, city, state, treasurer, pastors, treasurers, whatsapp_official, whatsapp_responsible, auto_comm_enabled, auto_send_on_confirmation, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING *`,
       [
+        generatedChurchId,
         name,
         address || '',
         logoUrl || '',
@@ -5333,6 +5425,219 @@ async function matchAndLinkContributionRequest(clientOrPool: any, tx: {
   }
 }
 
+/**
+ * 🛡️ BLINDAGEM DE FECHAMENTO FINAL:
+ * Verifica se um determinado período contábil (mês/ano) de uma congregação
+ * já teve seu Fechamento Final homologado e está congelado contra novas inserções, edições ou exclusões.
+ */
+async function isChurchPeriodClosed(
+  clientOrPool: any,
+  churchId: string | null | undefined,
+  dateInput: string | Date | null | undefined
+): Promise<{ isClosed: boolean; churchId?: string; year?: number; month?: number; message?: string }> {
+  if (!churchId || !dateInput || churchId === 'unidentified' || churchId === 'geral') {
+    return { isClosed: false };
+  }
+
+  let dateStr = typeof dateInput === 'string' ? dateInput : (dateInput as Date).toISOString();
+  dateStr = dateStr.split(/[T ]/)[0];
+  const parts = dateStr.split('-');
+  if (parts.length < 2) {
+    return { isClosed: false };
+  }
+
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10);
+  if (isNaN(year) || isNaN(month)) {
+    return { isClosed: false };
+  }
+
+  try {
+    const res = await clientOrPool.query(
+      `SELECT id, church_id, year, month, status, closed_at 
+       FROM church_closings 
+       WHERE church_id::text = $1 AND year = $2 AND month = $3 AND status != 'reopened'
+       LIMIT 1`,
+      [String(churchId), year, month]
+    );
+
+    if (res.rows && res.rows.length > 0) {
+      const mStr = String(month).padStart(2, '0');
+      return {
+        isClosed: true,
+        churchId: String(churchId),
+        year,
+        month,
+        message: `PERÍODO CONGELADO: O período ${mStr}/${year} desta congregação já teve seu Fechamento Final homologado. Novos lançamentos, alterações ou exclusões estão expressamente bloqueados.`
+      };
+    }
+  } catch (err: any) {
+    console.error('[ChurchClosings] Erro ao consultar status do fechamento:', err?.message || err);
+  }
+
+  return { isClosed: false };
+}
+
+// GET /api/v1/church-closings
+app.get('/api/v1/church-closings', async (req: Request, res: Response) => {
+  try {
+    const { church_id, year, month } = req.query;
+    let query = 'SELECT * FROM church_closings WHERE 1=1';
+    const params: any[] = [];
+
+    if (church_id) {
+      params.push(String(church_id));
+      query += ` AND church_id::text = $${params.length}`;
+    }
+    if (year) {
+      params.push(parseInt(String(year), 10));
+      query += ` AND year = $${params.length}`;
+    }
+    if (month) {
+      params.push(parseInt(String(month), 10));
+      query += ` AND month = $${params.length}`;
+    }
+
+    query += ' ORDER BY year DESC, month DESC';
+    const result = await pool.query(query, params);
+    return res.json(result.rows || []);
+  } catch (err) {
+    console.error('[ChurchClosings] Erro ao listar fechamentos:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// GET /api/v1/church-closings/:churchId/:year/:month
+app.get('/api/v1/church-closings/:churchId/:year/:month', async (req: Request, res: Response) => {
+  try {
+    const { churchId, year, month } = req.params;
+    const result = await pool.query(
+      `SELECT * FROM church_closings 
+       WHERE church_id::text = $1 AND year = $2 AND month = $3 
+       LIMIT 1`,
+      [String(churchId), parseInt(year, 10), parseInt(month, 10)]
+    );
+
+    if (result.rows && result.rows.length > 0) {
+      return res.json(result.rows[0]);
+    }
+    return res.status(404).json({ error: 'NOT_FOUND', message: 'Nenhum fechamento encontrado para esta igreja e período.' });
+  } catch (err) {
+    console.error('[ChurchClosings] Erro ao buscar fechamento específico:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// POST /api/v1/church-closings
+app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
+  try {
+    const ctx = getTenantContext(req);
+    const body = req.body || {};
+    const {
+      id,
+      churchId,
+      church_id,
+      year,
+      month,
+      status,
+      closedAt,
+      closed_at,
+      closedBy,
+      closed_by,
+      totalIncome,
+      total_income,
+      totalExpenses,
+      total_expenses,
+      finalBalance,
+      final_balance,
+      transferredBalance,
+      transferred_balance,
+      targetChurchId,
+      target_church_id,
+      targetChurchName,
+      target_church_name,
+      integrityHash,
+      integrity_hash,
+      signatures,
+      notes
+    } = body;
+
+    const effChurchId = String(churchId || church_id || '');
+    const effYear = parseInt(String(year), 10);
+    const effMonth = parseInt(String(month), 10);
+
+    if (!effChurchId || isNaN(effYear) || isNaN(effMonth)) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'churchId, year e month são obrigatórios.' });
+    }
+
+    const effId = id || `closing_${effChurchId}_${effYear}_${effMonth}`;
+    const effStatus = status || 'closed';
+    const effClosedAt = closedAt || closed_at || new Date().toISOString();
+    const effClosedBy = closedBy || closed_by || (ctx.userId ? String(ctx.userId) : null);
+    const effIncome = Number(totalIncome !== undefined ? totalIncome : (total_income || 0));
+    const effExpenses = Number(totalExpenses !== undefined ? totalExpenses : (total_expenses || 0));
+    const effBalance = Number(finalBalance !== undefined ? finalBalance : (final_balance || 0));
+    const effTransferred = transferredBalance !== undefined ? Number(transferredBalance) : (transferred_balance !== undefined ? Number(transferred_balance) : null);
+    const effTargetChurchId = targetChurchId || target_church_id || null;
+    const effTargetChurchName = targetChurchName || target_church_name || null;
+    const effHash = integrityHash || integrity_hash || null;
+    const effSignatures = signatures ? (typeof signatures === 'string' ? signatures : JSON.stringify(signatures)) : null;
+    const effNotes = notes || null;
+
+    const query = `
+      INSERT INTO church_closings (
+        id, church_id, year, month, status, closed_at, closed_by, 
+        total_income, total_expenses, final_balance, transferred_balance, 
+        target_church_id, target_church_name, integrity_hash, signatures, notes, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW())
+      ON CONFLICT (church_id, year, month) DO UPDATE SET
+        status = EXCLUDED.status,
+        closed_at = EXCLUDED.closed_at,
+        closed_by = EXCLUDED.closed_by,
+        total_income = EXCLUDED.total_income,
+        total_expenses = EXCLUDED.total_expenses,
+        final_balance = EXCLUDED.final_balance,
+        transferred_balance = EXCLUDED.transferred_balance,
+        target_church_id = EXCLUDED.target_church_id,
+        target_church_name = EXCLUDED.target_church_name,
+        integrity_hash = EXCLUDED.integrity_hash,
+        signatures = EXCLUDED.signatures,
+        notes = EXCLUDED.notes,
+        updated_at = NOW()
+      RETURNING *
+    `;
+
+    const params = [
+      effId, effChurchId, effYear, effMonth, effStatus, effClosedAt, effClosedBy,
+      effIncome, effExpenses, effBalance, effTransferred, effTargetChurchId,
+      effTargetChurchName, effHash, effSignatures, effNotes
+    ];
+
+    const result = await pool.query(query, params);
+    const saved = result.rows[0];
+
+    try {
+      await logAudit(pool, {
+        action: 'CREATE',
+        entity: 'church_closings',
+        entityId: saved.id,
+        churchId: effChurchId,
+        userId: ctx.userId || null,
+        newValues: saved,
+        req
+      });
+    } catch (auditErr) {
+      console.warn('[Audit] Erro ao gravar audit log de fechamento:', auditErr);
+    }
+
+    console.log(`[ChurchClosings] ✅ Fechamento Final registrado no banco: Igreja ${effChurchId}, Período ${effMonth}/${effYear}, Status: ${effStatus}`);
+    return res.status(201).json(saved);
+  } catch (err) {
+    console.error('[ChurchClosings] Erro ao salvar fechamento:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
 // GET /api/v1/consolidated_transactions
 app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response) => {
   try {
@@ -5460,6 +5765,18 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
       return res.status(400).json({ error: 'VALIDATION_ERROR' });
     }
 
+    // 🛡️ Validação de Período Fechado (Congelamento)
+    const closedCheck = await isChurchPeriodClosed(pool, effectiveChurchId, transaction_date || reference_date);
+    if (closedCheck.isClosed) {
+      return res.status(422).json({
+        error: 'PERIOD_CLOSED',
+        message: closedCheck.message,
+        churchId: closedCheck.churchId,
+        year: closedCheck.year,
+        month: closedCheck.month
+      });
+    }
+
     // Check row_hash duplicate if row_hash is provided
     if (row_hash) {
       const dupCheck = await pool.query('SELECT id FROM consolidated_transactions WHERE user_id = $1 AND row_hash = $2 LIMIT 1', [effectiveUserId, row_hash]);
@@ -5550,6 +5867,20 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
       
       const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
       const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : (church_id || null);
+
+      // 🛡️ Validação de Período Fechado (Congelamento)
+      const closedCheck = await isChurchPeriodClosed(client, effectiveChurchId, transaction_date || reference_date);
+      if (closedCheck.isClosed) {
+        await client.query('ROLLBACK');
+        return res.status(422).json({
+          error: 'PERIOD_CLOSED',
+          message: closedCheck.message,
+          churchId: closedCheck.churchId,
+          year: closedCheck.year,
+          month: closedCheck.month,
+          transaction: { description: tx.description, amount: tx.amount, date: transaction_date || reference_date }
+        });
+      }
 
       const finalContribReqId = await matchAndLinkContributionRequest(client, {
         church_id: effectiveChurchId,
@@ -5722,6 +6053,27 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: a transação pertence a outra organização.' });
     }
 
+    // 🛡️ Validação de Período Fechado (Congelamento)
+    // 1. Não permite alterar transação pertencente a um período já fechado
+    const oldCheck = await isChurchPeriodClosed(pool, oldTx.church_id, oldTx.transaction_date || oldTx.reference_date);
+    if (oldCheck.isClosed) {
+      return res.status(422).json({
+        error: 'PERIOD_CLOSED',
+        message: `PERÍODO CONGELADO: Esta transação pertence ao período ${String(oldCheck.month).padStart(2, '0')}/${oldCheck.year}, que já teve seu Fechamento Final homologado. Alterações estão expressamente bloqueadas.`
+      });
+    }
+
+    // 2. Não permite mover transação para uma congregação/data cujo período esteja fechado
+    const targetChurchId = church_id !== undefined ? church_id : oldTx.church_id;
+    const targetDate = transaction_date !== undefined ? transaction_date : (reference_date || oldTx.transaction_date);
+    const newCheck = await isChurchPeriodClosed(pool, targetChurchId, targetDate);
+    if (newCheck.isClosed) {
+      return res.status(422).json({
+        error: 'PERIOD_CLOSED',
+        message: newCheck.message
+      });
+    }
+
     let finalContribReqId = contribution_request_id;
     if (!finalContribReqId && (church_id || contributor_id || amount !== undefined)) {
       finalContribReqId = await matchAndLinkContributionRequest(pool, {
@@ -5821,6 +6173,15 @@ app.delete('/api/v1/consolidated_transactions/:id', async (req: Request, res: Re
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: a transação pertence a outra organização.' });
     }
 
+    // 🛡️ Validação de Período Fechado (Congelamento)
+    const oldCheck = await isChurchPeriodClosed(pool, oldTx.church_id, oldTx.transaction_date || oldTx.reference_date);
+    if (oldCheck.isClosed) {
+      return res.status(422).json({
+        error: 'PERIOD_CLOSED',
+        message: `PERÍODO CONGELADO: Esta transação pertence ao período fechado (${String(oldCheck.month).padStart(2, '0')}/${oldCheck.year}). Exclusões estão bloqueadas para manter a inalterabilidade do relatório fechado.`
+      });
+    }
+
     const result = await pool.query('DELETE FROM consolidated_transactions WHERE id::text = $1 RETURNING id', [id]);
 
     try {
@@ -5859,6 +6220,15 @@ app.post('/api/v1/consolidated_transactions/bulk-delete', async (req: Request, r
       const isAuthorized = await isAuthorizedForTransaction(pool, ctx, oldTx);
       if (!isAuthorized) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: uma ou mais transações pertencem a outra organização.' });
+      }
+
+      // 🛡️ Validação de Período Fechado (Congelamento)
+      const closedCheck = await isChurchPeriodClosed(pool, oldTx.church_id, oldTx.transaction_date || oldTx.reference_date);
+      if (closedCheck.isClosed) {
+        return res.status(422).json({
+          error: 'PERIOD_CLOSED',
+          message: `PERÍODO CONGELADO: A transação "${oldTx.description}" pertence ao período fechado (${String(closedCheck.month).padStart(2, '0')}/${closedCheck.year}). Exclusões em lote contendo períodos fechados estão expressamente bloqueadas.`
+        });
       }
     }
 
@@ -5992,6 +6362,16 @@ app.post('/api/v1/financial_records', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'VALIDATION_ERROR: user_id, title, amount, and type are required' });
     }
 
+    // 🛡️ Validação de Período Fechado (Congelamento)
+    const recordDate = payment_date || due_date;
+    const closedCheck = await isChurchPeriodClosed(pool, effectiveChurchId, recordDate);
+    if (closedCheck.isClosed) {
+      return res.status(422).json({
+        error: 'PERIOD_CLOSED',
+        message: closedCheck.message
+      });
+    }
+
     const result = await pool.query(
       `INSERT INTO financial_records (
         user_id, church_id, title, description, amount, type, status, 
@@ -6072,6 +6452,25 @@ app.put('/api/v1/financial_records/:id', async (req: Request, res: Response) => 
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o registro pertence a outro usuário.' });
     }
 
+    // 🛡️ Validação de Período Fechado (Congelamento)
+    const oldCheck = await isChurchPeriodClosed(pool, oldRec.church_id, oldRec.payment_date || oldRec.due_date);
+    if (oldCheck.isClosed) {
+      return res.status(422).json({
+        error: 'PERIOD_CLOSED',
+        message: `PERÍODO CONGELADO: Este registro financeiro pertence ao período ${String(oldCheck.month).padStart(2, '0')}/${oldCheck.year}, que já teve seu Fechamento Final homologado. Edições estão bloqueadas.`
+      });
+    }
+
+    const targetChurchId = church_id !== undefined ? church_id : oldRec.church_id;
+    const targetDate = payment_date !== undefined ? payment_date : (due_date !== undefined ? due_date : (oldRec.payment_date || oldRec.due_date));
+    const newCheck = await isChurchPeriodClosed(pool, targetChurchId, targetDate);
+    if (newCheck.isClosed) {
+      return res.status(422).json({
+        error: 'PERIOD_CLOSED',
+        message: newCheck.message
+      });
+    }
+
     const updates: string[] = [];
     const values: any[] = [];
     let placeholderIndex = 1;
@@ -6143,6 +6542,15 @@ app.delete('/api/v1/financial_records/:id', async (req: Request, res: Response) 
     const isAuthorized = await isAuthorizedForFinancialRecord(pool, ctx, oldRec);
     if (!isAuthorized) {
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o registro pertence a outro usuário.' });
+    }
+
+    // 🛡️ Validação de Período Fechado (Congelamento)
+    const oldCheck = await isChurchPeriodClosed(pool, oldRec.church_id, oldRec.payment_date || oldRec.due_date);
+    if (oldCheck.isClosed) {
+      return res.status(422).json({
+        error: 'PERIOD_CLOSED',
+        message: `PERÍODO CONGELADO: Este registro pertence ao período ${String(oldCheck.month).padStart(2, '0')}/${oldCheck.year}, que já teve seu Fechamento Final homologado. Exclusões estão bloqueadas.`
+      });
     }
 
     const result = await pool.query('DELETE FROM financial_records WHERE id = $1 RETURNING id', [id]);
@@ -6347,20 +6755,38 @@ app.get('/api/v1/portal/church-icon', async (req: Request, res: Response) => {
     const targetSize = Number(size) === 192 ? 192 : 512;
     let targetChurch: any = null;
 
-    if (church_id && typeof church_id === 'string' && church_id.trim()) {
-      const q = await pool.query('SELECT id, name, "logoUrl" FROM churches WHERE id = $1 LIMIT 1', [church_id.trim()]);
+    let reqSlug = typeof church_slug === 'string' ? church_slug.trim() : '';
+    let reqId = typeof church_id === 'string' ? church_id.trim() : '';
+
+    // Fallback inteligente: se o navegador solicitou sem query params, extrair da URL de Referer
+    if (!reqId && !reqSlug && req.headers.referer) {
+      try {
+        const refUrl = new URL(req.headers.referer);
+        reqId = refUrl.searchParams.get('church') || refUrl.searchParams.get('igreja') || refUrl.searchParams.get('c') || '';
+        const pathParts = refUrl.pathname.replace(/^\/portal/, '').split('/').filter(Boolean);
+        if (pathParts[0] === 'church' && pathParts[1]) {
+          reqSlug = pathParts[1];
+        } else if (pathParts[0] && !['identify', 'reports', 'pledges', 'coming_soon', 'not_found', 'cadastro', 'cadastrar', 'register'].includes(pathParts[0])) {
+          reqSlug = pathParts[0];
+        }
+      } catch (_) {}
+    }
+
+    if (reqId) {
+      const q = await pool.query('SELECT id, name, "logoUrl" FROM churches WHERE id = $1 LIMIT 1', [reqId]);
       if (q.rows && q.rows.length > 0) {
         targetChurch = q.rows[0];
       }
     }
 
-    if (!targetChurch && church_slug && typeof church_slug === 'string' && church_slug.trim()) {
-      const slugVal = church_slug.trim().toLowerCase();
+    if (!targetChurch && reqSlug) {
+      const slugVal = reqSlug.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
       const allChurches = await pool.query('SELECT id, name, "logoUrl" FROM churches');
       if (allChurches.rows && allChurches.rows.length > 0) {
         targetChurch = allChurches.rows.find((c: any) => {
-          const s = (c.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
-          return s === slugVal || s.includes(slugVal) || c.id === slugVal;
+          const s = (c.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+          const sRaw = (c.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+          return s === slugVal || sRaw === slugVal || s.includes(slugVal) || slugVal.includes(s) || c.id === reqSlug;
         }) || null;
       }
     }
@@ -6372,16 +6798,29 @@ app.get('/api/v1/portal/church-icon', async (req: Request, res: Response) => {
       }
     }
 
-    const rawLogoUrl = targetChurch?.logoUrl ? targetChurch.logoUrl.trim() : '';
+    const rawLogoUrl = (targetChurch?.logoUrl || targetChurch?.logourl || targetChurch?.logo_url || '').trim();
 
     if (!rawLogoUrl) {
-      const defaultIconPath = path.resolve(process.cwd(), 'public/pwa/icon-512.png');
-      if (fs.existsSync(defaultIconPath)) {
-        res.setHeader('Content-Type', 'image/png');
-        res.setHeader('Cache-Control', 'public, max-age=86400');
-        return fs.createReadStream(defaultIconPath).pipe(res);
-      }
-      return res.redirect('/pwa/icon-512.png?v=15');
+      const churchInitials = (targetChurch?.name || 'Igreja')
+        .split(' ')
+        .filter((w: string) => w.length > 2)
+        .slice(0, 2)
+        .map((w: string) => w[0].toUpperCase())
+        .join('') || 'IG';
+
+      const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${targetSize} ${targetSize}" width="${targetSize}" height="${targetSize}">
+        <defs>
+          <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#0f172a"/>
+            <stop offset="100%" stop-color="#1e293b"/>
+          </linearGradient>
+        </defs>
+        <rect width="${targetSize}" height="${targetSize}" fill="url(#bgGrad)" rx="${Math.round(targetSize * 0.22)}"/>
+        <text x="50%" y="54%" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="${Math.round(targetSize * 0.36)}" fill="#10B981" text-anchor="middle" dominant-baseline="central">${churchInitials}</text>
+      </svg>`;
+      res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      return res.send(svgContent);
     }
 
     // Se for SVG, renderizar SVG em container seguro com margem interna
@@ -6423,7 +6862,7 @@ app.get('/api/v1/portal/church-icon', async (req: Request, res: Response) => {
         const canvas = new (Jimp as any)({ width: targetSize, height: targetSize, color: 0xffffffff });
 
         // Margem segura para ícones adaptativos (Android Maskable e iOS):
-        // Escala máxima de 68% garante que todo o conteúdo fique 100% visível em qualquer máscara (círculo, squircle, cantos arredondados)
+        // Escala máxima de 68% garante que todo o conteúdo da logo cadastrada fique 100% visível em qualquer máscara (círculo, squircle, cantos arredondados)
         const maxDim = Math.round(targetSize * 0.68);
         const scale = Math.min(maxDim / logoImg.width, maxDim / logoImg.height);
         const scaledW = Math.max(1, Math.round(logoImg.width * scale));
@@ -6441,7 +6880,19 @@ app.get('/api/v1/portal/church-icon', async (req: Request, res: Response) => {
         return res.send(finalPngBuffer);
       }
     } catch (jimpErr) {
-      console.warn('[Contributors API] Falha ao processar ícone com Jimp, aplicando fallback:', jimpErr);
+      console.warn('[Contributors API] Falha ao processar ícone com Jimp, aplicando fallback direto:', jimpErr);
+    }
+
+    // Fallback seguro se o Jimp falhar: se for data URL, enviar buffer sem redirecionamento inválido
+    if (rawLogoUrl.startsWith('data:image/')) {
+      const matches = rawLogoUrl.match(/^data:([A-Za-z0-9+.\/]+);base64,(.+)$/);
+      if (matches && matches.length === 3) {
+        const mimeType = matches[1];
+        const buffer = Buffer.from(matches[2], 'base64');
+        res.setHeader('Content-Type', mimeType);
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        return res.send(buffer);
+      }
     }
 
     return res.redirect(rawLogoUrl);
@@ -6457,26 +6908,43 @@ app.get('/api/v1/portal/manifest.json', async (req: Request, res: Response) => {
     const { church_id, church_slug } = req.query;
     let targetChurch: any = null;
 
-    if (church_id && typeof church_id === 'string' && church_id.trim()) {
-      const q = await pool.query('SELECT id, name, "logoUrl", address FROM churches WHERE id = $1 LIMIT 1', [church_id.trim()]);
+    let reqSlug = typeof church_slug === 'string' ? church_slug.trim() : '';
+    let reqId = typeof church_id === 'string' ? church_id.trim() : '';
+
+    if (!reqId && !reqSlug && req.headers.referer) {
+      try {
+        const refUrl = new URL(req.headers.referer);
+        reqId = refUrl.searchParams.get('church') || refUrl.searchParams.get('igreja') || refUrl.searchParams.get('c') || '';
+        const pathParts = refUrl.pathname.replace(/^\/portal/, '').split('/').filter(Boolean);
+        if (pathParts[0] === 'church' && pathParts[1]) {
+          reqSlug = pathParts[1];
+        } else if (pathParts[0] && !['identify', 'reports', 'pledges', 'coming_soon', 'not_found', 'cadastro', 'cadastrar', 'register'].includes(pathParts[0])) {
+          reqSlug = pathParts[0];
+        }
+      } catch (_) {}
+    }
+
+    if (reqId) {
+      const q = await pool.query('SELECT id, name, "logoUrl", address FROM churches WHERE id = $1 LIMIT 1', [reqId]);
       if (q.rows && q.rows.length > 0) {
         targetChurch = q.rows[0];
       }
     }
 
-    if (!targetChurch && church_slug && typeof church_slug === 'string' && church_slug.trim()) {
-      const slugVal = church_slug.trim().toLowerCase();
+    if (!targetChurch && reqSlug) {
+      const slugVal = reqSlug.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
       const allChurches = await pool.query('SELECT id, name, "logoUrl", address FROM churches');
       if (allChurches.rows && allChurches.rows.length > 0) {
         targetChurch = allChurches.rows.find((c: any) => {
-          const s = (c.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
-          return s === slugVal || s.includes(slugVal) || c.id === slugVal;
+          const s = (c.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+          const sRaw = (c.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+          return s === slugVal || sRaw === slugVal || s.includes(slugVal) || slugVal.includes(s) || c.id === reqSlug;
         }) || null;
       }
     }
 
     if (!targetChurch) {
-      // Fallback para a primeira igreja ou igreja sede
+      // Fallback para a primeira congregação cadastrada
       const fallbackQ = await pool.query('SELECT id, name, "logoUrl", address FROM churches ORDER BY created_at ASC LIMIT 1');
       if (fallbackQ.rows && fallbackQ.rows.length > 0) {
         targetChurch = fallbackQ.rows[0];
@@ -6485,13 +6953,16 @@ app.get('/api/v1/portal/manifest.json', async (req: Request, res: Response) => {
 
     const churchName = targetChurch?.name || 'Portal do Contribuinte';
     const cleanChurchId = targetChurch?.id || 'default';
-    const churchIdParam = cleanChurchId !== 'default' ? `?church_id=${encodeURIComponent(cleanChurchId)}` : '';
-    const sep = churchIdParam ? '&' : '?';
+    const slugName = (targetChurch?.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const churchParams = cleanChurchId !== 'default' 
+      ? `?church_id=${encodeURIComponent(cleanChurchId)}&church_slug=${encodeURIComponent(slugName)}` 
+      : '';
+    const sep = churchParams ? '&' : '?';
 
     // Apontar os ícones para o endpoint de ícone seguro (/api/portal/church-icon)
-    // Isso garante que a logo fique menor, centralizada e nunca cortada em máscaras do Android ou iOS
-    const dynamicIconUrl192 = `/api/portal/church-icon${churchIdParam}${sep}size=192`;
-    const dynamicIconUrl512 = `/api/portal/church-icon${churchIdParam}${sep}size=512`;
+    // Isso garante que a logo cadastrada fique menor, centralizada e nunca cortada em máscaras do Android ou iOS
+    const dynamicIconUrl192 = `/api/portal/church-icon${churchParams}${sep}size=192`;
+    const dynamicIconUrl512 = `/api/portal/church-icon${churchParams}${sep}size=512`;
 
     const icons = [
       {

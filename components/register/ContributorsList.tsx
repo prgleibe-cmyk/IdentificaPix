@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useContext, useMemo } from 'react';
-import { getCachedContributors, invalidateContributorsCache } from '../../services/contributorsCache';
+import { getCachedContributors, invalidateContributorsCache, notifyContributorUpdated, subscribeToContributorUpdates } from '../../services/contributorsCache';
 import { formatDateToDmy, formatDateToYmd } from '../../portal/utils/portalFormatters';
 import { useUI } from '../../contexts/UIContext';
 import { AppContext } from '../../contexts/AppContext';
@@ -532,6 +532,7 @@ export const ContributorsList: React.FC = () => {
         setParsedContributors([]);
         invalidateContributorsCache();
         fetchContributors(true);
+        notifyContributorUpdated();
     };
 
     // Real list of churches from context
@@ -553,18 +554,14 @@ export const ContributorsList: React.FC = () => {
     };
 
     useEffect(() => {
-        fetchContributors();
+        fetchContributors(true);
 
-        const handleRealtimeUpdate = () => {
+        const unsubscribe = subscribeToContributorUpdates(() => {
             fetchContributors(true);
-        };
-
-        window.addEventListener('contributor_updated', handleRealtimeUpdate);
-        window.addEventListener('storage', handleRealtimeUpdate);
+        });
 
         return () => {
-            window.removeEventListener('contributor_updated', handleRealtimeUpdate);
-            window.removeEventListener('storage', handleRealtimeUpdate);
+            unsubscribe();
         };
     }, []);
 
@@ -646,6 +643,7 @@ export const ContributorsList: React.FC = () => {
                 showToast("Contribuinte inativado com sucesso.", "success");
                 invalidateContributorsCache();
                 fetchContributors(true);
+                notifyContributorUpdated();
             } else {
                 showToast("Falha ao inativar contribuinte.", "error");
             }
@@ -668,6 +666,7 @@ export const ContributorsList: React.FC = () => {
                 showToast("Contribuinte excluído definitivamente.", "success");
                 invalidateContributorsCache();
                 fetchContributors(true);
+                notifyContributorUpdated();
             } else {
                 showToast("Falha ao excluir contribuinte definitivamente.", "error");
             }
@@ -838,10 +837,9 @@ export const ContributorsList: React.FC = () => {
                                 updated_at: new Date().toISOString()
                             };
                             localStorage.setItem('iggestor_portal_contributor', JSON.stringify(updatedPortal));
-                            window.dispatchEvent(new Event('storage'));
                         }
                     }
-                    window.dispatchEvent(new CustomEvent('contributor_updated', { detail: payload }));
+                    notifyContributorUpdated(payload);
                 } catch (_) {}
             } else if (response.status === 409) {
                 showToast("Já existe um cadastro ativo com este CPF/CNPJ nesta igreja.", "error");

@@ -438,6 +438,6 @@ export interface MonthClosingRecord {
   targetChurchName?: string;
   signatures: DigitalSignature[];
   integrityHash: string;
-  status: 'draft' | 'signed' | 'locked';
+  status: 'draft' | 'signed' | 'locked' | 'reopened';
   notes?: string;
 }

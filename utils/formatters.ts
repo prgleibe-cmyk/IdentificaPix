@@ -1,5 +1,6 @@
 
 import { Language } from '../types';
+import { isChurchPeriodClosedSync } from '../services/monthClosingService';
 
 /**
  * Formats a number as a currency string according to Brazilian (BRL) standards.
@@ -72,8 +73,15 @@ export const isDateInClosedPeriods = (dateStr: string, closedPeriodsSet: Set<str
     return closedPeriodsSet.has(`${parts[0]}-${parts[1].padStart(2, '0')}`);
 };
 
-export const isPeriodClosed = (dateStr: string, matchResults: any[]): boolean => {
-    if (!dateStr || !matchResults || !Array.isArray(matchResults)) return false;
+export const isPeriodClosed = (dateStr: string, matchResults?: any[], churchId?: string): boolean => {
+    if (!dateStr) return false;
+
+    // 🛡️ 1. Verificação autoritativa por Congregação + Período (Mês/Ano)
+    if (churchId && isChurchPeriodClosedSync(churchId, dateStr)) {
+        return true;
+    }
+
+    if (!matchResults || !Array.isArray(matchResults)) return false;
     const cleanDate = dateStr.split(/[T ]/)[0];
     const parts = cleanDate.split('-');
     if (parts.length < 2) return false;

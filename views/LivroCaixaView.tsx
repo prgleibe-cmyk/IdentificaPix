@@ -945,14 +945,14 @@ export const LivroCaixaView: React.FC = memo(() => {
     return (
         <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full min-h-full flex flex-col animate-fade-in pb-8 md:pb-4">
             {/* Header Card */}
-            <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-white/5 shadow-sm flex-shrink-0">
+            <div className="bg-white dark:bg-slate-900 px-6 py-4 rounded-2xl border border-slate-100 dark:border-white/5 shadow-xs flex-shrink-0">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl text-white shadow-md shadow-orange-500/20 shrink-0">
-                            <BookOpen className="w-5 h-5" />
+                        <div className="w-11 h-11 bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl flex items-center justify-center text-white shadow-md shadow-orange-500/20 shrink-0">
+                            <BookOpen className="w-5 h-5 stroke-[2.2]" />
                         </div>
                         <div>
-                            <h1 className="text-xl font-black text-slate-800 dark:text-white tracking-tight">
+                            <h1 className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-tight">
                                 Livro Caixa
                             </h1>
                             <p className="text-xs text-slate-400">
@@ -961,80 +961,59 @@ export const LivroCaixaView: React.FC = memo(() => {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2 flex-wrap">
-                        {monthClosingRecord && (
-                            <div 
-                                onClick={() => !isSecondaryUser && setIsClosingModalOpen(true)}
-                                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-xs ${
-                                    !isSecondaryUser ? 'cursor-pointer hover:opacity-90' : ''
-                                } ${
-                                    monthClosingRecord.signatures && monthClosingRecord.signatures.length > 0
-                                        ? 'bg-emerald-50/90 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
-                                        : 'bg-amber-50/90 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300'
-                                }`}
-                                title={monthClosingRecord.integrityHash ? `Hash SHA-256: ${monthClosingRecord.integrityHash}` : 'Mês Fechado'}
-                            >
-                                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                                <div className="flex flex-col text-left">
-                                    <span className="text-[10px] uppercase tracking-wider font-black leading-tight">
-                                        Mês Fechado
-                                    </span>
-                                    <span className="text-[9.5px] font-medium opacity-90 leading-tight">
-                                        {monthClosingRecord.signatures && monthClosingRecord.signatures.length > 0
-                                            ? `✓ ${monthClosingRecord.signatures.length} Assinatura(s) Digital(is)`
-                                            : 'Sem assinaturas digitais'}
-                                    </span>
-                                </div>
-                            </div>
-                        )}
-
-                        {!isSecondaryUser && (
-                            <button
-                                type="button"
-                                onClick={() => setIsClosingModalOpen(true)}
-                                className="flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-xl shadow-xs hover:opacity-95 transition-all tracking-wider uppercase cursor-pointer border border-orange-400/30 active:scale-95 shrink-0 self-start sm:self-auto"
-                                title="Realizar Fechamento & Assinaturas Digitais"
-                            >
-                                <Building2 className="w-3.5 h-3.5" />
-                                <span>{monthClosingRecord ? 'Ver / Editar Fechamento' : 'Fechamento'}</span>
-                            </button>
-                        )}
+                    <div>
+                        <button
+                            type="button"
+                            onClick={() => setIsClosingModalOpen(true)}
+                            className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 rounded-xl shadow-xs hover:opacity-95 transition-all tracking-wider uppercase cursor-pointer border border-orange-400/30 active:scale-95 shrink-0"
+                            title="Realizar Fechamento & Assinaturas Digitais"
+                            id="btn-fechamento-livro-caixa"
+                        >
+                            <Building2 className="w-4 h-4 text-white shrink-0" />
+                            <span>FECHAMENTO</span>
+                        </button>
                     </div>
                 </div>
             </div>
 
             {/* Main Content */}
-            <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl p-4 md:p-6 shadow-sm space-y-4">
+            <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl p-4 md:p-6 shadow-xs space-y-4">
                 {/* Control & Filter Header */}
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-100 dark:border-white/5">
-                    <div>
-                        <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                            <BookOpen className="w-4 h-4 text-orange-500" />
-                            Lançamentos de Caixa
-                        </h3>
-                        <p className="text-xs text-slate-400">Histórico de entradas e saídas registradas.</p>
-                    </div>
-
-                    <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
-                        {/* Search */}
-                        <div className="relative flex-1 md:w-52">
-                            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                            <input
-                                type="text"
-                                placeholder="Buscar no Livro Caixa..."
-                                value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                                className="pl-9 pr-3 py-1.5 w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:border-orange-500"
-                            />
+                <div className="space-y-3 pb-3">
+                    <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+                        {/* Título com ícone */}
+                        <div className="flex items-center gap-2.5 shrink-0">
+                            <BookOpen className="w-5 h-5 text-orange-500 shrink-0 stroke-[2.2]" />
+                            <div className="flex flex-col">
+                                <span className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider leading-none">
+                                    LANÇAMENTOS DE
+                                </span>
+                                <span className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider leading-tight">
+                                    CAIXA
+                                </span>
+                            </div>
                         </div>
 
-                        {/* Date Range Filter Box (Mês / Período) */}
-                        <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 dark:bg-slate-800/90 p-1 rounded-xl border border-slate-200/80 dark:border-slate-700/80 text-xs shadow-xs">
-                            <div className="flex items-center gap-0.5 bg-white dark:bg-slate-900 p-0.5 rounded-lg font-bold shadow-xs border border-slate-100 dark:border-slate-800">
+                        {/* Linha 1 de Filtros */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                            {/* Campo de Busca */}
+                            <div className="relative w-full sm:w-56 md:w-60">
+                                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar no Livro Caixa..."
+                                    value={searchTerm}
+                                    onChange={e => setSearchTerm(e.target.value)}
+                                    className="pl-8 pr-3 py-1.5 w-full bg-slate-50/70 dark:bg-black/20 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:border-orange-500 placeholder:text-slate-400 shadow-2xs"
+                                />
+                            </div>
+
+                            {/* Toggle MÊS | PERÍODO */}
+                            <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200/80 dark:border-slate-700 shadow-2xs shrink-0">
                                 <button
                                     type="button"
                                     onClick={() => setSelectionMode('month')}
-                                    className={`px-2.5 py-1 rounded-md text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                    className={`px-3 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                                         selectionMode === 'month'
                                             ? 'bg-orange-500 text-white shadow-xs'
                                             : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
@@ -1045,7 +1024,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                                 <button
                                     type="button"
                                     onClick={() => setSelectionMode('dates')}
-                                    className={`px-2.5 py-1 rounded-md text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                    className={`px-3 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                                         selectionMode === 'dates'
                                             ? 'bg-orange-500 text-white shadow-xs'
                                             : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
@@ -1055,263 +1034,283 @@ export const LivroCaixaView: React.FC = memo(() => {
                                 </button>
                             </div>
 
+                            {/* Mês e Ano ou Datas Customizadas */}
                             {selectionMode === 'month' ? (
-                                <div className="flex items-center gap-1">
-                                    <select
-                                        value={selectedMonth}
-                                        onChange={(e) => handleMonthYearSelect(Number(e.target.value), selectedYear)}
-                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-white px-2.5 py-1 rounded-lg text-xs focus:outline-none focus:border-orange-500 cursor-pointer"
-                                    >
-                                        {monthsList.map(m => (
-                                            <option key={m.val} value={m.val}>{m.name}</option>
-                                        ))}
-                                    </select>
-                                    <select
-                                        value={selectedYear}
-                                        onChange={(e) => handleMonthYearSelect(selectedMonth, Number(e.target.value))}
-                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-white px-2.5 py-1 rounded-lg text-xs focus:outline-none focus:border-orange-500 cursor-pointer"
-                                    >
-                                        {yearsList.map(y => (
-                                            <option key={y} value={y}>{y}</option>
-                                        ))}
-                                    </select>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                    <div className="relative">
+                                        <select
+                                            value={selectedMonth}
+                                            onChange={(e) => handleMonthYearSelect(Number(e.target.value), selectedYear)}
+                                            className="appearance-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200 pl-3 pr-7 py-1.5 rounded-xl text-xs focus:outline-none focus:border-orange-500 cursor-pointer shadow-2xs"
+                                        >
+                                            {monthsList.map(m => (
+                                                <option key={m.val} value={m.val}>{m.name}</option>
+                                            ))}
+                                        </select>
+                                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                    </div>
+
+                                    <div className="relative">
+                                        <select
+                                            value={selectedYear}
+                                            onChange={(e) => handleMonthYearSelect(selectedMonth, Number(e.target.value))}
+                                            className="appearance-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200 pl-3 pr-7 py-1.5 rounded-xl text-xs focus:outline-none focus:border-orange-500 cursor-pointer shadow-2xs"
+                                        >
+                                            {yearsList.map(y => (
+                                                <option key={y} value={y}>{y}</option>
+                                            ))}
+                                        </select>
+                                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                    </div>
                                 </div>
                             ) : (
-                                <div className="flex items-center gap-1">
+                                <div className="flex items-center gap-1.5 shrink-0">
                                     <input
                                         type="date"
                                         value={customStartDate}
                                         onChange={(e) => handleCustomDatesChange(e.target.value, customEndDate)}
-                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-semibold text-slate-800 dark:text-white px-2 py-1 rounded-lg text-xs focus:outline-none focus:border-orange-500"
+                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-semibold text-slate-800 dark:text-white px-2.5 py-1.5 rounded-xl text-xs focus:outline-none focus:border-orange-500 shadow-2xs"
                                     />
                                     <span className="text-slate-400 font-bold text-[10px] uppercase">até</span>
                                     <input
                                         type="date"
                                         value={customEndDate}
                                         onChange={(e) => handleCustomDatesChange(customStartDate, e.target.value)}
-                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-semibold text-slate-800 dark:text-white px-2 py-1 rounded-lg text-xs focus:outline-none focus:border-orange-500"
+                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-semibold text-slate-800 dark:text-white px-2.5 py-1.5 rounded-xl text-xs focus:outline-none focus:border-orange-500 shadow-2xs"
                                     />
                                 </div>
                             )}
-                        </div>
 
-                        {/* Multi-Select Church Filter */}
-                        <div className="relative" ref={churchDropdownRef}>
-                            <button
-                                type="button"
-                                onClick={() => setIsChurchDropdownOpen(!isChurchDropdownOpen)}
-                                className="px-3 py-1.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 cursor-pointer"
-                            >
-                                <Building2 className="w-3.5 h-3.5 text-orange-500" />
-                                <span>
-                                    {selectedChurchIds.length === 0 
-                                        ? 'Todas as Igrejas' 
-                                        : selectedChurchIds.length === 1 
-                                        ? getChurchName(selectedChurchIds[0]) 
-                                        : `${selectedChurchIds.length} Igrejas Selecionadas`}
-                                </span>
-                                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                            </button>
+                            {/* Filtro Igrejas */}
+                            <div className="relative" ref={churchDropdownRef}>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsChurchDropdownOpen(!isChurchDropdownOpen)}
+                                    className="px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0"
+                                >
+                                    <Building2 className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                                    <span className="truncate max-w-[130px]">
+                                        {selectedChurchIds.length === 0 
+                                            ? 'Todas as Igrejas' 
+                                            : selectedChurchIds.length === 1 
+                                            ? getChurchName(selectedChurchIds[0]) 
+                                            : `${selectedChurchIds.length} Igrejas Selecionadas`}
+                                    </span>
+                                    <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                </button>
 
-                            {isChurchDropdownOpen && (
-                                <div className="absolute left-0 mt-2 w-64 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-white/10 p-3 z-50 text-xs space-y-2 animate-scale-in">
-                                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-white/5">
-                                        <span className="font-bold text-slate-800 dark:text-white uppercase text-[10px]">Filtrar por Igrejas</span>
-                                        {selectedChurchIds.length > 0 && (
-                                            <button 
-                                                onClick={() => setSelectedChurchIds([])}
-                                                className="text-[10px] text-orange-600 dark:text-orange-400 font-bold hover:underline cursor-pointer"
-                                            >
-                                                Selecionar Todas
-                                            </button>
-                                        )}
-                                    </div>
+                                {isChurchDropdownOpen && (
+                                    <div className="absolute right-0 xl:left-0 mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-white/10 p-3 z-50 text-xs space-y-2 animate-scale-in">
+                                        <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-white/5">
+                                            <span className="font-bold text-slate-800 dark:text-white uppercase text-[10px] tracking-wider">FILTRAR POR IGREJAS</span>
+                                            {selectedChurchIds.length > 0 && (
+                                                <button 
+                                                    onClick={() => setSelectedChurchIds([])}
+                                                    className="text-[10px] text-orange-600 dark:text-orange-400 font-bold hover:underline cursor-pointer"
+                                                >
+                                                    Selecionar Todas
+                                                </button>
+                                            )}
+                                        </div>
 
-                                    <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-1.5 pt-1">
-                                        <label className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedChurchIds.length === 0}
-                                                onChange={() => setSelectedChurchIds([])}
-                                                className="accent-orange-500 rounded cursor-pointer"
-                                            />
-                                            <span className="font-bold text-slate-800 dark:text-white">Todas as Igrejas</span>
-                                        </label>
+                                        <div className="max-h-56 overflow-y-auto custom-scrollbar space-y-1 pt-1">
+                                            <label className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedChurchIds.length === 0}
+                                                    onChange={() => setSelectedChurchIds([])}
+                                                    className="accent-orange-500 rounded cursor-pointer w-4 h-4 text-orange-500"
+                                                />
+                                                <span className="font-bold text-slate-800 dark:text-white text-xs">Todas as Igrejas</span>
+                                            </label>
 
-                                        {churches.map((c: any) => {
-                                            const isChecked = selectedChurchIds.includes(c.id);
-                                            return (
-                                                <label key={c.id} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={isChecked}
-                                                        onChange={() => toggleChurchSelection(c.id)}
-                                                        className="accent-orange-500 rounded cursor-pointer"
-                                                    />
-                                                    <span className="text-slate-700 dark:text-slate-300 font-medium truncate">{c.name}</span>
-                                                </label>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Multi/Single Select Bank Filter */}
-                        <div className="relative" ref={bankDropdownRef}>
-                            <button
-                                type="button"
-                                onClick={() => setIsBankDropdownOpen(!isBankDropdownOpen)}
-                                className="px-3 py-1.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 cursor-pointer"
-                            >
-                                <Landmark className="w-3.5 h-3.5 text-blue-500" />
-                                <span>
-                                    {selectedBankIds.length === 0 
-                                        ? 'Todos os Bancos' 
-                                        : selectedBankIds.length === 1 
-                                        ? getBankName(selectedBankIds[0]) 
-                                        : `${selectedBankIds.length} Bancos Selecionados`}
-                                </span>
-                                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                            </button>
-
-                            {isBankDropdownOpen && (
-                                <div className="absolute left-0 mt-2 w-64 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-white/10 p-3 z-50 text-xs space-y-2 animate-scale-in">
-                                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-white/5">
-                                        <span className="font-bold text-slate-800 dark:text-white uppercase text-[10px]">Filtrar por Banco</span>
-                                        {selectedBankIds.length > 0 && (
-                                            <button 
-                                                onClick={() => setSelectedBankIds([])}
-                                                className="text-[10px] text-blue-600 dark:text-blue-400 font-bold hover:underline cursor-pointer"
-                                            >
-                                                Selecionar Todos
-                                            </button>
-                                        )}
-                                    </div>
-
-                                    <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-1.5 pt-1">
-                                        <label className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedBankIds.length === 0}
-                                                onChange={() => setSelectedBankIds([])}
-                                                className="accent-blue-500 rounded cursor-pointer"
-                                            />
-                                            <span className="font-bold text-slate-800 dark:text-white">Todos os Bancos</span>
-                                        </label>
-
-                                        {banks.length === 0 ? (
-                                            <div className="p-2 text-slate-400 text-center italic text-[11px]">
-                                                Nenhum banco cadastrado.
-                                            </div>
-                                        ) : (
-                                            banks.map((b: any) => {
-                                                const isChecked = selectedBankIds.includes(b.id);
-                                                const bName = b.account_name || b.name || 'Banco Sem Nome';
+                                            {churches.map((c: any) => {
+                                                const isChecked = selectedChurchIds.includes(c.id);
                                                 return (
-                                                    <label key={b.id} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+                                                    <label key={c.id} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
                                                         <input
                                                             type="checkbox"
                                                             checked={isChecked}
-                                                            onChange={() => toggleBankSelection(b.id)}
-                                                            className="accent-blue-500 rounded cursor-pointer"
+                                                            onChange={() => toggleChurchSelection(c.id)}
+                                                            className="accent-orange-500 rounded cursor-pointer w-4 h-4 text-orange-500"
                                                         />
-                                                        <span className="text-slate-700 dark:text-slate-300 font-medium truncate">{bName}</span>
+                                                        <span className="text-slate-700 dark:text-slate-300 font-semibold text-xs uppercase truncate">
+                                                            {c.name}
+                                                        </span>
                                                     </label>
                                                 );
-                                            })
-                                        )}
+                                            })}
+                                        </div>
                                     </div>
-                                </div>
-                            )}
-                        </div>
+                                )}
+                            </div>
 
-                        {/* Recarregar Button (Icon-Only) */}
-                        <button
-                            onClick={handleRefresh}
-                            disabled={isRefreshing || isHydratingFromCloud}
-                            className="p-2 bg-slate-50 dark:bg-black/20 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl border border-slate-200 dark:border-slate-800 transition-all flex items-center justify-center cursor-pointer disabled:opacity-50"
-                            title="Recarregar dados do Livro Caixa"
-                            aria-label="Recarregar dados do Livro Caixa"
-                            id="btn-refresh-livro-caixa"
-                        >
-                            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing || isHydratingFromCloud ? 'animate-spin text-orange-500' : ''}`} />
-                        </button>
+                            {/* Filtro Bancos */}
+                            <div className="relative" ref={bankDropdownRef}>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsBankDropdownOpen(!isBankDropdownOpen)}
+                                    className="px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0"
+                                >
+                                    <Landmark className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                                    <span className="truncate max-w-[130px]">
+                                        {selectedBankIds.length === 0 
+                                            ? 'Todos os Bancos' 
+                                            : selectedBankIds.length === 1 
+                                            ? getBankName(selectedBankIds[0]) 
+                                            : `${selectedBankIds.length} Bancos Selecionados`}
+                                    </span>
+                                    <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                </button>
 
-                        {/* Export & Print Menu */}
-                        <div className="relative" ref={exportLivroCaixaRef}>
+                                {isBankDropdownOpen && (
+                                    <div className="absolute right-0 xl:left-0 mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-white/10 p-3 z-50 text-xs space-y-2 animate-scale-in">
+                                        <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-white/5">
+                                            <span className="font-bold text-slate-800 dark:text-white uppercase text-[10px] tracking-wider">FILTRAR POR BANCO</span>
+                                            {selectedBankIds.length > 0 && (
+                                                <button 
+                                                    onClick={() => setSelectedBankIds([])}
+                                                    className="text-[10px] text-blue-600 dark:text-blue-400 font-bold hover:underline cursor-pointer"
+                                                >
+                                                    Selecionar Todos
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        <div className="max-h-56 overflow-y-auto custom-scrollbar space-y-1 pt-1">
+                                            <label className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedBankIds.length === 0}
+                                                    onChange={() => setSelectedBankIds([])}
+                                                    className="accent-blue-500 rounded cursor-pointer w-4 h-4 text-blue-500"
+                                                />
+                                                <span className="font-bold text-slate-800 dark:text-white text-xs">Todos os Bancos</span>
+                                            </label>
+
+                                            {banks.length === 0 ? (
+                                                <div className="p-2 text-slate-400 text-center italic text-[11px]">
+                                                    Nenhum banco cadastrado.
+                                                </div>
+                                            ) : (
+                                                banks.map((b: any) => {
+                                                    const isChecked = selectedBankIds.includes(b.id);
+                                                    const bName = b.account_name || b.name || 'Banco Sem Nome';
+                                                    return (
+                                                        <label key={b.id} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={isChecked}
+                                                                onChange={() => toggleBankSelection(b.id)}
+                                                                className="accent-blue-500 rounded cursor-pointer w-4 h-4 text-blue-500"
+                                                            />
+                                                            <span className="text-slate-700 dark:text-slate-300 font-semibold text-xs uppercase truncate">
+                                                                {bName}
+                                                            </span>
+                                                        </label>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Botão de Atualizar */}
                             <button
-                                onClick={() => setShowExportLivroCaixa(!showExportLivroCaixa)}
-                                className="px-3.5 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                                onClick={handleRefresh}
+                                disabled={isRefreshing || isHydratingFromCloud}
+                                className="p-2 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl border border-slate-200 dark:border-slate-800 transition-all flex items-center justify-center cursor-pointer disabled:opacity-50 shadow-2xs shrink-0"
+                                title="Recarregar dados do Livro Caixa"
+                                aria-label="Recarregar dados do Livro Caixa"
+                                id="btn-refresh-livro-caixa"
                             >
-                                <Download className="w-3.5 h-3.5" />
-                                <span>Exportar Livro Caixa</span>
-                                <ChevronDown className="w-3 h-3 ml-0.5" />
+                                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing || isHydratingFromCloud ? 'animate-spin text-orange-500' : 'text-slate-500'}`} />
                             </button>
-
-                            {showExportLivroCaixa && (
-                                <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-100 dark:border-white/10 py-2 z-50 text-xs text-slate-700 dark:text-slate-200 animate-scale-in">
-                                    <div className="px-3 py-1.5 text-[10px] font-black uppercase text-slate-400 tracking-wider">Formatos Livro Caixa</div>
-                                    <button
-                                        onClick={() => handleExportLivroCaixa('pdf')}
-                                        className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors"
-                                    >
-                                        <FileText className="w-4 h-4 text-red-500" />
-                                        <span>Baixar como PDF</span>
-                                    </button>
-                                    <button
-                                        onClick={() => handleExportLivroCaixa('excel')}
-                                        className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors"
-                                    >
-                                        <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
-                                        <span>Baixar como Excel (.xlsx)</span>
-                                    </button>
-                                    <button
-                                        onClick={() => handleExportLivroCaixa('csv')}
-                                        className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors"
-                                    >
-                                        <FileSpreadsheet className="w-4 h-4 text-blue-500" />
-                                        <span>Baixar como CSV</span>
-                                    </button>
-                                    <button
-                                        onClick={() => handleExportLivroCaixa('ofx')}
-                                        className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors"
-                                    >
-                                        <FileCode className="w-4 h-4 text-purple-500" />
-                                        <span>Baixar como OFX (ERP/Contábil)</span>
-                                    </button>
-                                </div>
-                            )}
                         </div>
+                    </div>
 
-                        <button
-                            onClick={handlePrint}
-                            className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold hover:bg-slate-200 transition-all flex items-center gap-1.5 cursor-pointer"
-                            title="Imprimir Relatório"
-                        >
-                            <Printer className="w-3.5 h-3.5" />
-                            <span>Imprimir</span>
-                        </button>
+                    {/* Linha 2: Subtítulo à esquerda + Botões de Ação */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                        <p className="text-xs text-slate-400">Histórico de entradas e saídas registradas.</p>
+
+                        <div className="flex items-center gap-2 self-start sm:self-auto">
+                            {/* Botão Exportar Livro Caixa */}
+                            <div className="relative" ref={exportLivroCaixaRef}>
+                                <button
+                                    onClick={() => setShowExportLivroCaixa(!showExportLivroCaixa)}
+                                    className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                                >
+                                    <Download className="w-3.5 h-3.5 text-white" />
+                                    <span>Exportar Livro Caixa</span>
+                                    <ChevronDown className="w-3.5 h-3.5 text-white/90 ml-0.5" />
+                                </button>
+
+                                {showExportLivroCaixa && (
+                                    <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-100 dark:border-white/10 py-2 z-50 text-xs text-slate-700 dark:text-slate-200 animate-scale-in">
+                                        <div className="px-3 py-1.5 text-[10px] font-black uppercase text-slate-400 tracking-wider">Formatos Livro Caixa</div>
+                                        <button
+                                            onClick={() => handleExportLivroCaixa('pdf')}
+                                            className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors"
+                                        >
+                                            <FileText className="w-4 h-4 text-red-500" />
+                                            <span>Baixar como PDF</span>
+                                        </button>
+                                        <button
+                                            onClick={() => handleExportLivroCaixa('excel')}
+                                            className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors"
+                                        >
+                                            <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
+                                            <span>Baixar como Excel (.xlsx)</span>
+                                        </button>
+                                        <button
+                                            onClick={() => handleExportLivroCaixa('csv')}
+                                            className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors"
+                                        >
+                                            <FileSpreadsheet className="w-4 h-4 text-blue-500" />
+                                            <span>Baixar como CSV</span>
+                                        </button>
+                                        <button
+                                            onClick={() => handleExportLivroCaixa('ofx')}
+                                            className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors"
+                                        >
+                                            <FileCode className="w-4 h-4 text-purple-500" />
+                                            <span>Baixar como OFX (ERP/Contábil)</span>
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Botão Imprimir */}
+                            <button
+                                onClick={handlePrint}
+                                className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                                title="Imprimir Relatório"
+                            >
+                                <Printer className="w-3.5 h-3.5 text-slate-500" />
+                                <span>Imprimir</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                {/* Compact & Discrete Financial Totals Strip */}
-                <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Entradas:</span>
-                        <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{formatBRL(financialTotals.income)}</span>
+                {/* Barra de Resumo Horizontal Fiel à Referência */}
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4 text-xs">
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider text-xs">ENTRADAS:</span>
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400 text-xs md:text-sm">{formatBRL(financialTotals.income)}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Saídas:</span>
-                        <span className="font-mono font-bold text-rose-600 dark:text-rose-400">{formatBRL(financialTotals.expenses)}</span>
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider text-xs">SAÍDAS:</span>
+                        <span className="font-bold text-rose-600 dark:text-rose-400 text-xs md:text-sm">{formatBRL(financialTotals.expenses)}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Saldo Operacional:</span>
-                        <span className={`font-mono font-extrabold ${financialTotals.balance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{formatBRL(financialTotals.balance)}</span>
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider text-xs">SALDO OPERACIONAL:</span>
+                        <span className="font-bold text-slate-700 dark:text-slate-200 text-xs md:text-sm">{formatBRL(financialTotals.balance)}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-slate-400">
-                        <span className="text-[10px] font-black uppercase tracking-wider">Registros:</span>
-                        <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{financialTotals.totalTransactions}</span>
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider text-xs">REGISTROS:</span>
+                        <span className="font-bold text-slate-700 dark:text-slate-200 text-xs md:text-sm">{financialTotals.totalTransactions}</span>
                     </div>
                 </div>
 

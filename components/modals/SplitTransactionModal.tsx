@@ -34,6 +34,7 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [activeSuggestionSplitId, setActiveSuggestionSplitId] = useState<string | null>(null);
     const modalRef = useRef<HTMLDivElement>(null);
+    const activeTxIdRef = useRef<string | null>(null);
 
     // Detalhes da transação original
     const originalAmount = matchResult ? matchResult.transaction.amount : 0;
@@ -140,9 +141,56 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Inicialização ao abrir o modal
+    // Salva alterações atômicas no estado e no rascunho persistente de sessão
+    const updateSplitsWithPersistence = (updater: (prev: TransactionSplit[]) => TransactionSplit[]) => {
+        setSplits(prev => {
+            const next = updater(prev);
+            const txId = matchResult?.transaction?.id;
+            if (txId) {
+                try {
+                    sessionStorage.setItem(`rateio_draft_${txId}`, JSON.stringify(next));
+                } catch (e) {
+                    // Ignore
+                }
+            }
+            return next;
+        });
+    };
+
+    // Fechamento consciente limpando o rascunho e a trava de transação ativa
+    const handleCloseModal = () => {
+        const txId = matchResult?.transaction?.id;
+        if (txId) {
+            try {
+                sessionStorage.removeItem(`rateio_draft_${txId}`);
+            } catch (e) {
+                // Ignore
+            }
+        }
+        activeTxIdRef.current = null;
+        onClose();
+    };
+
+    // Inicialização ao abrir o modal (estritamente executada UMA VEZ por transação aberta)
     useEffect(() => {
+        if (!isOpen) {
+            activeTxIdRef.current = null;
+            return;
+        }
+
         if (isOpen && matchResult) {
+            const txId = matchResult.transaction?.id;
+            if (!txId) return;
+
+            // 🛡️ BLINDAGEM CONTRA PERDA DE ESTADO:
+            // Se o modal já está aberto e inicializado para esta mesma transação, NÃO REINICIALIZAR!
+            // Isso impede que revalidações em segundo plano (polling, websockets, refresh do AppContext)
+            // sobrescrevam o que o usuário está ativamente editando.
+            if (activeTxIdRef.current === txId) {
+                return;
+            }
+            activeTxIdRef.current = txId;
+
             const defaultChurchId = matchResult.church?.id && matchResult.church.id !== 'unidentified' 
                 ? matchResult.church.id 
                 : (validChurches[0]?.id || '');
@@ -154,39 +202,57 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
             const defaultContributorId = matchResult.contributor?.id || '';
             const defaultType = matchResult.contributor?.contributionType || matchResult.contributionType || categoryOptions[0] || (isExpense ? 'Despesa Geral' : 'Dízimo');
 
-            if (matchResult.splits && matchResult.splits.length > 0) {
-                // Carregar splits existentes garantindo todos os campos padronizados
-                setSplits(matchResult.splits.map(s => ({
-                    ...s,
-                    amount: Math.abs(s.amount),
-                    contributionType: s.contributionType || defaultType,
-                    contributorName: s.contributorName || defaultContributorName,
-                    contributorId: s.contributorId || defaultContributorId,
-                    churchId: s.churchId || defaultChurchId,
-                    churchName: s.churchName || defaultChurchName,
-                    paymentMethod: s.paymentMethod || defaultMethod,
-                    description: s.description || ''
-                })));
-            } else {
-                // Inicializar com 1 split cobrindo o valor total
-                setSplits([
-                    {
-                        id: Math.random().toString(36).substring(2, 9),
-                        amount: absoluteOriginal,
-                        contributionType: defaultType,
-                        contributorName: defaultContributorName,
-                        contributorId: defaultContributorId,
-                        churchId: defaultChurchId,
-                        churchName: defaultChurchName,
-                        paymentMethod: defaultMethod,
-                        description: ''
+            // 1. Tenta recuperar rascunho ativo não salvo caso tenha ocorrido re-mount acidental
+            let loadedFromDraft = false;
+            try {
+                const savedDraft = sessionStorage.getItem(`rateio_draft_${txId}`);
+                if (savedDraft) {
+                    const parsed = JSON.parse(savedDraft);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        setSplits(parsed);
+                        loadedFromDraft = true;
                     }
-                ]);
+                }
+            } catch (e) {
+                // Ignore
             }
+
+            if (!loadedFromDraft) {
+                if (matchResult.splits && matchResult.splits.length > 0) {
+                    // Carregar splits existentes garantindo todos os campos padronizados
+                    setSplits(matchResult.splits.map(s => ({
+                        ...s,
+                        amount: Math.abs(Number(s.amount) || 0),
+                        contributionType: s.contributionType || defaultType,
+                        contributorName: s.contributorName || defaultContributorName,
+                        contributorId: s.contributorId || defaultContributorId,
+                        churchId: s.churchId || defaultChurchId,
+                        churchName: s.churchName || defaultChurchName,
+                        paymentMethod: s.paymentMethod || defaultMethod,
+                        description: s.description || ''
+                    })));
+                } else {
+                    // Inicializar com 1 split cobrindo o valor total
+                    setSplits([
+                        {
+                            id: Math.random().toString(36).substring(2, 9),
+                            amount: absoluteOriginal,
+                            contributionType: defaultType,
+                            contributorName: defaultContributorName,
+                            contributorId: defaultContributorId,
+                            churchId: defaultChurchId,
+                            churchName: defaultChurchName,
+                            paymentMethod: defaultMethod,
+                            description: ''
+                        }
+                    ]);
+                }
+            }
+
             setErrorMessage(null);
             setActiveSuggestionSplitId(null);
         }
-    }, [isOpen, matchResult, absoluteOriginal, isExpense, validChurches, categoryOptions]);
+    }, [isOpen, matchResult?.transaction?.id, absoluteOriginal, isExpense]);
 
     const totalSplitAmount = splits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
     const difference = Math.round((absoluteOriginal - totalSplitAmount) * 100) / 100;
@@ -198,7 +264,7 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (!isOpen) return;
-            if (e.key === 'Escape') onClose();
+            if (e.key === 'Escape') handleCloseModal();
             if (e.key === 'Enter' && isSaveEnabled && !e.shiftKey) {
                 const target = e.target as HTMLElement;
                 if (target?.tagName === 'INPUT' || target?.tagName === 'SELECT') return;
@@ -224,7 +290,7 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
         const defaultContributorId = matchResult.contributor?.id || '';
         const defaultType = categoryOptions[0] || (isExpense ? 'Despesa Geral' : 'Dízimo');
 
-        setSplits(prev => [
+        updateSplitsWithPersistence(prev => [
             ...prev,
             {
                 id: Math.random().toString(36).substring(2, 9),
@@ -242,15 +308,16 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
 
     const handleRemoveSplit = (id: string) => {
         if (splits.length <= 1) return;
-        setSplits(prev => prev.filter(s => s.id !== id));
+        updateSplitsWithPersistence(prev => prev.filter(s => s.id !== id));
     };
 
     const handleSplitChange = (id: string, field: keyof TransactionSplit, value: any) => {
-        setSplits(prev => prev.map(s => {
+        updateSplitsWithPersistence(prev => prev.map(s => {
             if (s.id === id) {
                 if (field === 'amount') {
-                    const parsed = parseFloat(value) || 0;
-                    return { ...s, amount: Math.abs(parsed) };
+                    const strVal = String(value ?? '').replace(',', '.');
+                    const parsed = parseFloat(strVal);
+                    return { ...s, amount: isNaN(parsed) ? 0 : Math.abs(parsed) };
                 }
                 if (field === 'churchId') {
                     const found = validChurches.find(c => c.id === value);
@@ -267,7 +334,7 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
         const chId = contributor._churchId || contributor.church_id;
         const chName = contributor._churchName || contributor.church?.name;
 
-        setSplits(prev => prev.map(s => {
+        updateSplitsWithPersistence(prev => prev.map(s => {
             if (s.id === splitId) {
                 return {
                     ...s,
@@ -314,6 +381,16 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
             };
         });
 
+        const txId = matchResult.transaction?.id;
+        if (txId) {
+            try {
+                sessionStorage.removeItem(`rateio_draft_${txId}`);
+            } catch (e) {
+                // Ignore
+            }
+        }
+        activeTxIdRef.current = null;
+
         onSave(finalSplits);
         onClose();
     };
@@ -347,7 +424,7 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
                         <span className="text-[8px] font-black text-slate-400 uppercase border border-slate-200 dark:border-slate-800 px-1.5 py-0.5 rounded">Esc</span>
                         <button 
                             type="button" 
-                            onClick={onClose} 
+                            onClick={handleCloseModal} 
                             className="p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
                         >
                             <XMarkIcon className="w-5 h-5" />
@@ -647,7 +724,7 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
                 <div className="px-6 py-4 border-t border-slate-100 dark:border-white/5 flex flex-col-reverse sm:flex-row items-center justify-between gap-3 shrink-0 bg-slate-50/70 dark:bg-slate-900/50">
                     <button 
                         type="button" 
-                        onClick={onClose} 
+                        onClick={handleCloseModal} 
                         className="w-full sm:w-auto px-5 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
                     >
                         Cancelar

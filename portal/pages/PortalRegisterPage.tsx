@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { PortalContainer } from '../components/PortalContainer';
 import { PortalChurch, ContributorMockProfile } from '../types/portal';
 import { formatCpf, formatPhone, validateEmailVisual, validateCpfVisual, formatDateToDmy, formatDateToYmd } from '../utils/portalFormatters';
-import { invalidateContributorsCache } from '../../services/contributorsCache';
+import { invalidateContributorsCache, notifyContributorUpdated } from '../../services/contributorsCache';
 import { 
     Building2, 
     CheckCircle2, 
@@ -361,7 +361,8 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                     address_city: city || null,
                     address_state: state || null,
                     role_position: 'Membro',
-                    photo_url: photoUrl || null
+                    photo_url: photoUrl || null,
+                    is_global: true
                 };
 
                 let updateRes = await fetch('/api/v1/contributors/update-profile', {
@@ -384,8 +385,6 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                     if (updateData?.id) finalId = updateData.id;
                 }
 
-                invalidateContributorsCache();
-
                 const updatedProfile: ContributorMockProfile = {
                     id: finalId || contributorId,
                     name: cleanName,
@@ -406,7 +405,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
 
                 localStorage.setItem('iggestor_portal_contributor', JSON.stringify(updatedProfile));
                 localStorage.setItem('iggestor_just_registered', 'true');
-                window.dispatchEvent(new Event('storage'));
+                notifyContributorUpdated(updatedProfile);
 
                 setIsSaving(false);
                 const churchSlug = selectedChurch?.slug || selectedChurch?.id || 'igreja';
@@ -428,6 +427,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                 address_state: state || null,
                 role_position: 'Membro',
                 photo_url: photoUrl || null,
+                is_global: true,
                 status: 'active'
             };
 
@@ -444,7 +444,6 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
 
             // Handle already registered gracefully (HTTP 409)
             if (response.status === 409) {
-                invalidateContributorsCache();
                 const existingObj: ContributorMockProfile = {
                     id: responseData.existingId || responseData.id || contributorId || 'existing-contributor',
                     name: cleanName,
@@ -465,7 +464,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
 
                 localStorage.setItem('iggestor_portal_contributor', JSON.stringify(existingObj));
                 localStorage.setItem('iggestor_just_registered', 'true');
-                window.dispatchEvent(new Event('storage'));
+                notifyContributorUpdated(existingObj);
 
                 setIsSaving(false);
                 const churchSlug = selectedChurch?.slug || selectedChurch?.id || 'igreja';
@@ -476,8 +475,6 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
             if (!response.ok) {
                 throw new Error(responseData.message || responseData.error || 'Não foi possível concluir o cadastro no momento.');
             }
-
-            invalidateContributorsCache();
 
             // Successfully created new contributor record
             const newContributor: ContributorMockProfile = {
@@ -493,12 +490,14 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                 city: city,
                 state: state,
                 birth_date: formatDateToDmy(birthDate) || undefined,
+                photo_url: photoUrl || undefined,
+                avatarUrl: photoUrl || undefined,
                 isExisting: true
             };
 
             localStorage.setItem('iggestor_portal_contributor', JSON.stringify(newContributor));
             localStorage.setItem('iggestor_just_registered', 'true');
-            window.dispatchEvent(new Event('storage'));
+            notifyContributorUpdated(newContributor);
 
             setIsSaving(false);
             const churchSlug = selectedChurch?.slug || selectedChurch?.id || 'igreja';

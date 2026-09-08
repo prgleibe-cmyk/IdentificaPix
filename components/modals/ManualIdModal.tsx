@@ -615,7 +615,10 @@ export const ManualIdModal: React.FC = () => {
         }
 
         const targetDate = selectedDate || (bulkIdentificationTxs && bulkIdentificationTxs[0]?.date) || new Date().toISOString().split('T')[0];
-        if (isSecondaryUser && isPeriodClosed(targetDate, matchResults)) {
+        if (selectedChurchId && isPeriodClosed(targetDate, matchResults, selectedChurchId)) {
+            alert("PERÍODO CONGELADO: Este período contábil já teve seu Fechamento Final homologado para a congregação selecionada. Novos lançamentos ou identificações estão expressamente bloqueados.");
+            return;
+        } else if (isSecondaryUser && isPeriodClosed(targetDate, matchResults)) {
             alert("Este período já foi fechado de forma definitiva pelo usuário principal. Não é permitido realizar novos lançamentos.");
             return;
         }
@@ -653,8 +656,14 @@ export const ManualIdModal: React.FC = () => {
                     }
                 }
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("[ManualIdModal] Error confirming identification:", error);
+            const errMsg = error?.message || String(error);
+            if (errMsg.includes('PERIOD_CLOSED') || errMsg.includes('PERÍODO CONGELADO')) {
+                alert("OPERAÇÃO REJEITADA PELO SERVIDOR:\n\nEste período contábil já teve seu Fechamento Final homologado para a igreja. Não é permitido criar ou alterar lançamentos neste período.");
+            } else {
+                alert(`Erro ao salvar lançamento: ${errMsg}`);
+            }
         } finally {
             setIsSaving(false);
         }

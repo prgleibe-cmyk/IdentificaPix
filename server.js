@@ -188,21 +188,52 @@ try {
     app.use('/api/ai', aiRoutes(null));
 
     // Alias direto para o manifest dinâmico do portal
-    app.get(['/api/portal/manifest.json', '/portal/manifest.json'], (req, res, next) => {
-        req.url = `/api/v1/portal/manifest.json${req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : ''}`;
+    app.get(['/api/portal/manifest.json', '/portal/manifest.json'], async (req, res, next) => {
+        const query = req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '';
+        req.url = `/api/v1/portal/manifest.json${query}`;
         if (contributorsApp) {
             return contributorsApp(req, res, next);
         }
-        next();
+        try {
+            const baseUrl = process.env.CONTRIBUTORS_API_URL || 'http://127.0.0.1:3010';
+            const targetUrl = `${baseUrl.replace(/\/$/, '')}/api/v1/portal/manifest.json${query}`;
+            const upstream = await fetch(targetUrl);
+            const json = await upstream.json();
+            res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+            res.setHeader('Cache-Control', 'public, max-age=300');
+            return res.status(upstream.status).json(json);
+        } catch (err) {
+            console.error('[server.js] Erro ao buscar portal manifest do backend:', err.message);
+            next();
+        }
     });
 
     // Alias direto para o ícone com safe-zone do portal
-    app.get(['/api/portal/church-icon', '/portal/church-icon'], (req, res, next) => {
-        req.url = `/api/v1/portal/church-icon${req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : ''}`;
+    app.get(['/api/portal/church-icon', '/portal/church-icon'], async (req, res, next) => {
+        const query = req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '';
+        req.url = `/api/v1/portal/church-icon${query}`;
         if (contributorsApp) {
             return contributorsApp(req, res, next);
         }
-        next();
+        try {
+            const baseUrl = process.env.CONTRIBUTORS_API_URL || 'http://127.0.0.1:3010';
+            const targetUrl = `${baseUrl.replace(/\/$/, '')}/api/v1/portal/church-icon${query}`;
+            const upstream = await fetch(targetUrl, { redirect: 'manual' });
+            
+            if (upstream.status === 301 || upstream.status === 302) {
+                const loc = upstream.headers.get('location');
+                if (loc) return res.redirect(loc);
+            }
+            
+            const contentType = upstream.headers.get('content-type') || 'image/png';
+            res.setHeader('Content-Type', contentType);
+            res.setHeader('Cache-Control', 'public, max-age=86400');
+            const arrayBuf = await upstream.arrayBuffer();
+            return res.status(upstream.status).send(Buffer.from(arrayBuf));
+        } catch (err) {
+            console.error('[server.js] Erro ao buscar church icon do backend:', err.message);
+            return res.redirect('/pwa/icon-512.png?v=15');
+        }
     });
 
     // Endpoint de depuração do microserviço Contributors API
@@ -334,6 +365,13 @@ try {
                     } else {
                         throw fetchErr;
                     }
+                }
+
+                const contentType = response.headers.get('content-type') || '';
+                if (contentType.includes('image/') || contentType.includes('application/octet-stream')) {
+                    res.setHeader('Content-Type', contentType);
+                    const arrayBuf = await response.arrayBuffer();
+                    return res.status(response.status).send(Buffer.from(arrayBuf));
                 }
 
                 const data = await response.json().catch(() => null);

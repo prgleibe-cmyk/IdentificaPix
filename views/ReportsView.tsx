@@ -427,7 +427,8 @@ export const ReportsView: React.FC = () => {
                                     ...(splitRow.church || { address: '', logoUrl: '', pastor: '' }),
                                     id: firstSplitChurchId,
                                     name: firstSplitChurchName || splitRow.church?.name || 'Igreja'
-                                }
+                                },
+                                _churchId: firstSplitChurchId
                             } : {})
                         };
                         ctrl.updateReportData(updatedRow);

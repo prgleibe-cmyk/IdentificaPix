@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { ContributorMockProfile, PortalChurch } from '../types/portal';
 import { checkProfileCompleteness } from '../utils/portalProfileCompleteness';
 import { formatCpf, formatPhone, validateCpfVisual, validatePhoneVisual, validateEmailVisual, formatDateToDmy } from '../utils/portalFormatters';
-import { invalidateContributorsCache } from '../../services/contributorsCache';
+import { invalidateContributorsCache, notifyContributorUpdated } from '../../services/contributorsCache';
 import { 
     X, 
     Save, 
@@ -272,6 +272,7 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                 photo_url: photoPreview || null,
                 photo: photoPreview || null,
                 church_id: targetChurchId,
+                is_global: true,
                 status: 'active'
             };
 
@@ -365,9 +366,7 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
             // Save to localStorage and notify entire application
             try {
                 localStorage.setItem('iggestor_portal_contributor', JSON.stringify(updatedProfileObj));
-                invalidateContributorsCache();
-                window.dispatchEvent(new CustomEvent('contributor_updated', { detail: updatedProfileObj }));
-                window.dispatchEvent(new Event('storage'));
+                notifyContributorUpdated(updatedProfileObj);
             } catch (_) {}
 
             onProfileUpdated(updatedProfileObj);

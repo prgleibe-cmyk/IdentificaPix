@@ -37,10 +37,14 @@ export const fetchWithMemoryCache = async <T>(
 
         if (cached?.etag && !forceRefresh) {
             headers['If-None-Match'] = cached.etag;
+        } else if (forceRefresh) {
+            headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+            headers['Pragma'] = 'no-cache';
         }
 
         const res = await fetch(url, {
             ...options,
+            cache: forceRefresh ? 'no-store' : options.cache,
             headers
         });
 

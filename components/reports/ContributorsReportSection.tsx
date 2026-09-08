@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext, useMemo, useRef } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { useUI } from '../../contexts/UIContext';
 import { ExportService } from '../../services/ExportService';
-import { getCachedContributors } from '../../services/contributorsCache';
+import { getCachedContributors, subscribeToContributorUpdates } from '../../services/contributorsCache';
 import { 
     Users, Building2, UserCheck, Search, Download, 
     FileSpreadsheet, FileText, Filter, Loader2, RefreshCw, FileCode, Printer,
@@ -118,7 +118,13 @@ export const ContributorsReportSection: React.FC = () => {
     };
 
     useEffect(() => {
-        loadContributorsData();
+        loadContributorsData(true);
+        const unsubscribe = subscribeToContributorUpdates(() => {
+            loadContributorsData(true);
+        });
+        return () => {
+            unsubscribe();
+        };
     }, [contributorFiles]);
 
     // Unique roles
