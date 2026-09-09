@@ -195,8 +195,7 @@ try {
             return contributorsApp(req, res, next);
         }
         try {
-            const rawUrl = process.env.CONTRIBUTORS_API_URL;
-            const baseUrl = (rawUrl && !rawUrl.includes('contributors-api:3010')) ? rawUrl : 'http://127.0.0.1:3010';
+            const baseUrl = process.env.CONTRIBUTORS_API_URL || 'http://127.0.0.1:3010';
             const targetUrl = `${baseUrl.replace(/\/$/, '')}/api/v1/portal/manifest.json${query}`;
             const upstream = await fetch(targetUrl);
             const json = await upstream.json();
@@ -217,8 +216,7 @@ try {
             return contributorsApp(req, res, next);
         }
         try {
-            const rawUrl = process.env.CONTRIBUTORS_API_URL;
-            const baseUrl = (rawUrl && !rawUrl.includes('contributors-api:3010')) ? rawUrl : 'http://127.0.0.1:3010';
+            const baseUrl = process.env.CONTRIBUTORS_API_URL || 'http://127.0.0.1:3010';
             const targetUrl = `${baseUrl.replace(/\/$/, '')}/api/v1/portal/church-icon${query}`;
             const upstream = await fetch(targetUrl, { redirect: 'manual' });
             
@@ -310,8 +308,7 @@ try {
         // Proxy para o Contributors API (PG + VPS)
         app.all('/api/v1/*', async (req, res) => {
             try {
-                const rawUrl = process.env.CONTRIBUTORS_API_URL;
-                const baseUrl = (rawUrl && !rawUrl.includes('contributors-api:3010')) ? rawUrl : 'http://127.0.0.1:3010';
+                const baseUrl = process.env.CONTRIBUTORS_API_URL || 'http://127.0.0.1:3010';
                 const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
                 const targetUrl = `${cleanBaseUrl}${req.originalUrl}`;
                 

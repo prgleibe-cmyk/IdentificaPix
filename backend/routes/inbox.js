@@ -241,7 +241,7 @@ export default (ai) => {
 
     router.post('/:userId/:bankId', resilientBodyParser, async (req, res) => {
         let { userId, bankId } = req.params;
-        let rawApiKey = req.headers['x-api-key'] || 
+        const rawApiKey = req.headers['x-api-key'] || 
                           req.headers['authorization'] || 
                           req.query?.key || 
                           req.query?.apiKey || 
@@ -249,12 +249,6 @@ export default (ai) => {
                           req.body?.key || 
                           req.body?.apiKey || 
                           req.body?.api_key;
-        if (Array.isArray(rawApiKey)) {
-            rawApiKey = rawApiKey[0];
-        }
-        if (typeof rawApiKey === 'string' && rawApiKey.includes('?')) {
-            rawApiKey = rawApiKey.split('?')[0];
-        }
         const envKey = (process.env.INBOX_API_KEY || '').trim();
         
         // Chaves aceitas: INBOX_API_KEY do ambiente e a chave padrão de instrução no app
@@ -332,16 +326,6 @@ export default (ai) => {
             }
         }
 
-        // 🛡️ Fallback extraction from req.originalUrl if query string had multiple '?' (e.g. from MacroDroid)
-        if (!text && req.originalUrl) {
-            try {
-                const textMatch = req.originalUrl.match(/[?&]text=([^&]+)/i);
-                if (textMatch && textMatch[1]) {
-                    text = decodeURIComponent(textMatch[1].replace(/\+/g, ' '));
-                }
-            } catch (_) {}
-        }
-
         // 🧽 Robust Sanitization of userId and bankId
         if (userId) {
             try {
@@ -397,15 +381,12 @@ export default (ai) => {
             console.log(`[Inbox API] Gravando transação no banco de dados VPS... (row_hash: ${rowHash})`);
 
             const defaultPort = process.env.PORT || '3000';
-            const targetUrls = [
-                `http://127.0.0.1:3010/api/v1/consolidated_transactions`,
-                `http://127.0.0.1:${defaultPort}/api/v1/consolidated_transactions`
-            ];
-            if (process.env.CONTRIBUTORS_API_URL && 
-                !process.env.CONTRIBUTORS_API_URL.includes('contributors-api:3010') && 
-                !process.env.CONTRIBUTORS_API_URL.includes('127.0.0.1:3010')) {
-                targetUrls.unshift(`${process.env.CONTRIBUTORS_API_URL.replace(/\/+$/, '')}/api/v1/consolidated_transactions`);
+            const targetUrls = [];
+            if (process.env.CONTRIBUTORS_API_URL) {
+                targetUrls.push(`${process.env.CONTRIBUTORS_API_URL.replace(/\/+$/, '')}/api/v1/consolidated_transactions`);
             }
+            targetUrls.push(`http://127.0.0.1:${defaultPort}/api/v1/consolidated_transactions`);
+            targetUrls.push(`http://127.0.0.1:3010/api/v1/consolidated_transactions`);
 
             let vpsResponse = null;
             let lastError = null;
