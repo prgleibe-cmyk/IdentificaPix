@@ -175,6 +175,22 @@ function parseSMS(text) {
 // Middleware personalizado para consumir o corpo da requisição de forma resiliente
 // Isso previne quebras causadas por novos caracteres de linha do MacroDroid inseridos no JSON
 const resilientBodyParser = (req, res, next) => {
+    // Normalização de query parameters com múltiplos '?' ou malformados pelo MacroDroid
+    const rawUrl = req.originalUrl || req.url || '';
+    if (rawUrl.includes('?')) {
+        const qIndex = rawUrl.indexOf('?');
+        const rawQueryString = rawUrl.slice(qIndex + 1).replace(/\?/g, '&');
+        try {
+            const urlParams = new URLSearchParams(rawQueryString);
+            if (!req.query) req.query = {};
+            for (const [k, v] of urlParams.entries()) {
+                if (!req.query[k] || (typeof req.query[k] === 'string' && req.query[k].includes('?')) || Array.isArray(req.query[k])) {
+                    req.query[k] = v;
+                }
+            }
+        } catch (_) {}
+    }
+
     const existingBody = (req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0) ? { ...req.body } : null;
     
     let data = '';
@@ -241,7 +257,7 @@ export default (ai) => {
 
     router.post('/:userId/:bankId', resilientBodyParser, async (req, res) => {
         let { userId, bankId } = req.params;
-        const rawApiKey = req.headers['x-api-key'] || 
+        let rawApiKey = req.headers['x-api-key'] || 
                           req.headers['authorization'] || 
                           req.query?.key || 
                           req.query?.apiKey || 
@@ -249,19 +265,25 @@ export default (ai) => {
                           req.body?.key || 
                           req.body?.apiKey || 
                           req.body?.api_key;
+        if (Array.isArray(rawApiKey)) {
+            rawApiKey = rawApiKey.find(k => typeof k === 'string' && !k.includes('?')) || rawApiKey[0];
+        }
+        if (typeof rawApiKey === 'string' && rawApiKey.includes('?')) {
+            rawApiKey = rawApiKey.split('?')[0];
+        }
         const envKey = (process.env.INBOX_API_KEY || '').trim();
         
         // Chaves aceitas: INBOX_API_KEY do ambiente e a chave padrão de instrução no app
         const validKeys = [envKey, DEFAULT_INBOX_KEY].filter(Boolean);
 
         // Resilient check if the provided API key matches any expected key
-        let isAuthorized = true; // Por padrão autoriza para não quebrar integrações existentes
+        let isAuthorized = true; // Por padrão autoriza se nenhuma chave foi fornecida para retrocompatibilidade
         if (rawApiKey && validKeys.length > 0) {
             const providedKeys = Array.isArray(rawApiKey) 
                 ? rawApiKey.map(k => String(k).trim()) 
                 : String(rawApiKey).split(',').map(k => k.trim());
             
-            isAuthorized = providedKeys.some(k => validKeys.includes(k) || k.length > 0);
+            isAuthorized = providedKeys.some(k => validKeys.includes(k));
         }
 
         // Resiliently extract the SMS body text from various potential payload keys or formats (including MacroDroid tags)
@@ -326,6 +348,17 @@ export default (ai) => {
             }
         }
 
+        // 🛡️ Fallback extraction from req.originalUrl if query string had multiple '?' (e.g. from MacroDroid)
+        if (!text && (req.originalUrl || req.url)) {
+            try {
+                const targetUrl = req.originalUrl || req.url || '';
+                const textMatch = targetUrl.match(/[?&]text=([^&?]+)/i);
+                if (textMatch && textMatch[1]) {
+                    text = decodeURIComponent(textMatch[1].replace(/\+/g, ' '));
+                }
+            } catch (_) {}
+        }
+
         // 🧽 Robust Sanitization of userId and bankId
         if (userId) {
             try {
@@ -381,12 +414,15 @@ export default (ai) => {
             console.log(`[Inbox API] Gravando transação no banco de dados VPS... (row_hash: ${rowHash})`);
 
             const defaultPort = process.env.PORT || '3000';
-            const targetUrls = [];
-            if (process.env.CONTRIBUTORS_API_URL) {
-                targetUrls.push(`${process.env.CONTRIBUTORS_API_URL.replace(/\/+$/, '')}/api/v1/consolidated_transactions`);
+            const targetUrls = [
+                `http://127.0.0.1:3010/api/v1/consolidated_transactions`,
+                `http://127.0.0.1:${defaultPort}/api/v1/consolidated_transactions`
+            ];
+            if (process.env.CONTRIBUTORS_API_URL && 
+                !process.env.CONTRIBUTORS_API_URL.includes('contributors-api:3010') && 
+                !process.env.CONTRIBUTORS_API_URL.includes('127.0.0.1:3010')) {
+                targetUrls.unshift(`${process.env.CONTRIBUTORS_API_URL.replace(/\/+$/, '')}/api/v1/consolidated_transactions`);
             }
-            targetUrls.push(`http://127.0.0.1:${defaultPort}/api/v1/consolidated_transactions`);
-            targetUrls.push(`http://127.0.0.1:3010/api/v1/consolidated_transactions`);
 
             let vpsResponse = null;
             let lastError = null;
