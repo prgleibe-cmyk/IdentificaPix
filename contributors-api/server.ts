@@ -6149,14 +6149,6 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
     const ctx = getTenantContext(req);
     const { amount, description, type, pix_key, source, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits } = req.body;
     
-    let effStatus = status;
-    if (effStatus !== undefined && effStatus !== null) {
-      const lower = String(effStatus).toLowerCase().trim();
-      if (lower === 'identificado' || lower === 'identified') effStatus = 'identified';
-      else if (lower === 'pendente' || lower === 'não identificado' || lower === 'nao identificado' || lower === 'pending') effStatus = 'pending';
-      else if (lower === 'resolvido' || lower === 'resolved') effStatus = 'resolved';
-    }
-    
     const oldTxRes = await pool.query('SELECT * FROM consolidated_transactions WHERE id = $1', [id]);
     const oldTx = oldTxRes.rows[0] || null;
     if (!oldTx) return res.status(404).json({ error: 'NOT_FOUND' });
@@ -6225,7 +6217,7 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
         type, 
         pix_key, 
         source, 
-        effStatus, 
+        status, 
         bank_id !== undefined ? bank_id : null, 
         row_hash, 
         is_confirmed, 

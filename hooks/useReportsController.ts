@@ -106,14 +106,6 @@ export const useReportsController = () => {
     });
 
     const isPendingTx = useCallback((r: MatchResult) => {
-        // Se a transação possui congregação associada válida ou splits direcionados para congregações, ela já está identificada
-        const churchId = (r.church?.id && r.church.id !== 'unidentified')
-            ? r.church.id
-            : (r._churchId && r._churchId !== 'unidentified' ? r._churchId : (r.transaction as any)?.church_id);
-        const hasSplitsWithChurch = Array.isArray(r.splits) && r.splits.some((s: any) => s.churchId && s.churchId !== 'unidentified');
-        if (churchId || hasSplitsWithChurch) {
-            return false;
-        }
         return r.status === ReconciliationStatus.UNIDENTIFIED || r.status === ReconciliationStatus.PENDING;
     }, []);
 
@@ -336,14 +328,6 @@ export const useReportsController = () => {
                     const cid = (r.church?.id && r.church.id !== 'unidentified')
                         ? r.church.id
                         : (r._churchId && r._churchId !== 'unidentified' ? r._churchId : (r.transaction as any)?.church_id);
-                    const txSplits = (Array.isArray(r.splits) && r.splits.length > 0)
-                        ? r.splits
-                        : (Array.isArray((r.transaction as any)?.splits) && (r.transaction as any).splits.length > 0)
-                            ? (r.transaction as any).splits
-                            : null;
-                    if (txSplits && txSplits.length > 0) {
-                        return cid === targetChurchId || txSplits.some((s: any) => s.churchId === targetChurchId);
-                    }
                     return cid === targetChurchId;
                 });
             } else {
