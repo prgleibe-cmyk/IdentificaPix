@@ -49,7 +49,7 @@ export const ManualIdModal: React.FC = () => {
     const handleClose = () => {
         closeManualIdentify();
         if (activeView === 'novo_lancamento') {
-            setActiveView('livro_caixa');
+            setActiveView('reports');
         }
     };
 
@@ -649,11 +649,7 @@ export const ManualIdModal: React.FC = () => {
                 );
 
                 if (setActiveView) {
-                    if (activeView === 'novo_lancamento') {
-                        setActiveView('livro_caixa');
-                    } else {
-                        setActiveView('reports');
-                    }
+                    setActiveView('reports');
                 }
             }
         } catch (error: any) {
