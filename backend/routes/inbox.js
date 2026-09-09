@@ -172,9 +172,48 @@ function parseSMS(text) {
     };
 }
 
+// Função de log forense para capturar e auditar cada requisição de forma isolada e rastreável
+function logForensicReport(f) {
+    console.log(`\n==================== [TESTE FORENSE INBOX - START: ${f.requestId}] ====================`);
+    console.log(`[FORENSIC:${f.requestId}] 1. Timestamp: ${f.timestamp}`);
+    console.log(`[FORENSIC:${f.requestId}] 2. Method: ${f.method}`);
+    console.log(`[FORENSIC:${f.requestId}] 3. OriginalUrl: ${f.originalUrl}`);
+    console.log(`[FORENSIC:${f.requestId}] 4. Body bruto (antes de qualquer normalização): ${JSON.stringify(f.rawBody)}`);
+    console.log(`[FORENSIC:${f.requestId}] 5. req.body original (após parser inicial): ${JSON.stringify(f.initialBody)}`);
+    console.log(`[FORENSIC:${f.requestId}] 6. Valor de 'text' efetivamente selecionado: ${JSON.stringify(f.selectedText)}`);
+    console.log(`[FORENSIC:${f.requestId}] 7. Resultado do parseSMS(text): ${JSON.stringify(f.parseResult)}`);
+    console.log(`[FORENSIC:${f.requestId}] 8. Valor/amount extraído: ${f.extractedAmount}`);
+    console.log(`[FORENSIC:${f.requestId}] 9. Identificação/hash gerado (row_hash): ${f.rowHash}`);
+    console.log(`[FORENSIC:${f.requestId}] 10. Momento chamada persistência: ${f.persistenceCallTime || '(não realizada)'}`);
+    console.log(`[FORENSIC:${f.requestId}] 11. Resposta da persistência: ${JSON.stringify(f.persistenceResponse || null)}`);
+    console.log(`[FORENSIC:${f.requestId}] 12. Momento res.json(): ${f.resJsonTime} (duração total: ${f.totalDurationMs}ms)`);
+    console.log(`==================== [TESTE FORENSE INBOX - END: ${f.requestId}] ====================\n`);
+}
+
 // Middleware personalizado para consumir o corpo da requisição de forma resiliente
 // Isso previne quebras causadas por novos caracteres de linha do MacroDroid inseridos no JSON
 const resilientBodyParser = (req, res, next) => {
+    // 🔍 Identificador forense único por requisição (escopo local exclusivo de req)
+    const requestId = 'INBOX_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8).toUpperCase();
+    const forensicStart = Date.now();
+    req.forensic = {
+        requestId,
+        timestamp: new Date().toISOString(),
+        method: req.method,
+        originalUrl: req.originalUrl || req.url || '',
+        rawBody: '',
+        initialBody: null,
+        selectedText: null,
+        parseResult: null,
+        extractedAmount: null,
+        rowHash: null,
+        persistenceCallTime: null,
+        persistenceResponse: null,
+        resJsonTime: null,
+        totalDurationMs: 0,
+        forensicStart
+    };
+
     // Normalização de query parameters com múltiplos '?' ou malformados pelo MacroDroid
     const rawUrl = req.originalUrl || req.url || '';
     if (rawUrl.includes('?')) {
@@ -200,6 +239,7 @@ const resilientBodyParser = (req, res, next) => {
     });
     req.on('end', () => {
         req.rawBody = data;
+        req.forensic.rawBody = data;
         if (data && data.trim().length > 0) {
             try {
                 // Tenta o parsing padrão JSON primeiro
@@ -245,6 +285,7 @@ const resilientBodyParser = (req, res, next) => {
         } else {
             req.body = {};
         }
+        req.forensic.initialBody = req.body ? JSON.parse(JSON.stringify(req.body)) : req.body;
         next();
     });
 };
@@ -378,7 +419,10 @@ export default (ai) => {
             }
         }
 
-        console.log(`\n--- [INCOMING PIX NOTIFICATION] ---`);
+        // Registro forense do texto selecionado
+        req.forensic.selectedText = text;
+
+        console.log(`\n--- [INCOMING PIX NOTIFICATION: ${req.forensic.requestId}] ---`);
         console.log(`[Inbox API] Recebido POST para usuário/owner: "${userId}"`);
         console.log(`[Inbox API] Banco destino (bank_id) original: "${req.params.bankId}" | Sanitizado: "${sanitizedBankId}"`);
         console.log(`[Inbox API] Conteúdo recebido (text): "${text || '(vazio)'}"`);
@@ -386,7 +430,10 @@ export default (ai) => {
 
         if (!isAuthorized) {
             console.warn(`[Inbox Warning] ❌ Unauthorized: Chave de API inválida ou ausente.`);
-            return res.status(401).json({ error: 'Unauthorized: Invalid API Key' });
+            req.forensic.resJsonTime = new Date().toISOString();
+            req.forensic.totalDurationMs = Date.now() - req.forensic.forensicStart;
+            logForensicReport(req.forensic);
+            return res.status(401).json({ error: 'Unauthorized: Invalid API Key', forensic: req.forensic });
         }
 
         if (req.user) {
@@ -394,13 +441,19 @@ export default (ai) => {
         }
         if (!text) {
             console.warn(`[Inbox API] ⚠️ Requisição de notificação barrada: Conteúdo de texto vazio.`);
-            return res.status(400).json({ error: "Conteúdo da mensagem vazio" });
+            req.forensic.resJsonTime = new Date().toISOString();
+            req.forensic.totalDurationMs = Date.now() - req.forensic.forensicStart;
+            logForensicReport(req.forensic);
+            return res.status(400).json({ error: "Conteúdo da mensagem vazio", forensic: req.forensic });
         }
 
         try {
             console.log(`[Inbox API] Iniciando processamento determinístico do SMS/Notificação...`);
 
             const data = parseSMS(text);
+
+            req.forensic.parseResult = data;
+            req.forensic.extractedAmount = data?.amount;
 
             console.log(`[Inbox API] SMS analisado com sucesso! Dados extraídos:`, JSON.stringify(data));
 
@@ -410,6 +463,8 @@ export default (ai) => {
 
             const bankHashPart = sanitizedBankId || 'nobank';
             const rowHash = `sms_${userId}_${bankHashPart}_${data.date}_${data.amount}_${data.description.substring(0, 10).replace(/\s/g, '')}`;
+
+            req.forensic.rowHash = rowHash;
 
             console.log(`[Inbox API] Gravando transação no banco de dados VPS... (row_hash: ${rowHash})`);
 
@@ -431,6 +486,8 @@ export default (ai) => {
                 try {
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 2500);
+
+                    req.forensic.persistenceCallTime = new Date().toISOString();
 
                     const resp = await fetch(targetUrl, {
                         method: 'POST',
@@ -454,6 +511,12 @@ export default (ai) => {
                     clearTimeout(timeoutId);
 
                     vpsResponse = resp;
+                    req.forensic.persistenceResponse = {
+                        targetUrl,
+                        status: resp.status,
+                        statusText: resp.statusText
+                    };
+
                     if (resp.ok || resp.status === 409) {
                         break;
                     }
@@ -469,9 +532,15 @@ export default (ai) => {
 
             if (vpsResponse && vpsResponse.status === 409) {
                 const resJson = await vpsResponse.json().catch(() => ({}));
+                if (req.forensic.persistenceResponse) {
+                    req.forensic.persistenceResponse.body = resJson;
+                }
                 if (resJson.error === 'ROW_HASH_ALREADY_EXISTS') {
                     console.log(`[Inbox API] ℹ️ Transação já cadastrada no banco de dados anteriormente (VPS).`);
-                    return res.json({ success: true, message: "Transação já registrada.", rowHash });
+                    req.forensic.resJsonTime = new Date().toISOString();
+                    req.forensic.totalDurationMs = Date.now() - req.forensic.forensicStart;
+                    logForensicReport(req.forensic);
+                    return res.json({ success: true, message: "Transação já registrada.", rowHash, forensic: req.forensic });
                 }
             }
 
@@ -481,12 +550,26 @@ export default (ai) => {
                 throw new Error(`Erro ao salvar transação na VPS (Status ${vpsResponse?.status})`);
             }
 
+            const persistenceJson = await vpsResponse.clone().json().catch(() => null);
+            if (req.forensic.persistenceResponse) {
+                req.forensic.persistenceResponse.body = persistenceJson;
+            }
+
             console.log(`[Inbox API] ✅ Transação registrada com sucesso no banco de dados VPS!`);
-            res.json({ success: true, message: "Transação recebida e salva com sucesso!", data });
+            req.forensic.resJsonTime = new Date().toISOString();
+            req.forensic.totalDurationMs = Date.now() - req.forensic.forensicStart;
+            logForensicReport(req.forensic);
+            res.json({ success: true, message: "Transação recebida e salva com sucesso!", data, forensic: req.forensic });
 
         } catch (error) {
             console.error("[Inbox API] ❌ Erro no processamento do webhook:", error.message);
-            res.status(500).json({ error: error.message || "Falha ao processar notificação bancária." });
+            if (req.forensic) {
+                req.forensic.resJsonTime = new Date().toISOString();
+                req.forensic.totalDurationMs = Date.now() - req.forensic.forensicStart;
+                req.forensic.error = error.message;
+                logForensicReport(req.forensic);
+            }
+            res.status(500).json({ error: error.message || "Falha ao processar notificação bancária.", forensic: req.forensic });
         }
     });
 
