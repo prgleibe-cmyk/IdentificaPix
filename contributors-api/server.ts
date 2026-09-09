@@ -178,12 +178,26 @@ class LocalSqliteEngine {
         user_id TEXT,
         church_id TEXT,
         date TEXT,
+        transaction_date TEXT,
         description TEXT,
         amount REAL,
         type TEXT,
+        pix_key TEXT,
+        source TEXT DEFAULT 'file',
+        status TEXT DEFAULT 'pending',
+        bank_id TEXT,
+        row_hash TEXT,
+        is_confirmed INTEGER DEFAULT 0,
         category TEXT,
         contributor_id TEXT,
-        created_at TEXT DEFAULT (now())
+        report_id TEXT,
+        payment_method TEXT,
+        contribution_type TEXT,
+        contribution_request_id TEXT,
+        splits TEXT,
+        reference_date TEXT,
+        created_at TEXT DEFAULT (now()),
+        updated_at TEXT DEFAULT (now())
       );
 
       CREATE TABLE IF NOT EXISTS church_pix_keys (
@@ -509,7 +523,45 @@ class LocalSqliteEngine {
     safeAdd('communication_logs', 'queue_id TEXT');
     safeAdd('communication_logs', 'provider_message_id TEXT');
 
+    safeAdd('consolidated_transactions', 'amount REAL');
+    safeAdd('consolidated_transactions', 'description TEXT');
+    safeAdd('consolidated_transactions', 'type TEXT');
+    safeAdd('consolidated_transactions', 'pix_key TEXT');
+    safeAdd('consolidated_transactions', 'source TEXT DEFAULT "file"');
+    safeAdd('consolidated_transactions', 'user_id TEXT');
+    safeAdd('consolidated_transactions', 'status TEXT DEFAULT "pending"');
+    safeAdd('consolidated_transactions', 'bank_id TEXT');
+    safeAdd('consolidated_transactions', 'row_hash TEXT');
+    safeAdd('consolidated_transactions', 'is_confirmed INTEGER DEFAULT 0');
+    safeAdd('consolidated_transactions', 'transaction_date TEXT');
     safeAdd('consolidated_transactions', 'reference_date TEXT');
+    safeAdd('consolidated_transactions', 'church_id TEXT');
+    safeAdd('consolidated_transactions', 'contributor_id TEXT');
+    safeAdd('consolidated_transactions', 'report_id TEXT');
+    safeAdd('consolidated_transactions', 'payment_method TEXT');
+    safeAdd('consolidated_transactions', 'contribution_type TEXT');
+    safeAdd('consolidated_transactions', 'contribution_request_id TEXT');
+    safeAdd('consolidated_transactions', 'splits TEXT');
+    safeAdd('consolidated_transactions', 'updated_at TEXT DEFAULT CURRENT_TIMESTAMP');
+
+    safeAdd('learned_associations', 'normalized_description TEXT');
+    safeAdd('learned_associations', 'contributor_normalized_name TEXT');
+
+    safeAdd('financial_records', 'user_id TEXT');
+    safeAdd('financial_records', 'title TEXT');
+    safeAdd('financial_records', 'status TEXT DEFAULT "pending"');
+    safeAdd('financial_records', 'recipient_name TEXT');
+    safeAdd('financial_records', 'recipient_type TEXT');
+    safeAdd('financial_records', 'due_date TEXT');
+    safeAdd('financial_records', 'payment_date TEXT');
+    safeAdd('financial_records', 'recurrence TEXT DEFAULT "none"');
+    safeAdd('financial_records', 'parent_id TEXT');
+    safeAdd('financial_records', 'bank_transaction_id TEXT');
+    safeAdd('financial_records', 'bank_transaction_desc TEXT');
+    safeAdd('financial_records', 'attachments TEXT DEFAULT "[]"');
+    safeAdd('financial_records', 'validation_status TEXT DEFAULT "pending_attachment"');
+    safeAdd('financial_records', 'validation_notes TEXT');
+    safeAdd('financial_records', 'updated_at TEXT DEFAULT CURRENT_TIMESTAMP');
 
     safeAdd('churches', 'logoUrl TEXT');
     safeAdd('churches', 'pastor TEXT');
@@ -5897,7 +5949,7 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
       contribution_request_id
     });
 
-    const finalId = id || undefined;
+    const finalId = id || crypto.randomUUID();
     let query = '';
     let params: any[] = [];
     if (finalId) {
