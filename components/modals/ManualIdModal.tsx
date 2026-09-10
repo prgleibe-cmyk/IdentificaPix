@@ -73,7 +73,7 @@ export const ManualIdModal: React.FC = () => {
     const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
     const [manualDescription, setManualDescription] = useState<string>('');
     const [manualAmount, setManualAmount] = useState<string>('');
-    const [manualType, setManualType] = useState<'entrada' | 'saida' | null>(null);
+    const [manualType, setManualType] = useState<'entrada' | 'saida'>('entrada');
     const [attachments, setAttachments] = useState<ExpenseAttachment[]>([]);
     const [isSaving, setIsSaving] = useState(false);
 
@@ -757,15 +757,11 @@ export const ManualIdModal: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Banner Informativo para Escolha de Entrada ou Saída se ainda não selecionado */}
+                    {/* Aviso sutil e compacto se porventura não houver tipo selecionado */}
                     {!manualType && (
-                        <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-700/60 rounded-xl p-3 shadow-2xs text-center space-y-2">
-                            <div className="flex items-center justify-center gap-1.5">
-                                <span className="text-sm">⚠️</span>
-                                <h4 className="text-[11px] font-bold text-amber-900 dark:text-amber-200 uppercase tracking-wide">
-                                    Selecione o Tipo do Lançamento Acima (Entrada ou Saída)
-                                </h4>
-                            </div>
+                        <div className="flex items-center justify-center gap-1.5 py-1 px-3 bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/50 rounded-lg text-xs font-semibold text-amber-800 dark:text-amber-300 animate-fade-in">
+                            <span className="text-xs">⚠️</span>
+                            <span>Selecione acima se este lançamento é <strong>Entrada (Receita)</strong> ou <strong>Saída (Despesa)</strong></span>
                         </div>
                     )}
 
@@ -1098,30 +1094,10 @@ export const ManualIdModal: React.FC = () => {
                     {/* Linha 4: Descrição e Forma de Pagamento */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1.5 relative">
-                            <div className="flex items-center justify-between flex-wrap gap-1.5">
-                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-1">
-                                    <span>Descrição / Categoria</span>
-                                    <span className="text-rose-500 font-bold">*</span>
-                                </label>
-                                <div className="flex items-center gap-1.5">
-                                    <select
-                                        value=""
-                                        onChange={e => {
-                                            if (e.target.value) {
-                                                setSelectedType(e.target.value.toUpperCase());
-                                                setShowTypeSuggestions(false);
-                                            }
-                                        }}
-                                        className="bg-orange-50 hover:bg-orange-100 dark:bg-orange-950/60 dark:hover:bg-orange-900/60 text-orange-700 dark:text-orange-300 text-[10px] font-bold py-0.5 px-2 rounded-lg border border-orange-200/70 dark:border-orange-800/70 cursor-pointer outline-none transition-colors"
-                                        title="Escolher modelo ou categoria pré-definida"
-                                    >
-                                        <option value="" disabled>📋 Carregar Modelo...</option>
-                                        {typeOptions.map((type: string) => (
-                                            <option key={type} value={type}>{type}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
+                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-1">
+                                <span>Descrição / Categoria</span>
+                                <span className="text-rose-500 font-bold">*</span>
+                            </label>
                             <div className="relative w-full">
                                 <input
                                     type="text"
@@ -1131,28 +1107,44 @@ export const ManualIdModal: React.FC = () => {
                                         setShowTypeSuggestions(true);
                                     }}
                                     onFocus={() => setShowTypeSuggestions(true)}
-                                    placeholder="DIGITE A DESCRIÇÃO (OBRIGATÓRIO)..."
-                                    className={`block w-full rounded-xl border bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs py-2.5 px-3.5 transition-all outline-none text-xs font-bold uppercase ${
+                                    onBlur={() => {
+                                        setTimeout(() => setShowTypeSuggestions(false), 200);
+                                    }}
+                                    placeholder="DIGITE OU ESCOLHA (EX: DÍZIMO, OFERTA)..."
+                                    className={`block w-full rounded-xl border bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs py-2.5 pl-3.5 pr-14 transition-all outline-none text-xs font-bold uppercase ${
                                         !selectedType.trim()
                                             ? 'border-amber-300 dark:border-amber-600/60 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500'
                                             : 'border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500'
                                     }`}
                                 />
-                                {selectedType && (
+                                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                                    {selectedType && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setSelectedType('');
+                                                setShowTypeSuggestions(false);
+                                            }}
+                                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 text-xs cursor-pointer"
+                                            title="Limpar campo"
+                                        >
+                                            ✕
+                                        </button>
+                                    )}
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            setSelectedType('');
-                                            setShowTypeSuggestions(false);
+                                        onMouseDown={(e) => {
+                                            e.preventDefault();
+                                            setShowTypeSuggestions(prev => !prev);
                                         }}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 text-xs"
-                                        title="Limpar campo"
+                                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 cursor-pointer transition-transform"
+                                        title="Ver modelos cadastrados"
                                     >
-                                        ✕
+                                        <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform ${showTypeSuggestions ? 'rotate-180' : ''}`} />
                                     </button>
-                                )}
+                                </div>
 
-                                {/* Dropdown de Autocomplete Inteligente */}
+                                {/* Dropdown Único de Autocomplete / Seleção de Modelos Cadastrados */}
                                 {showTypeSuggestions && filteredTypeOptions.length > 0 && (
                                     <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto custom-scrollbar">
                                         <div className="p-1.5 space-y-0.5">
@@ -1178,27 +1170,6 @@ export const ManualIdModal: React.FC = () => {
                                         </div>
                                     </div>
                                 )}
-                            </div>
-
-                            {/* Atalhos rápidos de modelos mais frequentes */}
-                            <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 custom-scrollbar">
-                                {typeOptions.slice(0, 6).map((type: string) => (
-                                    <button
-                                        key={type}
-                                        type="button"
-                                        onClick={() => {
-                                            setSelectedType(type.toUpperCase());
-                                            setShowTypeSuggestions(false);
-                                        }}
-                                        className={`text-[9px] font-bold px-2 py-0.5 rounded-md border transition-colors whitespace-nowrap cursor-pointer uppercase ${
-                                            selectedType.toUpperCase() === type.toUpperCase()
-                                                ? 'bg-orange-50 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800'
-                                                : 'bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
-                                        }`}
-                                    >
-                                        {type}
-                                    </button>
-                                ))}
                             </div>
                         </div>
 
