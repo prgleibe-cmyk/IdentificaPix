@@ -429,21 +429,27 @@ export const useCloudSync = ({
                         const rUpdatedTime = r.updatedAt ? new Date(r.updatedAt).getTime() : 0;
                         const useDbAsPrimary = rUpdatedTime >= savedUpdatedTime;
 
+                        const resolvedRefDate = r.reference_date || saved.reference_date || r.transaction.reference_date || saved.transaction?.reference_date || r.contributor?.reference_date || saved.contributor?.reference_date || null;
+
                         // Preserva metadados atualizados com prioridade temporal
                         reconstructedMap.set(r.transaction.id, {
                             ...(useDbAsPrimary ? saved : r),
                             ...(useDbAsPrimary ? r : saved),
+                            reference_date: resolvedRefDate,
                             transaction: {
                                 ...saved.transaction,
                                 ...r.transaction, // Campos autênticos do banco sobressaem sempre
                                 date: r.transaction.date, // Garantia imutável da data do banco
-                                reference_date: r.transaction.reference_date || saved.transaction?.reference_date || null,
+                                reference_date: resolvedRefDate,
                                 source: r.transaction.source || saved.transaction?.source, // Garantia da origem do banco
                                 contributionType: r.transaction.contributionType || saved.transaction?.contributionType,
                                 paymentMethod: r.transaction.paymentMethod || saved.transaction?.paymentMethod
                             },
                             church: useDbAsPrimary ? (r.church?.id && r.church.id !== 'unidentified' ? r.church : saved.church) : (saved.church?.id && saved.church.id !== 'unidentified' ? saved.church : r.church),
-                            contributor: useDbAsPrimary ? (r.contributor || saved.contributor) : (saved.contributor || r.contributor),
+                            contributor: (useDbAsPrimary ? (r.contributor || saved.contributor) : (saved.contributor || r.contributor)) ? {
+                                ...(useDbAsPrimary ? (r.contributor || saved.contributor) : (saved.contributor || r.contributor))!,
+                                reference_date: resolvedRefDate
+                            } : null,
                             status: useDbAsPrimary ? r.status : (saved.status || r.status),
                             isConfirmed: useDbAsPrimary ? r.isConfirmed : (saved.isConfirmed ?? r.isConfirmed),
                             contributionType: r.contributionType || saved.contributionType,
@@ -465,7 +471,7 @@ export const useCloudSync = ({
 
                     reportsMap.forEach((value, key) => {
                         if (!reconstructedMap.has(key)) {
-                            const txDate = value.transaction?.date || (value as any).date;
+                            const txDate = value.contributor?.reference_date || value.reference_date || value.transaction?.reference_date || value.transaction?.date || (value as any).date;
                             if (txDate && (startStr || endStr)) {
                                 const itemIso = toIsoDate(txDate);
                                 if (startStr && itemIso < startStr) return;
@@ -508,10 +514,19 @@ export const useCloudSync = ({
                             (current.status === ReconciliationStatus.IDENTIFIED || current.status === ReconciliationStatus.RESOLVED) && 
                             r.status === ReconciliationStatus.UNIDENTIFIED
                         ) {
+                            const preservedRefDate = current.reference_date || r.reference_date || current.transaction?.reference_date || r.transaction?.reference_date || current.contributor?.reference_date || r.contributor?.reference_date || null;
                             map.set(r.transaction.id, {
                                 ...r,
+                                reference_date: preservedRefDate,
+                                transaction: {
+                                    ...r.transaction,
+                                    reference_date: preservedRefDate
+                                },
                                 status: current.status,
-                                contributor: current.contributor || r.contributor,
+                                contributor: current.contributor ? {
+                                    ...current.contributor,
+                                    reference_date: preservedRefDate
+                                } : r.contributor,
                                 church: (current.church?.id && current.church.id !== 'unidentified') ? current.church : r.church,
                                 _churchId: current._churchId || r._churchId,
                                 matchMethod: current.matchMethod || r.matchMethod,
@@ -522,6 +537,14 @@ export const useCloudSync = ({
                             });
                             hasChanges = true;
                             return;
+                        }
+
+                        // Preserva reference_date se o registro local já possuía e o registro do banco veio sem
+                        if (current && !r.reference_date && (current.reference_date || current.transaction?.reference_date || current.contributor?.reference_date)) {
+                            const keptRefDate = current.reference_date || current.transaction?.reference_date || current.contributor?.reference_date || null;
+                            r.reference_date = keptRefDate;
+                            if (r.transaction) r.transaction.reference_date = keptRefDate;
+                            if (r.contributor) r.contributor.reference_date = keptRefDate;
                         }
 
                         map.set(r.transaction.id, r);
@@ -592,11 +615,9 @@ export const useCloudSync = ({
                 }, 0);
                 if (needsRetry.current) {
                     needsRetry.current = false;
-                    lastDataReadyKeyRef.current = '';
-                    lastSignatureRef.current = null;
                     setTimeout(() => {
                         reconstructSessionRef.current?.();
-                    }, 50);
+                    }, 150);
                 }
             }
         }, [
@@ -787,6 +808,7 @@ export const useCloudSync = ({
             
             stableTimeoutRef.current = setTimeout(async () => {
                 const now = Date.now();
+                postProcessingSignatureRef.current = currentSignature;
                 
                 // 🛡️ THROTTLE: Janela de resfriamento de 1.5s para evitar tempestade de re-processamento
                 if (now - lastAutoProcessTimeRef.current < 1500) {

@@ -91,6 +91,21 @@ export const filterByUniversalQuery = (result: MatchResult, query: string): bool
         }
     }
 
+    const refDate = result.contributor?.reference_date || result.reference_date || tx?.reference_date || '';
+    const refNormalized = refDate.replace(/-/g, '/');
+    const refParts = refNormalized.split('/');
+    let refDateBr = '';
+    let refDateShort = '';
+    if (refParts.length === 3) {
+        if (refParts[0].length === 4) {
+            refDateBr = `${refParts[2]}/${refParts[1]}/${refParts[0]}`;
+            refDateShort = `${refParts[2]}/${refParts[1]}`;
+        } else {
+            refDateBr = refNormalized;
+            refDateShort = `${refParts[0]}/${refParts[1]}`;
+        }
+    }
+
     // 🧬 DNA Search Scope (Prioridade ao Raw e Identificação)
     const searchableContent = [
         (tx as any)?.rawContent || tx?.rawDescription || '',
@@ -103,7 +118,10 @@ export const filterByUniversalQuery = (result: MatchResult, query: string): bool
         amountStrComma,
         dateBr,
         dateShort,
-        rawDate
+        rawDate,
+        refDate,
+        refDateBr,
+        refDateShort
     ].join(' ').toLowerCase().trim();
 
     return terms.every(term => {
@@ -175,7 +193,7 @@ export const applyAdvancedFilters = (results: MatchResult[], filters: SearchFilt
             
             if (startStr || endStr) {
                 data = data.filter(r => {
-                    const dateStr = r.transaction?.date || r.contributor?.date || (r as any).date;
+                    const dateStr = r.contributor?.reference_date || r.reference_date || r.transaction?.reference_date || r.transaction?.date || r.contributor?.date || (r as any).date;
                     if (!dateStr) return true;
 
                     const itemIso = toIsoDate(dateStr);

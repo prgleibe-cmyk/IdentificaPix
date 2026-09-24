@@ -349,7 +349,8 @@ export const useTransactionMatcher = ({
         ].filter(tx => Number(tx.amount) !== 0);
 
         if (isAuto) {
-            if (allTransactions.length === 0 && matchResultsRef.current.length > 0) {
+            const hasActiveBankFiles = activeBankFilesRef.current.filter(f => selectedBankIdsRef.current.includes(String(f.bankId))).length > 0;
+            if ((!hasActiveBankFiles || allTransactions.length === 0) && matchResultsRef.current.length > 0) {
                 console.log('[AutoProcess:USING_LIVE_LIST_SOURCE]');
                 allTransactions = matchResultsRef.current.map(r => r.transaction);
             }
@@ -400,10 +401,30 @@ export const useTransactionMatcher = ({
                     return;
                 }
 
+                if (existing && (existing.reference_date || existing.transaction?.reference_date || existing.contributor?.reference_date)) {
+                    const refDate = existing.reference_date || existing.transaction?.reference_date || existing.contributor?.reference_date;
+                    r.reference_date = refDate;
+                    if (r.transaction) r.transaction.reference_date = refDate;
+                    if (r.contributor) r.contributor.reference_date = refDate;
+                }
+
                 map.set(r.transaction.id, r);
             });
 
-            return Array.from(map.values()).filter(r => Number(r.transaction.amount) !== 0);
+            // 🛡️ PRESERVAÇÃO TOTAL: Itens existentes no estado anterior (vindos do banco ou sessão)
+            // nunca devem ser removidos durante a conciliação automática para evitar oscilações.
+            const prevIdSet = new Set(prev.map(p => p.transaction.id));
+
+            return Array.from(map.values()).filter(r => {
+                if (prevIdSet.has(r.transaction.id)) return true;
+
+                const isManual = r.transaction?.source === 'manual' || 
+                    r.transaction?.isManual || 
+                    String(r.transaction?.id).startsWith('ghost-manual-') || 
+                    String(r.transaction?.id).startsWith('manual-temp-') ||
+                    (r.transaction?.row_hash && r.transaction.row_hash.includes('|bmanual|'));
+                return Number(r.transaction.amount) !== 0 || isManual || !!r.reference_date || r.status !== ReconciliationStatus.UNIDENTIFIED;
+            });
         });
         setHasActiveSession(true);
 
@@ -507,6 +528,7 @@ export const useTransactionMatcher = ({
                         description: updatedRow.transaction.description,
                         type: updatedRow.transaction.type,
                         transaction_date: updatedRow.transaction.date,
+                        reference_date: updatedRow.reference_date || updatedRow.transaction.reference_date || updatedRow.contributor?.reference_date || null,
                         bank_id: updatedRow.transaction.bank_id || null,
                         church_id: updatedRow.church?.id && updatedRow.church.id !== 'unidentified' ? updatedRow.church.id : null,
                         contributor_id: updatedRow.contributor?.id || null,

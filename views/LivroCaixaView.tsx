@@ -44,7 +44,7 @@ import {
 } from 'lucide-react';
 
 export const LivroCaixaView: React.FC = memo(() => {
-    const { showToast } = useUI();
+    const { showToast, setActiveView } = useUI();
     const context = useContext(AppContext);
     const { user, subscription, isSecondaryUser } = useAuth();
 
@@ -908,6 +908,64 @@ export const LivroCaixaView: React.FC = memo(() => {
         );
     };
 
+    // 🔒 VALIDAÇÃO DE FECHAMENTO FINAL ANTES DE LIBERAR O FECHAMENTO DO LIVRO CAIXA
+    const handleOpenClosing = () => {
+        // Se já existe fechamento homologado e assinado para este período, libera a tela para consulta/gerenciamento
+        if (monthClosingRecord && monthClosingRecord.status !== 'reopened') {
+            setIsClosingModalOpen(true);
+            return;
+        }
+
+        // Verifica se há lançamentos no período filtrado do Livro Caixa
+        if (!filteredReportData || filteredReportData.length === 0) {
+            showToast('Não há lançamentos no período selecionado para realizar o fechamento.', 'error');
+            return;
+        }
+
+        // Validação: Todas as linhas do período selecionado devem estar com Fechamento Final confirmado
+        const unconfirmedItems = filteredReportData.filter((item: any) => {
+            const confirmed = item.isConfirmed === true || 
+                              item.raw?.isConfirmed === true || 
+                              item.raw?.transaction?.isConfirmed === true;
+            return !confirmed;
+        });
+
+        if (unconfirmedItems.length > 0) {
+            // Sincroniza o período selecionado para que o Financeiro já abra exatamente no mesmo mês/período
+            const startDate = selectionMode === 'month' 
+                ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01` 
+                : (customStartDate || `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`);
+            const lastDay = new Date(selectedYear, selectedMonth, 0).getDate();
+            const endDate = selectionMode === 'month' 
+                ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}` 
+                : (customEndDate || `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`);
+
+            if (context?.setSearchFilters) {
+                context.setSearchFilters((prev: any) => ({
+                    ...prev,
+                    dateRange: { start: startDate, end: endDate }
+                }));
+            }
+
+            const unconfirmedCount = unconfirmedItems.length;
+            const periodLabel = selectionMode === 'month' 
+                ? `${String(selectedMonth).padStart(2, '0')}/${selectedYear}` 
+                : 'selecionado';
+
+            showToast(
+                `Existem ${unconfirmedCount} lançamento(s) sem Fechamento Final no período ${periodLabel}. Conclua o Fechamento Final no Financeiro.`,
+                'error'
+            );
+
+            // Redireciona o usuário para o relatório na aba Financeiro para realizar o fechamento final
+            setActiveView('reports');
+            return;
+        }
+
+        // Somente depois de estar fechado final todas as linhas é que o sistema libera a tela para prosseguir com o fechamento
+        setIsClosingModalOpen(true);
+    };
+
     if (isClosingModalOpen) {
         return (
             <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full min-h-full flex flex-col animate-fade-in pb-8 md:pb-4">
@@ -964,7 +1022,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                     <div>
                         <button
                             type="button"
-                            onClick={() => setIsClosingModalOpen(true)}
+                            onClick={handleOpenClosing}
                             className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 rounded-xl shadow-xs hover:opacity-95 transition-all tracking-wider uppercase cursor-pointer border border-orange-400/30 active:scale-95 shrink-0"
                             title="Realizar Fechamento & Assinaturas Digitais"
                             id="btn-fechamento-livro-caixa"

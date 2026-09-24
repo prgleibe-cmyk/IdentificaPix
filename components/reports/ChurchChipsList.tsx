@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { BuildingOfficeIcon } from '../Icons';
 
 interface ChurchChipsListProps {
     list: { id: string; name: string; count: number }[];
@@ -8,32 +9,32 @@ interface ChurchChipsListProps {
 }
 
 export const ChurchChipsList: React.FC<ChurchChipsListProps> = ({ list, selectedId, onSelect }) => {
-    if (list.length <= 1) {
+    if (!list || list.length === 0) {
         return null;
     }
 
+    const currentSelectedId = (selectedId && list.some(i => i.id === selectedId)) 
+        ? selectedId 
+        : (list[0]?.id || '');
+
     return (
-        <div className="w-full">
-            <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto custom-scrollbar pb-1 px-1 touch-pan-x">
-                {list.length > 0 ? list.map(item => (
-                    <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => onSelect(item.id)}
-                        className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl border transition-all duration-200 text-[11px] cursor-pointer ${
-                            selectedId === item.id 
-                            ? 'bg-gradient-to-r from-blue-600 to-indigo-600 border-blue-600 text-white shadow-xs font-black' 
-                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-blue-400 font-bold'
-                        }`}
-                    >
-                        {selectedId === item.id && <div className="w-1.5 h-1.5 rounded-full bg-white shadow-xs"></div>}
-                        <span className="truncate max-w-[150px] uppercase tracking-wider">{item.name}</span>
-                        <span className={`px-1.5 py-0.2 rounded text-[10px] font-extrabold ${selectedId === item.id ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-900 text-slate-500'}`}>
-                            {item.count}
-                        </span>
-                    </button>
-                )) : <span className="text-xs text-slate-400 italic px-2">Nenhuma igreja identificada.</span>}
+        <div className="flex items-center gap-1.5 bg-slate-100/90 dark:bg-slate-800/90 p-1 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 text-xs shadow-xs w-fit max-w-full">
+            <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-xl font-bold shadow-xs border border-slate-100 dark:border-slate-800 text-[11px] text-slate-700 dark:text-slate-200 shrink-0">
+                <BuildingOfficeIcon className="w-3.5 h-3.5 text-blue-600" />
+                <span className="uppercase tracking-wider">Igreja</span>
             </div>
+            <select
+                value={currentSelectedId}
+                onChange={(e) => onSelect(e.target.value)}
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-white px-2.5 py-1 rounded-xl text-xs focus:outline-none focus:border-blue-500 cursor-pointer min-w-[200px] max-w-[340px] truncate"
+            >
+                {list.map(item => (
+                    <option key={item.id} value={item.id}>
+                        {item.name}
+                    </option>
+                ))}
+            </select>
         </div>
     );
 };
+

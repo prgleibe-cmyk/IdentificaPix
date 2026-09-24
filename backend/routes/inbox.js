@@ -7,13 +7,25 @@ const router = express.Router();
 const DEFAULT_INBOX_KEY = 'identificapix_sms_2026';
 
 // Função robusta de parsing para limpar e extrair dados de SMS e Notificações de Bancos (Sicoob, Sicredi, Nubank, Itaú, Bradesco, etc.)
-function parseSMS(text) {
+function parseSMS(text, bankHint = '') {
     let amount = 0;
     let description = "NOTIFICACAO SMS";
     let type = "income"; // default
     let date = new Date().toISOString().split('T')[0]; // default para hoje
 
-    const normalizedText = text.replace(/\s+/g, ' ').trim();
+    let normalizedText = text.replace(/\s+/g, ' ').trim();
+
+    // 🛡️ Ajuste automático exclusivo para Sicredi por SMS:
+    // Remove "Você recebeu um pix no valor de" e "Aproveite todas vantagens do Pix no Sicredi"
+    // mantendo todo o restante rigorosamente intacto.
+    const isSicredi = /sicredi/i.test(normalizedText) || (bankHint && /sicredi/i.test(String(bankHint)));
+    if (isSicredi) {
+        normalizedText = normalizedText
+            .replace(/voc[eê]\s+recebeu\s+um\s+pix\s+no\s+valor\s+de\s*/gi, '')
+            .replace(/aproveite\s+todas\s+(?:as\s+)?vantagens\s+do\s+pix\s+no\s+sicredi[\.!]?/gi, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
 
     // 1. EXTRAÇÃO DE VALOR
     // Ex: "Pix de R$0,02", "R$ 150,00", "R$1.250,55", "R$ 50,00", "VALOR: R$ 5,00", "BRL 100,00", "R$ 10.00"
@@ -158,6 +170,8 @@ function parseSMS(text) {
 
     // Purificação final
     description = description
+        .replace(/voc[eê]\s+recebeu\s+um\s+pix\s+no\s+valor\s+de\s*/gi, '')
+        .replace(/aproveite\s+todas\s+(?:as\s+)?vantagens\s+do\s+pix\s+no\s+sicredi[\.!]?/gi, '')
         .replace(/,\s*(?:CPF|CNPJ)\s*[\*0-9\.\-\/]+/gi, '')
         .replace(/\s*(?:CPF|CNPJ)\s*[\*0-9\.\-\/]+/gi, '')
         .replace(/[\.\,\:\;\-\*]/g, '')
@@ -419,6 +433,16 @@ export default (ai) => {
             }
         }
 
+        // 🛡️ Ajuste automático exclusivo para Sicredi (remove "Você recebeu um pix no valor de" e "Aproveite todas vantagens do Pix no Sicredi")
+        const isSicrediNotification = /sicredi/i.test(text) || (sanitizedBankId && /sicredi/i.test(String(sanitizedBankId)));
+        if (isSicrediNotification && text) {
+            text = text
+                .replace(/voc[eê]\s+recebeu\s+um\s+pix\s+no\s+valor\s+de\s*/gi, '')
+                .replace(/aproveite\s+todas\s+(?:as\s+)?vantagens\s+do\s+pix\s+no\s+sicredi[\.!]?/gi, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
         // Registro forense do texto selecionado
         req.forensic.selectedText = text;
 
@@ -450,7 +474,7 @@ export default (ai) => {
         try {
             console.log(`[Inbox API] Iniciando processamento determinístico do SMS/Notificação...`);
 
-            const data = parseSMS(text);
+            const data = parseSMS(text, sanitizedBankId);
 
             req.forensic.parseResult = data;
             req.forensic.extractedAmount = data?.amount;

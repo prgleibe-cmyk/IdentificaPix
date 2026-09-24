@@ -347,7 +347,7 @@ export const ReportsView: React.FC = () => {
                             <button
                                 type="button"
                                 onClick={() => handleManualLaunch('entrada')}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 shadow-xs hover:shadow-sm transition-all cursor-pointer active:scale-95 border border-orange-400/30"
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-black uppercase tracking-wider text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 shadow-xs hover:shadow-sm transition-all cursor-pointer active:scale-95 border border-orange-400/30"
                                 title="Criar Novo Lançamento Manual"
                             >
                                 <PlusCircleIcon className="w-3.5 h-3.5" />
@@ -357,7 +357,7 @@ export const ReportsView: React.FC = () => {
                             <button
                                 type="button"
                                 onClick={() => setActiveView('livro_caixa')}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 shadow-xs transition-all cursor-pointer active:scale-95"
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 shadow-xs transition-all cursor-pointer active:scale-95"
                                 title="Abrir Visão do Livro Caixa"
                             >
                                 <BookOpen className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />

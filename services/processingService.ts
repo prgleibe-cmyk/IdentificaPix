@@ -20,6 +20,8 @@ export function cleanBankDescription(rawDescription: string): string {
 
     // List of generic operational prefixes and terms to strip out
     const genericPatterns = [
+        /VOC[EÊ] RECEBEU UM PIX NO VALOR DE/gi,
+        /APROVEITE TODAS (?:AS )?VANTAGENS DO PIX NO SICREDI[\.!]?/gi,
         /RECEBIMENTO PIX-PIX_CRED/gi,
         /PAGAMENTO PIX-PIX_DEB/gi,
         /PIX RECEBIDO - OUTRA IF/gi,

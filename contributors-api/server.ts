@@ -5874,15 +5874,15 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
     }
 
     if (start_date && start_date !== 'undefined' && start_date !== 'null' && String(start_date).trim() !== '') {
-      query += ` AND transaction_date >= $${counter}`;
+      query += ` AND COALESCE(NULLIF(reference_date, ''), SUBSTR(transaction_date::text, 1, 10)) >= $${counter}`;
       params.push(start_date);
       counter++;
     }
 
     if (end_date && end_date !== 'undefined' && end_date !== 'null' && String(end_date).trim() !== '') {
       const endStr = String(end_date).trim();
-      const formattedEnd = endStr.length === 10 ? `${endStr} 23:59:59.999` : endStr;
-      query += ` AND transaction_date <= $${counter}`;
+      const formattedEnd = endStr.length === 10 ? endStr : endStr.slice(0, 10);
+      query += ` AND COALESCE(NULLIF(reference_date, ''), SUBSTR(transaction_date::text, 1, 10)) <= $${counter}`;
       params.push(formattedEnd);
       counter++;
     }
@@ -6212,7 +6212,8 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
 
     // 🛡️ Validação de Período Fechado (Congelamento)
     // 1. Não permite alterar transação pertencente a um período já fechado
-    const oldCheck = await isChurchPeriodClosed(pool, oldTx.church_id, oldTx.transaction_date || oldTx.reference_date);
+    const oldEffectiveDate = oldTx.reference_date || oldTx.transaction_date;
+    const oldCheck = await isChurchPeriodClosed(pool, oldTx.church_id, oldEffectiveDate);
     if (oldCheck.isClosed) {
       return res.status(422).json({
         error: 'PERIOD_CLOSED',
@@ -6222,7 +6223,7 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
 
     // 2. Não permite mover transação para uma congregação/data cujo período esteja fechado
     const targetChurchId = church_id !== undefined ? church_id : oldTx.church_id;
-    const targetDate = transaction_date !== undefined ? transaction_date : (reference_date || oldTx.transaction_date);
+    const targetDate = (reference_date !== undefined && reference_date) ? reference_date : (transaction_date !== undefined ? transaction_date : (oldTx.reference_date || oldTx.transaction_date));
     const newCheck = await isChurchPeriodClosed(pool, targetChurchId, targetDate);
     if (newCheck.isClosed) {
       return res.status(422).json({

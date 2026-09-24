@@ -163,7 +163,7 @@ export const useReportsController = () => {
 
         const periodResults = currentResults.filter(r => {
             if (startStr || endStr) {
-                const dateStr = r.transaction?.date || r.contributor?.date || (r as any).date;
+                const dateStr = r.contributor?.reference_date || r.reference_date || r.transaction?.reference_date || r.transaction?.date || r.contributor?.date || (r as any).date;
                 if (dateStr) {
                     const itemIso = toIsoDate(dateStr);
                     if (startStr && itemIso < startStr) return false;
@@ -473,7 +473,7 @@ export const useReportsController = () => {
             if (searchFilters.dateRange && (searchFilters.dateRange.start || searchFilters.dateRange.end)) {
                 const startStr = searchFilters.dateRange.start ? toIsoDate(searchFilters.dateRange.start) : null;
                 const endStr = searchFilters.dateRange.end ? toIsoDate(searchFilters.dateRange.end) : null;
-                const dateStr = item.transaction?.date || item.contributor?.date || (item as any).date;
+                const dateStr = item.contributor?.reference_date || item.reference_date || item.transaction?.reference_date || item.transaction?.date || item.contributor?.date || (item as any).date;
                 if (dateStr) {
                     const itemIso = toIsoDate(dateStr);
                     if (startStr && itemIso < startStr) return false;
@@ -606,6 +606,10 @@ export const useReportsController = () => {
             }
         }
 
+        // 🛡️ Consome o evento realtime para que futuras renderizações não usem txId obsoleto
+        lastRealtimeUpdate.txId = null;
+        lastRealtimeUpdate.timestamp = 0;
+
         cacheRef.current.prevMatchResults = currentResults;
     }
 
@@ -613,6 +617,8 @@ export const useReportsController = () => {
     const churchList = cacheRef.current.churchList;
     const counts = cacheRef.current.counts;
     const activeData = cacheRef.current.activeData;
+
+    const churchListSig = useMemo(() => (cacheRef.current.churchList || []).map(c => c.id).join(','), [cacheRef.current.churchList]);
 
     // Sincroniza categoria e seleção de igreja/relatório
     useEffect(() => {
@@ -633,7 +639,7 @@ export const useReportsController = () => {
         if (activeCategory === 'general') {
             setSelectedReportId('general_all');
         } else if (activeCategory === 'churches') {
-            const currentChurchIds = churchList.map(c => c.id);
+            const currentChurchIds = (cacheRef.current.churchList || []).map(c => c.id);
             if (currentChurchIds.length > 0) {
                 if (!selectedReportId || !currentChurchIds.includes(selectedReportId) || selectedReportId === 'general_all' || selectedReportId === 'unidentified' || selectedReportId === 'all_expenses_group') {
                     setSelectedReportId(currentChurchIds[0]);
@@ -644,7 +650,7 @@ export const useReportsController = () => {
         } else if (activeCategory === 'expenses') {
             setSelectedReportId('all_expenses_group');
         }
-    }, [activeCategory, churchList, subscription, selectedReportId, user?.id]);
+    }, [activeCategory, churchListSig, subscription, selectedReportId, user?.id]);
 
     const sortedData = useMemo(() => {
         const source = Array.isArray(activeData) ? activeData : [];
@@ -658,6 +664,9 @@ export const useReportsController = () => {
             if (key === 'contributor.name' || key === 'transaction.description') {
                 valA = a.contributor?.name || a.contributor?.cleanedName || a.transaction?.cleanedDescription || a.transaction?.description || '';
                 valB = b.contributor?.name || b.contributor?.cleanedName || b.transaction?.cleanedDescription || b.transaction?.description || '';
+            } else if (key === 'transaction.date' || key === 'date' || key === 'reference_date') {
+                valA = a.contributor?.reference_date || a.reference_date || a.transaction?.reference_date || a.transaction?.date || a.contributor?.date || '';
+                valB = b.contributor?.reference_date || b.reference_date || b.transaction?.reference_date || b.transaction?.date || b.contributor?.date || '';
             } else if (key.includes('.')) {
                 const parts = key.split('.');
                 valA = parts.reduce((obj: any, k) => obj?.[k], a);

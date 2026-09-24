@@ -13,7 +13,7 @@ const passesFilters = (r: any, dateRange: any, isSecondary: boolean, subscriptio
     if (dateRange && (dateRange.start || dateRange.end)) {
         const start = dateRange.start ? new Date(dateRange.start).getTime() : null;
         const end = dateRange.end ? new Date(dateRange.end).getTime() + 86400000 : null;
-        const dateStr = r.status === 'PENDENTE' ? (r.contributor?.date || r.transaction?.date) : r.transaction?.date;
+        const dateStr = r.contributor?.reference_date || r.reference_date || r.transaction?.reference_date || (r.status === 'PENDENTE' ? (r.contributor?.date || r.transaction?.date) : r.transaction?.date);
         if (dateStr) {
             const itemDate = new Date(dateStr.split('T')[0]).getTime();
             if (start && itemDate < start) return false;

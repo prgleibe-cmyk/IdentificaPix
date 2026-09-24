@@ -171,8 +171,8 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
         matchResults.forEach(r => {
             const churchId = r.church?.id || r._churchId;
             if (churchId === originChurchId) {
-                // Filtra pelo mês e ano se a data da transação existir
-                const txDate = r.transaction?.date || '';
+                // Filtra pelo mês e ano se a data da transação existir (prioridade à data de referência)
+                const txDate = r.contributor?.reference_date || r.reference_date || r.transaction?.reference_date || r.transaction?.date || '';
                 if (txDate) {
                     const parts = txDate.split('-');
                     if (parts.length >= 2) {
@@ -298,6 +298,28 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
         const originChurch = churches.find(c => c.id === originChurchId) || activeChurches.find(c => c.id === originChurchId);
         if (!originChurch) {
             setErrorMessage('Igreja de origem não encontrada.');
+            return;
+        }
+
+        // Validação: Todas as transações da igreja no período devem estar com Fechamento Final confirmado
+        const churchTxs = (matchResults || []).filter(r => {
+            const churchId = r.church?.id || r._churchId;
+            if (churchId !== originChurchId) return false;
+            const txDate = r.contributor?.reference_date || r.reference_date || r.transaction?.reference_date || r.transaction?.date || '';
+            if (txDate) {
+                const parts = txDate.split('-');
+                if (parts.length >= 2) {
+                    const y = parseInt(parts[0], 10);
+                    const m = parseInt(parts[1], 10);
+                    if (y !== closingYear || m !== closingMonth) return false;
+                }
+            }
+            return true;
+        });
+
+        const unconfirmedInChurch = churchTxs.filter(r => !r.isConfirmed && !r.transaction?.isConfirmed);
+        if (unconfirmedInChurch.length > 0) {
+            setErrorMessage(`Existem ${unconfirmedInChurch.length} lançamento(s) sem Fechamento Final neste período. Conclua a confirmação final no relatório Financeiro antes de homologar.`);
             return;
         }
 
