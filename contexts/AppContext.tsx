@@ -13,6 +13,7 @@ import { useSummaryData } from '../hooks/useSummaryData';
 import { getAuthToken, getAuthSession } from '../services/auth/authAdapter';
 import { PLACEHOLDER_CHURCH } from '../services/processingService';
 import { resolveContributionType } from '../utils/formatters';
+import { cleanDisplayDescription } from '../services/utils/parsingUtils';
 const ENABLE_HEAVY_LOGS = false;
 
 export const AppContext = createContext<any>(null!);
@@ -462,10 +463,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const refDateClean = refDateRaw ? String(refDateRaw).split('T')[0] : '';
 
             const isManual = r.isManual || tx.isManual || tx.source === 'manual';
-            const desc = tx.description || tx.rawDescription || contrib.name || 'Lançamento de Caixa';
-            const payer = isManual
+            const rawDesc = tx.description || tx.rawDescription || contrib.name || 'Lançamento de Caixa';
+            const rawPayer = isManual
                 ? (tx.description || contrib.name || 'Lançamento de Caixa')
                 : (contrib.name || (r.status === 'IDENTIFICADO' ? (contrib.cleanedName || contrib.name) : null) || 'NÃO IDENTIFICADO');
+            const desc = cleanDisplayDescription(rawDesc);
+            const payer = cleanDisplayDescription(rawPayer);
             const resolvedType = resolveContributionType(r, referenceData.contributionTypes, referenceData.contributionKeywords);
             const category = r.contributionType || tx.contributionType || contrib.contributionType || resolvedType || 'Geral';
             const paymentMethod = r.paymentMethod || tx.paymentMethod || contrib.paymentMethod || 'PIX';
@@ -473,11 +476,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const churchId = churchObj.id || r._churchId || tx.church_id || '';
 
             const amount = Number(tx.amount) || Number(r.contributorAmount) || Number(contrib.amount) || 0;
-            const isExpense = amount < 0 || 
+            const rawDescUpper = (tx.rawDescription || tx.description || '').toUpperCase();
+            const hasIncomingKeywords = rawDescUpper.includes('RECEBEU') || rawDescUpper.includes('RECEBIDO') || rawDescUpper.includes('CRÉDITO') || rawDescUpper.includes('CREDITO') || (rawDescUpper.includes('NU PAGAMENTOS') && (rawDescUpper.includes('SICREDI') || rawDescUpper.includes('PIX')));
+            const isExpense = !hasIncomingKeywords && (
+                amount < 0 || 
                 tx.type === 'expense' || 
                 tx.type === 'saida' || 
                 (category && category.toLowerCase().includes('saida')) ||
-                (category && category.toLowerCase().includes('saída'));
+                (category && category.toLowerCase().includes('saída'))
+            );
 
             return {
                 id: tx.id || r.id || r._injectedId,

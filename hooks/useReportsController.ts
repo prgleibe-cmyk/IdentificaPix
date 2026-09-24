@@ -116,6 +116,17 @@ export const useReportsController = () => {
         const cat = (r.contributionType || (r.transaction as any)?.contributionType || '').toLowerCase();
         const txType = (r.transaction?.type || '').toLowerCase();
 
+        // 🛡️ Proteção: Se o texto original explicita recebimento/crédito, nunca trata como despesa
+        if (
+            desc.includes('recebeu') || 
+            desc.includes('recebido') || 
+            desc.includes('credito') || 
+            desc.includes('crédito') ||
+            (desc.includes('nu pagamentos') && (desc.includes('sicredi') || desc.includes('pix')))
+        ) {
+            return false;
+        }
+
         return displayAmount < 0 || 
                txType === 'expense' || 
                txType === 'saida' || 

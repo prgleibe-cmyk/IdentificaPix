@@ -347,6 +347,17 @@ export const useCloudSync = ({
                         (t.row_hash && t.row_hash.includes('|bmanual|')) || 
                         (t.id && typeof t.id === 'string' && t.id.startsWith('ghost-manual-'));
 
+                    const descUpper = (t.description || '').toUpperCase();
+                    let effectiveType = t.type;
+                    if (
+                        effectiveType === 'expense' && 
+                        (descUpper.includes('NU PAGAMENTOS') || descUpper.includes('RECEBEU') || descUpper.includes('RECEBIDO')) &&
+                        !descUpper.includes('ENVIADO') && 
+                        !descUpper.includes('PAGO A')
+                    ) {
+                        effectiveType = 'income';
+                    }
+
                     const transaction: Transaction = {
                         id: t.id,
                         date: t.transaction_date,
@@ -356,7 +367,7 @@ export const useCloudSync = ({
                         amount: t.amount,
                         bank_id: t.bank_id,
                         isConfirmed: t.is_confirmed,
-                        type: t.type,
+                        type: effectiveType,
                         source: isManualTx ? 'manual' : t.source,
                         isManual: isManualTx,
                         pix_key: t.pix_key,

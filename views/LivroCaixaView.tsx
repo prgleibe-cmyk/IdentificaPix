@@ -10,6 +10,7 @@ import { QuickAttachModal } from '../components/modals/QuickAttachModal';
 import { ServiceReceiptModal } from '../components/modals/ServiceReceiptModal';
 import { preloadAllAttachmentsMap } from '../services/expenseAttachmentService';
 import { getMonthClosingRecord } from '../services/monthClosingService';
+import { cleanDisplayDescription } from '../services/utils/parsingUtils';
 import { ExpenseAttachment, MonthClosingRecord } from '../types/domain';
 import { 
     BookOpen, 
@@ -1449,8 +1450,8 @@ export const LivroCaixaView: React.FC = memo(() => {
                                         const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
                                         const tipoLabel = tx.contributionType || tx.tipo || (tx.type === 'expense' ? 'Despesa' : tx.type === 'income' ? 'Receita' : isExpense ? 'Despesa' : 'Entrada');
                                         const formaLabel = tx.paymentMethod || tx.forma || tx.formaPagamento || tx.payment_method || tx.raw?.payment_method || 'Pix';
-                                        const payerName = tx.payer || tx.contribuinte || tx.nome || tx.title || 'Lançamento de Caixa';
-                                        const descText = tx.desc || tx.description || tx.historico || '';
+                                        const payerName = cleanDisplayDescription(tx.payer || tx.contribuinte || tx.nome || tx.title || 'Lançamento de Caixa');
+                                        const descText = cleanDisplayDescription(tx.desc || tx.description || tx.historico || '');
                                         const txSplits = (Array.isArray(tx.splits) && tx.splits.length > 0)
                                             ? tx.splits
                                             : (Array.isArray(tx.raw?.splits) && tx.raw.splits.length > 0)

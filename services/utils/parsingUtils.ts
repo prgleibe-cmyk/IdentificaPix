@@ -107,6 +107,24 @@ export const isInvalidOrNumericName = (name: string | undefined | null, txDescri
 };
 
 /**
+ * 🛡️ Oculta visualmente cabeçalhos extensos e frases promocionais (ex: Sicredi)
+ * e formata horários contínuos (ex: 191552 -> 19:15:52) preservando a integridade original.
+ */
+export const cleanDisplayDescription = (text: string): string => {
+    if (!text || typeof text !== 'string') return '';
+    return text
+        .replace(/^(?:sicredi\s*:\s*)?/gi, '')
+        .replace(/voc[eê]\s+recebeu\s+(?:uma\s+transfer[eê]ncia\s+)?(?:um\s+)?pix\s+(?:no\s+valor\s+de\s+|de\s+)?(?:r\$\s*[0-9.,]+\s+(?:de\s+|por\s+)?)?/gi, '')
+        .replace(/aproveite\s+todas\s+(?:as\s+)?vantagens\s+do\s+pix\s+no\s+sicredi[\.!]?/gi, '')
+        .replace(/(\d{2}\/\d{2}(?:\/\d{2,4})?)\s+([0-2]\d)([0-5]\d)([0-5]\d)\b/gi, '$1 $2:$3:$4')
+        .replace(/(\d{2}\/\d{2}(?:\/\d{2,4})?)\s+([0-2]\d)([0-5]\d)\b/gi, '$1 $2:$3')
+        .replace(/(?:às|as)\s+([0-2]\d)([0-5]\d)([0-5]\d)\b/gi, 'às $1:$2:$3')
+        .replace(/\b([0-2]\d)([0-5]\d)([0-5]\d)\s+(sicredi|pix)\b/gi, '$1:$2:$3 $4')
+        .replace(/\s+/g, ' ')
+        .trim();
+};
+
+/**
  * Retorna o nome de exibição resolvido com fidelidade absoluta à Verdade:
  * Se houver nome de contribuinte válido (não numérico/não valor), usa o nome do contribuinte.
  * Caso contrário, utiliza a descrição autêntica da transação bancária.
@@ -115,9 +133,9 @@ export const getResolvedDisplayName = (row: { contributor?: any; transaction?: a
     if (!row) return '';
     const contribName = row.contributor?.cleanedName || row.contributor?.name;
     if (contribName && !isInvalidOrNumericName(contribName, row.transaction?.description)) {
-        return String(contribName).trim().toUpperCase();
+        return cleanDisplayDescription(String(contribName)).trim().toUpperCase();
     }
     const txDesc = row.transaction?.cleanedDescription || row.transaction?.description || '';
-    return String(txDesc).trim().toUpperCase();
+    return cleanDisplayDescription(String(txDesc)).trim().toUpperCase();
 };
 

@@ -15,18 +15,6 @@ function parseSMS(text, bankHint = '') {
 
     let normalizedText = text.replace(/\s+/g, ' ').trim();
 
-    // 🛡️ Ajuste automático exclusivo para Sicredi por SMS:
-    // Remove "Você recebeu um pix no valor de" e "Aproveite todas vantagens do Pix no Sicredi"
-    // mantendo todo o restante rigorosamente intacto.
-    const isSicredi = /sicredi/i.test(normalizedText) || (bankHint && /sicredi/i.test(String(bankHint)));
-    if (isSicredi) {
-        normalizedText = normalizedText
-            .replace(/voc[eê]\s+recebeu\s+um\s+pix\s+no\s+valor\s+de\s*/gi, '')
-            .replace(/aproveite\s+todas\s+(?:as\s+)?vantagens\s+do\s+pix\s+no\s+sicredi[\.!]?/gi, '')
-            .replace(/\s+/g, ' ')
-            .trim();
-    }
-
     // 1. EXTRAÇÃO DE VALOR
     // Ex: "Pix de R$0,02", "R$ 150,00", "R$1.250,55", "R$ 50,00", "VALOR: R$ 5,00", "BRL 100,00", "R$ 10.00"
     const amountMatch = normalizedText.match(/(?:R\$|RS|BRL|R\$:|VALOR:?\s*R\$?)\s*([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2}|[0-9]+,[0-9]{2}|[0-9\.]+)/i)
@@ -55,8 +43,11 @@ function parseSMS(text, bankHint = '') {
     }
 
     // 2. TIPO DE TRANSAÇÃO (INCOME / EXPENSE)
+    // 🛡️ Mantém o texto completo original para identificar se foi recebimento ou pagamento sem confusão
     const upperText = normalizedText.toUpperCase();
-    if (
+    
+    // Indicadores explícitos e prioritários de entrada/recebimento
+    const hasIncomingIndicator = 
         upperText.includes("RECEB") || 
         upperText.includes("DEPOSIT") || 
         upperText.includes("CREDIT") || 
@@ -66,27 +57,37 @@ function parseSMS(text, bankHint = '') {
         upperText.includes("VOCE RECEBEU") ||
         upperText.includes("VOCÊ RECEBEU") ||
         upperText.includes("RECEBIDO DE") ||
-        upperText.includes("CONTA POUPANCA CREDITADO")
-    ) {
+        upperText.includes("CONTA POUPANCA CREDITADO") ||
+        upperText.includes("PIX RECEBIDO");
+
+    // Limpa nomes de instituições que contenham a palavra 'pagamento' para evitar falsos positivos de despesa
+    const textForExpenseCheck = upperText
+        .replace(/NU\s+PAGAMENTOS(\s+[-A-Z0-9\.\/]+)?/g, '')
+        .replace(/INSTITUI[CÇ][AÃ]O\s+DE\s+PAGAMENTO/g, '')
+        .replace(/PAGSEGURO(\s+INTERNET)?/g, '');
+
+    if (hasIncomingIndicator) {
         type = "income";
     } else if (
-        upperText.includes("ENVIA") || 
-        upperText.includes("ENVIADO PARA") ||
-        upperText.includes("PAGAM") || 
-        upperText.includes("PAGO") || 
-        upperText.includes("PAGOU") ||
-        upperText.includes("PAGO A") ||
-        upperText.includes("DEBIT") || 
-        upperText.includes("DÉBIT") ||
-        upperText.includes("TRANSF") || 
-        upperText.includes("SAIDA") || 
-        upperText.includes("SAÍDA") || 
-        upperText.includes("COMPRA") ||
-        upperText.includes("EFETUA") ||
-        upperText.includes("REALIZA") ||
-        upperText.includes("SAQUE")
+        textForExpenseCheck.includes("ENVIA") || 
+        textForExpenseCheck.includes("ENVIADO PARA") ||
+        textForExpenseCheck.includes("PAGAM") || 
+        textForExpenseCheck.includes("PAGO") || 
+        textForExpenseCheck.includes("PAGOU") ||
+        textForExpenseCheck.includes("PAGO A") ||
+        textForExpenseCheck.includes("DEBIT") || 
+        textForExpenseCheck.includes("DÉBIT") ||
+        textForExpenseCheck.includes("TRANSF") || 
+        textForExpenseCheck.includes("SAIDA") || 
+        textForExpenseCheck.includes("SAÍDA") || 
+        textForExpenseCheck.includes("COMPRA") ||
+        textForExpenseCheck.includes("EFETUA") ||
+        textForExpenseCheck.includes("REALIZA") ||
+        textForExpenseCheck.includes("SAQUE")
     ) {
         type = "expense";
+    } else {
+        type = "income";
     }
 
     // 3. EXTRAÇÃO DE DATA
@@ -116,7 +117,7 @@ function parseSMS(text, bankHint = '') {
         /(?:pix\s+de\s+r\$\s*[0-9.,]+\s+enviado\s+para\s+)([^\,\.\;\:\*\-\/]+?)(?:,\s*(?:cpf|cnpj)|\s+(?:cpf|cnpj)|,\s*chave|\s+chave|\s*\.|\s*$)/i,
         
         // Sicredi / Sicoob / Itaú / Bradesco / Nubank / Caixa / Santander / Inter / C6 / PagBank / Mercado Pago
-        /(?:recebeu\s+(?:uma\s+transfer[eê]ncia\s+)?(?:um\s+)?pix\s+(?:no\s+valor\s+de\s+|de\s+)?r\$\s*[0-9.,]+\s+(?:de|por)\s+)([^\,\.\;\:\*\-\/]+?)(?:,\s*(?:cpf|cnpj)|\s+(?:cpf|cnpj)|\s+em\s+\d|\s+via\s+pix|\s+pelo\s+pix|\s*\.|\s*$)/i,
+        /(?:recebeu\s+(?:uma\s+transfer[eê]ncia\s+)?(?:um\s+)?pix\s+(?:no\s+valor\s+de\s+|de\s+)?r\$\s*[0-9.,]+\s+(?:de|por)\s+)(.+?)(?:,\s*(?:cpf|cnpj)|\s+(?:cpf|cnpj)|\s+em\s+\d{2}\/\d{2}|\s+\d{2}\/\d{2}(?:\/\d{2,4})?|\s+via\s+pix|\s+pelo\s+pix|\s*\.|\s*$)/i,
         /(?:recebeu\s+(?:uma\s+transfer[eê]ncia\s+)?(?:um\s+)?pix\s+(?:de|por)\s+)([^\,\.\;\:\*\-\/]+?)(?:\s+no\s+valor|\s+de\s+r\$|\s*r\$)/i,
         /(?:pix\s+recebido\s+(?:no\s+valor\s+de\s+|de\s+)?r\$\s*[0-9.,]+\s+(?:de|por)\s+)([^\,\.\;\:\*\-\/]+?)(?:,\s*(?:cpf|cnpj)|\s+(?:cpf|cnpj)|\s+em\s+\d|\s*\.|\s*$)/i,
         /(?:pix\s+recebido\s+(?:de|por)\s+)([^\,\.\;\:\*\-\/]+?)(?:\s+no\s+valor|\s+de\s+r\$|\s*r\$|\s*-\s*r\$)/i,
@@ -433,17 +434,7 @@ export default (ai) => {
             }
         }
 
-        // 🛡️ Ajuste automático exclusivo para Sicredi (remove "Você recebeu um pix no valor de" e "Aproveite todas vantagens do Pix no Sicredi")
-        const isSicrediNotification = /sicredi/i.test(text) || (sanitizedBankId && /sicredi/i.test(String(sanitizedBankId)));
-        if (isSicrediNotification && text) {
-            text = text
-                .replace(/voc[eê]\s+recebeu\s+um\s+pix\s+no\s+valor\s+de\s*/gi, '')
-                .replace(/aproveite\s+todas\s+(?:as\s+)?vantagens\s+do\s+pix\s+no\s+sicredi[\.!]?/gi, '')
-                .replace(/\s+/g, ' ')
-                .trim();
-        }
-
-        // Registro forense do texto selecionado
+        // Registro forense do texto selecionado original
         req.forensic.selectedText = text;
 
         console.log(`\n--- [INCOMING PIX NOTIFICATION: ${req.forensic.requestId}] ---`);

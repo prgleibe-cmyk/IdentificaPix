@@ -5902,7 +5902,19 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
     }
 
     const result = await pool.query(query, params);
-    return res.json(result.rows);
+    const sanitizedRows = (result.rows || []).map((row: any) => {
+      const descUpper = (row.description || '').toUpperCase();
+      if (
+        row.type === 'expense' && 
+        (descUpper.includes('NU PAGAMENTOS') || descUpper.includes('RECEBEU') || descUpper.includes('RECEBIDO')) &&
+        !descUpper.includes('ENVIADO') && 
+        !descUpper.includes('PAGO A')
+      ) {
+        return { ...row, type: 'income' };
+      }
+      return row;
+    });
+    return res.json(sanitizedRows);
   } catch (err) {
     console.error('[Contributors API] Error GET consolidated_transactions:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
@@ -5920,6 +5932,17 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
 
     if (amount === undefined || amount === null || !description || !type || !effectiveUserId || !transaction_date) {
       return res.status(400).json({ error: 'VALIDATION_ERROR' });
+    }
+
+    let effectiveType = type;
+    const descUpper = (description || '').toUpperCase();
+    if (
+      effectiveType === 'expense' && 
+      (descUpper.includes('NU PAGAMENTOS') || descUpper.includes('RECEBEU') || descUpper.includes('RECEBIDO')) &&
+      !descUpper.includes('ENVIADO') && 
+      !descUpper.includes('PAGO A')
+    ) {
+      effectiveType = 'income';
     }
 
     // 🛡️ Validação de Período Fechado (Congelamento)
@@ -5972,12 +5995,12 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
           splits = EXCLUDED.splits,
           updated_at = NOW()
         RETURNING *`;
-      params = [finalId, amount, description, type, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, reference_date || null, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null, splits ? JSON.stringify(splits) : null];
+      params = [finalId, amount, description, effectiveType, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, reference_date || null, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null, splits ? JSON.stringify(splits) : null];
     } else {
       query = `INSERT INTO consolidated_transactions 
         (amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits) 
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING *`;
-      params = [amount, description, type, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, reference_date || null, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null, splits ? JSON.stringify(splits) : null];
+      params = [amount, description, effectiveType, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, reference_date || null, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null, splits ? JSON.stringify(splits) : null];
     }
 
     const result = await pool.query(query, params);

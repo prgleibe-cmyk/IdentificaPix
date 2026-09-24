@@ -6,7 +6,7 @@ import { AppContext } from '../contexts/AppContext';
 import { useAuth } from '../contexts/AuthContext';
 import { SparklesIcon, UserPlusIcon, BrainIcon, BanknotesIcon, UserIcon, LockClosedIcon, LockOpenIcon, PencilIcon } from './Icons';
 import { BulkActionToolbar } from './BulkActionToolbar';
-import { isInvalidOrNumericName } from '../services/utils/parsingUtils';
+import { isInvalidOrNumericName, cleanDisplayDescription } from '../services/utils/parsingUtils';
 import { MessageCircle, CheckCircle2 } from 'lucide-react';
 import { isWhatsAppSent, sendWhatsAppDirect } from './modals/WhatsAppReceiptModal';
 
@@ -149,17 +149,21 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                             const confirmed = transaction.isConfirmed ?? isConfirmed ?? false;
 
                             const displayAmount = transaction.amount;
-                            const isExpense = displayAmount < 0 || 
+                            const rawDescUpper = (transaction.rawDescription || transaction.description || '').toUpperCase();
+                            const hasIncomingKeywords = rawDescUpper.includes('RECEBEU') || rawDescUpper.includes('RECEBIDO') || rawDescUpper.includes('CRÉDITO') || rawDescUpper.includes('CREDITO') || (rawDescUpper.includes('NU PAGAMENTOS') && (rawDescUpper.includes('SICREDI') || rawDescUpper.includes('PIX')));
+                            const isExpense = !hasIncomingKeywords && (
+                                              displayAmount < 0 || 
                                               transaction.type?.toLowerCase() === 'expense' || 
                                               transaction.type?.toLowerCase() === 'saida' || 
                                               contributionType?.toLowerCase() === 'saída' || 
-                                              contributionType?.toLowerCase() === 'saida';
+                                              contributionType?.toLowerCase() === 'saida'
+                            );
                             const refDate = contributor?.reference_date || transaction.reference_date;
                             const hasRefDate = refDate && refDate !== transaction.date;
                             const displayDate = formatDate(refDate || transaction.date);
                             const originalBankDate = formatDate(transaction.date);
                             
-                            const bankDescription = transaction.description;
+                            const bankDescription = cleanDisplayDescription(transaction.description);
                             const statusStr = String(status);
                             const isIdentifiedStatus = statusStr === 'IDENTIFIED' || statusStr === 'RESOLVED' || statusStr === 'IDENTIFICADO' || statusStr === 'RESOLVIDO';
                             const rawIdentifiedName = isIdentifiedStatus ? (contributor?.name || contributor?.cleanedName) : null;

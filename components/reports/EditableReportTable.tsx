@@ -24,7 +24,7 @@ import {
 } from '../Icons';
 import { BulkActionToolbar } from '../BulkActionToolbar';
 import { NameResolver } from '../../core/processors/NameResolver';
-import { getResolvedDisplayName } from '../../services/utils/parsingUtils';
+import { getResolvedDisplayName, cleanDisplayDescription } from '../../services/utils/parsingUtils';
 
 type SortDirection = 'asc' | 'desc';
 interface SortConfig {
@@ -102,11 +102,15 @@ const MobileCard = memo(({
     };
 
     const displayAmount = row.transaction.amount;
-    const isExpense = displayAmount < 0 || 
+    const rawDescUpper = (row.transaction?.rawDescription || row.transaction?.cleanedDescription || row.transaction?.description || '').toUpperCase();
+    const hasIncomingKeywords = rawDescUpper.includes('RECEBEU') || rawDescUpper.includes('RECEBIDO') || rawDescUpper.includes('CRÉDITO') || rawDescUpper.includes('CREDITO') || (rawDescUpper.includes('NU PAGAMENTOS') && (rawDescUpper.includes('SICREDI') || rawDescUpper.includes('PIX')));
+    const isExpense = !hasIncomingKeywords && (
+                      displayAmount < 0 || 
                       row.transaction?.type?.toLowerCase() === 'expense' || 
                       row.transaction?.type?.toLowerCase() === 'saida' || 
                       row.contributionType?.toLowerCase() === 'saída' || 
-                      row.contributionType?.toLowerCase() === 'saida';
+                      row.contributionType?.toLowerCase() === 'saida'
+    );
     const refDate = row.contributor?.reference_date || row.reference_date || row.transaction.reference_date;
     const hasRefDate = refDate && refDate !== row.transaction.date;
     const displayDate = formatDate(refDate || row.transaction.date);
@@ -187,7 +191,7 @@ const MobileCard = memo(({
                         {!isManualRow && rawBankDesc && rawBankDesc !== displayName && (
                             <div className="text-[10px] text-slate-400 dark:text-slate-500 font-normal tracking-tight pl-5.5 mt-0.5 leading-tight break-words" title={`Extrato Original: ${rawBankDesc}`}>
                                 <span className="text-[9px] font-semibold uppercase text-slate-400/80 mr-1">Extrato:</span>
-                                <span className="font-mono text-slate-500 dark:text-slate-400">{rawBankDesc}</span>
+                                <span className="font-mono text-slate-500 dark:text-slate-400">{cleanDisplayDescription(rawBankDesc)}</span>
                             </div>
                         )}
                         {row.splits && row.splits.length > 0 && (
@@ -379,11 +383,15 @@ const IncomeRow = memo(({
     const isIdentified = row.status === 'IDENTIFICADO';
 
     const displayAmount = row.transaction.amount;
-    const isExpense = displayAmount < 0 || 
+    const rawDescUpper = (row.transaction?.rawDescription || row.transaction?.cleanedDescription || row.transaction?.description || '').toUpperCase();
+    const hasIncomingKeywords = rawDescUpper.includes('RECEBEU') || rawDescUpper.includes('RECEBIDO') || rawDescUpper.includes('CRÉDITO') || rawDescUpper.includes('CREDITO') || (rawDescUpper.includes('NU PAGAMENTOS') && (rawDescUpper.includes('SICREDI') || rawDescUpper.includes('PIX')));
+    const isExpense = !hasIncomingKeywords && (
+                      displayAmount < 0 || 
                       row.transaction?.type?.toLowerCase() === 'expense' || 
                       row.transaction?.type?.toLowerCase() === 'saida' || 
                       row.contributionType?.toLowerCase() === 'saída' || 
-                      row.contributionType?.toLowerCase() === 'saida';
+                      row.contributionType?.toLowerCase() === 'saida'
+    );
     const refDate = row.contributor?.reference_date || row.reference_date || row.transaction.reference_date;
     const hasRefDate = refDate && refDate !== row.transaction.date;
     const displayDate = formatDate(refDate || row.transaction.date);
@@ -511,7 +519,7 @@ const IncomeRow = memo(({
                         {!isManualRow && rawBankDesc && rawBankDesc !== displayName && (
                             <div className="text-[10px] text-slate-400 dark:text-slate-500 font-normal tracking-tight pl-5.5 leading-tight break-words max-w-md" title={`Extrato Original: ${rawBankDesc}`}>
                                 <span className="text-[9px] font-semibold uppercase text-slate-400/80 mr-1">Extrato:</span>
-                                <span className="font-mono text-slate-500 dark:text-slate-400">{rawBankDesc}</span>
+                                <span className="font-mono text-slate-500 dark:text-slate-400">{cleanDisplayDescription(rawBankDesc)}</span>
                             </div>
                         )}
                     </div>
