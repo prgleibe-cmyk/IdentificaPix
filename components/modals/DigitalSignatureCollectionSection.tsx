@@ -7,8 +7,9 @@ export interface ChurchSignerSlot {
     id: string;
     name: string;
     role: string;
-    category: 'pastor' | 'tesouraria' | 'outro';
+    category: 'pastor' | 'tesouraria' | 'tesouraria_geral' | 'outro';
     hasRegisteredName: boolean;
+    churchName?: string;
 }
 
 interface DigitalSignatureCollectionSectionProps {
@@ -17,6 +18,8 @@ interface DigitalSignatureCollectionSectionProps {
     church?: Church | null;
     defaultPastorName?: string;
     defaultTreasurerName?: string;
+    targetChurch?: Church | null;
+    defaultTargetTreasurerName?: string;
     readOnly?: boolean;
 }
 
@@ -26,6 +29,8 @@ export const DigitalSignatureCollectionSection: React.FC<DigitalSignatureCollect
     church = null,
     defaultPastorName = '',
     defaultTreasurerName = '',
+    targetChurch = null,
+    defaultTargetTreasurerName = '',
     readOnly = false
 }) => {
     const [padOpen, setPadOpen] = useState(false);
@@ -40,7 +45,7 @@ export const DigitalSignatureCollectionSection: React.FC<DigitalSignatureCollect
     const churchSigners = useMemo<ChurchSignerSlot[]>(() => {
         const slots: ChurchSignerSlot[] = [];
 
-        // Pastores da Igreja
+        // 1. Pastores da Igreja
         if (church?.pastors && Array.isArray(church.pastors) && church.pastors.length > 0) {
             church.pastors.forEach((p, idx) => {
                 const name = p.name?.trim() || '';
@@ -50,7 +55,8 @@ export const DigitalSignatureCollectionSection: React.FC<DigitalSignatureCollect
                     name,
                     role,
                     category: 'pastor',
-                    hasRegisteredName: Boolean(name)
+                    hasRegisteredName: Boolean(name),
+                    churchName: church?.name || ''
                 });
             });
         } else if (church?.pastor && church.pastor.trim()) {
@@ -59,7 +65,8 @@ export const DigitalSignatureCollectionSection: React.FC<DigitalSignatureCollect
                 name: church.pastor.trim(),
                 role: 'Pastor Presidente',
                 category: 'pastor',
-                hasRegisteredName: true
+                hasRegisteredName: true,
+                churchName: church?.name || ''
             });
         } else if (defaultPastorName && defaultPastorName.trim()) {
             slots.push({
@@ -67,7 +74,8 @@ export const DigitalSignatureCollectionSection: React.FC<DigitalSignatureCollect
                 name: defaultPastorName.trim(),
                 role: 'Pastor Presidente',
                 category: 'pastor',
-                hasRegisteredName: true
+                hasRegisteredName: true,
+                churchName: church?.name || ''
             });
         } else {
             // Slot padrão se não houver pastor cadastrado
@@ -76,11 +84,12 @@ export const DigitalSignatureCollectionSection: React.FC<DigitalSignatureCollect
                 name: '',
                 role: 'Pastor Presidente',
                 category: 'pastor',
-                hasRegisteredName: false
+                hasRegisteredName: false,
+                churchName: church?.name || ''
             });
         }
 
-        // Tesoureiros da Igreja
+        // 2. Tesoureiros da Igreja
         if (church?.treasurers && Array.isArray(church.treasurers) && church.treasurers.length > 0) {
             church.treasurers.forEach((t, idx) => {
                 const name = t.name?.trim() || '';
@@ -90,7 +99,8 @@ export const DigitalSignatureCollectionSection: React.FC<DigitalSignatureCollect
                     name,
                     role,
                     category: 'tesouraria',
-                    hasRegisteredName: Boolean(name)
+                    hasRegisteredName: Boolean(name),
+                    churchName: church?.name || ''
                 });
             });
         } else if (church?.treasurer && church.treasurer.trim()) {
@@ -99,7 +109,8 @@ export const DigitalSignatureCollectionSection: React.FC<DigitalSignatureCollect
                 name: church.treasurer.trim(),
                 role: '1º Tesoureiro',
                 category: 'tesouraria',
-                hasRegisteredName: true
+                hasRegisteredName: true,
+                churchName: church?.name || ''
             });
         } else if (defaultTreasurerName && defaultTreasurerName.trim()) {
             slots.push({
@@ -107,7 +118,8 @@ export const DigitalSignatureCollectionSection: React.FC<DigitalSignatureCollect
                 name: defaultTreasurerName.trim(),
                 role: '1º Tesoureiro',
                 category: 'tesouraria',
-                hasRegisteredName: true
+                hasRegisteredName: true,
+                churchName: church?.name || ''
             });
         } else {
             // Slot padrão se não houver tesoureiro cadastrado
@@ -116,12 +128,28 @@ export const DigitalSignatureCollectionSection: React.FC<DigitalSignatureCollect
                 name: '',
                 role: '1º Tesoureiro',
                 category: 'tesouraria',
-                hasRegisteredName: false
+                hasRegisteredName: false,
+                churchName: church?.name || ''
             });
         }
 
+        // 3. 🛡️ Tesoureiro do Caixa Geral (para onde está sendo transportado o saldo)
+        const generalChurchName = targetChurch?.name || 'Caixa Geral';
+        const targetTreasName = (targetChurch?.treasurers && targetChurch.treasurers[0]?.name?.trim()) ||
+                                targetChurch?.treasurer?.trim() ||
+                                defaultTargetTreasurerName?.trim() || '';
+
+        slots.push({
+            id: targetChurch ? `treasurer-general-${targetChurch.id}` : 'treasurer-general-slot',
+            name: targetTreasName,
+            role: targetChurch?.name ? `Tesoureiro (${targetChurch.name})` : 'Tesoureiro do Caixa Geral',
+            category: 'tesouraria_geral',
+            hasRegisteredName: Boolean(targetTreasName),
+            churchName: generalChurchName
+        });
+
         return slots;
-    }, [church, defaultPastorName, defaultTreasurerName]);
+    }, [church, defaultPastorName, defaultTreasurerName, targetChurch, defaultTargetTreasurerName]);
 
     // 2. Lista de opções de pessoas cadastradas na igreja para preenchimento ágil
     const registeredPeopleOptions = useMemo<RegisteredPersonOption[]>(() => {
@@ -161,6 +189,7 @@ export const DigitalSignatureCollectionSection: React.FC<DigitalSignatureCollect
         rolesSet.add('Pastor Auxiliar');
         rolesSet.add('1º Tesoureiro');
         rolesSet.add('2º Tesoureiro');
+        rolesSet.add('Tesoureiro do Caixa Geral');
         rolesSet.add('Conselho Fiscal 1');
         rolesSet.add('Conselho Fiscal 2');
         rolesSet.add('Conselho Fiscal 3');
@@ -195,9 +224,15 @@ export const DigitalSignatureCollectionSection: React.FC<DigitalSignatureCollect
             }
         }
         if (slot.category === 'tesouraria') {
-            const treasSigs = signatures.filter(s => s.signerRole.toLowerCase().includes('tesour'));
+            const treasSigs = signatures.filter(s => s.signerRole.toLowerCase().includes('tesour') && !s.signerRole.toLowerCase().includes('geral'));
             if (treasSigs.length === 1 && churchSigners.filter(s => s.category === 'tesouraria').length === 1) {
                 return treasSigs[0];
+            }
+        }
+        if (slot.category === 'tesouraria_geral') {
+            const generalTreasSigs = signatures.filter(s => s.signerRole.toLowerCase().includes('geral') && s.signerRole.toLowerCase().includes('tesour'));
+            if (generalTreasSigs.length >= 1) {
+                return generalTreasSigs[0];
             }
         }
 
@@ -344,7 +379,7 @@ export const DigitalSignatureCollectionSection: React.FC<DigitalSignatureCollect
                     </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {churchSigners.map((slot) => {
                         const sig = getSlotSignature(slot);
                         const isRequired = !disabledSlotIds.has(slot.id);
@@ -368,7 +403,9 @@ export const DigitalSignatureCollectionSection: React.FC<DigitalSignatureCollect
                                             <span className={`inline-block text-[9.5px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
                                                 slot.category === 'pastor'
                                                     ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200/50 dark:border-blue-800/40'
-                                                    : 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200/50 dark:border-amber-800/40'
+                                                    : slot.category === 'tesouraria_geral'
+                                                        ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200/50 dark:border-purple-800/40'
+                                                        : 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200/50 dark:border-amber-800/40'
                                             }`}>
                                                 {slot.role}
                                             </span>
@@ -379,7 +416,13 @@ export const DigitalSignatureCollectionSection: React.FC<DigitalSignatureCollect
                                             )}
                                         </div>
                                         <h5 className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                                            {sig?.signerName || slot.name || (slot.category === 'pastor' ? 'Pastor Responsável' : 'Tesoureiro Responsável')}
+                                            {sig?.signerName || slot.name || (
+                                                slot.category === 'pastor' 
+                                                    ? 'Pastor Responsável' 
+                                                    : slot.category === 'tesouraria_geral'
+                                                        ? 'Tesoureiro do Caixa Geral'
+                                                        : 'Tesoureiro Responsável'
+                                            )}
                                         </h5>
                                     </div>
 

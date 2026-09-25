@@ -786,56 +786,68 @@ export const PortalReportsPage: React.FC<PortalReportsPageProps> = ({ church, on
                                 </div>
                             </PortalCard>
 
-                            {/* Kingdom Transparency (Church Consolidated Impact) */}
+                            {/* Kingdom Faithfulness & Spiritual Purpose */}
                             <PortalCard className="p-6 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-4">
                                 <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
                                     <div className="p-2 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 rounded-xl">
-                                        <ShieldCheck className="w-5 h-5" />
+                                        <HeartHandshake className="w-5 h-5" />
                                     </div>
                                     <div>
                                         <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
-                                            Transparência do Reino na Igreja
+                                            O Propósito e a Alegria da Fidelidade
                                         </h3>
                                         <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                                            Como as contribuições são investidas na congregação
+                                            A bênção e o privilégio de semear com amor e constância na obra de Deus
                                         </p>
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-3 pt-1">
-                                    <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-1">
-                                        <span className="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 block">
-                                            35% • Cultos & Templo
-                                        </span>
-                                        <p className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
-                                            Climatização, som, luz e manutenção do santuário.
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                    <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-1.5 transition-all hover:border-emerald-200 dark:hover:border-emerald-800/50">
+                                        <div className="flex items-center gap-1.5">
+                                            <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                            <span className="text-[10px] font-black uppercase text-emerald-700 dark:text-emerald-400 tracking-wider">
+                                                Alegria em Contribuir • 2 Co 9:7
+                                            </span>
+                                        </div>
+                                        <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300 leading-relaxed">
+                                            Cada um dê conforme determinou no coração. Deus ama quem oferta com alegria, gratidão e adoração voluntária.
                                         </p>
                                     </div>
 
-                                    <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-1">
-                                        <span className="text-[10px] font-black uppercase text-blue-600 dark:text-blue-400 block">
-                                            25% • Ação Social
-                                        </span>
-                                        <p className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
-                                            Cestas básicas e socorro a famílias carentes.
+                                    <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-1.5 transition-all hover:border-blue-200 dark:hover:border-blue-800/50">
+                                        <div className="flex items-center gap-1.5">
+                                            <Building2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                                            <span className="text-[10px] font-black uppercase text-blue-700 dark:text-blue-400 tracking-wider">
+                                                Casa do Senhor Suprida • Ml 3:10
+                                            </span>
+                                        </div>
+                                        <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300 leading-relaxed">
+                                            Sua constância mantém a casa de oração aberta e acolhedora, com mantimento e estrutura para abençoar vidas.
                                         </p>
                                     </div>
 
-                                    <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-1">
-                                        <span className="text-[10px] font-black uppercase text-amber-600 dark:text-amber-400 block">
-                                            20% • Missões no Campo
-                                        </span>
-                                        <p className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
-                                            Sustento e envio de missionários no Brasil e exterior.
+                                    <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-1.5 transition-all hover:border-amber-200 dark:hover:border-amber-800/50">
+                                        <div className="flex items-center gap-1.5">
+                                            <Users className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                                            <span className="text-[10px] font-black uppercase text-amber-700 dark:text-amber-400 tracking-wider">
+                                                Vidas e Famílias Alcançadas
+                                            </span>
+                                        </div>
+                                        <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300 leading-relaxed">
+                                            A Palavra da Salvação é anunciada, corações são consolados e novas famílias encontram acolhimento e direção em Deus.
                                         </p>
                                     </div>
 
-                                    <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-1">
-                                        <span className="text-[10px] font-black uppercase text-purple-600 dark:text-purple-400 block">
-                                            20% • EBD & Crianças
-                                        </span>
-                                        <p className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
-                                            Material didático infantil e ministério de jovens.
+                                    <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-1.5 transition-all hover:border-purple-200 dark:hover:border-purple-800/50">
+                                        <div className="flex items-center gap-1.5">
+                                            <Target className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                                            <span className="text-[10px] font-black uppercase text-purple-700 dark:text-purple-400 tracking-wider">
+                                                Sementeira de Fé e Frutos
+                                            </span>
+                                        </div>
+                                        <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300 leading-relaxed">
+                                            Quem semeia com fidelidade colhe paz, frutos espirituais e a promessa bíblica de proteção e provisão sobre suas gerações.
                                         </p>
                                     </div>
                                 </div>

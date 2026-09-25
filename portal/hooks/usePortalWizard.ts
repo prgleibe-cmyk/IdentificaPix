@@ -7,16 +7,6 @@ import {
 } from '../types/portal';
 import { generateMockReferenceNumber, formatDateToDmy } from '../utils/portalFormatters';
 
-const DEFAULT_CONTRIBUTION_CATEGORIES: ContributionItemMock[] = [
-    { id: 'dizimo', label: 'Dízimo', description: 'Contribuição regular de dízimo senhorial', selected: true, amount: 100 },
-    { id: 'oferta', label: 'Oferta Geral', description: 'Oferta voluntária para manutenção do templo', selected: false, amount: 0 },
-    { id: 'missoes', label: 'Missões', description: 'Fundo para missões e evangelismo', selected: false, amount: 0 },
-    { id: 'construcao', label: 'Construção & Reformas', description: 'Fundo para obras e melhorias da igreja', selected: false, amount: 0 },
-    { id: 'acao_social', label: 'Ação Social', description: 'Projetos comunitários e cestas básicas', selected: false, amount: 0 },
-    { id: 'eventos', label: 'Eventos & Congressos', description: 'Inscrições e fundos de eventos eclesiásticos', selected: false, amount: 0 },
-    { id: 'campanhas', label: 'Campanhas Especiais', description: 'Campanhas de fé e votos específicos', selected: false, amount: 0 }
-];
-
 const INITIAL_EMPTY_CONTRIBUTOR: ContributorMockProfile = {
     id: '',
     name: '',
@@ -58,7 +48,7 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
             identificationValue: savedContrib.cpf || savedContrib.phone || savedContrib.email || '',
             mockSearchFound: !!savedContrib.id,
             contributor: savedContrib,
-            contributionItems: DEFAULT_CONTRIBUTION_CATEGORIES.map(item => ({ ...item })),
+            contributionItems: [],
             referenceNumber: generateMockReferenceNumber(),
             createdAt: new Date().toISOString()
         };
@@ -85,35 +75,91 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
         }
     }, [churchName]);
 
-    useEffect(() => {
-        let isMounted = true;
-        const fetchPublicTypes = async () => {
-            try {
-                const res = await fetch('/api/v1/contribution-types/public');
-                if (res.ok) {
-                    const data = await res.json();
-                    if (isMounted && Array.isArray(data) && data.length > 0) {
-                        const mapped: ContributionItemMock[] = data.map((item: any, idx: number) => ({
-                            id: item.id,
+    // Fetch exclusively the real registered contribution types from the main system
+    const fetchPublicTypes = useCallback(async () => {
+        try {
+            const url = churchId 
+                ? `/api/v1/contribution-types/public?church_id=${encodeURIComponent(churchId)}`
+                : '/api/v1/contribution-types/public';
+            const res = await fetch(url);
+            if (res.ok) {
+                const data = await res.json();
+                if (Array.isArray(data)) {
+                    const seenNames = new Set<string>();
+                    const mapped: ContributionItemMock[] = data
+                        .filter((item: any) => {
+                            const n = (item.name || '').trim().toLowerCase();
+                            if (!n || seenNames.has(n)) return false;
+                            seenNames.add(n);
+                            return true;
+                        })
+                        .map((item: any, idx: number) => ({
+                            id: item.id || `contrib-type-${idx}`,
                             label: item.name,
-                            description: item.category || `Contribuição destinada para ${item.name}`,
+                            description: item.category ? `Destinação: ${item.category}` : `Contribuição para ${item.name}`,
                             selected: idx === 0,
                             amount: idx === 0 ? 100 : 0,
                             bank_id: item.bank_id
                         }));
-                        setWizardState(prev => ({
+
+                    setWizardState(prev => {
+                        // Preserve previous selections/amounts for items that still exist
+                        const currentMap = new Map(
+                            prev.contributionItems.map(i => [i.label.trim().toLowerCase(), { amount: i.amount, selected: i.selected }])
+                        );
+
+                        const mergedItems = mapped.map(item => {
+                            const existing = currentMap.get(item.label.trim().toLowerCase());
+                            if (existing) {
+                                return {
+                                    ...item,
+                                    selected: existing.selected,
+                                    amount: existing.amount
+                                };
+                            }
+                            return item;
+                        });
+
+                        return {
                             ...prev,
-                            contributionItems: mapped
-                        }));
-                    }
+                            contributionItems: mergedItems
+                        };
+                    });
                 }
-            } catch (err) {
-                console.error('[usePortalWizard] Erro ao carregar tipos de contribuição:', err);
+            }
+        } catch (err) {
+            console.error('[usePortalWizard] Erro ao carregar tipos de contribuição:', err);
+        }
+    }, [churchId]);
+
+    useEffect(() => {
+        fetchPublicTypes();
+
+        const handleTypesUpdated = () => {
+            fetchPublicTypes();
+        };
+
+        window.addEventListener('contribution_types_updated', handleTypesUpdated);
+
+        let bc: BroadcastChannel | null = null;
+        if (typeof BroadcastChannel !== 'undefined') {
+            try {
+                bc = new BroadcastChannel('identificapix_realtime_sync');
+                bc.onmessage = (ev) => {
+                    if (ev.data?.type === 'contribution_types_updated') {
+                        fetchPublicTypes();
+                    }
+                };
+            } catch (_) {}
+        }
+
+        return () => {
+            window.removeEventListener('contribution_types_updated', handleTypesUpdated);
+            if (bc) {
+                try { bc.close(); } catch (_) {}
             }
         };
-        fetchPublicTypes();
-        return () => { isMounted = false; };
-    }, []);
+    }, [fetchPublicTypes]);
 
     const setStep = useCallback((step: number) => {
         setWizardState(prev => ({ ...prev, step: Math.max(1, Math.min(5, step)) }));
@@ -599,16 +645,20 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
     }, []);
 
     const resetWizard = useCallback(() => {
-        setWizardState({
+        setWizardState(prev => ({
             step: 1,
             identificationType: 'cpf',
             identificationValue: '',
             mockSearchFound: false,
             contributor: { ...INITIAL_EMPTY_CONTRIBUTOR },
-            contributionItems: DEFAULT_CONTRIBUTION_CATEGORIES.map(item => ({ ...item })),
+            contributionItems: prev.contributionItems.map((item, idx) => ({
+                ...item,
+                selected: idx === 0,
+                amount: idx === 0 ? 100 : 0
+            })),
             referenceNumber: generateMockReferenceNumber(),
             createdAt: new Date().toISOString()
-        });
+        }));
         setApiError(null);
     }, []);
 

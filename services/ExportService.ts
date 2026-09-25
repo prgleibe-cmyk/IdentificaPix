@@ -840,8 +840,7 @@ ${transactionsOfx}
             const originalBankDate = formatDate(originalBankDateStr);
             const dateStr = hasRefDate ? `${displayDate}\n(Banco: ${originalBankDate})` : displayDate;
             
-            const rawName = r.contributor?.cleanedName || r.contributor?.name || r.transaction.cleanedDescription || r.transaction.description;
-            const desc = String(rawName).toUpperCase();
+            const desc = getResolvedDisplayName(r).toUpperCase();
             
             const status = r.status === 'IDENTIFICADO' ? (r.matchMethod || 'AUTO') : r.status;
             const church = r.church?.name || targetChurch?.name || '---';

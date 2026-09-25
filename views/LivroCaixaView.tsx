@@ -974,6 +974,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                     isOpen={true}
                     onClose={() => setIsClosingModalOpen(false)}
                     currentChurchId={selectedChurchIds.length === 1 ? selectedChurchIds[0] : null}
+                    currentBankId={selectedBankIds.length === 1 ? selectedBankIds[0] : null}
                     initialMonth={selectedMonth}
                     initialYear={selectedYear}
                     asView={true}

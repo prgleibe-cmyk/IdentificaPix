@@ -210,7 +210,7 @@ class LocalSqliteEngine {
       );
 
       CREATE TABLE IF NOT EXISTS contribution_types (
-        id TEXT PRIMARY KEY,
+        id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()),
         name TEXT NOT NULL,
         type TEXT DEFAULT 'entrada',
         category TEXT,
@@ -587,6 +587,17 @@ class LocalSqliteEngine {
           INSERT INTO churches (id, user_id, name, cnpj, address, created_at)
           VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Igreja Sede / Matriz', '00.000.000/0001-00', 'Sede Principal', datetime('now'))
         `).run();
+      }
+    } catch (_) {}
+
+    // Ensure all contribution_types have a valid UUID and no empty IDs
+    try {
+      const nullTypes = this.db.prepare("SELECT rowid, name FROM contribution_types WHERE id IS NULL OR id = ''").all();
+      if (nullTypes && nullTypes.length > 0) {
+        const updateStmt = this.db.prepare("UPDATE contribution_types SET id = ? WHERE rowid = ?");
+        for (const row of nullTypes) {
+          updateStmt.run(crypto.randomUUID(), (row as any).rowid);
+        }
       }
     } catch (_) {}
   }
@@ -3041,7 +3052,17 @@ app.get('/api/v1/contribution-types/public', async (req: Request, res: Response)
     query += ' ORDER BY ct."order" ASC, ct.name ASC';
 
     const result = await pool.query(query, params);
-    return res.json(result.rows);
+
+    // Deduplicate by normalized name to guarantee no repetitive options
+    const seenNames = new Set<string>();
+    const deduplicated = (result.rows || []).filter((r: any) => {
+      const norm = (r.name || '').trim().toLowerCase();
+      if (!norm || seenNames.has(norm)) return false;
+      seenNames.add(norm);
+      return true;
+    });
+
+    return res.json(deduplicated);
   } catch (err: any) {
     console.error('[Contributors API] Error fetching public contribution types:', err);
     return res.status(500).json({
@@ -3113,10 +3134,11 @@ app.get('/api/v1/contribution-types', async (req: Request, res: Response) => {
 
     for (const dt of defaultTypes) {
       try {
+        const genId = crypto.randomUUID();
         await pool.query(
-          `INSERT INTO contribution_types (name, type, category, "order", is_active, user_id)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [dt.name, dt.type, dt.type === 'entrada' ? 'Receita' : 'Despesa', dt.order, true, cleanUserId]
+          `INSERT INTO contribution_types (id, name, type, category, "order", is_active, user_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [genId, dt.name, dt.type, dt.type === 'entrada' ? 'Receita' : 'Despesa', dt.order, true, cleanUserId]
         );
       } catch (e) {
         console.error('Error auto-seeding contribution type:', e);
@@ -3158,12 +3180,14 @@ app.post('/api/v1/contribution-types', async (req: Request, res: Response) => {
     const cleanIsActive = typeof is_active === 'boolean' ? is_active : true;
     const cleanBankId = (bank_id && typeof bank_id === 'string' && bank_id.trim()) ? bank_id.trim() : null;
     const cleanUserId = (user_id && typeof user_id === 'string' && user_id.trim()) ? user_id.trim() : null;
+    const genId = crypto.randomUUID();
 
     const result = await pool.query(
-      `INSERT INTO contribution_types (name, type, category, bank_id, "order", is_active, user_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO contribution_types (id, name, type, category, bank_id, "order", is_active, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING id, name, type, category, bank_id, "order", is_active, user_id, created_at`,
       [
+        genId,
         name.trim(),
         normType,
         category ? category.trim() : null,
@@ -3190,11 +3214,11 @@ app.put('/api/v1/contribution-types/:id', async (req: Request, res: Response) =>
     const { id } = req.params;
     const { name, type, category, bank_id, order, is_active } = req.body;
 
-    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-    if (!id || !uuidRegex.test(id)) {
+    const cleanId = typeof id === 'string' ? id.trim() : '';
+    if (!cleanId) {
       return res.status(400).json({
         error: 'VALIDATION_ERROR',
-        message: 'ID do tipo de contribuição é inválido.'
+        message: 'ID do tipo de contribuição é obrigatório.'
       });
     }
 
@@ -3218,7 +3242,7 @@ app.put('/api/v1/contribution-types/:id', async (req: Request, res: Response) =>
         normType === 'entrada' ? cleanBankId : null,
         typeof order === 'number' ? order : 1,
         typeof is_active === 'boolean' ? is_active : true,
-        id
+        cleanId
       ]
     );
 
@@ -3243,15 +3267,15 @@ app.put('/api/v1/contribution-types/:id', async (req: Request, res: Response) =>
 app.delete('/api/v1/contribution-types/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-    if (!id || !uuidRegex.test(id)) {
+    const cleanId = typeof id === 'string' ? id.trim() : '';
+    if (!cleanId) {
       return res.status(400).json({
         error: 'VALIDATION_ERROR',
-        message: 'ID do tipo de contribuição é inválido.'
+        message: 'ID do tipo de contribuição é obrigatório.'
       });
     }
 
-    await pool.query('DELETE FROM contribution_types WHERE id = $1', [id]);
+    await pool.query('DELETE FROM contribution_types WHERE id = $1', [cleanId]);
     return res.json({ success: true, message: 'Tipo de contribuição removido.' });
   } catch (err: any) {
     console.error('[Contributors API] Error deleting contribution type:', err);

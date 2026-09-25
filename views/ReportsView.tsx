@@ -15,7 +15,6 @@ import { EditManualTransactionModal } from '../components/modals/EditManualTrans
 // Sub-componentes modulares
 import { CategoryPills } from '../components/reports/CategoryPills';
 import { ReportToolbar } from '../components/reports/ReportToolbar';
-import { ChurchChipsList } from '../components/reports/ChurchChipsList';
 import { BankChipsList } from '../components/reports/BankChipsList';
 import { StatsStrip } from '../components/reports/StatsStrip';
 import { ContributorsReportSection } from '../components/reports/ContributorsReportSection';
@@ -240,9 +239,16 @@ export const ReportsView: React.FC = () => {
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 flex-shrink-0">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                     <h2 className="text-lg font-black text-brand-deep dark:text-white tracking-tight leading-none">{t('reports.title')}</h2>
-                    <div className="overflow-x-auto pb-1 -mx-1 px-1 custom-scrollbar scrollbar-hide">
-                        <CategoryPills activeCategory={ctrl.activeCategory} onCategoryChange={ctrl.setActiveCategory} counts={ctrl.counts} role={subscription.role} isSecondaryUser={isSecondaryUser} />
-                    </div>
+                        <CategoryPills 
+                            activeCategory={ctrl.activeCategory} 
+                            onCategoryChange={ctrl.setActiveCategory} 
+                            counts={ctrl.counts} 
+                            role={subscription.role} 
+                            isSecondaryUser={isSecondaryUser}
+                            churchList={ctrl.churchList}
+                            selectedReportId={ctrl.selectedReportId}
+                            onSelectChurch={setSelectedIdSafe(ctrl)}
+                        />
                 </div>
                 {ctrl.activeCategory !== 'contributors' && (
                     <ReportToolbar 
@@ -366,9 +372,6 @@ export const ReportsView: React.FC = () => {
                         </div>
                     </div>
 
-                    {ctrl.activeCategory === 'churches' && (
-                        <ChurchChipsList list={ctrl.churchList} selectedId={ctrl.selectedReportId} onSelect={setSelectedIdSafe(ctrl)} />
-                    )}
 
                     {ctrl.bankList.length > 0 && (
                         <div className="flex flex-col gap-1">

@@ -493,6 +493,14 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                 const newType = await res.json();
                 setContributionTypes(prev => [...prev, newType]);
                 showToast(`Tipo "${newType.name}" cadastrado.`, 'success');
+                window.dispatchEvent(new CustomEvent('contribution_types_updated', { detail: { action: 'create', type: newType } }));
+                if (typeof BroadcastChannel !== 'undefined') {
+                    try {
+                        const bc = new BroadcastChannel('identificapix_realtime_sync');
+                        bc.postMessage({ type: 'contribution_types_updated' });
+                        bc.close();
+                    } catch (_) {}
+                }
                 return newType;
             } else {
                 const errJson = await res.json().catch(() => ({}));
@@ -517,6 +525,14 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                 const updated = await res.json();
                 setContributionTypes(prev => prev.map(item => item.id === id ? updated : item));
                 showToast(`Tipo "${updated.name}" atualizado.`, 'success');
+                window.dispatchEvent(new CustomEvent('contribution_types_updated', { detail: { action: 'update', type: updated } }));
+                if (typeof BroadcastChannel !== 'undefined') {
+                    try {
+                        const bc = new BroadcastChannel('identificapix_realtime_sync');
+                        bc.postMessage({ type: 'contribution_types_updated' });
+                        bc.close();
+                    } catch (_) {}
+                }
                 return updated;
             } else {
                 const errJson = await res.json().catch(() => ({}));
@@ -538,6 +554,14 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             if (res.ok) {
                 setContributionTypes(prev => prev.filter(item => item.id !== id));
                 showToast('Tipo de contribuição removido.', 'success');
+                window.dispatchEvent(new CustomEvent('contribution_types_updated', { detail: { action: 'delete', id } }));
+                if (typeof BroadcastChannel !== 'undefined') {
+                    try {
+                        const bc = new BroadcastChannel('identificapix_realtime_sync');
+                        bc.postMessage({ type: 'contribution_types_updated' });
+                        bc.close();
+                    } catch (_) {}
+                }
                 return true;
             } else {
                 showToast('Erro ao excluir tipo.', 'error');

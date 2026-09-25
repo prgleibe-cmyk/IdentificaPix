@@ -119,7 +119,7 @@ export const cleanDisplayDescription = (text: string): string => {
         .replace(/(\d{2}\/\d{2}(?:\/\d{2,4})?)\s+([0-2]\d)([0-5]\d)([0-5]\d)\b/gi, '$1 $2:$3:$4')
         .replace(/(\d{2}\/\d{2}(?:\/\d{2,4})?)\s+([0-2]\d)([0-5]\d)\b/gi, '$1 $2:$3')
         .replace(/(?:às|as)\s+([0-2]\d)([0-5]\d)([0-5]\d)\b/gi, 'às $1:$2:$3')
-        .replace(/\b([0-2]\d)([0-5]\d)([0-5]\d)\s+(sicredi|pix)\b/gi, '$1:$2:$3 $4')
+        .replace(/\b([0-2]\d)([0-5]\d)([0-5]\d)\s*(h|hs|hrs|horas|sicredi|pix)\b/gi, '$1:$2:$3 $4')
         .replace(/\s+/g, ' ')
         .trim();
 };
