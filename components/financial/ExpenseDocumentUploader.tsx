@@ -39,6 +39,7 @@ interface ExpenseDocumentUploaderProps {
     onChangeAttachments: (newAttachments: ExpenseAttachment[]) => void;
     onApplyExtractedAmount?: (amount: number) => void;
     onApplyExtractedRecipient?: (recipient: string) => void;
+    onDocumentDataExtracted?: (extracted: ExtractedExpenseDoc, attachment: ExpenseAttachment) => void;
     language?: any;
     readOnly?: boolean;
 }
@@ -51,6 +52,7 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
     onChangeAttachments,
     onApplyExtractedAmount,
     onApplyExtractedRecipient,
+    onDocumentDataExtracted,
     language = 'pt',
     readOnly = false
 }) => {
@@ -120,6 +122,19 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                     dataUrl = compressed.dataUrl;
                     finalSize = compressed.size;
                     rawText = `Comprovante de imagem: ${file.name}`;
+                } else if (file.type === 'text/xml' || file.type === 'application/xml' || file.name.toLowerCase().endsWith('.xml')) {
+                    try {
+                        rawText = await file.text();
+                    } catch (_) {
+                        rawText = '';
+                    }
+                    const reader = new FileReader();
+                    const dataUrlPromise = new Promise<string>((resolve) => {
+                        reader.onload = () => resolve(reader.result as string);
+                        reader.onerror = () => resolve('');
+                        reader.readAsDataURL(file);
+                    });
+                    dataUrl = await dataUrlPromise;
                 } else {
                     const reader = new FileReader();
                     const dataUrlPromise = new Promise<string>((resolve) => {
@@ -141,7 +156,7 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                     id: fileId,
                     fileName: file.name,
                     fileSize: finalSize,
-                    fileType: file.type || (file.name.endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream'),
+                    fileType: file.type || (file.name.endsWith('.pdf') ? 'application/pdf' : file.name.endsWith('.xml') ? 'application/xml' : 'application/octet-stream'),
                     uploadedAt: new Date().toISOString(),
                     dataUrl,
                     extractedData,
@@ -151,6 +166,10 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                 };
 
                 newAttachmentsList.push(newAttachment);
+
+                if (onDocumentDataExtracted) {
+                    onDocumentDataExtracted(extractedData, newAttachment);
+                }
             } catch (err) {
                 console.error('Erro ao processar anexo:', err);
             }
@@ -531,7 +550,7 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                     <input 
                         ref={fileInputRef}
                         type="file" 
-                        accept=".pdf,image/png,image/jpeg,image/jpg" 
+                        accept=".pdf,image/png,image/jpeg,image/jpg,.xml,text/xml,application/xml" 
                         multiple
                         className="hidden"
                         onChange={(e) => handleFileUpload(e.target.files)}
@@ -648,6 +667,11 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                                                         {doc.documentTypeLabel}
                                                     </span>
                                                 )}
+                                                {doc?.confidenceLevel === 'high' && (
+                                                    <span className="bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[8px] font-black uppercase px-1.5 py-0.5 rounded shrink-0 border border-emerald-200 dark:border-emerald-800">
+                                                        ✓ XML Estruturado
+                                                    </span>
+                                                )}
                                                 {att.fileSize && (
                                                     <span className="text-[8.5px] text-slate-400 font-mono">
                                                         {(att.fileSize / 1024).toFixed(0)} KB
@@ -667,9 +691,34 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                                                         Favorecido: <strong className="text-slate-700 dark:text-slate-200">{doc.extractedRecipient}</strong>
                                                     </span>
                                                 )}
+                                                {doc?.extractedRecipientCnpjCpf && (
+                                                    <span>
+                                                        CNPJ/CPF: <strong className="font-mono text-slate-700 dark:text-slate-200">{doc.extractedRecipientCnpjCpf}</strong>
+                                                    </span>
+                                                )}
+                                                {doc?.documentNumber && (
+                                                    <span>
+                                                        Nº: <strong className="font-mono text-slate-700 dark:text-slate-200">{doc.documentNumber}</strong>
+                                                    </span>
+                                                )}
                                                 {doc?.extractedDate && (
                                                     <span>
                                                         Data: <strong>{doc.extractedDate.split('-').reverse().join('/')}</strong>
+                                                    </span>
+                                                )}
+                                                {doc?.extractedDueDate && (
+                                                    <span>
+                                                        Vencimento: <strong className="text-amber-700 dark:text-amber-400">{doc.extractedDueDate.split('-').reverse().join('/')}</strong>
+                                                    </span>
+                                                )}
+                                                {doc?.barcodeOrAuth && (
+                                                    <span className="truncate max-w-[220px]" title={doc.barcodeOrAuth}>
+                                                        Linha/Cód: <strong className="font-mono text-[9.5px] text-slate-700 dark:text-slate-200">{doc.barcodeOrAuth}</strong>
+                                                    </span>
+                                                )}
+                                                {doc?.items && doc.items.length > 0 && (
+                                                    <span className="text-indigo-600 dark:text-indigo-400 font-semibold">
+                                                        📦 {doc.items.length} {doc.items.length === 1 ? 'item' : 'itens'}
                                                     </span>
                                                 )}
                                             </div>
@@ -789,14 +838,14 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
 
                                     {/* Ações de Auto-Preenchimento */}
                                     <div className="flex items-center gap-1.5">
-                                        {validation.status === 'divergent' && doc?.extractedAmount && onApplyExtractedAmount && (
+                                        {(validation.status === 'divergent' || currentAmount === 0 || !currentAmount) && doc?.extractedAmount && onApplyExtractedAmount && (
                                             <button
                                                 type="button"
                                                 onClick={() => onApplyExtractedAmount(doc.extractedAmount!)}
                                                 className="px-2 py-0.5 bg-orange-500 hover:bg-orange-600 text-white rounded text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-sm"
                                             >
                                                 <Sparkles className="w-2.5 h-2.5" />
-                                                Ajustar para R$ {doc.extractedAmount.toFixed(2)}
+                                                {currentAmount === 0 || !currentAmount ? 'Aplicar' : 'Ajustar para'} R$ {doc.extractedAmount.toFixed(2)}
                                             </button>
                                         )}
                                         {doc?.extractedRecipient && onApplyExtractedRecipient && (
@@ -843,6 +892,115 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                                     className="w-full h-[600px] rounded-xl border border-slate-200 dark:border-slate-800 bg-white" 
                                     title="Visualização do PDF"
                                 />
+                            ) : previewAttachment.fileName.toLowerCase().endsWith('.xml') || previewAttachment.fileType.includes('xml') ? (
+                                <div className="w-full h-[600px] rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 overflow-auto text-left space-y-4">
+                                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                                        <div>
+                                            <h4 className="font-black text-sm text-slate-900 dark:text-white uppercase tracking-tight">
+                                                {previewAttachment.extractedData?.documentTypeLabel || 'Nota Fiscal Eletrônica (XML)'}
+                                            </h4>
+                                            <p className="text-xs text-slate-500">Documento estruturado padrão SEFAZ / Nacional</p>
+                                        </div>
+                                        {previewAttachment.dataUrl && (
+                                            <a
+                                                href={previewAttachment.dataUrl}
+                                                download={previewAttachment.fileName}
+                                                className="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-xs font-bold transition-all shadow-xs"
+                                            >
+                                                Baixar XML
+                                            </a>
+                                        )}
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                        <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase block">Fornecedor / Emitente</span>
+                                            <span className="font-bold text-xs text-slate-800 dark:text-slate-100 block truncate">
+                                                {previewAttachment.extractedData?.extractedRecipient || 'Não informado'}
+                                            </span>
+                                        </div>
+                                        <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase block">CNPJ / CPF</span>
+                                            <span className="font-mono font-bold text-xs text-slate-800 dark:text-slate-100 block">
+                                                {previewAttachment.extractedData?.extractedRecipientCnpjCpf || 'Não informado'}
+                                            </span>
+                                        </div>
+                                        <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase block">Valor Total</span>
+                                            <span className="font-mono font-black text-sm text-emerald-600 dark:text-emerald-400 block">
+                                                {previewAttachment.extractedData?.extractedAmount !== null && previewAttachment.extractedData?.extractedAmount !== undefined
+                                                    ? formatCurrency(previewAttachment.extractedData.extractedAmount, language)
+                                                    : 'R$ 0,00'}
+                                            </span>
+                                        </div>
+                                        <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase block">Número da Nota</span>
+                                            <span className="font-mono font-bold text-xs text-slate-800 dark:text-slate-100 block">
+                                                {previewAttachment.extractedData?.documentNumber || 'Não informado'}
+                                            </span>
+                                        </div>
+                                        <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase block">Data de Emissão</span>
+                                            <span className="font-bold text-xs text-slate-800 dark:text-slate-100 block">
+                                                {previewAttachment.extractedData?.extractedDate
+                                                    ? previewAttachment.extractedData.extractedDate.split('-').reverse().join('/')
+                                                    : 'Não informada'}
+                                            </span>
+                                        </div>
+                                        <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase block">Data de Vencimento</span>
+                                            <span className="font-bold text-xs text-slate-800 dark:text-slate-100 block">
+                                                {previewAttachment.extractedData?.extractedDueDate
+                                                    ? previewAttachment.extractedData.extractedDueDate.split('-').reverse().join('/')
+                                                    : 'À vista / Sem duplicata'}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {previewAttachment.extractedData?.accessKey && (
+                                        <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase block">Chave de Acesso (44 dígitos)</span>
+                                            <span className="font-mono text-[11px] text-slate-700 dark:text-slate-300 break-all select-all block">
+                                                {previewAttachment.extractedData.accessKey}
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    {/* Tabela de Produtos / Itens da NF */}
+                                    {previewAttachment.extractedData?.items && previewAttachment.extractedData.items.length > 0 && (
+                                        <div className="space-y-2 pt-2">
+                                            <span className="text-[11px] font-black uppercase text-slate-700 dark:text-slate-300 block">
+                                                Itens / Produtos da Nota ({previewAttachment.extractedData.items.length})
+                                            </span>
+                                            <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+                                                <table className="w-full text-left text-xs">
+                                                    <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 font-bold text-slate-500">
+                                                        <tr>
+                                                            <th className="p-2.5">Descrição do Item</th>
+                                                            <th className="p-2.5 text-right w-20">Qtd</th>
+                                                            <th className="p-2.5 text-right w-28">Vlr. Unitário</th>
+                                                            <th className="p-2.5 text-right w-28">Total</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                                        {previewAttachment.extractedData.items.map((item, idx) => (
+                                                            <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                                                                <td className="p-2.5 font-medium text-slate-800 dark:text-slate-200">{item.name}</td>
+                                                                <td className="p-2.5 text-right font-mono text-slate-600 dark:text-slate-400">{item.quantity ?? '-'}</td>
+                                                                <td className="p-2.5 text-right font-mono text-slate-600 dark:text-slate-400">
+                                                                    {item.unitPrice !== undefined ? formatCurrency(item.unitPrice, language) : '-'}
+                                                                </td>
+                                                                <td className="p-2.5 text-right font-mono font-bold text-slate-800 dark:text-slate-200">
+                                                                    {item.totalPrice !== undefined ? formatCurrency(item.totalPrice, language) : '-'}
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             ) : (
                                 <img 
                                     src={previewAttachment.dataUrl} 

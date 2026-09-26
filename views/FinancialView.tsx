@@ -44,7 +44,7 @@ import {
 import { formatCurrency, formatDate, isPeriodClosed } from '../utils/formatters';
 import { PastorAutomationTab } from '../components/PastorAutomationTab';
 import { ExpenseDocumentUploader } from '../components/financial/ExpenseDocumentUploader';
-import { ExpenseAttachment, ExpenseValidationStatus, validateExpenseAgainstDocument } from '../utils/expenseDocumentParser';
+import { ExpenseAttachment, ExtractedExpenseDoc, ExpenseValidationStatus, validateExpenseAgainstDocument } from '../utils/expenseDocumentParser';
 import { getAuthToken } from '../services/auth/authAdapter';
 
 interface FinancialRecord {
@@ -364,6 +364,92 @@ export const FinancialView: React.FC = memo(() => {
             setFormAttachments([]);
         }
         setIsModalOpen(true);
+    };
+
+    // Preenchimento automático inteligente e determinístico a partir dos dados lidos do documento
+    const handleDocumentDataExtracted = (extracted: ExtractedExpenseDoc, _attachment: ExpenseAttachment) => {
+        let appliedCount = 0;
+
+        // 1. Preenche valor se estiver vazio ou zerado (preserva valor se o usuário já digitou)
+        if ((!formAmount || parseFloat(formAmount) === 0) && extracted.extractedAmount) {
+            setFormAmount(extracted.extractedAmount.toFixed(2));
+            appliedCount++;
+        }
+
+        // 2. Preenche favorecido / beneficiário se vazio
+        if (!formRecipientName.trim() && extracted.extractedRecipient) {
+            setFormRecipientName(extracted.extractedRecipient);
+            appliedCount++;
+        }
+
+        // 3. Preenche vencimento se vazio
+        if (!formDueDate && extracted.extractedDueDate) {
+            setFormDueDate(extracted.extractedDueDate);
+            appliedCount++;
+        }
+
+        // 4. Preenche data de pagamento / emissão se vazio
+        if (!formPaymentDate && extracted.extractedDate) {
+            setFormPaymentDate(extracted.extractedDate);
+            appliedCount++;
+        }
+
+        // 5. Preenche título com base nos dados do documento se vazio
+        if (!formTitle.trim()) {
+            if (extracted.documentNumber && extracted.extractedRecipient) {
+                setFormTitle(`NF-e ${extracted.documentNumber} - ${extracted.extractedRecipient}`);
+                appliedCount++;
+            } else if (extracted.extractedRecipient) {
+                setFormTitle(`${extracted.documentTypeLabel || 'Despesa'} - ${extracted.extractedRecipient}`);
+                appliedCount++;
+            } else if (extracted.documentTypeLabel) {
+                setFormTitle(`${extracted.documentTypeLabel}`);
+                appliedCount++;
+            }
+        }
+
+        // 6. Preenche descrição com itens e metadados se vazia
+        if (!formDescription.trim()) {
+            const descLines: string[] = [];
+            if (extracted.extractedRecipientCnpjCpf) {
+                descLines.push(`CNPJ/CPF Favorecido: ${extracted.extractedRecipientCnpjCpf}`);
+            }
+            if (extracted.documentNumber) {
+                descLines.push(`Nº Documento: ${extracted.documentNumber}`);
+            }
+            if (extracted.accessKey) {
+                descLines.push(`Chave de Acesso: ${extracted.accessKey}`);
+            }
+            if (extracted.barcodeOrAuth) {
+                descLines.push(`Linha Digitável / Cód: ${extracted.barcodeOrAuth}`);
+            }
+            if (extracted.items && extracted.items.length > 0) {
+                descLines.push(`\nItens do Documento (${extracted.items.length}):`);
+                extracted.items.forEach((it, idx) => {
+                    const qtyStr = it.quantity ? ` (${it.quantity}x)` : '';
+                    const valStr = it.totalPrice ? ` - R$ ${it.totalPrice.toFixed(2)}` : (it.unitPrice ? ` - R$ ${it.unitPrice.toFixed(2)}` : '');
+                    descLines.push(`${idx + 1}. ${it.name}${qtyStr}${valStr}`);
+                });
+            }
+            if (descLines.length > 0) {
+                setFormDescription(descLines.join('\n'));
+                appliedCount++;
+            }
+        }
+
+        // 7. Tipo de favorecido: se CNPJ detectado, seleciona fornecedor
+        if (extracted.extractedRecipientCnpjCpf && extracted.extractedRecipientCnpjCpf.replace(/\D/g, '').length === 14) {
+            setFormRecipientType('supplier');
+        }
+
+        // 8. Tipo de lançamento: NF ou Fatura => 'invoice'
+        if (extracted.documentType === 'nota_fiscal' || extracted.documentType === 'fatura' || extracted.documentType === 'boleto') {
+            setFormType('invoice');
+        }
+
+        if (appliedCount > 0) {
+            showToast(`Documento lido: ${appliedCount} campo(s) preenchido(s) automaticamente para conferência.`, 'success');
+        }
     };
 
     // Form Submit
@@ -1604,6 +1690,7 @@ export const FinancialView: React.FC = memo(() => {
                                             onChangeAttachments={(updated) => setFormAttachments(updated)}
                                             onApplyExtractedAmount={(amt) => setFormAmount(amt.toFixed(2))}
                                             onApplyExtractedRecipient={(rec) => setFormRecipientName(rec)}
+                                            onDocumentDataExtracted={handleDocumentDataExtracted}
                                         />
                                     </div>
                                 )}

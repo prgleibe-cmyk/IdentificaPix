@@ -1,4 +1,14 @@
 import * as pdfjsLib from 'pdfjs-dist';
+import { parseInvoiceXml, isXmlContent } from './nfeXmlParser';
+export { parseInvoiceXml, isXmlContent } from './nfeXmlParser';
+import {
+    extractValidCnpjCpf,
+    extractBoletoLine,
+    extractDueDateFromText,
+    extractDocumentNumberFromText,
+    extractConcessionariaOrRecipient
+} from './brazilianDocUtils';
+export * from './brazilianDocUtils';
 
 // Configuração do worker do pdfjs-dist
 if (typeof window !== 'undefined' && 'Worker' in window) {
@@ -23,15 +33,32 @@ export type ValidationStatus = 'validated' | 'divergent' | 'pending_attachment' 
 export type ExpenseValidationStatus = ValidationStatus;
 export type DocumentRole = 'nota_fiscal' | 'fatura' | 'comprovante' | 'recibo' | 'outro';
 
+export interface ExtractedDocItem {
+    name: string;
+    quantity?: number;
+    unitPrice?: number;
+    totalPrice?: number;
+}
+
+export type ConfidenceLevel = 'high' | 'medium' | 'low';
+
 export interface ExtractedExpenseDoc {
     documentType: DocumentType;
     documentTypeLabel: string;
     extractedAmount: number | null;
     allDetectedAmounts: number[];
     extractedDate: string | null;
+    extractedDueDate?: string | null;
     extractedRecipient: string | null;
+    extractedRecipientCnpjCpf?: string | null;
     extractedPayer: string | null;
+    extractedPayerCnpjCpf?: string | null;
+    documentNumber?: string | null;
+    accessKey?: string | null;
     barcodeOrAuth: string | null;
+    items?: ExtractedDocItem[];
+    suggestedCategory?: string | null;
+    confidenceLevel?: ConfidenceLevel;
     rawText: string;
     confidenceScore: number;
 }
@@ -65,7 +92,7 @@ export function inferDocumentRole(docType: DocumentType, fileName?: string): Doc
     }
     if (fileName) {
         const lower = fileName.toLowerCase();
-        if (lower.includes('danfe') || lower.includes('nota fiscal') || lower.includes('nfe') || lower.includes('nf-e') || lower.includes('cupom') || lower.includes('sat')) {
+        if (lower.includes('danfe') || lower.includes('nota fiscal') || lower.includes('nfe') || lower.includes('nf-e') || lower.includes('cupom') || lower.includes('sat') || lower.endsWith('.xml')) {
             return 'nota_fiscal';
         }
         if (lower.includes('fatura') || lower.includes('boleto') || lower.includes('cobranca') || lower.includes('conta')) {
@@ -194,10 +221,32 @@ export async function extractTextFromPDF(arrayBuffer: ArrayBuffer): Promise<stri
         for (let pageNum = 1; pageNum <= Math.min(pdf.numPages, 5); pageNum++) {
             const page = await pdf.getPage(pageNum);
             const textContent = await page.getTextContent();
-            const pageText = textContent.items
-                .map((item: any) => item.str)
-                .join(' ');
-            fullText += pageText + '\n';
+            
+            let lastY: number | null = null;
+            const pageLines: string[] = [];
+            let currentLine = '';
+
+            for (const item of (textContent.items as any[])) {
+                if (item && typeof item.str === 'string') {
+                    const itemY = Array.isArray(item.transform) ? item.transform[5] : null;
+                    if (lastY !== null && itemY !== null && Math.abs(itemY - lastY) > 4) {
+                        if (currentLine.trim()) {
+                            pageLines.push(currentLine.trim());
+                        }
+                        currentLine = item.str;
+                    } else {
+                        currentLine += (currentLine ? ' ' : '') + item.str;
+                    }
+                    if (itemY !== null) {
+                        lastY = itemY;
+                    }
+                }
+            }
+            if (currentLine.trim()) {
+                pageLines.push(currentLine.trim());
+            }
+
+            fullText += pageLines.join('\n') + '\n';
         }
 
         return fullText;
@@ -327,35 +376,92 @@ export function extractDateFromText(text: string): string | null {
  * Analisa o texto extraído de um documento de despesa e gera metadados estruturados
  */
 export function analyzeExpenseDocumentText(rawText: string): ExtractedExpenseDoc {
+    // Se for XML estruturado de nota fiscal (NF-e, NFC-e ou NFS-e), realiza extração direta
+    if (isXmlContent(rawText)) {
+        const xmlDoc = parseInvoiceXml(rawText);
+        if (xmlDoc) {
+            return xmlDoc;
+        }
+    }
+
     const docType = detectDocumentType(rawText);
     const { primaryAmount, allAmounts } = extractAmountsFromText(rawText);
     const date = extractDateFromText(rawText);
     const recipient = extractRecipientFromText(rawText);
 
-    // Código de autenticação ou barras se houver
-    let barcodeOrAuth: string | null = null;
-    const authMatch = rawText.match(/(?:autenticacao|controle|id\s*da\s*transacao|codigo\s*de\s*autenticacao)\s*[:=]?\s*([A-Za-z0-9\.\-\_]{8,40})/i);
-    if (authMatch) {
-        barcodeOrAuth = authMatch[1].trim();
+    // Extração estruturada brasileira (CNPJ/CPF, Boleto, Vencimento, Número do Documento)
+    const cnpjData = extractValidCnpjCpf(rawText);
+    const boletoData = extractBoletoLine(rawText);
+    const docNumData = extractDocumentNumberFromText(rawText);
+    const dueDate = extractDueDateFromText(rawText) || boletoData.boletoDueDate;
+    const knownEntity = extractConcessionariaOrRecipient(rawText);
+
+    // Se identificou linha de boleto válida e docType for genérico ou fatura, categoriza como boleto
+    let finalDocType = docType.type;
+    let finalDocLabel = docType.label;
+    if (boletoData.barcodeOrLine && (finalDocType === 'outro' || finalDocType === 'fatura')) {
+        finalDocType = 'boleto';
+        finalDocLabel = boletoData.boletoType === 'concessionaria' ? 'Conta de Consumo / Concessionária' : 'Boleto Bancário';
     }
 
+    // Se a linha digitável possui valor embutido com exatidão, utiliza-o para validar ou complementar
+    let finalAmount = primaryAmount;
+    if (boletoData.boletoAmount && boletoData.boletoAmount > 0) {
+        if (!finalAmount || allAmounts.some(a => Math.abs(a - boletoData.boletoAmount!) < 0.05)) {
+            finalAmount = boletoData.boletoAmount;
+            if (!allAmounts.includes(finalAmount)) {
+                allAmounts.unshift(finalAmount);
+            }
+        }
+    }
+
+    // Favorecido: se detectou concessionária conhecida (ex: Enel, Sabesp, CPFL), prioriza; senão usa o recipient textual
+    const finalRecipient = knownEntity || recipient;
+
+    // Código de autenticação ou barras se houver
+    let barcodeOrAuth: string | null = boletoData.barcodeOrLine;
+    if (!barcodeOrAuth) {
+        const authMatch = rawText.match(/(?:autenticacao|controle|id\s*da\s*transacao|codigo\s*de\s*autenticacao)\s*[:=]?\s*([A-Za-z0-9\.\-\_]{8,40})/i);
+        if (authMatch) {
+            barcodeOrAuth = authMatch[1].trim();
+        }
+    }
+
+    // Cálculo determinístico do nível de confiança
     let confidence = 0;
-    if (docType.type !== 'outro') confidence += 30;
-    if (primaryAmount !== null) confidence += 40;
-    if (recipient) confidence += 15;
-    if (date) confidence += 15;
+    if (finalDocType !== 'outro') confidence += 20;
+    if (finalAmount !== null) confidence += 35;
+    if (finalRecipient) confidence += 15;
+    if (date || dueDate) confidence += 15;
+    if (cnpjData.recipientCnpjCpf) confidence += 10;
+    if (boletoData.barcodeOrLine) confidence += 15;
+
+    confidence = Math.min(confidence, 95);
+
+    let confidenceLevel: 'high' | 'medium' | 'low' = 'low';
+    if (boletoData.barcodeOrLine && finalAmount !== null) {
+        confidenceLevel = 'high';
+    } else if (finalAmount !== null && (cnpjData.recipientCnpjCpf || finalRecipient) && (date || dueDate)) {
+        confidenceLevel = 'medium';
+    }
 
     return {
-        documentType: docType.type,
-        documentTypeLabel: docType.label,
-        extractedAmount: primaryAmount,
+        documentType: finalDocType,
+        documentTypeLabel: finalDocLabel,
+        extractedAmount: finalAmount,
         allDetectedAmounts: allAmounts,
         extractedDate: date,
-        extractedRecipient: recipient,
+        extractedDueDate: dueDate,
+        extractedRecipient: finalRecipient,
         extractedPayer: null,
+        extractedRecipientCnpjCpf: cnpjData.recipientCnpjCpf,
+        extractedPayerCnpjCpf: cnpjData.payerCnpjCpf,
+        documentNumber: docNumData.documentNumber,
+        accessKey: docNumData.accessKey,
         barcodeOrAuth,
         rawText: rawText.slice(0, 3000), // Armazena trecho para conferência
-        confidenceScore: confidence
+        confidenceScore: confidence,
+        confidenceLevel
     };
 }
 

@@ -769,6 +769,14 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
                                 setDescription(recipient);
                             }
                         }}
+                        onDocumentDataExtracted={(extracted) => {
+                            if ((!amountStr || amountStr === '0,00' || amountStr.trim() === '') && extracted.extractedAmount) {
+                                setAmountStr(extracted.extractedAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+                            }
+                            if ((!description || description.trim().length === 0) && extracted.extractedRecipient) {
+                                setDescription(extracted.extractedRecipient);
+                            }
+                        }}
                     />
                 </div>
             )}

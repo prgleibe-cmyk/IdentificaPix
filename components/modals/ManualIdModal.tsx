@@ -1248,6 +1248,16 @@ export const ManualIdModal: React.FC = () => {
                                         isDescManuallyChangedRef.current = true;
                                     }
                                 }}
+                                onDocumentDataExtracted={(extracted) => {
+                                    if ((!manualAmount || manualAmount === '0,00' || manualAmount.trim() === '') && extracted.extractedAmount) {
+                                        setManualAmount(extracted.extractedAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+                                        isAmountManuallyChangedRef.current = true;
+                                    }
+                                    if ((!manualDescription || manualDescription.trim().length === 0) && extracted.extractedRecipient) {
+                                        setManualDescription(extracted.extractedRecipient);
+                                        isDescManuallyChangedRef.current = true;
+                                    }
+                                }}
                             />
                         </div>
                     )}
