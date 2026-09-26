@@ -147,8 +147,8 @@ export function extractValidCnpjCpf(text: string): {
     let recipientCnpjCpf: string | null = null;
     let payerCnpjCpf: string | null = null;
 
-    // Isola a seção do vendedor (antes do Destinatário/Tomador) da seção do comprador
-    const buyerSectionRegex = /(?:destinat[aá]rio(?:\s*[\/\-]\s*remetente)?|tomador(?:\s*de\s*servi[cç]os?)?|dados\s*do\s*destinat[aá]rio|dados\s*do\s*tomador|sacado|cliente|dados\s*do\s*pagador)/i;
+    // Isola a seção do vendedor (antes do quadro de Destinatário/Tomador no corpo) da seção do comprador
+    const buyerSectionRegex = /(?:destinat[aá]rio\s*[\/\-]?\s*remetente|dados\s*do\s*destinat[aá]rio|tomador\s*de\s*servi[cç]os?|dados\s*do\s*tomador|dados\s*do\s*consumidor|identifica[cç][aã]o\s*do\s*destinat[aá]rio|dados\s*do\s*pagador)/i;
     let sellerSection = text;
     let buyerSection = text;
     const splitMatch = text.search(buyerSectionRegex);

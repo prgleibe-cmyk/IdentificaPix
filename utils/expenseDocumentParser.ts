@@ -378,76 +378,136 @@ export function extractAmountsFromText(text: string): { primaryAmount: number | 
 }
 
 /**
+ * Limpa e valida o nome candidato a favorecido/fornecedor/vendedor.
+ * Rejeita estritamente:
+ * - CNPJs, CPFs ou sequências puramente numéricas
+ * - Endereços (Avenida, Rua, Rodovia, Bairro, CEP, etc.)
+ * - Títulos ou cabeçalhos de documentos (DANFE, Nota Fiscal, Documento Auxiliar, etc.)
+ * - Termos relacionados ao comprador/destinatário (Destinatário, Remetente, Consumidor, Cliente, Sacado, etc.)
+ * - Entidades governamentais ou de órgãos públicos (Receita Federal, Sefaz, Procon, etc.)
+ */
+function cleanCandidateRecipient(raw: string): string | null {
+    if (!raw) return null;
+    let s = raw.split(/[\r\n]/)[0].trim();
+    s = s.replace(/[\t]/g, ' ').replace(/\s+/g, ' ').trim();
+    
+    // Remove labels iniciais comuns
+    s = s.replace(/^(?:nome\/raz[aã]o\s*social|raz[aã]o\s*social|nome\s*empresarial|nome\s*fantasia|emitente|prestador|fornecedor|benefici[aá]rio|cedente|favorecido)\s*[:=\-]\s*/i, '');
+    
+    // Remove sufixos como CNPJ, CPF, IE, Endereço, Fone, etc.
+    s = s.replace(/\s+(?:cnpj|cpf|c\.n\.p\.j|inscri[cç][aã]o|i\.e|telefone|fone|endere[cç]o|cep|bairro|munic[ií]pio|uf|n[ºo]\.?|serie|s[eé]rie|folha|danfe).*$/i, '').trim();
+    
+    // Remove hífen e número de filial no final (ex: LTDA-1 -> LTDA)
+    s = s.replace(/-\s*\d+$/, '').trim();
+
+    // Rejeita se for apenas números, formatação de CNPJ ou CPF
+    if (/^\d[\d\.\-\/\s]+$/.test(s) || /^\d{2}\.\d{3}\.\d{3}/.test(s) || /^\d{11,14}$/.test(s.replace(/\D/g, ''))) {
+        return null;
+    }
+
+    // Rejeita endereços comuns
+    if (/^(?:av(?:enida)?|rua|r\.|rod(?:ovia)?|estrada|alameda|travessa|pra[cç]a|quadra|lote|condom[ií]nio|bairro|cep|fone|tel)\b/i.test(s)) {
+        return null;
+    }
+
+    // Rejeita títulos e cabeçalhos de notas
+    if (/^(?:documento\s*auxiliar|nota\s*fiscal|danfe|nfc-?e|nfs-?e|cupom\s*fiscal|chave\s*de\s*acesso|consulta|protocolo|natureza\s*da\s*opera[cç][aã]o)/i.test(s)) {
+        return null;
+    }
+
+    // Rejeita estritamente o comprador/destinatário
+    if (/^(?:destinat[aá]rio|remetente|consumidor|comprador|cliente|pagador|tomador|sacado)/i.test(s)) {
+        return null;
+    }
+
+    // Rejeita órgãos públicos ou termos governamentais
+    if (/^(?:secretaria|fazenda|sefaz|receita|prefeitura|governo|republica|procon)/i.test(s)) {
+        return null;
+    }
+
+    if (s.length >= 3 && /[a-zA-Z]/.test(s)) {
+        return s;
+    }
+    return null;
+}
+
+/**
  * Extrai beneficiário / favorecido / emitente / razão social do VENDEDOR
- * Garante estritamente que os dados do COMPRADOR (destinatário / tomador / sacado) NUNCA sejam capturados.
+ * Garante estritamente que os dados do COMPRADOR (destinatário / tomador / sacado / pagador) NUNCA sejam capturados.
  */
 export function extractRecipientFromText(text: string): string | null {
     if (!text) return null;
 
-    // Se o documento possui divisão entre Emitente (Vendedor) e Destinatário/Tomador/Sacado (Comprador),
-    // isola a seção superior do VENDEDOR para garantir que NUNCA capture o comprador.
-    const buyerSectionRegex = /(?:destinat[aá]rio(?:\s*[\/\-]\s*remetente)?|tomador(?:\s*de\s*servi[cç]os?)?|dados\s*do\s*destinat[aá]rio|dados\s*do\s*tomador|sacado|cliente|dados\s*do\s*pagador)/i;
-    
-    let sellerSection = text;
-    const splitMatch = text.search(buyerSectionRegex);
-    if (splitMatch !== -1) {
-        sellerSection = text.slice(0, splitMatch);
+    // 1. Canhoto universal de DANFE (NF-e modelo 55)
+    // Em todas as DANFEs brasileiras padrão SEFAZ, o canhoto de recebimento no topo é:
+    // 'RECEBEMOS DE [NOME DA EMPRESA EMITENTE/VENDEDORA] OS PRODUTOS CONSTANTES DA NOTA FISCAL...'
+    const canhotoMatch = text.match(/recebemos\s+de\s+([A-Za-z0-9\s\.\,\/\&\-\_]{3,80}?)\s+os\s+(?:produtos|servi[cç]os)/i);
+    if (canhotoMatch && canhotoMatch[1]) {
+        const cleaned = cleanCandidateRecipient(canhotoMatch[1]);
+        if (cleaned) return cleaned;
     }
 
-    const cleanCandidate = (raw: string): string | null => {
-        if (!raw) return null;
-        let firstLine = raw.split(/[\r\n]/)[0].trim();
-        firstLine = firstLine.replace(/[\t]/g, ' ').replace(/\s+/g, ' ').trim();
-        // Remove sufixos como CNPJ, CPF, IE, Endereço, Fone, etc. se estiverem na mesma linha
-        firstLine = firstLine.replace(/\s+(?:cnpj|cpf|c\.n\.p\.j|inscri[cç][aã]o|i\.e|telefone|fone|endere[cç]o|cep|bairro|munic[ií]pio|uf|n[ºo]\.?|serie|s[eé]rie|folha|danfe).*$/i, '').trim();
-        
-        const lower = firstLine.toLowerCase();
-        const blacklisted = [
-            'identificacao do emitente', 'identificação do emitente', 'dados do emitente',
-            'documento auxiliar', 'nota fiscal', 'danfe', 'nfs-e', 'nf-e', 'cupom fiscal',
-            'destinatario', 'destinatário', 'remetente', 'tomador', 'sacado', 'pagador',
-            'razao social', 'razão social', 'nome empresarial', 'nome fantasia',
-            'republica federativa', 'secretaria da fazenda', 'prefeitura'
-        ];
-        if (blacklisted.some(b => lower === b || lower.startsWith(b + ':'))) {
-            return null;
-        }
+    // 2. Seção do VENDEDOR / EMITENTE em Notas Fiscais (NF-e, NFC-e, NFS-e)
+    // Isola o escopo do EMITENTE cortando qualquer menção ao quadro de DESTINATÁRIO/TOMADOR no corpo da nota.
+    const destMatch = text.search(/(?:destinat[aá]rio\s*[\/\-]?\s*remetente|dados\s*do\s*destinat[aá]rio|tomador\s*de\s*servi[cç]os?|dados\s*do\s*tomador|dados\s*do\s*consumidor|identifica[cç][aã]o\s*do\s*destinat[aá]rio)/i);
+    const sellerScope = destMatch !== -1 ? text.slice(0, destMatch) : text;
 
-        if (firstLine.length >= 3 && !/^\d+$/.test(firstLine) && !lower.includes('cpf') && !lower.includes('cnpj')) {
-            return firstLine;
-        }
-        return null;
-    };
+    // 2.1 Busca explícita de Razão Social / Nome Fantasia no escopo do vendedor
+    const razaoSocialMatch = sellerScope.match(/(?:raz[aã]o\s*social|nome\s*empresarial|nome\s*fantasia)\s*[:=]?\s*([^\r\n]{3,80})/i);
+    if (razaoSocialMatch && razaoSocialMatch[1]) {
+        const cleaned = cleanCandidateRecipient(razaoSocialMatch[1]);
+        if (cleaned) return cleaned;
+    }
 
-    // 1. Busca na seção do VENDEDOR / EMITENTE por padrões explícitos de identificação
-    const sellerPatterns = [
-        /(?:identifica[cç][aã]o\s*do\s*emitente|dados\s*do\s*emitente|emitente|prestador\s*(?:de\s*servi[cç]os?)?|fornecedor|cedente)\s*[:\-\s]+(?:raz[aã]o\s*social|nome\s*empresarial|nome\s*fantasia|nome)?\s*[:\-\s]*([^\r\n]{3,80})/i,
-        /(?:raz[aã]o\s*social|nome\s*empresarial|nome\s*fantasia)\s*[:=]?\s*([^\r\n]{3,80})/i,
-        /(?:identifica[cç][aã]o\s*do\s*emitente|dados\s*do\s*emitente|emitente)[\s\S]{0,40}?[\r\n]+\s*([^\r\n]{3,80})/i,
-        /(?:emitente|prestador)\s*[:=]?\s*([^\r\n]{3,80})/i
-    ];
+    // 2.2 'IDENTIFICAÇÃO DO EMITENTE' ou 'EMITENTE' seguido de razão social
+    const emitenteMatch = sellerScope.match(/(?:identifica[cç][aã]o\s*do\s*emitente|dados\s*do\s*emitente|prestador\s*(?:de\s*servi[cç]os?)?|fornecedor)\s*[:\-\s]*[\r\n]*\s*([^\r\n]{3,80})/i);
+    if (emitenteMatch && emitenteMatch[1]) {
+        const cleaned = cleanCandidateRecipient(emitenteMatch[1]);
+        if (cleaned) return cleaned;
+    }
 
-    for (const pat of sellerPatterns) {
-        const m = sellerSection.match(pat);
-        if (m && m[1]) {
-            const cand = cleanCandidate(m[1]);
-            if (cand) return cand;
+    // 2.3 Cupom Fiscal / NFC-e:
+    // O cabeçalho possui o CNPJ do Emitente e o Nome da Empresa na linha anterior ou posterior.
+    // Exemplo: 'CNPJ do Emitente 14.739.053/0005-67\nK R LOPES DE CASTRO E CIA LTDA'
+    const sellerLines = sellerScope.split(/[\r\n]+/);
+    for (let i = 0; i < Math.min(sellerLines.length, 15); i++) {
+        const line = sellerLines[i].trim();
+        if (/cnpj(?:\s*do\s*emitente)?/i.test(line)) {
+            // Linha posterior
+            if (i + 1 < sellerLines.length) {
+                const nextCand = cleanCandidateRecipient(sellerLines[i + 1]);
+                if (nextCand) return nextCand;
+            }
+            // Linha anterior
+            if (i > 0) {
+                const prevCand = cleanCandidateRecipient(sellerLines[i - 1]);
+                if (prevCand) return prevCand;
+            }
         }
     }
 
-    // 2. Busca em comprovantes bancários / PIX / boletos (Beneficiário / Favorecido / Recebedor / Cedente)
-    // O pagador/origem NUNCA é capturado
-    const bankingRecipientPatterns = [
+    // 2.4 Primeira linha da seção do cabeçalho que seja um nome empresarial válido
+    // (Garante captura em cupons onde o nome da loja/supermercado está logo no início)
+    for (let i = 0; i < Math.min(sellerLines.length, 6); i++) {
+        const cand = cleanCandidateRecipient(sellerLines[i]);
+        if (cand && cand.length >= 4 && !cand.toLowerCase().includes('comprovante') && !cand.toLowerCase().includes('extrato')) {
+            return cand;
+        }
+    }
+
+    // 3. Comprovantes bancários (PIX / TED / TEF / Boletos):
+    // Beneficiário / Favorecido / Recebedor / Cedente / Credor / Destino
+    // O pagador / origem / cliente / tomador NUNCA é capturado
+    const bankingMatches = [
         /(?:nome\s*do\s*favorecido|favorecido|nome\s*do\s*recebedor|recebedor|nome\s*do\s*benefici[aá]rio|benefici[aá]rio(?:\s*final)?|cedente|credor)\s*[:=]?\s*([^\r\n]{3,80})/i,
-        /(?:pago\s*a\s*:?|para\s*:?|transferido\s*para\s*:?|destino\s*:?)\s*([^\r\n]{3,70})/i,
+        /(?:pago\s*a\s*:?|transferido\s*para\s*:?|destino\s*:?)\s*([^\r\n]{3,70})/i,
         /(?:benefici[aá]rio|cedente)\s*[\r\n]+\s*([^\r\n]{3,80})/i
     ];
-
-    for (const pat of bankingRecipientPatterns) {
+    for (const pat of bankingMatches) {
         const m = text.match(pat);
         if (m && m[1]) {
-            const cand = cleanCandidate(m[1]);
-            if (cand) return cand;
+            const cleaned = cleanCandidateRecipient(m[1]);
+            if (cleaned) return cleaned;
         }
     }
 
