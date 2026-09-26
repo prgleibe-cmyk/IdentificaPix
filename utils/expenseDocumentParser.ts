@@ -10,11 +10,18 @@ import {
 } from './brazilianDocUtils';
 export * from './brazilianDocUtils';
 
+// @ts-ignore
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+
 // Configuração do worker do pdfjs-dist
-if (typeof window !== 'undefined' && 'Worker' in window) {
+if (typeof window !== 'undefined') {
     try {
-        // Usa cdnjs como fallback seguro para o worker se não estiver no bundle local
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version || '3.11.174'}/pdf.worker.min.js`;
+        if (pdfWorkerUrl) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+        } else {
+            const version = pdfjsLib.version || '6.2.108';
+            pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${version}/build/pdf.worker.min.mjs`;
+        }
     } catch (e) {
         console.warn('[PDF.js] Worker configuration fallback:', e);
     }
@@ -210,11 +217,11 @@ export function parseBRLNumber(valStr: string): number | null {
 }
 
 /**
- * Extrai texto completo de um arquivo PDF via pdfjs-dist
+ * Extrai texto completo de um arquivo PDF via pdfjs-dist com fallback seguro
  */
 export async function extractTextFromPDF(arrayBuffer: ArrayBuffer): Promise<string> {
-    try {
-        const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
+    const parseWithLib = async (lib: any): Promise<string> => {
+        const loadingTask = lib.getDocument({ data: new Uint8Array(arrayBuffer) });
         const pdf = await loadingTask.promise;
         let fullText = '';
 
@@ -250,10 +257,45 @@ export async function extractTextFromPDF(arrayBuffer: ArrayBuffer): Promise<stri
         }
 
         return fullText;
+    };
+
+    // 1. Tenta com pdfjs-dist local/empacotado
+    try {
+        const text = await parseWithLib(pdfjsLib);
+        if (text && text.trim().length > 0) {
+            return text;
+        }
     } catch (err) {
-        console.error('[PDF Parser] Erro ao extrair texto do PDF:', err);
-        return '';
+        console.warn('[PDF Parser] Tentativa com pdfjs-dist empacotado falhou, tentando fallback cdnjs:', err);
     }
+
+    // 2. Fallback de alta confiabilidade via cdnjs (mesma infraestrutura do PDFRenderer e FileUploader)
+    if (typeof window !== 'undefined') {
+        try {
+            const PDFJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+            const WORKER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+            if (!(window as any).pdfjsLib) {
+                await new Promise<void>((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = PDFJS_URL;
+                    script.onload = () => resolve();
+                    script.onerror = (err) => reject(new Error('Failed to load fallback PDF.js'));
+                    document.head.appendChild(script);
+                });
+            }
+
+            const winPdf = (window as any).pdfjsLib;
+            if (winPdf) {
+                winPdf.GlobalWorkerOptions.workerSrc = WORKER_URL;
+                return await parseWithLib(winPdf);
+            }
+        } catch (fallbackErr) {
+            console.error('[PDF Parser] Fallback cdnjs também falhou:', fallbackErr);
+        }
+    }
+
+    return '';
 }
 
 /**
@@ -290,11 +332,10 @@ export function detectDocumentType(text: string): { type: DocumentType; label: s
 export function extractAmountsFromText(text: string): { primaryAmount: number | null; allAmounts: number[] } {
     const allAmounts: number[] = [];
 
-    // Padrões de alta prioridade (frases com palavras-chave de valor final)
+    // Padrões de alta prioridade (frases com palavras-chave de valor final ou total)
     const priorityPatterns = [
-        /(?:valor\s*(?:pago|total|liquido|do\s*documento|principal|da\s*nota|recebido|cobrado|debito|da\s*transacao|transferido|da\s*fatura))\s*[:=]?\s*(?:R\$\s*)?([0-9]{1,3}(?:\.[0-9]{3})*\,[0-9]{2})/gi,
-        /(?:total\s*a\s*pagar|valor\s*a\s*pagar|valor\s*final)\s*[:=]?\s*(?:R\$\s*)?([0-9]{1,3}(?:\.[0-9]{3})*\,[0-9]{2})/gi,
-        /(?:R\$\s*)([0-9]{1,3}(?:\.[0-9]{3})*\,[0-9]{2})/gi
+        /(?:valor\s*(?:pago|total|l[ií]quido|do\s*documento|principal|da\s*nota|recebido|cobrado|a\s*pagar|a\s*cobrar|d[eé]bito|da\s*transa[cç][aã]o|transferido|da\s*fatura|do\s*boleto|final)|total\s*a\s*pagar|valor\s*a\s*pagar|total\s*geral|total\s*nota|valor\s*da\s*opera[cç][aã]o|valor)\s*[:=]?\s*(?:R\$\s*)?([0-9]{1,3}(?:\.[0-9]{3})*\,[0-9]{2}|[0-9]{1,9}\,[0-9]{2})/gi,
+        /(?:R\$\s*)([0-9]{1,3}(?:\.[0-9]{3})*\,[0-9]{2}|[0-9]{1,9}\,[0-9]{2})/gi
     ];
 
     let primaryAmount: number | null = null;
@@ -318,10 +359,11 @@ export function extractAmountsFromText(text: string): { primaryAmount: number | 
 
     // 2. Se ainda não encontrou com prefixos, buscar qualquer formato monetário isolado
     if (allAmounts.length === 0) {
-        const generalAmountPattern = /\b([0-9]{1,3}(?:\.[0-9]{3})*\,[0-9]{2})\b/g;
+        const generalAmountPattern = /\b([0-9]{1,3}(?:\.[0-9]{3})*\,[0-9]{2})\b|\b([0-9]{1,9}\,[0-9]{2})\b/g;
         let match;
         while ((match = generalAmountPattern.exec(text)) !== null) {
-            const parsed = parseBRLNumber(match[1]);
+            const matchedStr = match[1] || match[2];
+            const parsed = parseBRLNumber(matchedStr);
             if (parsed !== null && parsed > 0 && !allAmounts.includes(parsed)) {
                 allAmounts.push(parsed);
             }
@@ -336,20 +378,23 @@ export function extractAmountsFromText(text: string): { primaryAmount: number | 
 }
 
 /**
- * Extrai beneficiário / favorecido do texto
+ * Extrai beneficiário / favorecido / emitente / razão social do texto
  */
 export function extractRecipientFromText(text: string): string | null {
     const patterns = [
-        /(?:favorecido|beneficiario|nome\s*do\s*favorecido|recebedor|destinatario|prestador|credor)\s*[:=]?\s*([A-Za-zÀ-ÿ0-9\s\.\-]{3,60})/i,
-        /(?:para\s*:?|pago\s*a\s*:?)\s*([A-Za-zÀ-ÿ0-9\s\.\-]{3,50})/i
+        /(?:emitente|raz[aã]o\s*social|nome\s*empresarial|nome\s*fantasia|cedente|benefici[aá]rio(?:\s*final)?|prestador\s*(?:de\s*servi[cç]os?)?|prestador|fornecedor|favorecido|nome\s*do\s*favorecido|recebedor|nome\s*do\s*recebedor|destinat[aá]rio|credor|dados\s*do\s*emitente)\s*[:=]?\s*([A-Za-zÀ-ÿ0-9\s\.\-]{3,60})/i,
+        /(?:para\s*:?|pago\s*a\s*:?|nome\s*do\s*benefici[aá]rio)\s*[:=]?\s*([A-Za-zÀ-ÿ0-9\s\.\-]{3,50})/i,
+        /(?:emitente|prestador\s*(?:de\s*servi[cç]os?)?|benefici[aá]rio|cedente)\s*[\r\n]+\s*([A-Za-zÀ-ÿ0-9\s\.\-]{3,60})/i
     ];
 
     for (const pattern of patterns) {
         const match = text.match(pattern);
         if (match && match[1]) {
-            const cleaned = match[1].replace(/[\r\n\t]/g, ' ').replace(/\s+/g, ' ').trim();
-            // Evita capturar linhas muito genéricas ou numéricas
-            if (cleaned.length >= 3 && !cleaned.toLowerCase().includes('cpf') && !cleaned.toLowerCase().includes('cnpj')) {
+            let cleaned = match[1].replace(/[\r\n\t]/g, ' ').replace(/\s+/g, ' ').trim();
+            // Remove sufixos como CNPJ se capturados juntos
+            cleaned = cleaned.replace(/\s+(?:cnpj|cpf|inscri[cç][aã]o|telefone|endere[cç]o).*$/i, '').trim();
+            // Evita capturar linhas muito genéricas ou puramente numéricas
+            if (cleaned.length >= 3 && !/^\d+$/.test(cleaned) && !cleaned.toLowerCase().includes('cpf') && !cleaned.toLowerCase().includes('cnpj')) {
                 return cleaned;
             }
         }

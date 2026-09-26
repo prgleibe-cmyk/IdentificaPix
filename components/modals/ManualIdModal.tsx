@@ -1,6 +1,6 @@
 
 import React, { useState, useContext, useEffect, useMemo } from 'react';
-import { Calendar, FileText, DollarSign, PlusCircle, ArrowLeft, ArrowUpRight, ArrowDownRight, CheckCircle2 } from 'lucide-react';
+import { Calendar, FileText, DollarSign, PlusCircle, ArrowLeft, ArrowUpRight, ArrowDownRight, CheckCircle2, Sparkles, X, ChevronUp, ChevronDown } from 'lucide-react';
 import { AppContext } from '../../contexts/AppContext';
 import { useUI } from '../../contexts/UIContext';
 import { useTranslation } from '../../contexts/I18nContext';
@@ -13,6 +13,7 @@ import { getStoredWhatsAppSettings } from './WhatsAppReceiptModal';
 import { getCachedContributors } from '../../services/contributorsCache';
 import { ExpenseDocumentUploader } from '../financial/ExpenseDocumentUploader';
 import { ExpenseAttachment } from '../../types/domain';
+import { ExtractedExpenseDoc } from '../../utils/expenseDocumentParser';
 import { getAttachmentsForTransaction } from '../../services/expenseAttachmentService';
 
 const formatCpfCnpj = (value: string) => {
@@ -43,7 +44,7 @@ export const ManualIdModal: React.FC = () => {
         openWhatsAppReceiptModal
     } = useContext(AppContext);
     const { t, language } = useTranslation();
-    const { setActiveView, activeView } = useUI();
+    const { setActiveView, activeView, showToast } = useUI();
     const { subscription, user } = useAuth();
 
     const handleClose = () => {
@@ -74,6 +75,16 @@ export const ManualIdModal: React.FC = () => {
     const [manualDescription, setManualDescription] = useState<string>('');
     const [manualAmount, setManualAmount] = useState<string>('');
     const [manualType, setManualType] = useState<'entrada' | 'saida'>('entrada');
+    const [saidaMode, setSaidaMode] = useState<'upload' | 'manual'>('upload');
+    const [lastAutoFilledDoc, setLastAutoFilledDoc] = useState<{
+        fileName: string;
+        fieldsCount: number;
+        amount?: number | null;
+        recipient?: string | null;
+        date?: string | null;
+        paymentMethod?: string | null;
+    } | null>(null);
+    const [isBottomUploaderOpen, setIsBottomUploaderOpen] = useState(false);
     const [attachments, setAttachments] = useState<ExpenseAttachment[]>([]);
     const [isSaving, setIsSaving] = useState(false);
 
@@ -594,6 +605,114 @@ export const ManualIdModal: React.FC = () => {
         }
     }, [availableBanks, selectedBankId]);
 
+    const handleDocumentDataExtracted = (extracted: ExtractedExpenseDoc, attachment?: any) => {
+        let fieldsFilledCount = 0;
+
+        // 1. Valor da Despesa
+        if (extracted.extractedAmount && extracted.extractedAmount > 0) {
+            setManualAmount(extracted.extractedAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+            isAmountManuallyChangedRef.current = true;
+            fieldsFilledCount++;
+        }
+
+        // 2. Favorecido / Razão Social / Fornecedor
+        if (extracted.extractedRecipient) {
+            setManualDescription(extracted.extractedRecipient);
+            isDescManuallyChangedRef.current = true;
+            fieldsFilledCount++;
+
+            // Busca se já existe cadastro unificado para essa empresa/pessoa
+            const normRec = extracted.extractedRecipient.trim().toLowerCase();
+            const allList = Array.from(allContributors.values());
+            const matchedCol = allList.find((c: any) => {
+                const cName = (c.name || '').toLowerCase();
+                const cTrade = (c.trade_name || '').toLowerCase();
+                return (cName && (cName.includes(normRec) || normRec.includes(cName))) || 
+                       (cTrade && (cTrade.includes(normRec) || normRec.includes(cTrade)));
+            });
+            if (matchedCol) {
+                setSelectedAssociationType('unify');
+                setSelectedUnifiedField(matchedCol.id);
+                if (matchedCol._churchId && !selectedChurchId) {
+                    setSelectedChurchId(matchedCol._churchId);
+                }
+            }
+        }
+
+        // 3. Data da Operação / Vencimento
+        const docDate = extracted.extractedDueDate || extracted.extractedDate;
+        if (docDate) {
+            setSelectedDate(docDate);
+            isDateManuallyChangedRef.current = true;
+            if (bulkIdentificationTxs?.[0] && bulkIdentificationTxs[0].id?.startsWith('ghost-manual-')) {
+                bulkIdentificationTxs[0].date = docDate;
+            }
+            fieldsFilledCount++;
+        }
+
+        // 4. Forma de Pagamento
+        if (extracted.documentType === 'boleto') {
+            setSelectedPaymentMethod('BOLETO');
+            fieldsFilledCount++;
+        } else if (extracted.documentType === 'comprovante_pix') {
+            setSelectedPaymentMethod('PIX');
+            fieldsFilledCount++;
+        }
+
+        // 5. Categoria Determinística Sugerida
+        const lowerRec = (extracted.extractedRecipient || '').toLowerCase();
+        const lowerText = (extracted.rawText || '').toLowerCase();
+        
+        const isUtility = lowerRec.includes('sabesp') || lowerRec.includes('enel') || lowerRec.includes('copel') || 
+                          lowerRec.includes('cemig') || lowerRec.includes('cpfl') || lowerRec.includes('light') || 
+                          lowerRec.includes('sanepar') || lowerRec.includes('embasa') || lowerRec.includes('claro') || 
+                          lowerRec.includes('vivo') || lowerRec.includes('tim') || lowerText.includes('energia') || 
+                          lowerText.includes('saneamento') || lowerText.includes('eletrica') || lowerText.includes('abastecimento');
+                          
+        if (isUtility) {
+            const utilOption = typeOptions.find((opt: string) => {
+                const o = opt.toLowerCase();
+                return o.includes('energia') || o.includes('água') || o.includes('agua') || o.includes('luz') || o.includes('fatura') || o.includes('conta');
+            });
+            if (utilOption) {
+                setSelectedType(utilOption);
+                fieldsFilledCount++;
+            }
+        } else if (extracted.documentType === 'nota_fiscal') {
+            const nfOption = typeOptions.find((opt: string) => {
+                const o = opt.toLowerCase();
+                return o.includes('fornecedor') || o.includes('compra') || o.includes('mercadoria') || o.includes('despesa');
+            });
+            if (nfOption) {
+                setSelectedType(nfOption);
+                fieldsFilledCount++;
+            }
+        } else if (extracted.documentType === 'boleto') {
+            const bolOption = typeOptions.find((opt: string) => {
+                const o = opt.toLowerCase();
+                return o.includes('fatura') || o.includes('conta') || o.includes('boleto');
+            });
+            if (bolOption) {
+                setSelectedType(bolOption);
+                fieldsFilledCount++;
+            }
+        }
+
+        const fileName = attachment?.fileName || 'Documento';
+        setLastAutoFilledDoc({
+            fileName,
+            fieldsCount: fieldsFilledCount,
+            amount: extracted.extractedAmount,
+            recipient: extracted.extractedRecipient,
+            date: docDate,
+            paymentMethod: extracted.documentType === 'boleto' ? 'BOLETO' : extracted.documentType === 'comprovante_pix' ? 'PIX' : null
+        });
+
+        if (fieldsFilledCount > 0) {
+            showToast(`Documento lido com sucesso: ${fieldsFilledCount} campos preenchidos automaticamente!`, 'success');
+        }
+    };
+
     if (!isBulk) return null;
     
     const handleConfirm = async () => {
@@ -765,12 +884,102 @@ export const ManualIdModal: React.FC = () => {
                         </div>
                     )}
 
+                    {/* Escolha Intuitiva de Modo para Saída (Despesa): Opção 1 */}
+                    {manualType === 'saida' && (
+                        <div className="space-y-3 animate-fade-in">
+                            <div className="bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 shadow-xs">
+                                <div>
+                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                                        <Sparkles className="w-3.5 h-3.5 text-orange-500" />
+                                        Como você prefere lançar esta despesa?
+                                    </span>
+                                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
+                                        Escolha entre leitura automática por documento ou digitação manual.
+                                    </span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-1.5 w-full sm:w-auto shrink-0">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSaidaMode('upload')}
+                                        className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                                            saidaMode === 'upload'
+                                                ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-sm shadow-orange-500/20 ring-2 ring-orange-400/40'
+                                                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700'
+                                        }`}
+                                    >
+                                        <Sparkles className="w-3.5 h-3.5" />
+                                        <span>⚡ Carregar Documento</span>
+                                        <span className="text-[9px] bg-white/20 px-1 py-0.5 rounded font-normal">Recomendado</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSaidaMode('manual')}
+                                        className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                                            saidaMode === 'manual'
+                                                ? 'bg-rose-600 text-white shadow-sm shadow-rose-600/20 ring-2 ring-rose-400/40'
+                                                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700'
+                                        }`}
+                                    >
+                                        <FileText className="w-3.5 h-3.5" />
+                                        <span>✍️ Digitar Manual</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* No modo Upload: Uploader no topo para preenchimento imediato */}
+                            {saidaMode === 'upload' && (
+                                <div className="space-y-2">
+                                    <ExpenseDocumentUploader
+                                        attachments={attachments}
+                                        onChangeAttachments={setAttachments}
+                                        currentAmount={parsedCurrentAmount}
+                                        onApplyExtractedAmount={(val) => {
+                                            setManualAmount(val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+                                            isAmountManuallyChangedRef.current = true;
+                                        }}
+                                        onApplyExtractedRecipient={(recipient) => {
+                                            setManualDescription(recipient);
+                                            isDescManuallyChangedRef.current = true;
+                                        }}
+                                        onDocumentDataExtracted={handleDocumentDataExtracted}
+                                    />
+
+                                    {/* Feedback de sucesso e transparência */}
+                                    {lastAutoFilledDoc && (
+                                        <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-xl text-emerald-900 dark:text-emerald-200 flex items-center justify-between gap-2 animate-fade-in shadow-xs">
+                                            <div className="flex items-center gap-2 text-xs">
+                                                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                                <span>
+                                                    <strong>Documento lido ({lastAutoFilledDoc.fileName}):</strong> {lastAutoFilledDoc.fieldsCount} dado(s) preenchido(s) automaticamente nos campos abaixo. Revise e clique em <strong>Salvar Lançamento</strong>.
+                                                </span>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setLastAutoFilledDoc(null)}
+                                                className="text-emerald-700 hover:text-emerald-900 dark:text-emerald-300 p-0.5 rounded cursor-pointer"
+                                            >
+                                                <X className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* Linha 1: Data e Valor */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
-                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
-                                Data
-                            </label>
+                            <div className="flex items-center justify-between">
+                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
+                                    Data
+                                </label>
+                                {lastAutoFilledDoc?.date && (
+                                    <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                        ✨ Lido do documento
+                                    </span>
+                                )}
+                            </div>
                             <div className="relative group">
                                 <Calendar className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-orange-500 transition-colors pointer-events-none" />
                                 <input
@@ -790,9 +999,16 @@ export const ManualIdModal: React.FC = () => {
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
-                                Valor (R$)
-                            </label>
+                            <div className="flex items-center justify-between">
+                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
+                                    Valor (R$)
+                                </label>
+                                {lastAutoFilledDoc?.amount && (
+                                    <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                        ✨ Lido do documento
+                                    </span>
+                                )}
+                            </div>
                             <div className="relative group">
                                 <DollarSign className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-orange-500 transition-colors pointer-events-none" />
                                 <input
@@ -808,15 +1024,21 @@ export const ManualIdModal: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Linha 2: Busca de Contribuinte */}
+                    {/* Linha 2: Busca de Contribuinte / Favorecido */}
                     <div className="space-y-1.5" id="manual-description-container">
                         <div className="flex items-center justify-between flex-wrap gap-1">
                             <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
-                                Buscar Contribuinte Cadastrado / Nome
+                                {manualType === 'saida' ? 'Favorecido / Razão Social / Fornecedor' : 'Buscar Contribuinte Cadastrado / Nome'}
                             </label>
-                            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                                ⚡ Selecionar preenche a igreja automaticamente
-                            </span>
+                            {lastAutoFilledDoc?.recipient ? (
+                                <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                    ✨ Lido do documento
+                                </span>
+                            ) : (
+                                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                    ⚡ Selecionar preenche a igreja automaticamente
+                                </span>
+                            )}
                         </div>
                         <div className="relative group">
                             <FileText className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-orange-500 transition-colors pointer-events-none" />
@@ -1231,34 +1453,38 @@ export const ManualIdModal: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Comprovantes e Faturas para Saídas / Despesas */}
-                    {manualType === 'saida' && (
+                    {/* Anexos Opcionais no Modo Digitação Manual */}
+                    {manualType === 'saida' && saidaMode === 'manual' && (
                         <div className="pt-2 border-t border-slate-100 dark:border-slate-800 animate-fade-in">
-                            <ExpenseDocumentUploader
-                                attachments={attachments}
-                                onChangeAttachments={setAttachments}
-                                currentAmount={parsedCurrentAmount}
-                                onApplyExtractedAmount={(val) => {
-                                    setManualAmount(val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-                                    isAmountManuallyChangedRef.current = true;
-                                }}
-                                onApplyExtractedRecipient={(recipient) => {
-                                    if (!manualDescription || manualDescription.trim().length === 0) {
-                                        setManualDescription(recipient);
-                                        isDescManuallyChangedRef.current = true;
-                                    }
-                                }}
-                                onDocumentDataExtracted={(extracted) => {
-                                    if ((!manualAmount || manualAmount === '0,00' || manualAmount.trim() === '') && extracted.extractedAmount) {
-                                        setManualAmount(extracted.extractedAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-                                        isAmountManuallyChangedRef.current = true;
-                                    }
-                                    if ((!manualDescription || manualDescription.trim().length === 0) && extracted.extractedRecipient) {
-                                        setManualDescription(extracted.extractedRecipient);
-                                        isDescManuallyChangedRef.current = true;
-                                    }
-                                }}
-                            />
+                            <button
+                                type="button"
+                                onClick={() => setIsBottomUploaderOpen(prev => !prev)}
+                                className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-orange-500 transition-colors cursor-pointer py-1"
+                            >
+                                <FileText className="w-3.5 h-3.5 text-orange-500" />
+                                <span>Anexar documento / comprovante (opcional)</span>
+                                {isBottomUploaderOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                            </button>
+                            {isBottomUploaderOpen && (
+                                <div className="mt-2.5">
+                                    <ExpenseDocumentUploader
+                                        attachments={attachments}
+                                        onChangeAttachments={setAttachments}
+                                        currentAmount={parsedCurrentAmount}
+                                        onApplyExtractedAmount={(val) => {
+                                            setManualAmount(val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+                                            isAmountManuallyChangedRef.current = true;
+                                        }}
+                                        onApplyExtractedRecipient={(recipient) => {
+                                            if (!manualDescription) {
+                                                setManualDescription(recipient);
+                                                isDescManuallyChangedRef.current = true;
+                                            }
+                                        }}
+                                        onDocumentDataExtracted={handleDocumentDataExtracted}
+                                    />
+                                </div>
+                            )}
                         </div>
                     )}
 

@@ -84,13 +84,6 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
     const handleFileUpload = async (files: FileList | null) => {
         if (!files || files.length === 0 || readOnly) return;
 
-        // Bloqueio cirúrgico: só libera se uma opção estiver selecionada
-        if (!selectedRole) {
-            triggerSelectionAlert();
-            if (fileInputRef.current) fileInputRef.current.value = '';
-            return;
-        }
-
         setIsParsing(true);
         setSelectionAlert(null);
 
@@ -149,8 +142,11 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                 const validation = validateExpenseAgainstDocument(currentAmount, extractedData);
                 const autoRole = inferDocumentRole(extractedData.documentType, file.name);
 
-                // O documento é identificado obrigatoriamente pelo tipo selecionado pelo usuário!
-                const assignedRole: DocumentRole = selectedRole || autoRole;
+                // O documento é identificado pelo tipo selecionado ou inferido automaticamente!
+                const assignedRole: DocumentRole = selectedRole || (autoRole === 'outro' ? 'comprovante' : autoRole);
+                if (!selectedRole) {
+                    setSelectedRole(assignedRole);
+                }
 
                 const newAttachment: ExpenseAttachment = {
                     id: fileId,
@@ -514,14 +510,10 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                 </div>
             )}
 
-            {/* Dropzone Upload Condicional (Bloqueado até seleção do tipo) */}
+            {/* Dropzone Upload Universal (Aceita clique e arraste direto ou com tipo pré-selecionado) */}
             {!readOnly && (
                 <div 
                     onClick={() => {
-                        if (!selectedRole) {
-                            triggerSelectionAlert();
-                            return;
-                        }
                         fileInputRef.current?.click();
                     }}
                     onDragOver={(e) => { 
@@ -531,20 +523,16 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                     onDrop={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        if (!selectedRole) {
-                            triggerSelectionAlert();
-                            return;
-                        }
                         handleFileUpload(e.dataTransfer.files);
                     }}
-                    className={`border-2 border-dashed rounded-2xl p-4 text-center transition-all duration-200 flex flex-col items-center justify-center gap-2 select-none ${
+                    className={`border-2 border-dashed rounded-2xl p-4 text-center transition-all duration-200 flex flex-col items-center justify-center gap-2 select-none cursor-pointer ${
                         !selectedRole
-                            ? 'border-slate-300 dark:border-slate-700 bg-slate-50/40 dark:bg-slate-800/20 cursor-pointer hover:border-orange-400/80 hover:bg-orange-50/10'
+                            ? 'border-orange-300 dark:border-orange-700/60 bg-orange-50/20 dark:bg-orange-950/10 hover:border-orange-500 hover:bg-orange-50/40 ring-1 ring-orange-500/10'
                             : selectedRole === 'nota_fiscal'
-                            ? 'border-indigo-400 dark:border-indigo-600 bg-indigo-50/30 dark:bg-indigo-950/20 hover:bg-indigo-50/50 cursor-pointer ring-2 ring-indigo-500/10'
+                            ? 'border-indigo-400 dark:border-indigo-600 bg-indigo-50/30 dark:bg-indigo-950/20 hover:bg-indigo-50/50 ring-2 ring-indigo-500/10'
                             : selectedRole === 'fatura'
-                            ? 'border-amber-400 dark:border-amber-600 bg-amber-50/30 dark:bg-amber-950/20 hover:bg-amber-50/50 cursor-pointer ring-2 ring-amber-500/10'
-                            : 'border-emerald-400 dark:border-emerald-600 bg-emerald-50/30 dark:bg-emerald-950/20 hover:bg-emerald-50/50 cursor-pointer ring-2 ring-emerald-500/10'
+                            ? 'border-amber-400 dark:border-amber-600 bg-amber-50/30 dark:bg-amber-950/20 hover:bg-amber-50/50 ring-2 ring-amber-500/10'
+                            : 'border-emerald-400 dark:border-emerald-600 bg-emerald-50/30 dark:bg-emerald-950/20 hover:bg-emerald-50/50 ring-2 ring-emerald-500/10'
                     }`}
                 >
                     <input 
@@ -558,9 +546,9 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                     
                     <div className={`p-2.5 rounded-full shadow-xs transition-all ${
                         isParsing
-                            ? 'bg-orange-50 text-orange-600'
+                            ? 'bg-orange-50 text-orange-600 animate-spin'
                             : !selectedRole
-                            ? 'bg-white dark:bg-slate-900 text-slate-400'
+                            ? 'bg-orange-500 text-white shadow-sm'
                             : selectedRole === 'nota_fiscal'
                             ? 'bg-indigo-600 text-white shadow-sm scale-105'
                             : selectedRole === 'fatura'
@@ -587,27 +575,28 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                                     Processando e extraindo dados do arquivo...
                                 </span>
                                 <span className="text-[10px] text-slate-400 font-medium mt-0.5 block">
-                                    Vinculando automaticamente como {selectedRole === 'nota_fiscal' ? 'Nota Fiscal' : selectedRole === 'fatura' ? 'Boleto / Fatura' : 'Comprovante'}...
+                                    Extraindo valor, beneficiário, data e preenchendo o lançamento...
                                 </span>
                             </>
                         ) : !selectedRole ? (
                             <>
-                                <span className="text-xs font-bold text-slate-700 dark:text-slate-200 block">
-                                    Selecione uma das opções acima para liberar o envio do arquivo
+                                <span className="text-xs font-black text-slate-800 dark:text-white block flex items-center justify-center gap-1.5">
+                                    <Sparkles className="w-3.5 h-3.5 text-orange-500" />
+                                    Clique ou arraste seu documento aqui para preenchimento automático
                                 </span>
-                                <span className="text-[10px] text-slate-400 font-medium mt-0.5 block">
-                                    Clique em Nota Fiscal, Boleto/Fatura ou Comprovante (Quitação) para identificar o arquivo que vai enviar
+                                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5 block">
+                                    Aceita Nota Fiscal (PDF/XML), Boleto (PDF) ou Comprovante — O sistema lê e preenche tudo na hora
                                 </span>
                             </>
                         ) : (
                             <>
                                 <span className="text-xs font-black text-slate-800 dark:text-white block">
-                                    {selectedRole === 'nota_fiscal' && '✓ Upload Liberado: Carregar Nota Fiscal (Compra)'}
-                                    {selectedRole === 'fatura' && '✓ Upload Liberado: Carregar Boleto / Fatura'}
-                                    {selectedRole === 'comprovante' && '✓ Upload Liberado: Carregar Comprovante de Quitação'}
+                                    {selectedRole === 'nota_fiscal' && '✓ Upload: Carregar Nota Fiscal (Compra)'}
+                                    {selectedRole === 'fatura' && '✓ Upload: Carregar Boleto / Fatura'}
+                                    {selectedRole === 'comprovante' && '✓ Upload: Carregar Comprovante de Quitação'}
                                 </span>
                                 <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5 block">
-                                    Clique ou arraste o arquivo aqui — Ele será automaticamente identificado como <strong className="text-slate-700 dark:text-slate-200 font-bold">{selectedRole === 'nota_fiscal' ? 'Nota Fiscal' : selectedRole === 'fatura' ? 'Boleto / Fatura' : 'Comprovante (Quitação)'}</strong>
+                                    Clique ou arraste o arquivo aqui — Ele será identificado como <strong className="text-slate-700 dark:text-slate-200 font-bold">{selectedRole === 'nota_fiscal' ? 'Nota Fiscal' : selectedRole === 'fatura' ? 'Boleto / Fatura' : 'Comprovante'}</strong>
                                 </span>
                             </>
                         )}
@@ -749,6 +738,36 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                                         )}
                                     </div>
                                 </div>
+
+                                {/* Dados Extraídos do Documento */}
+                                {doc && (doc.extractedAmount || doc.extractedRecipient || doc.extractedDate || doc.extractedDueDate) && (
+                                    <div className="mt-2 px-2.5 py-1.5 bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/40 rounded-xl flex flex-wrap items-center gap-1.5 text-[10px]">
+                                        <span className="font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1">
+                                            <Sparkles className="w-3 h-3 text-amber-500" />
+                                            Detectado:
+                                        </span>
+                                        {doc.extractedAmount && (
+                                            <span className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-800 font-bold text-slate-800 dark:text-white">
+                                                R$ {doc.extractedAmount.toFixed(2)}
+                                            </span>
+                                        )}
+                                        {doc.extractedRecipient && (
+                                            <span className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-800 font-bold text-slate-800 dark:text-white truncate max-w-[220px]" title={doc.extractedRecipient}>
+                                                {doc.extractedRecipient}
+                                            </span>
+                                        )}
+                                        {(doc.extractedDueDate || doc.extractedDate) && (
+                                            <span className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-800 font-mono text-slate-700 dark:text-slate-300">
+                                                {doc.extractedDueDate || doc.extractedDate}
+                                            </span>
+                                        )}
+                                        {doc.documentNumber && (
+                                            <span className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-800 text-slate-600 dark:text-slate-400">
+                                                Nº {doc.documentNumber}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
 
                                 {/* Barra de Papel do Documento + Diagnóstico */}
                                 <div className="mt-2.5 pt-2 border-t border-dashed border-slate-200 dark:border-slate-700/60 flex flex-wrap items-center justify-between gap-2 text-[10px]">
