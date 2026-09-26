@@ -29,6 +29,7 @@ import {
     compressImageIfNeeded,
     ExpenseValidationStatus
 } from '../../utils/expenseDocumentParser';
+import { processImageAndExtractText, renderPdfFirstPageToImage } from '../../utils/imageOcrReader';
 import { formatCurrency } from '../../utils/formatters';
 
 interface ExpenseDocumentUploaderProps {
@@ -58,6 +59,8 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
 }) => {
     const currentAmount = propCurrentAmount ?? (launchAmount ?? 0);
     const [isParsing, setIsParsing] = useState(false);
+    const [parsingStatusText, setParsingStatusText] = useState<string>('Processando e extraindo dados do arquivo...');
+    const [ocrProgress, setOcrProgress] = useState<number | null>(null);
     const [previewAttachment, setPreviewAttachment] = useState<ExpenseAttachment | null>(null);
     const [selectedRole, setSelectedRole] = useState<DocumentRole | null>(null);
     const [selectionAlert, setSelectionAlert] = useState<string | null>(null);
@@ -86,6 +89,8 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
 
         setIsParsing(true);
         setSelectionAlert(null);
+        setParsingStatusText('Processando e analisando documento...');
+        setOcrProgress(null);
 
         const newAttachmentsList: ExpenseAttachment[] = [...attachments];
 
@@ -99,9 +104,20 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                 let finalSize = file.size;
 
                 if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+                    setParsingStatusText('Lendo texto digital do PDF...');
                     const arrayBuffer = await file.arrayBuffer();
                     rawText = await extractTextFromPDF(arrayBuffer);
                     
+                    // Se o PDF não tiver camada de texto digital (escaneado ou fotocopiado), aciona OCR óptico
+                    if (!rawText || rawText.trim().length < 20) {
+                        setParsingStatusText('PDF escaneado detectado: renderizando página para leitura óptica (OCR)...');
+                        const pdfPageImage = await renderPdfFirstPageToImage(arrayBuffer);
+                        if (pdfPageImage) {
+                            setParsingStatusText('Executando OCR e detecção de código de barras no PDF escaneado...');
+                            rawText = await processImageAndExtractText(pdfPageImage, file.name, (p) => setOcrProgress(p));
+                        }
+                    }
+
                     const reader = new FileReader();
                     const dataUrlPromise = new Promise<string>((resolve) => {
                         reader.onload = () => resolve(reader.result as string);
@@ -110,12 +126,16 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                     });
                     dataUrl = await dataUrlPromise;
                 } else if (file.type.startsWith('image/')) {
-                    // Comprime imagens pesadas de celular mantendo nitidez de leitura
+                    setParsingStatusText('Otimizando foto e executando leitura óptica (OCR)...');
+                    // Comprime fotos pesadas de celulares modernos mantendo nitidez para o OCR
                     const compressed = await compressImageIfNeeded(file);
                     dataUrl = compressed.dataUrl;
                     finalSize = compressed.size;
-                    rawText = `Comprovante de imagem: ${file.name}`;
+                    
+                    // Extração inteligente: Barcode/QR Code instantâneo + Tesseract OCR no cliente
+                    rawText = await processImageAndExtractText(dataUrl, file.name, (p) => setOcrProgress(p));
                 } else if (file.type === 'text/xml' || file.type === 'application/xml' || file.name.toLowerCase().endsWith('.xml')) {
+                    setParsingStatusText('Lendo dados estruturados da Nota Fiscal XML...');
                     try {
                         rawText = await file.text();
                     } catch (_) {
@@ -173,6 +193,8 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
 
         onChangeAttachments(newAttachmentsList);
         setIsParsing(false);
+        setOcrProgress(null);
+        setParsingStatusText('Processando e extraindo dados do arquivo...');
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
@@ -572,10 +594,12 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                         {isParsing ? (
                             <>
                                 <span className="text-xs font-bold text-slate-700 dark:text-slate-200 block">
-                                    Processando e extraindo dados do arquivo...
+                                    {parsingStatusText}
                                 </span>
-                                <span className="text-[10px] text-slate-400 font-medium mt-0.5 block">
-                                    Extraindo valor, beneficiário, data e preenchendo o lançamento...
+                                <span className="text-[10px] text-orange-600 dark:text-orange-400 font-semibold mt-0.5 block">
+                                    {ocrProgress !== null && ocrProgress > 0 
+                                        ? `Progresso do OCR: ${ocrProgress}% concluído...` 
+                                        : 'Lendo dados contábeis e identificando favorecido, valor e data...'}
                                 </span>
                             </>
                         ) : !selectedRole ? (

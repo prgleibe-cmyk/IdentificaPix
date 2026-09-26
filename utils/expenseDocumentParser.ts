@@ -378,25 +378,76 @@ export function extractAmountsFromText(text: string): { primaryAmount: number | 
 }
 
 /**
- * Extrai beneficiário / favorecido / emitente / razão social do texto
+ * Extrai beneficiário / favorecido / emitente / razão social do VENDEDOR
+ * Garante estritamente que os dados do COMPRADOR (destinatário / tomador / sacado) NUNCA sejam capturados.
  */
 export function extractRecipientFromText(text: string): string | null {
-    const patterns = [
-        /(?:emitente|raz[aã]o\s*social|nome\s*empresarial|nome\s*fantasia|cedente|benefici[aá]rio(?:\s*final)?|prestador\s*(?:de\s*servi[cç]os?)?|prestador|fornecedor|favorecido|nome\s*do\s*favorecido|recebedor|nome\s*do\s*recebedor|destinat[aá]rio|credor|dados\s*do\s*emitente)\s*[:=]?\s*([A-Za-zÀ-ÿ0-9\s\.\-]{3,60})/i,
-        /(?:para\s*:?|pago\s*a\s*:?|nome\s*do\s*benefici[aá]rio)\s*[:=]?\s*([A-Za-zÀ-ÿ0-9\s\.\-]{3,50})/i,
-        /(?:emitente|prestador\s*(?:de\s*servi[cç]os?)?|benefici[aá]rio|cedente)\s*[\r\n]+\s*([A-Za-zÀ-ÿ0-9\s\.\-]{3,60})/i
+    if (!text) return null;
+
+    // Se o documento possui divisão entre Emitente (Vendedor) e Destinatário/Tomador/Sacado (Comprador),
+    // isola a seção superior do VENDEDOR para garantir que NUNCA capture o comprador.
+    const buyerSectionRegex = /(?:destinat[aá]rio(?:\s*[\/\-]\s*remetente)?|tomador(?:\s*de\s*servi[cç]os?)?|dados\s*do\s*destinat[aá]rio|dados\s*do\s*tomador|sacado|cliente|dados\s*do\s*pagador)/i;
+    
+    let sellerSection = text;
+    const splitMatch = text.search(buyerSectionRegex);
+    if (splitMatch !== -1) {
+        sellerSection = text.slice(0, splitMatch);
+    }
+
+    const cleanCandidate = (raw: string): string | null => {
+        if (!raw) return null;
+        let firstLine = raw.split(/[\r\n]/)[0].trim();
+        firstLine = firstLine.replace(/[\t]/g, ' ').replace(/\s+/g, ' ').trim();
+        // Remove sufixos como CNPJ, CPF, IE, Endereço, Fone, etc. se estiverem na mesma linha
+        firstLine = firstLine.replace(/\s+(?:cnpj|cpf|c\.n\.p\.j|inscri[cç][aã]o|i\.e|telefone|fone|endere[cç]o|cep|bairro|munic[ií]pio|uf|n[ºo]\.?|serie|s[eé]rie|folha|danfe).*$/i, '').trim();
+        
+        const lower = firstLine.toLowerCase();
+        const blacklisted = [
+            'identificacao do emitente', 'identificação do emitente', 'dados do emitente',
+            'documento auxiliar', 'nota fiscal', 'danfe', 'nfs-e', 'nf-e', 'cupom fiscal',
+            'destinatario', 'destinatário', 'remetente', 'tomador', 'sacado', 'pagador',
+            'razao social', 'razão social', 'nome empresarial', 'nome fantasia',
+            'republica federativa', 'secretaria da fazenda', 'prefeitura'
+        ];
+        if (blacklisted.some(b => lower === b || lower.startsWith(b + ':'))) {
+            return null;
+        }
+
+        if (firstLine.length >= 3 && !/^\d+$/.test(firstLine) && !lower.includes('cpf') && !lower.includes('cnpj')) {
+            return firstLine;
+        }
+        return null;
+    };
+
+    // 1. Busca na seção do VENDEDOR / EMITENTE por padrões explícitos de identificação
+    const sellerPatterns = [
+        /(?:identifica[cç][aã]o\s*do\s*emitente|dados\s*do\s*emitente|emitente|prestador\s*(?:de\s*servi[cç]os?)?|fornecedor|cedente)\s*[:\-\s]+(?:raz[aã]o\s*social|nome\s*empresarial|nome\s*fantasia|nome)?\s*[:\-\s]*([^\r\n]{3,80})/i,
+        /(?:raz[aã]o\s*social|nome\s*empresarial|nome\s*fantasia)\s*[:=]?\s*([^\r\n]{3,80})/i,
+        /(?:identifica[cç][aã]o\s*do\s*emitente|dados\s*do\s*emitente|emitente)[\s\S]{0,40}?[\r\n]+\s*([^\r\n]{3,80})/i,
+        /(?:emitente|prestador)\s*[:=]?\s*([^\r\n]{3,80})/i
     ];
 
-    for (const pattern of patterns) {
-        const match = text.match(pattern);
-        if (match && match[1]) {
-            let cleaned = match[1].replace(/[\r\n\t]/g, ' ').replace(/\s+/g, ' ').trim();
-            // Remove sufixos como CNPJ se capturados juntos
-            cleaned = cleaned.replace(/\s+(?:cnpj|cpf|inscri[cç][aã]o|telefone|endere[cç]o).*$/i, '').trim();
-            // Evita capturar linhas muito genéricas ou puramente numéricas
-            if (cleaned.length >= 3 && !/^\d+$/.test(cleaned) && !cleaned.toLowerCase().includes('cpf') && !cleaned.toLowerCase().includes('cnpj')) {
-                return cleaned;
-            }
+    for (const pat of sellerPatterns) {
+        const m = sellerSection.match(pat);
+        if (m && m[1]) {
+            const cand = cleanCandidate(m[1]);
+            if (cand) return cand;
+        }
+    }
+
+    // 2. Busca em comprovantes bancários / PIX / boletos (Beneficiário / Favorecido / Recebedor / Cedente)
+    // O pagador/origem NUNCA é capturado
+    const bankingRecipientPatterns = [
+        /(?:nome\s*do\s*favorecido|favorecido|nome\s*do\s*recebedor|recebedor|nome\s*do\s*benefici[aá]rio|benefici[aá]rio(?:\s*final)?|cedente|credor)\s*[:=]?\s*([^\r\n]{3,80})/i,
+        /(?:pago\s*a\s*:?|para\s*:?|transferido\s*para\s*:?|destino\s*:?)\s*([^\r\n]{3,70})/i,
+        /(?:benefici[aá]rio|cedente)\s*[\r\n]+\s*([^\r\n]{3,80})/i
+    ];
+
+    for (const pat of bankingRecipientPatterns) {
+        const m = text.match(pat);
+        if (m && m[1]) {
+            const cand = cleanCandidate(m[1]);
+            if (cand) return cand;
         }
     }
 

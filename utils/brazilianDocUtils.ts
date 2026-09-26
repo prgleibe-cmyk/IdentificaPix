@@ -143,22 +143,32 @@ export function extractValidCnpjCpf(text: string): {
         return { recipientCnpjCpf: null, payerCnpjCpf: null, allValid: [] };
     }
 
-    // Identifica se há distinção contextual entre Favorecido/Prestador e Pagador/Tomador
+    // Identifica se há distinção contextual entre Favorecido/Prestador (Vendedor) e Pagador/Tomador (Comprador)
     let recipientCnpjCpf: string | null = null;
     let payerCnpjCpf: string | null = null;
 
-    const lower = text.toLowerCase();
+    // Isola a seção do vendedor (antes do Destinatário/Tomador) da seção do comprador
+    const buyerSectionRegex = /(?:destinat[aá]rio(?:\s*[\/\-]\s*remetente)?|tomador(?:\s*de\s*servi[cç]os?)?|dados\s*do\s*destinat[aá]rio|dados\s*do\s*tomador|sacado|cliente|dados\s*do\s*pagador)/i;
+    let sellerSection = text;
+    let buyerSection = text;
+    const splitMatch = text.search(buyerSectionRegex);
+    if (splitMatch !== -1) {
+        sellerSection = text.slice(0, splitMatch);
+        buyerSection = text.slice(splitMatch);
+    }
 
-    // Contexto de Beneficiário / Emitente
-    const emitMatch = text.match(/(?:benefici[aá]rio|cedente|prestador|emitente|fornecedor|empresa|razao\s*social)[\s\S]{0,120}?(?:cnpj|cpf)?\s*[:=]?\s*(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}|\d{3}\.?\d{3}\.?\d{3}-?\d{2})/i);
+    // Contexto de Beneficiário / Emitente (Vendedor)
+    const emitMatch = sellerSection.match(/(?:benefici[aá]rio|cedente|prestador|emitente|fornecedor|empresa|razao\s*social)[\s\S]{0,120}?(?:cnpj|cpf)?\s*[:=]?\s*(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}|\d{3}\.?\d{3}\.?\d{3}-?\d{2})/i) ||
+                      sellerSection.match(/\b(\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2})\b/);
     if (emitMatch && emitMatch[1]) {
         const cand = emitMatch[1];
         if (validateCnpj(cand)) recipientCnpjCpf = formatCnpj(cand);
         else if (validateCpf(cand)) recipientCnpjCpf = formatCpf(cand);
     }
 
-    // Contexto de Pagador / Sacado
-    const destMatch = text.match(/(?:pagador|sacado|tomador|destinat[aá]rio|cliente)[\s\S]{0,120}?(?:cnpj|cpf)?\s*[:=]?\s*(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}|\d{3}\.?\d{3}\.?\d{3}-?\d{2})/i);
+    // Contexto de Pagador / Sacado / Destinatário (Comprador)
+    const destMatch = buyerSection.match(/(?:pagador|sacado|tomador|destinat[aá]rio|cliente)[\s\S]{0,120}?(?:cnpj|cpf)?\s*[:=]?\s*(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}|\d{3}\.?\d{3}\.?\d{3}-?\d{2})/i) ||
+                      buyerSection.match(/\b(\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}|\d{3}\.\d{3}\.\d{3}-\d{2})\b/);
     if (destMatch && destMatch[1]) {
         const cand = destMatch[1];
         if (validateCnpj(cand)) payerCnpjCpf = formatCnpj(cand);
