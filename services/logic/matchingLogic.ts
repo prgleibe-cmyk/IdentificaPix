@@ -206,26 +206,47 @@ export const matchTransactions = (
             la.normalizedDescription === txDescStrict
         );
 
-        if (learned && learned.churchId) {
-            const church = churches.find(c => c.id === learned.churchId);
-            if (church) {
-                const validName = (learned.contributorNormalizedName && !isInvalidOrNumericName(learned.contributorNormalizedName, tx.description))
-                    ? learned.contributorNormalizedName
-                    : null;
+        if (learned) {
+            const validName = (learned.contributorNormalizedName && !isInvalidOrNumericName(learned.contributorNormalizedName, tx.description))
+                ? learned.contributorNormalizedName
+                : null;
+
+            // 🛡️ Busca o cadastro oficial do contribuinte para preservar a igreja original de cadastro e dados completos (ID, CPF)
+            const registeredContrib = validName ? allContributorsFlat.find((c: any) => {
+                const cNorm = normalizeString(c.canonical_name || c.name || '');
+                const targetNorm = normalizeString(validName);
+                return cNorm === targetNorm || (c.id && c.id === (learned as any).contributorId);
+            }) : null;
+
+            // Prioriza SEMPRE a igreja de cadastro original do contribuinte
+            const effectiveChurch = (registeredContrib && registeredContrib.church)
+                ? registeredContrib.church
+                : (churches.find(c => c.id === learned.churchId) || PLACEHOLDER_CHURCH);
+
+            if (effectiveChurch && effectiveChurch.id !== PLACEHOLDER_CHURCH.id) {
                 matchResult = {
                     ...matchResult,
                     status: ReconciliationStatus.IDENTIFIED,
-                    church: church,
-                    _churchId: church.id,
+                    church: effectiveChurch,
+                    _churchId: effectiveChurch.id,
                     matchMethod: MatchMethod.LEARNED,
                     similarity: 100,
-                    contributor: validName ? { 
+                    contributor: registeredContrib ? {
+                        ...registeredContrib,
+                        amount: tx.amount,
+                        cleanedName: validName
+                    } : (validName ? { 
                         name: validName, 
                         amount: tx.amount,
                         cleanedName: validName
-                    } : null,
-                    contributorAmount: tx.amount
+                    } : null),
+                    contributorAmount: tx.amount,
+                    contributionType: (registeredContrib && registeredContrib.contributionType) || tx.contributionType,
+                    paymentMethod: (registeredContrib && registeredContrib.paymentMethod) || tx.paymentMethod
                 };
+                if (registeredContrib?._internalId) {
+                    usedContributors.add(registeredContrib._internalId);
+                }
                 transactionMatchCache.set(tx.id, {
                     txSignature: txSig,
                     result: matchResult

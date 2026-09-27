@@ -53,17 +53,18 @@ export const useReconciliationActions = ({
       const cleanCpf = cpf ? cpf.replace(/\D/g, '') : '';
       const hasValidCpf = cleanCpf.length === 11 || cleanCpf.length === 14;
 
-      // 1. Evitar duplicar registros buscando na lista atual da igreja
-      const listResp = await fetch(`/api/v1/contributors?church_id=${churchId}`);
+      // 1. Evitar duplicar registros buscando na base completa de contribuintes
+      const listResp = await fetch('/api/v1/contributors');
       if (listResp.ok) {
         const list = await listResp.json();
         const existing = list.find((c: any) => {
-          const sameName = c.canonical_name?.toUpperCase() === canonical_name && c.church_id === churchId;
+          const cName = (c.canonical_name || c.name || '').toUpperCase().trim();
+          const sameName = cName === canonical_name;
           const sameCpf = hasValidCpf && c.cpf && c.cpf.replace(/\D/g, '') === cleanCpf;
           return sameCpf || sameName;
         });
         if (existing) {
-          console.log('[AutoRegister] Contribuinte já cadastrado na VPS:', existing.canonical_name);
+          console.log('[AutoRegister] Contribuinte já cadastrado na VPS:', existing.canonical_name || existing.name);
           return existing.id;
         }
       }

@@ -158,29 +158,50 @@ export function extractNameAndCpf(description: string): { name: string; cpf: str
 export function findSimilarContributors(
   targetName: string,
   targetCpf: string | null,
-  contributorFiles: ContributorFile[],
+  contributorFilesOrList: any[],
   minScore = 40
 ): Array<{ contributor: any; church: any; score: number }> {
   if (!targetName && !targetCpf) return [];
 
   const results: Array<{ contributor: any; church: any; score: number }> = [];
-  const targetNameNorm = targetName.toUpperCase().trim();
+  const targetNameNorm = (targetName || '').toUpperCase().trim();
+  const seenContribIds = new Set<string>();
 
-  contributorFiles.forEach(file => {
-    (file.contributors || []).forEach(c => {
-      // CPF Match (including compatibility checks)
-      if (targetCpf && c.cpf) {
-        if (isCpfCompatible(targetCpf, c.cpf)) {
-          results.push({
-            contributor: c,
-            church: file.church,
-            score: 100
-          });
-          return;
-        }
+  const candidates: Array<{ contributor: any; church: any }> = [];
+  if (Array.isArray(contributorFilesOrList)) {
+    contributorFilesOrList.forEach((item: any) => {
+      if (item && item.contributors && Array.isArray(item.contributors)) {
+        item.contributors.forEach((c: any) => {
+          candidates.push({ contributor: c, church: item.church });
+        });
+      } else if (item && (item.name || item.canonical_name)) {
+        candidates.push({
+          contributor: item,
+          church: item.church || { id: item._churchId, name: item._churchName }
+        });
       }
+    });
+  }
 
-      // Fuzzy Name Similarity Match
+  candidates.forEach(({ contributor: c, church }) => {
+    const contribId = c.id || `${c.name || c.canonical_name}_${church?.id || ''}`;
+    if (seenContribIds.has(contribId)) return;
+
+    // CPF Match (including compatibility checks)
+    if (targetCpf && c.cpf) {
+      if (isCpfCompatible(targetCpf, c.cpf)) {
+        seenContribIds.add(contribId);
+        results.push({
+          contributor: c,
+          church,
+          score: 100
+        });
+        return;
+      }
+    }
+
+    // Fuzzy Name Similarity Match
+    if (targetNameNorm) {
       const pseudoContributor: Contributor = {
         name: c.name || c.canonical_name || '',
         amount: 0
@@ -188,13 +209,14 @@ export function findSimilarContributors(
 
       const score = calculateNameSimilarity(targetNameNorm, pseudoContributor);
       if (score >= minScore) {
+        seenContribIds.add(contribId);
         results.push({
           contributor: c,
-          church: file.church,
+          church,
           score: Math.round(score)
         });
       }
-    });
+    }
   });
 
   // Sort by highest score first

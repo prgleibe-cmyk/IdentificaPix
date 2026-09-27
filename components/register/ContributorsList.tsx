@@ -268,10 +268,15 @@ export const ContributorsList: React.FC = () => {
     const importFileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        if (churches && churches.length > 0 && !defaultImportChurchId) {
-            setDefaultImportChurchId(churches[0].id);
+        if (churches && churches.length > 0) {
+            if (!defaultImportChurchId) {
+                setDefaultImportChurchId(churches[0].id);
+            }
+            if (!selectedChurchId || selectedChurchId === 'church-1') {
+                setSelectedChurchId(churches[0].id);
+            }
         }
-    }, [churches, defaultImportChurchId]);
+    }, [churches, defaultImportChurchId, selectedChurchId]);
 
     const isValidCpf = (cpfStr: string): boolean => {
         const clean = cpfStr.replace(/\D/g, '');
@@ -558,14 +563,15 @@ export const ContributorsList: React.FC = () => {
         try {
             setIsLoadingContributors(true);
             const data = await getCachedContributors(forceRefresh);
-            // 🛡️ Regra Estrita: Apenas cadastros com CPF/CNPJ (11 ou 14 dígitos), Nome e Igreja válidos
-            const validOnly = (Array.isArray(data) ? data : []).filter((c: any) => {
-                const cleanCpf = c.cpf ? String(c.cpf).replace(/\D/g, '') : '';
-                const hasValidCpf = cleanCpf.length === 11 || cleanCpf.length === 14;
-                const hasValidName = Boolean((c.canonical_name || c.name) && String(c.canonical_name || c.name).trim());
-                const hasValidChurch = Boolean(c.church_id && c.church_id !== 'church-1');
-                return hasValidCpf && hasValidName && hasValidChurch;
-            });
+            // 🛡️ Preserva todos os cadastros válidos (com nome preenchido) e normaliza congregação padrão
+            const validOnly = (Array.isArray(data) ? data : [])
+                .filter((c: any) => Boolean((c.canonical_name || c.name) && String(c.canonical_name || c.name).trim()))
+                .map((c: any) => ({
+                    ...c,
+                    church_id: (!c.church_id || c.church_id === 'church-1') 
+                        ? (churches[0]?.id || '00000000-0000-0000-0000-000000000001') 
+                        : c.church_id
+                }));
             setContributors(validOnly);
         } catch (error) {
             console.error('[ContributorsList] Error fetching contributors:', error);
@@ -725,7 +731,7 @@ export const ContributorsList: React.FC = () => {
         setPersonType('PF');
         setFullName('');
         setTradeName('');
-        setSelectedChurchId('church-1');
+        setSelectedChurchId(churches && churches.length > 0 ? churches[0].id : '00000000-0000-0000-0000-000000000001');
         setIsGlobal(false);
         setCpf('');
         setRgIe('');
@@ -763,7 +769,10 @@ export const ContributorsList: React.FC = () => {
 
         const trimmedName = fullName.trim();
         const isValidName = trimmedName.length > 0;
-        const isValidChurch = selectedChurchId && selectedChurchId !== 'church-1';
+        const effectiveChurchId = (selectedChurchId && selectedChurchId !== 'church-1') 
+            ? selectedChurchId 
+            : (churches && churches.length > 0 ? churches[0].id : '00000000-0000-0000-0000-000000000001');
+        const isValidChurch = Boolean(effectiveChurchId);
         const rawCpf = cpf.replace(/\D/g, '');
         const isValidCpfCnpj = rawCpf.length === 11 || rawCpf.length === 14;
 
@@ -793,7 +802,7 @@ export const ContributorsList: React.FC = () => {
             const sanitizedStatus = status === 'Ativo' ? 'active' : 'inactive';
 
             const payload = {
-                church_id: selectedChurchId,
+                church_id: effectiveChurchId,
                 is_global: isGlobal,
                 canonical_name,
                 role_position: rolePosition || category || 'Membro',
@@ -925,12 +934,8 @@ export const ContributorsList: React.FC = () => {
         const normalizedQuery = query.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
         return contributors.filter(c => {
-            // 🛡️ Regra Estrita: Apenas cadastros com CPF/CNPJ (11 ou 14 dígitos), Nome e Igreja válidos
-            const cleanCpf = c.cpf ? String(c.cpf).replace(/\D/g, '') : '';
-            const hasValidCpf = cleanCpf.length === 11 || cleanCpf.length === 14;
             const hasValidName = Boolean((c.canonical_name || c.name) && String(c.canonical_name || c.name).trim());
-            const hasValidChurch = Boolean(c.church_id && c.church_id !== 'church-1');
-            if (!hasValidCpf || !hasValidName || !hasValidChurch) return false;
+            if (!hasValidName) return false;
             // 1. Church Filter
             if (selectedChurchFilter !== 'all') {
                 const isMatch = c.church_id === selectedChurchFilter || c.is_global;

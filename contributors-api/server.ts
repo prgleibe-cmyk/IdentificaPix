@@ -43,7 +43,10 @@ class LocalSqliteEngine {
   private init() {
     try {
       const { DatabaseSync } = requireFallback('node:sqlite');
-      const dbDir = path.resolve(process.cwd(), 'data');
+      const rootAppDir = fs.existsSync(path.resolve(__dirname, '..', 'package.json')) 
+        ? path.resolve(__dirname, '..') 
+        : (fs.existsSync(path.resolve(process.cwd(), 'data')) ? process.cwd() : path.resolve(process.cwd(), '..'));
+      const dbDir = path.resolve(rootAppDir, 'data');
       if (!fs.existsSync(dbDir)) {
         fs.mkdirSync(dbDir, { recursive: true });
       }
@@ -601,30 +604,23 @@ class LocalSqliteEngine {
       }
     } catch (_) {}
 
-    // 🛡️ Regra de Integridade: Remove cadastros antigos/incompletos sem CPF/CNPJ, Nome ou Igreja
+    // 🛡️ Regra de Integridade e Preservação:
+    // 1. Migra congregações 'church-1' ou nulas para a igreja sede para manter cadastros completos intactos
+    try {
+      this.db.exec(`
+        UPDATE contributors 
+        SET church_id = '00000000-0000-0000-0000-000000000001' 
+        WHERE church_id IS NULL OR trim(church_id) = '' OR church_id = 'church-1';
+      `);
+    } catch (_) {}
+
+    // 2. Remove apenas cadastros verdadeiramente incompletos (sem nenhum nome identificável)
     try {
       this.db.exec(`
         DELETE FROM contributors 
-        WHERE cpf IS NULL 
-           OR trim(cpf) = '' 
-           OR canonical_name IS NULL 
-           OR trim(canonical_name) = '' 
-           OR church_id IS NULL 
-           OR trim(church_id) = '' 
-           OR church_id = 'church-1';
+        WHERE (canonical_name IS NULL OR trim(canonical_name) = '') 
+          AND (name IS NULL OR trim(name) = '');
       `);
-      const allRows = this.db.prepare("SELECT id, cpf FROM contributors").all() as any[];
-      const toDelete = allRows.filter(r => {
-        const clean = (r.cpf || '').replace(/\D/g, '');
-        return clean.length !== 11 && clean.length !== 14;
-      });
-      if (toDelete.length > 0) {
-        const delStmt = this.db.prepare("DELETE FROM contributors WHERE id = ?");
-        for (const item of toDelete) {
-          delStmt.run(item.id);
-        }
-        console.log(`[Contributors API] SQLite: ${toDelete.length} cadastros sem CPF/CNPJ válido removidos.`);
-      }
     } catch (_) {}
   }
 
@@ -1054,26 +1050,20 @@ async function initializeDatabase() {
     await client.query("CREATE INDEX IF NOT EXISTS idx_contributors_pix_key ON contributors(pix_key);");
     console.log('[Contributors API] Table "contributors" verified or successfully created.');
 
-    // 🛡️ Regra de Integridade: Remove cadastros antigos/incompletos sem CPF/CNPJ, Nome ou Igreja
+    // 🛡️ Regra de Integridade e Preservação:
     try {
-      const allContribs = await pool.query("SELECT id, canonical_name, name, cpf, church_id FROM contributors");
-      const invalidIds: string[] = [];
-      for (const row of allContribs.rows) {
-        const cleanName = (row.canonical_name || row.name || '').trim();
-        const cleanChurch = (row.church_id || '').trim();
-        const cleanCpf = (row.cpf || '').replace(/\D/g, '');
-        if (!cleanName || !cleanChurch || cleanChurch === 'church-1' || (cleanCpf.length !== 11 && cleanCpf.length !== 14)) {
-          invalidIds.push(row.id);
-        }
-      }
-      if (invalidIds.length > 0) {
-        for (const badId of invalidIds) {
-          await pool.query("DELETE FROM contributors WHERE id = $1", [badId]);
-        }
-        console.log(`[Contributors API] Limpeza preventiva concluída: ${invalidIds.length} cadastros incompletos (sem CPF/CNPJ, Nome ou Igreja) foram removidos do banco.`);
-      }
+      await pool.query(`
+        UPDATE contributors 
+        SET church_id = '00000000-0000-0000-0000-000000000001' 
+        WHERE church_id IS NULL OR trim(church_id) = '' OR church_id = 'church-1';
+      `);
+      await pool.query(`
+        DELETE FROM contributors 
+        WHERE (canonical_name IS NULL OR trim(canonical_name) = '') 
+          AND (name IS NULL OR trim(name) = '');
+      `);
     } catch (cleanErr: any) {
-      console.warn('[Contributors API] Aviso ao executar limpeza preventiva de cadastros:', cleanErr?.message);
+      console.warn('[Contributors API] Aviso ao executar limpeza segura de cadastros:', cleanErr?.message);
     }
 
     // Create table banks
@@ -1982,7 +1972,7 @@ app.get('/api/v1/contributors', async (req: Request, res: Response) => {
       }
     }
 
-    let query = "SELECT * FROM contributors WHERE 1=1 AND cpf IS NOT NULL AND TRIM(cpf) != '' AND canonical_name IS NOT NULL AND TRIM(canonical_name) != '' AND church_id IS NOT NULL AND TRIM(church_id) != '' AND church_id != 'church-1'";
+    let query = 'SELECT * FROM contributors WHERE 1=1';
     const params: any[] = [];
     let paramCounter = 1;
 
@@ -2035,12 +2025,21 @@ app.get('/api/v1/contributors', async (req: Request, res: Response) => {
     query += ' ORDER BY canonical_name ASC';
 
     const result = await pool.query(query, params);
-    const validRows = result.rows.filter((r: any) => {
-      const cleanName = (r.canonical_name || r.name || '').trim();
-      const cleanChurch = (r.church_id || '').trim();
-      const cleanCpf = (r.cpf || '').replace(/\D/g, '');
-      return cleanName.length > 0 && cleanChurch.length > 0 && cleanChurch !== 'church-1' && (cleanCpf.length === 11 || cleanCpf.length === 14);
-    });
+    const validRows = result.rows
+      .filter((r: any) => {
+        const cleanName = (r.canonical_name || r.name || '').trim();
+        return cleanName.length > 0;
+      })
+      .map((r: any) => {
+        let church_id = (r.church_id || '').trim();
+        if (!church_id || church_id === 'church-1') {
+          church_id = '00000000-0000-0000-0000-000000000001';
+        }
+        return {
+          ...r,
+          church_id
+        };
+      });
     return res.json(validRows);
   } catch (err) {
     console.error('[Contributors API] Error processing get contributors request:', err);

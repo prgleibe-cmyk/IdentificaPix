@@ -397,7 +397,8 @@ export const ManualIdModal: React.FC = () => {
 
     // --- ANALISAR SIMILARIDADE DO LOTE AO DETECTAR ALTERAÇÕES ---
     useEffect(() => {
-        if (bulkIdentificationTxs && bulkIdentificationTxs.length > 0 && contributorFiles && contributorFiles.length > 0) {
+        const pool = allContributors && allContributors.length > 0 ? allContributors : contributorFiles;
+        if (bulkIdentificationTxs && bulkIdentificationTxs.length > 0 && pool && pool.length > 0) {
             const firstTx = bulkIdentificationTxs[0];
             const { name: name1, cpf: cpf1 } = extractNameAndCpf(firstTx.description || '');
             const { name: name2, cpf: cpf2 } = extractNameAndCpf(firstTx.rawDescription || '');
@@ -405,12 +406,12 @@ export const ManualIdModal: React.FC = () => {
             const targetName = name1 || name2;
             if (targetName || targetCpf) {
                 // Procurar contribuintes semelhantes nas igrejas cadastradas com pontuação de corte (40%)
-                const matches = findSimilarContributors(targetName, targetCpf, contributorFiles, 40);
+                const matches = findSimilarContributors(targetName, targetCpf, pool, 40);
                 setSimilarMatches(matches);
                 if (matches.length > 0) {
-                    // Se houver um match muito forte (ex: CPF idêntico ou similaridade > 80%), auto-seleciona "unificar"
+                    // Se houver um match consistente (ex: CPF idêntico ou similaridade >= 60%), auto-seleciona "unificar"
                     const best = matches[0];
-                    if (best.score >= 80) {
+                    if (best.score >= 60) {
                         setSelectedAssociationType('unify');
                         setSelectedUnifiedField(best.contributor.id);
                         const chId = best.contributor._churchId || best.contributor.church_id || best.church?.id;
@@ -431,7 +432,7 @@ export const ManualIdModal: React.FC = () => {
             setSelectedAssociationType('create_new');
             setSelectedUnifiedField('');
         }
-    }, [bulkIdentificationTxs, contributorFiles]);
+    }, [bulkIdentificationTxs, allContributors, contributorFiles]);
 
     const activeTxId = bulkIdentificationTxs?.[0]?.id;
     const initializedTxIdRef = React.useRef<string | null>(null);

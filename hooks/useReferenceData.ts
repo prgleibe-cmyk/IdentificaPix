@@ -284,11 +284,14 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         
         if (isBatchUpdating) return;
 
+        // 🛡️ Prioriza a igreja de cadastro original do contribuinte em vez de alteração temporária do lançamento
+        const originalChurchId = (contributorObj as any)?._churchId || (contributorObj as any)?.church?.id || (contributorObj as any)?.church_id || matchResult.church.id;
+
         batchState.isAtomicUpdate = true;
         const newAssociation: LearnedAssociation = { 
             normalizedDescription: normalizedDesc, 
             contributorNormalizedName: contributorName, 
-            churchId: matchResult.church.id, 
+            churchId: originalChurchId, 
             bankId: 'global',
             user_id: effectiveUserId 
         };
@@ -303,7 +306,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             const newEntries = descsToSave.map(desc => ({
                 normalizedDescription: desc, 
                 contributorNormalizedName: contributorName, 
-                churchId: matchResult.church.id, 
+                churchId: originalChurchId, 
                 bankId: 'global',
                 user_id: effectiveUserId 
             }));
@@ -324,7 +327,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                         user_id: effectiveUserId,
                         normalized_description: desc,
                         contributor_normalized_name: contributorName,
-                        church_id: matchResult.church.id
+                        church_id: originalChurchId
                     })
                 });
             }
