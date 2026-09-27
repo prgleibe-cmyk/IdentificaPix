@@ -48,7 +48,10 @@ export const useReconciliationActions = ({
   ): Promise<string | null> => {
     try {
       const canonical_name = name.trim().replace(/\s+/g, ' ').toUpperCase();
-      if (!canonical_name) return null;
+      if (!canonical_name || !churchId || churchId === 'church-1') return null;
+
+      const cleanCpf = cpf ? cpf.replace(/\D/g, '') : '';
+      const hasValidCpf = cleanCpf.length === 11 || cleanCpf.length === 14;
 
       // 1. Evitar duplicar registros buscando na lista atual da igreja
       const listResp = await fetch(`/api/v1/contributors?church_id=${churchId}`);
@@ -56,8 +59,8 @@ export const useReconciliationActions = ({
         const list = await listResp.json();
         const existing = list.find((c: any) => {
           const sameName = c.canonical_name?.toUpperCase() === canonical_name && c.church_id === churchId;
-          const sameCpf = cpf && c.cpf === cpf.replace(/\D/g, '');
-          return sameName || sameCpf;
+          const sameCpf = hasValidCpf && c.cpf && c.cpf.replace(/\D/g, '') === cleanCpf;
+          return sameCpf || sameName;
         });
         if (existing) {
           console.log('[AutoRegister] Contribuinte já cadastrado na VPS:', existing.canonical_name);
@@ -65,8 +68,15 @@ export const useReconciliationActions = ({
         }
       }
 
-      // 2. Realizar cadastro automático por POST
-      console.log('[AutoRegister] Efetuando cadastro automático na VPS para:', canonical_name);
+      // 🛡️ REGRA OBRIGATÓRIA: Todo cadastro deve conter CPF/CNPJ, Nome e Igreja.
+      // Se não possui CPF/CNPJ válido (11 ou 14 dígitos), não cria novo cadastro para evitar duplicações/incompletos.
+      if (!hasValidCpf) {
+        console.log('[AutoRegister] Ignorando criação de novo cadastro: CPF/CNPJ obrigatório ausente para:', canonical_name);
+        return null;
+      }
+
+      // 2. Realizar cadastro com dados completos
+      console.log('[AutoRegister] Efetuando cadastro com CPF na VPS para:', canonical_name);
       const postResp = await fetch('/api/v1/contributors', {
         method: 'POST',
         headers: {
@@ -75,7 +85,7 @@ export const useReconciliationActions = ({
         body: JSON.stringify({
           church_id: churchId,
           canonical_name,
-          cpf: cpf || null,
+          cpf: cleanCpf,
           status: 'active'
         })
       });

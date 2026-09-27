@@ -476,9 +476,22 @@ export const ContributorsList: React.FC = () => {
             return;
         }
 
-        const toImport = parsedContributors.filter(c => !checkDuplicate(c.cpf, c.name, defaultImportChurchId));
+        // 🛡️ Regra Estrita: Apenas importar cadastros com Nome e CPF/CNPJ válido (11 ou 14 dígitos)
+        const validParsed = parsedContributors.filter(c => {
+            const rawCpf = (c.cpf || '').replace(/\D/g, '');
+            const hasCpf = rawCpf.length === 11 || rawCpf.length === 14;
+            const hasName = c.name && c.name.trim().length > 0;
+            return hasCpf && hasName;
+        });
+
+        if (validParsed.length === 0) {
+            showToast("Nenhum contribuinte do arquivo possui CPF/CNPJ (11 ou 14 dígitos) e Nome válidos.", "error");
+            return;
+        }
+
+        const toImport = validParsed.filter(c => !checkDuplicate(c.cpf, c.name, defaultImportChurchId));
         if (toImport.length === 0) {
-            showToast("Todos os contribuintes detectados já estão cadastrados nesta igreja.", "error");
+            showToast("Todos os contribuintes com CPF/CNPJ válido já estão cadastrados nesta igreja.", "error");
             return;
         }
 
@@ -545,7 +558,15 @@ export const ContributorsList: React.FC = () => {
         try {
             setIsLoadingContributors(true);
             const data = await getCachedContributors(forceRefresh);
-            setContributors(data);
+            // 🛡️ Regra Estrita: Apenas cadastros com CPF/CNPJ (11 ou 14 dígitos), Nome e Igreja válidos
+            const validOnly = (Array.isArray(data) ? data : []).filter((c: any) => {
+                const cleanCpf = c.cpf ? String(c.cpf).replace(/\D/g, '') : '';
+                const hasValidCpf = cleanCpf.length === 11 || cleanCpf.length === 14;
+                const hasValidName = Boolean((c.canonical_name || c.name) && String(c.canonical_name || c.name).trim());
+                const hasValidChurch = Boolean(c.church_id && c.church_id !== 'church-1');
+                return hasValidCpf && hasValidName && hasValidChurch;
+            });
+            setContributors(validOnly);
         } catch (error) {
             console.error('[ContributorsList] Error fetching contributors:', error);
         } finally {
@@ -743,17 +764,25 @@ export const ContributorsList: React.FC = () => {
         const trimmedName = fullName.trim();
         const isValidName = trimmedName.length > 0;
         const isValidChurch = selectedChurchId && selectedChurchId !== 'church-1';
+        const rawCpf = cpf.replace(/\D/g, '');
+        const isValidCpfCnpj = rawCpf.length === 11 || rawCpf.length === 14;
 
-        if (!isValidName || !isValidChurch) {
-            return; // Show validation error on UI
+        if (!isValidName || !isValidChurch || !isValidCpfCnpj) {
+            if (!isValidCpfCnpj) {
+                showToast(`Por favor, preencha o ${personType === 'PF' ? 'CPF com 11 dígitos' : 'CNPJ com 14 dígitos'} obrigatório.`, "error");
+            } else if (!isValidName) {
+                showToast("Por favor, preencha o Nome Completo / Razão Social.", "error");
+            } else if (!isValidChurch) {
+                showToast("Por favor, selecione uma Igreja de vinculação válida.", "error");
+            }
+            return;
         }
 
         try {
             // Normalizations as per rules
             const canonical_name = trimmedName.replace(/\s+/g, ' ').toUpperCase();
             
-            const rawCpf = cpf.replace(/\D/g, '');
-            const sanitizedCpf = rawCpf.length > 0 ? rawCpf : null;
+            const sanitizedCpf = rawCpf;
 
             const trimmedEmail = email.trim();
             const sanitizedEmail = trimmedEmail.length > 0 ? trimmedEmail : null;
@@ -858,6 +887,8 @@ export const ContributorsList: React.FC = () => {
 
     const isNameInvalid = attemptedSubmit && !fullName.trim();
     const isChurchInvalid = attemptedSubmit && (!selectedChurchId || selectedChurchId === 'church-1');
+    const cleanFormCpf = cpf.replace(/\D/g, '');
+    const isCpfInvalid = attemptedSubmit && (cleanFormCpf.length !== 11 && cleanFormCpf.length !== 14);
 
     // Metrics counters memoized
     const { totalContributorsCount, pfContributorsCount, pjContributorsCount } = useMemo(() => {
@@ -894,6 +925,12 @@ export const ContributorsList: React.FC = () => {
         const normalizedQuery = query.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
         return contributors.filter(c => {
+            // 🛡️ Regra Estrita: Apenas cadastros com CPF/CNPJ (11 ou 14 dígitos), Nome e Igreja válidos
+            const cleanCpf = c.cpf ? String(c.cpf).replace(/\D/g, '') : '';
+            const hasValidCpf = cleanCpf.length === 11 || cleanCpf.length === 14;
+            const hasValidName = Boolean((c.canonical_name || c.name) && String(c.canonical_name || c.name).trim());
+            const hasValidChurch = Boolean(c.church_id && c.church_id !== 'church-1');
+            if (!hasValidCpf || !hasValidName || !hasValidChurch) return false;
             // 1. Church Filter
             if (selectedChurchFilter !== 'all') {
                 const isMatch = c.church_id === selectedChurchFilter || c.is_global;
@@ -1134,16 +1171,21 @@ export const ContributorsList: React.FC = () => {
                                 <div className={`grid grid-cols-1 ${personType === 'PJ' ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-3 pt-2 border-t border-slate-100 dark:border-slate-800`}>
                                     <div>
                                         <label htmlFor="contributor-cpf" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                            {personType === 'PF' ? 'CPF' : 'CNPJ'}
+                                            {personType === 'PF' ? 'CPF' : 'CNPJ'} <span className="text-red-500 font-black">*</span>
                                         </label>
                                         <input 
                                             type="text" 
                                             id="contributor-cpf" 
                                             value={cpf} 
-                                            onChange={(e) => setCpf(e.target.value)} 
+                                            onChange={(e) => setCpf(formatCpfCnpj(e.target.value))} 
                                             placeholder={personType === 'PF' ? "000.000.000-00" : "00.000.000/0000-00"}
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-mono font-bold"
+                                            className={`block w-full rounded-xl border ${isCpfInvalid ? 'border-red-500 ring-1 ring-red-500 bg-red-50/20' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900'} text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-mono font-bold transition-all`}
                                         />
+                                        {isCpfInvalid && (
+                                            <span className="text-[9px] text-red-500 font-bold mt-1 block">
+                                                {personType === 'PF' ? 'CPF obrigatório com 11 dígitos.' : 'CNPJ obrigatório com 14 dígitos.'}
+                                            </span>
+                                        )}
                                         {existingContributorWithCpf && (
                                             <span className="text-[9px] text-amber-500 font-bold mt-1 block">
                                                 ⚠️ Já existe cadastro ativo com este documento: {existingContributorWithCpf.canonical_name}

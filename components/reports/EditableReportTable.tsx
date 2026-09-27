@@ -4,7 +4,12 @@ import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { formatCurrency, formatDate, isPeriodClosed, getClosedPeriodsSet, isDateInClosedPeriods, resolvePaymentMethod, resolveContributionType, resolveTransactionSource } from '../../utils/formatters';
 import { useAuth } from '../../contexts/AuthContext';
-import { GitFork, Printer, X, MessageCircle, CheckCircle2, Pencil } from 'lucide-react';
+import { GitFork, Printer, X, MessageCircle, CheckCircle2, Pencil, Receipt, FileText, FileSignature, Paperclip, Plus } from 'lucide-react';
+import { ExpenseAttachment } from '../../types/domain';
+import { preloadAllAttachmentsMap } from '../../services/expenseAttachmentService';
+import { AttachmentPreviewModal } from '../financial/AttachmentPreviewModal';
+import { QuickAttachModal } from '../modals/QuickAttachModal';
+import { ServiceReceiptModal } from '../modals/ServiceReceiptModal';
 import { isWhatsAppSent, getWhatsAppSentMap, sendWhatsAppDirect } from '../modals/WhatsAppReceiptModal';
 import { 
     PencilIcon, 
@@ -87,7 +92,11 @@ const MobileCard = memo(({
     canUndoIdentification = true,
     canPrintReceipt = true,
     waSent,
-    isSecondaryUser = false
+    isSecondaryUser = false,
+    attachmentsMap,
+    onPreviewAttachment,
+    onQuickAttach,
+    onServiceReceipt
 }: any) => {
     const { contributionTypes, paymentMethods: sysPaymentMethods, contributionKeywords, openWhatsAppReceiptModal, contributors, churches, showToast } = useContext(AppContext);
     const row = result as MatchResult;
@@ -109,7 +118,9 @@ const MobileCard = memo(({
                       row.transaction?.type?.toLowerCase() === 'expense' || 
                       row.transaction?.type?.toLowerCase() === 'saida' || 
                       row.contributionType?.toLowerCase() === 'saída' || 
-                      row.contributionType?.toLowerCase() === 'saida'
+                      row.contributionType?.toLowerCase() === 'saida' ||
+                      (row.transaction as any)?.description?.toLowerCase().includes('lançamento manual saída') ||
+                      (row.transaction as any)?.description?.toLowerCase().includes('lancamento manual saida')
     );
     const refDate = row.contributor?.reference_date || row.reference_date || row.transaction.reference_date;
     const hasRefDate = refDate && refDate !== row.transaction.date;
@@ -136,6 +147,18 @@ const MobileCard = memo(({
         String(row.transaction?.id).startsWith('ghost-manual-') || 
         (row.transaction?.row_hash && row.transaction?.row_hash.includes('|bmanual|'));
     const canDeleteRow = !isSecondaryUser || isManualRow;
+
+    const txId = row.transaction?.id || (row as any).id;
+    const txAttachments: ExpenseAttachment[] = (Array.isArray(row.attachments) && row.attachments.length > 0)
+        ? row.attachments
+        : (Array.isArray(row.transaction?.attachments) && row.transaction.attachments.length > 0)
+            ? row.transaction.attachments
+            : (attachmentsMap ? attachmentsMap.get(txId) : undefined) || [];
+    const nfAtt = txAttachments.find(a => a.documentRole === 'nota_fiscal' || (a.extractedData && a.extractedData.documentType === 'nota_fiscal'));
+    const invoiceAtt = txAttachments.find(a => a.documentRole === 'fatura' || (a.extractedData && (a.extractedData.documentType === 'fatura' || a.extractedData.documentType === 'boleto')));
+    const serviceReceiptAtt = txAttachments.find(a => a.documentRole === 'recibo' || a.extractedData?.documentType === 'recibo');
+    const receiptAtt = txAttachments.find(a => a !== serviceReceiptAtt && (a.documentRole === 'comprovante' || (a.extractedData && (a.extractedData.documentType === 'comprovante_pix' || a.extractedData.documentType === 'comprovante_pagamento'))));
+    const identifiedCount = (nfAtt ? 1 : 0) + (invoiceAtt ? 1 : 0) + (receiptAtt ? 1 : 0) + (serviceReceiptAtt ? 1 : 0);
 
     return (
         <div className={`p-4 border-b border-slate-200 dark:border-slate-700 transition-colors ${
@@ -192,6 +215,92 @@ const MobileCard = memo(({
                             <div className="text-[10px] text-slate-400 dark:text-slate-500 font-normal tracking-tight pl-5.5 mt-0.5 leading-tight break-words" title={`Extrato Original: ${rawBankDesc}`}>
                                 <span className="text-[9px] font-semibold uppercase text-slate-400/80 mr-1">Extrato:</span>
                                 <span className="font-mono text-slate-500 dark:text-slate-400">{cleanDisplayDescription(rawBankDesc)}</span>
+                            </div>
+                        )}
+                        {/* Documentos & Comprovantes de Saída / Despesa */}
+                        {(isExpense || txAttachments.length > 0) && (
+                            <div className="flex items-center gap-1.5 mt-2 flex-wrap pl-1">
+                                {nfAtt && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); onPreviewAttachment(nfAtt); }}
+                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 hover:bg-indigo-200 transition-colors border border-indigo-300/80 dark:border-indigo-800/80 cursor-pointer shadow-2xs"
+                                        title="Clique para visualizar a Nota Fiscal (NF-e/NFC-e)"
+                                    >
+                                        <Receipt className="w-2.5 h-2.5" />
+                                        <span>NF</span>
+                                    </button>
+                                )}
+                                {invoiceAtt && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); onPreviewAttachment(invoiceAtt); }}
+                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 hover:bg-amber-200 transition-colors border border-amber-300/80 dark:border-amber-800/80 cursor-pointer shadow-2xs"
+                                        title="Clique para visualizar o Boleto / Fatura"
+                                    >
+                                        <FileText className="w-2.5 h-2.5" />
+                                        <span>Boleto/Fatura</span>
+                                    </button>
+                                )}
+                                {receiptAtt && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); onPreviewAttachment(receiptAtt); }}
+                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 transition-colors border border-emerald-300/80 dark:border-emerald-800/80 cursor-pointer shadow-2xs"
+                                        title="Clique para visualizar o Comprovante de Pagamento"
+                                    >
+                                        <CheckCircle2 className="w-2.5 h-2.5" />
+                                        <span>Comprovante</span>
+                                    </button>
+                                )}
+                                {serviceReceiptAtt && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); onPreviewAttachment(serviceReceiptAtt); }}
+                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 hover:bg-amber-200 transition-colors border border-amber-300 dark:border-amber-800 cursor-pointer shadow-2xs"
+                                        title="Clique para visualizar o Recibo de Prestação de Serviços Assinado"
+                                    >
+                                        <FileSignature className="w-2.5 h-2.5 text-amber-700 dark:text-amber-400" />
+                                        <span>Recibo</span>
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); onServiceReceipt(row); }}
+                                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold transition-all cursor-pointer shadow-2xs ${
+                                        serviceReceiptAtt
+                                            ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800/80'
+                                            : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/60'
+                                    }`}
+                                    title="Emitir ou Assinar Digitalmente o Recibo de Pagamento para o Prestador de Serviço"
+                                >
+                                    <FileSignature className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
+                                    <span>{serviceReceiptAtt ? 'Novo Recibo' : 'Emitir Recibo'}</span>
+                                </button>
+                                {txAttachments.length > identifiedCount && (
+                                    <span className="text-[9px] text-slate-400 font-bold">
+                                        +{txAttachments.length - identifiedCount} anexo(s)
+                                    </span>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); onQuickAttach(row); }}
+                                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold transition-all cursor-pointer ${
+                                        txAttachments.length === 0
+                                            ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50'
+                                            : 'bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                                    }`}
+                                    title={txAttachments.length === 0 ? "Nenhum comprovante anexado. Clique para anexar fatura ou comprovante." : "Gerenciar ou anexar mais documentos"}
+                                >
+                                    {txAttachments.length === 0 ? (
+                                        <>
+                                            <Paperclip className="w-2.5 h-2.5" />
+                                            <span>Anexar</span>
+                                        </>
+                                    ) : (
+                                        <Plus className="w-2.5 h-2.5" />
+                                    )}
+                                </button>
                             </div>
                         )}
                         {row.splits && row.splits.length > 0 && (
@@ -373,7 +482,11 @@ const IncomeRow = memo(({
     canUndoIdentification = true,
     canPrintReceipt = true,
     waSent,
-    isSecondaryUser = false
+    isSecondaryUser = false,
+    attachmentsMap,
+    onPreviewAttachment,
+    onQuickAttach,
+    onServiceReceipt
 }: any) => {
     const { contributionTypes, paymentMethods: sysPaymentMethods, contributionKeywords, openWhatsAppReceiptModal, contributors, churches, showToast } = useContext(AppContext);
     const row = result as MatchResult;
@@ -390,7 +503,9 @@ const IncomeRow = memo(({
                       row.transaction?.type?.toLowerCase() === 'expense' || 
                       row.transaction?.type?.toLowerCase() === 'saida' || 
                       row.contributionType?.toLowerCase() === 'saída' || 
-                      row.contributionType?.toLowerCase() === 'saida'
+                      row.contributionType?.toLowerCase() === 'saida' ||
+                      (row.transaction as any)?.description?.toLowerCase().includes('lançamento manual saída') ||
+                      (row.transaction as any)?.description?.toLowerCase().includes('lancamento manual saida')
     );
     const refDate = row.contributor?.reference_date || row.reference_date || row.transaction.reference_date;
     const hasRefDate = refDate && refDate !== row.transaction.date;
@@ -418,6 +533,18 @@ const IncomeRow = memo(({
         String(row.transaction?.id).startsWith('ghost-manual-') || 
         (row.transaction?.row_hash && row.transaction?.row_hash.includes('|bmanual|'));
     const canDeleteRow = !isSecondaryUser || isManualRow;
+
+    const txId = row.transaction?.id || (row as any).id;
+    const txAttachments: ExpenseAttachment[] = (Array.isArray(row.attachments) && row.attachments.length > 0)
+        ? row.attachments
+        : (Array.isArray(row.transaction?.attachments) && row.transaction.attachments.length > 0)
+            ? row.transaction.attachments
+            : (attachmentsMap ? attachmentsMap.get(txId) : undefined) || [];
+    const nfAtt = txAttachments.find(a => a.documentRole === 'nota_fiscal' || (a.extractedData && a.extractedData.documentType === 'nota_fiscal'));
+    const invoiceAtt = txAttachments.find(a => a.documentRole === 'fatura' || (a.extractedData && (a.extractedData.documentType === 'fatura' || a.extractedData.documentType === 'boleto')));
+    const serviceReceiptAtt = txAttachments.find(a => a.documentRole === 'recibo' || a.extractedData?.documentType === 'recibo');
+    const receiptAtt = txAttachments.find(a => a !== serviceReceiptAtt && (a.documentRole === 'comprovante' || (a.extractedData && (a.extractedData.documentType === 'comprovante_pix' || a.extractedData.documentType === 'comprovante_pagamento'))));
+    const identifiedCount = (nfAtt ? 1 : 0) + (invoiceAtt ? 1 : 0) + (receiptAtt ? 1 : 0) + (serviceReceiptAtt ? 1 : 0);
 
     const hasSplits = Boolean(row.splits && row.splits.length > 0);
 
@@ -520,6 +647,92 @@ const IncomeRow = memo(({
                             <div className="text-[10px] text-slate-400 dark:text-slate-500 font-normal tracking-tight pl-5.5 leading-tight break-words max-w-md" title={`Extrato Original: ${rawBankDesc}`}>
                                 <span className="text-[9px] font-semibold uppercase text-slate-400/80 mr-1">Extrato:</span>
                                 <span className="font-mono text-slate-500 dark:text-slate-400">{cleanDisplayDescription(rawBankDesc)}</span>
+                            </div>
+                        )}
+                        {/* Documentos & Comprovantes de Saída / Despesa */}
+                        {(isExpense || txAttachments.length > 0) && (
+                            <div className="flex items-center gap-1.5 mt-1 flex-wrap pl-5.5">
+                                {nfAtt && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); onPreviewAttachment(nfAtt); }}
+                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 hover:bg-indigo-200 transition-colors border border-indigo-300/80 dark:border-indigo-800/80 cursor-pointer shadow-2xs"
+                                        title="Clique para visualizar a Nota Fiscal (NF-e/NFC-e)"
+                                    >
+                                        <Receipt className="w-2.5 h-2.5" />
+                                        <span>NF</span>
+                                    </button>
+                                )}
+                                {invoiceAtt && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); onPreviewAttachment(invoiceAtt); }}
+                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 hover:bg-amber-200 transition-colors border border-amber-300/80 dark:border-amber-800/80 cursor-pointer shadow-2xs"
+                                        title="Clique para visualizar o Boleto / Fatura"
+                                    >
+                                        <FileText className="w-2.5 h-2.5" />
+                                        <span>Boleto/Fatura</span>
+                                    </button>
+                                )}
+                                {receiptAtt && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); onPreviewAttachment(receiptAtt); }}
+                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 transition-colors border border-emerald-300/80 dark:border-emerald-800/80 cursor-pointer shadow-2xs"
+                                        title="Clique para visualizar o Comprovante de Pagamento"
+                                    >
+                                        <CheckCircle2 className="w-2.5 h-2.5" />
+                                        <span>Comprovante</span>
+                                    </button>
+                                )}
+                                {serviceReceiptAtt && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); onPreviewAttachment(serviceReceiptAtt); }}
+                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 hover:bg-amber-200 transition-colors border border-amber-300 dark:border-amber-800 cursor-pointer shadow-2xs"
+                                        title="Clique para visualizar o Recibo de Prestação de Serviços Assinado"
+                                    >
+                                        <FileSignature className="w-2.5 h-2.5 text-amber-700 dark:text-amber-400" />
+                                        <span>Recibo</span>
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); onServiceReceipt(row); }}
+                                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold transition-all cursor-pointer shadow-2xs ${
+                                        serviceReceiptAtt
+                                            ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800/80'
+                                            : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/60'
+                                    }`}
+                                    title="Emitir ou Assinar Digitalmente o Recibo de Pagamento para o Prestador de Serviço"
+                                >
+                                    <FileSignature className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
+                                    <span>{serviceReceiptAtt ? 'Novo Recibo' : 'Emitir Recibo'}</span>
+                                </button>
+                                {txAttachments.length > identifiedCount && (
+                                    <span className="text-[9px] text-slate-400 font-bold">
+                                        +{txAttachments.length - identifiedCount} anexo(s)
+                                    </span>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); onQuickAttach(row); }}
+                                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold transition-all cursor-pointer ${
+                                        txAttachments.length === 0
+                                            ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50'
+                                            : 'bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                                    }`}
+                                    title={txAttachments.length === 0 ? "Nenhum comprovante anexado. Clique para anexar fatura ou comprovante." : "Gerenciar ou anexar mais documentos"}
+                                >
+                                    {txAttachments.length === 0 ? (
+                                        <>
+                                            <Paperclip className="w-2.5 h-2.5" />
+                                            <span>Anexar</span>
+                                        </>
+                                    ) : (
+                                        <Plus className="w-2.5 h-2.5" />
+                                    )}
+                                </button>
                             </div>
                         )}
                     </div>
@@ -863,9 +1076,9 @@ function valorPorExtenso(valor: number): string {
     return extenso.charAt(0).toUpperCase() + extenso.slice(1);
 }
 
-export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ data, reportType, sortConfig, onSort, onEdit, onSplit }) => {
+export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ data, reportType, sortConfig, onSort, onEdit, onSplit, onRowChange }) => {
     const { t, language } = useTranslation();
-    const { openDeleteConfirmation, undoIdentification, toggleConfirmation, churches, matchResults, contributionTypes, paymentMethods: sysPaymentMethods, contributionKeywords } = useContext(AppContext);
+    const { openDeleteConfirmation, undoIdentification, toggleConfirmation, churches, matchResults, contributionTypes, paymentMethods: sysPaymentMethods, contributionKeywords, showToast } = useContext(AppContext);
     const { subscription, user } = useAuth();
 
     const isSecondaryUser = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
@@ -880,6 +1093,30 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
     
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [selectedReceipt, setSelectedReceipt] = useState<MatchResult | null>(null);
+
+    const [attachmentsMap, setAttachmentsMap] = useState<Map<string, ExpenseAttachment[]>>(new Map());
+    const [previewAttachment, setPreviewAttachment] = useState<ExpenseAttachment | null>(null);
+    const [quickAttachTx, setQuickAttachTx] = useState<any | null>(null);
+    const [serviceReceiptTx, setServiceReceiptTx] = useState<any | null>(null);
+
+    useEffect(() => {
+        let isMounted = true;
+        preloadAllAttachmentsMap().then(map => {
+            if (isMounted) setAttachmentsMap(map);
+        });
+
+        const handleAttUpdate = () => {
+            preloadAllAttachmentsMap().then(map => {
+                if (isMounted) setAttachmentsMap(map);
+            });
+        };
+
+        window.addEventListener('expense_attachments_updated', handleAttUpdate);
+        return () => {
+            isMounted = false;
+            window.removeEventListener('expense_attachments_updated', handleAttUpdate);
+        };
+    }, []);
     
     useEffect(() => {
         setSelectedIds([]);
@@ -1019,6 +1256,10 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                                     canPrintReceipt={canPrintReceipt}
                                     waSent={!!waSentMap[result.transaction.id]}
                                     isSecondaryUser={isSecondaryUser}
+                                    attachmentsMap={attachmentsMap}
+                                    onPreviewAttachment={setPreviewAttachment}
+                                    onQuickAttach={setQuickAttachTx}
+                                    onServiceReceipt={setServiceReceiptTx}
                                 />
                             );
                         })}
@@ -1061,6 +1302,10 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                             canPrintReceipt={canPrintReceipt}
                             waSent={!!waSentMap[result.transaction.id]}
                             isSecondaryUser={isSecondaryUser}
+                            attachmentsMap={attachmentsMap}
+                            onPreviewAttachment={setPreviewAttachment}
+                            onQuickAttach={setQuickAttachTx}
+                            onServiceReceipt={setServiceReceiptTx}
                         />
                     );
                 })}
@@ -1332,6 +1577,94 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                     </div>
                 </div>
             )}
+
+            {/* Modal de Pré-visualização de Documento/Anexo */}
+            <AttachmentPreviewModal
+                isOpen={!!previewAttachment}
+                attachment={previewAttachment}
+                onClose={() => setPreviewAttachment(null)}
+            />
+
+            {/* Modal de Anexar Rápido Comprovante/Fatura */}
+            <QuickAttachModal
+                isOpen={!!quickAttachTx}
+                transaction={quickAttachTx ? {
+                    id: quickAttachTx.transaction?.id || quickAttachTx.id,
+                    description: quickAttachTx.transaction?.description || quickAttachTx.description || 'Lançamento de Despesa',
+                    desc: quickAttachTx.transaction?.description || quickAttachTx.description || 'Lançamento de Despesa',
+                    amount: Math.abs(Number(quickAttachTx.transaction?.amount ?? quickAttachTx.amount ?? 0)),
+                    date: quickAttachTx.transaction?.date || quickAttachTx.date,
+                    church: quickAttachTx.church?.name,
+                    churchName: quickAttachTx.church?.name,
+                    attachments: quickAttachTx.attachments || quickAttachTx.transaction?.attachments || (attachmentsMap ? attachmentsMap.get(quickAttachTx.transaction?.id || quickAttachTx.id) : undefined) || []
+                } : null}
+                onClose={() => setQuickAttachTx(null)}
+                onSaved={(txId, atts) => {
+                    setAttachmentsMap(prev => {
+                        const next = new Map(prev);
+                        next.set(txId, atts);
+                        return next;
+                    });
+                    if (onRowChange) {
+                        const target = data.find(r => r.transaction.id === txId);
+                        if (target) {
+                            onRowChange({
+                                ...target,
+                                attachments: atts,
+                                transaction: {
+                                    ...target.transaction,
+                                    attachments: atts
+                                }
+                            });
+                        }
+                    }
+                    showToast?.('Comprovante(s) salvo(s) com sucesso!', 'success');
+                }}
+            />
+
+            {/* Modal de Emissão e Assinatura de Recibo */}
+            <ServiceReceiptModal
+                isOpen={!!serviceReceiptTx}
+                transaction={serviceReceiptTx ? {
+                    id: serviceReceiptTx.transaction?.id || serviceReceiptTx.id,
+                    description: serviceReceiptTx.transaction?.description || serviceReceiptTx.description || 'Prestação de Serviço',
+                    desc: serviceReceiptTx.transaction?.description || serviceReceiptTx.description || 'Prestação de Serviço',
+                    amount: Math.abs(Number(serviceReceiptTx.transaction?.amount ?? serviceReceiptTx.amount ?? 0)),
+                    date: serviceReceiptTx.transaction?.date || serviceReceiptTx.date,
+                    churchId: serviceReceiptTx.church?.id,
+                    church: serviceReceiptTx.church?.name
+                } : null}
+                church={churches.find((c: any) => c.id === serviceReceiptTx?.church?.id || c.name === serviceReceiptTx?.church?.name) || churches[0]}
+                onClose={() => setServiceReceiptTx(null)}
+                onReceiptGenerated={(att) => {
+                    const txId = serviceReceiptTx?.transaction?.id || serviceReceiptTx?.id;
+                    if (txId) {
+                        setAttachmentsMap(prev => {
+                            const next = new Map(prev);
+                            const currentList = next.get(txId) || [];
+                            const nextList = [...currentList, att];
+                            next.set(txId, nextList);
+                            return next;
+                        });
+                        if (onRowChange) {
+                            const target = data.find(r => r.transaction.id === txId);
+                            if (target) {
+                                const currentList = target.attachments || target.transaction.attachments || [];
+                                const nextList = [...currentList, att];
+                                onRowChange({
+                                    ...target,
+                                    attachments: nextList,
+                                    transaction: {
+                                        ...target.transaction,
+                                        attachments: nextList
+                                    }
+                                });
+                            }
+                        }
+                        showToast?.('Recibo assinado e anexado com sucesso!', 'success');
+                    }
+                }}
+            />
         </div>
     );
 });

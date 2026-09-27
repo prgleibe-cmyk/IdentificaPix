@@ -600,6 +600,32 @@ class LocalSqliteEngine {
         }
       }
     } catch (_) {}
+
+    // 🛡️ Regra de Integridade: Remove cadastros antigos/incompletos sem CPF/CNPJ, Nome ou Igreja
+    try {
+      this.db.exec(`
+        DELETE FROM contributors 
+        WHERE cpf IS NULL 
+           OR trim(cpf) = '' 
+           OR canonical_name IS NULL 
+           OR trim(canonical_name) = '' 
+           OR church_id IS NULL 
+           OR trim(church_id) = '' 
+           OR church_id = 'church-1';
+      `);
+      const allRows = this.db.prepare("SELECT id, cpf FROM contributors").all() as any[];
+      const toDelete = allRows.filter(r => {
+        const clean = (r.cpf || '').replace(/\D/g, '');
+        return clean.length !== 11 && clean.length !== 14;
+      });
+      if (toDelete.length > 0) {
+        const delStmt = this.db.prepare("DELETE FROM contributors WHERE id = ?");
+        for (const item of toDelete) {
+          delStmt.run(item.id);
+        }
+        console.log(`[Contributors API] SQLite: ${toDelete.length} cadastros sem CPF/CNPJ válido removidos.`);
+      }
+    } catch (_) {}
   }
 
   public query(sql: string, params: any[] = []): { rows: any[]; rowCount: number; command: string; oid: number; fields: any[] } {
@@ -1027,6 +1053,28 @@ async function initializeDatabase() {
     await client.query("CREATE INDEX IF NOT EXISTS idx_contributors_email ON contributors(email);");
     await client.query("CREATE INDEX IF NOT EXISTS idx_contributors_pix_key ON contributors(pix_key);");
     console.log('[Contributors API] Table "contributors" verified or successfully created.');
+
+    // 🛡️ Regra de Integridade: Remove cadastros antigos/incompletos sem CPF/CNPJ, Nome ou Igreja
+    try {
+      const allContribs = await pool.query("SELECT id, canonical_name, name, cpf, church_id FROM contributors");
+      const invalidIds: string[] = [];
+      for (const row of allContribs.rows) {
+        const cleanName = (row.canonical_name || row.name || '').trim();
+        const cleanChurch = (row.church_id || '').trim();
+        const cleanCpf = (row.cpf || '').replace(/\D/g, '');
+        if (!cleanName || !cleanChurch || cleanChurch === 'church-1' || (cleanCpf.length !== 11 && cleanCpf.length !== 14)) {
+          invalidIds.push(row.id);
+        }
+      }
+      if (invalidIds.length > 0) {
+        for (const badId of invalidIds) {
+          await pool.query("DELETE FROM contributors WHERE id = $1", [badId]);
+        }
+        console.log(`[Contributors API] Limpeza preventiva concluída: ${invalidIds.length} cadastros incompletos (sem CPF/CNPJ, Nome ou Igreja) foram removidos do banco.`);
+      }
+    } catch (cleanErr: any) {
+      console.warn('[Contributors API] Aviso ao executar limpeza preventiva de cadastros:', cleanErr?.message);
+    }
 
     // Create table banks
     await client.query(`
@@ -1934,7 +1982,7 @@ app.get('/api/v1/contributors', async (req: Request, res: Response) => {
       }
     }
 
-    let query = 'SELECT * FROM contributors WHERE 1=1';
+    let query = "SELECT * FROM contributors WHERE 1=1 AND cpf IS NOT NULL AND TRIM(cpf) != '' AND canonical_name IS NOT NULL AND TRIM(canonical_name) != '' AND church_id IS NOT NULL AND TRIM(church_id) != '' AND church_id != 'church-1'";
     const params: any[] = [];
     let paramCounter = 1;
 
@@ -1987,7 +2035,13 @@ app.get('/api/v1/contributors', async (req: Request, res: Response) => {
     query += ' ORDER BY canonical_name ASC';
 
     const result = await pool.query(query, params);
-    return res.json(result.rows);
+    const validRows = result.rows.filter((r: any) => {
+      const cleanName = (r.canonical_name || r.name || '').trim();
+      const cleanChurch = (r.church_id || '').trim();
+      const cleanCpf = (r.cpf || '').replace(/\D/g, '');
+      return cleanName.length > 0 && cleanChurch.length > 0 && cleanChurch !== 'church-1' && (cleanCpf.length === 11 || cleanCpf.length === 14);
+    });
+    return res.json(validRows);
   } catch (err) {
     console.error('[Contributors API] Error processing get contributors request:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
@@ -3300,13 +3354,12 @@ app.post('/api/v1/contributors', async (req: Request, res: Response) => {
 
     const cleanPhotoUrl = photo_url !== undefined ? photo_url : (photo !== undefined ? photo : null);
 
-    // UUID Pattern validation
-    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-
-    let cleanChurchId = church_id || ctx.churchId;
-    if (!cleanChurchId || typeof cleanChurchId !== 'string' || !uuidRegex.test(cleanChurchId)) {
-      cleanChurchId = '00000000-0000-0000-0000-000000000001';
+    // Mandatory church validation
+    const targetChurch = (church_id || ctx.churchId || '').trim();
+    if (!targetChurch || targetChurch === 'church-1' || targetChurch === 'Selecione uma igreja') {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Igreja é obrigatória.' });
     }
+    const cleanChurchId = targetChurch;
 
     if (!canonical_name || typeof canonical_name !== 'string') {
       return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Nome é obrigatório.' });
@@ -3318,13 +3371,13 @@ app.post('/api/v1/contributors', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Nome é obrigatório.' });
     }
 
-    // CPF is optional
-    let sanitizedCpf: string | null = null;
-    if (cpf !== undefined && cpf !== null && cpf !== '') {
-      if (typeof cpf !== 'string' && typeof cpf !== 'number') {
-        return res.status(400).json({ error: 'VALIDATION_ERROR' });
-      }
-      sanitizedCpf = String(cpf).replace(/\D/g, '');
+    // CPF / CNPJ is mandatory (11 digits for PF or 14 digits for PJ)
+    if (cpf === undefined || cpf === null || String(cpf).trim() === '') {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'CPF ou CNPJ é obrigatório.' });
+    }
+    const sanitizedCpf = String(cpf).replace(/\D/g, '');
+    if (sanitizedCpf.length !== 11 && sanitizedCpf.length !== 14) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'CPF deve conter 11 dígitos ou CNPJ deve conter 14 dígitos.' });
     }
 
     // Email, phone and status normalization
@@ -3507,40 +3560,43 @@ app.put('/api/v1/contributors/:id', async (req: Request, res: Response) => {
     };
 
     if (church_id !== undefined) {
-      if (!uuidRegex.test(church_id)) {
-        return res.status(400).json({ error: 'VALIDATION_ERROR' });
+      const cleanChurch = String(church_id).trim();
+      if (!cleanChurch || cleanChurch === 'church-1' || cleanChurch === 'Selecione uma igreja') {
+        return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Igreja é obrigatória.' });
       }
-      addField('church_id', church_id);
+      addField('church_id', cleanChurch);
     }
 
     if (canonical_name !== undefined) {
       if (typeof canonical_name !== 'string' || !canonical_name.trim()) {
-        return res.status(400).json({ error: 'VALIDATION_ERROR' });
+        return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Nome é obrigatório.' });
       }
       const cleanName = canonical_name.trim();
       addField('canonical_name', cleanName.replace(/\s+/g, ' ').toUpperCase());
       addField('name', cleanName);
     } else if (name !== undefined) {
       const cleanName = typeof name === 'string' ? name.trim() : '';
-      if (cleanName) {
-        addField('canonical_name', cleanName.replace(/\s+/g, ' ').toUpperCase());
-        addField('name', cleanName);
+      if (!cleanName) {
+        return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Nome é obrigatório.' });
       }
+      addField('canonical_name', cleanName.replace(/\s+/g, ' ').toUpperCase());
+      addField('name', cleanName);
     }
 
     if (cpf !== undefined) {
-      const sanitizedCpf = cpf ? String(cpf).replace(/\D/g, '') : null;
-      if (sanitizedCpf && sanitizedCpf.length > 0) {
-        const dupCheck = await pool.query(
-          "SELECT id, canonical_name FROM contributors WHERE id != $1 AND status = 'active' AND (cpf = $2 OR REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), '/', '') = $2) LIMIT 1",
-          [id, sanitizedCpf]
-        );
-        if (dupCheck.rows.length > 0) {
-          return res.status(409).json({
-            error: 'DUPLICATE_CPF',
-            message: `Já existe outro cadastro ativo (${dupCheck.rows[0].canonical_name}) com este CPF/CNPJ.`
-          });
-        }
+      const sanitizedCpf = String(cpf || '').replace(/\D/g, '');
+      if (sanitizedCpf.length !== 11 && sanitizedCpf.length !== 14) {
+        return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'CPF deve conter 11 dígitos ou CNPJ deve conter 14 dígitos.' });
+      }
+      const dupCheck = await pool.query(
+        "SELECT id, canonical_name FROM contributors WHERE id != $1 AND status = 'active' AND (cpf = $2 OR REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), '/', '') = $2) LIMIT 1",
+        [id, sanitizedCpf]
+      );
+      if (dupCheck.rows.length > 0) {
+        return res.status(409).json({
+          error: 'DUPLICATE_CPF',
+          message: `Já existe outro cadastro ativo (${dupCheck.rows[0].canonical_name}) com este CPF/CNPJ.`
+        });
       }
       addField('cpf', sanitizedCpf);
     }
@@ -3686,6 +3742,36 @@ app.delete('/api/v1/contributors/:id', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('[Contributors API] Error processing delete contributor request:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// POST /api/v1/contributors/cleanup-invalids
+// Remove permanentemente do banco todos os cadastros incompletos (sem CPF/CNPJ, Nome ou Igreja)
+app.post('/api/v1/contributors/cleanup-invalids', async (req: Request, res: Response) => {
+  try {
+    const allContribs = await pool.query("SELECT id, canonical_name, name, cpf, church_id FROM contributors");
+    const invalidIds: string[] = [];
+    for (const row of allContribs.rows) {
+      const cleanName = (row.canonical_name || row.name || '').trim();
+      const cleanChurch = (row.church_id || '').trim();
+      const cleanCpf = (row.cpf || '').replace(/\D/g, '');
+      if (!cleanName || !cleanChurch || cleanChurch === 'church-1' || (cleanCpf.length !== 11 && cleanCpf.length !== 14)) {
+        invalidIds.push(row.id);
+      }
+    }
+    let removedCount = 0;
+    for (const badId of invalidIds) {
+      try {
+        await pool.query("UPDATE consolidated_transactions SET contributor_id = NULL WHERE contributor_id = $1", [badId]);
+        await pool.query("DELETE FROM contributors WHERE id = $1", [badId]);
+        removedCount++;
+      } catch (_) {}
+    }
+    console.log(`[Contributors API] Limpeza de inválidos via API executada: ${removedCount} registros removidos.`);
+    return res.json({ success: true, removedCount });
+  } catch (err: any) {
+    console.error('[Contributors API] Error during cleanup-invalids:', err);
+    return res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Erro ao limpar cadastros incompletos.' });
   }
 });
 
