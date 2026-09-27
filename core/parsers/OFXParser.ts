@@ -6,13 +6,13 @@ export class OFXParser extends BaseParser<string> {
   
   parse(doc: RawDocument<string>): TransactionDraft[] {
     const drafts: TransactionDraft[] = [];
-    const transactions = doc.content.split('<STMTTRN>');
+    const transactions = doc.content.split(/<STMTTRN\b[^>]*>/i);
     
     // Remove o header (primeiro elemento antes do primeiro <STMTTRN>)
     transactions.shift();
 
     transactions.forEach((tx, index) => {
-      const date = this.getTagValue(tx, 'DTPOSTED');
+      const date = this.getTagValue(tx, 'DTPOSTED') || this.getTagValue(tx, 'DTUSER') || this.getTagValue(tx, 'DTSERVER');
       const amount = this.getTagValue(tx, 'TRNAMT');
       const name = this.getTagValue(tx, 'NAME');
       const memo = this.getTagValue(tx, 'MEMO');
@@ -78,14 +78,20 @@ export class OFXParser extends BaseParser<string> {
   }
 
   private getTagValue(xml: string, tag: string): string {
-    const regex = new RegExp(`<${tag}>([^<\\r\\n]+)`, 'i');
-    const match = xml.match(regex);
-    if (!match) return '';
-    let val = match[1];
-    const closeIndex = val.toLowerCase().indexOf(`</${tag.toLowerCase()}>`);
-    if (closeIndex !== -1) {
-      val = val.substring(0, closeIndex);
+    // 1. Tenta formato com tag de fechamento: <TAG>conteúdo</TAG> (permitindo quebras de linha e espaços)
+    const closedRegex = new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i');
+    const closedMatch = xml.match(closedRegex);
+    if (closedMatch) {
+      return closedMatch[1].trim();
     }
-    return val.trim();
+
+    // 2. Formato SGML padrão OFX (sem tag de fechamento, termina na próxima tag '<' ou quebra de linha)
+    const openRegex = new RegExp(`<${tag}\\b[^>]*>\\s*([^<\\r\\n]+)`, 'i');
+    const openMatch = xml.match(openRegex);
+    if (openMatch) {
+      return openMatch[1].trim();
+    }
+
+    return '';
   }
 }

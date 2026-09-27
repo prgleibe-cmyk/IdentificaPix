@@ -41,14 +41,31 @@ function areDescriptionsMatching(desc1: string, desc2: string): boolean {
     const tokens1 = extractSignificantTokens(desc1);
     const tokens2 = extractSignificantTokens(desc2);
     
+    // 🛡️ Se alguma das descrições não tem tokens significativos (ex: texto genérico como 'PIX RECEBIDO'),
+    // NUNCA assumimos correspondência cega para não descartar lançamentos legítimos.
     if (tokens1.size === 0 || tokens2.size === 0) {
-        return true;
+        return false;
     }
     
+    let matchCount = 0;
     for (const t of tokens1) {
-        if (tokens2.has(t)) return true;
+        if (tokens2.has(t)) matchCount++;
     }
-    return false;
+
+    // Se ambos tiverem apenas 1 token significativo, deve ser exatamente o mesmo
+    if (tokens1.size === 1 && tokens2.size === 1) {
+        return matchCount === 1;
+    }
+
+    // Se tiver múltiplos tokens (ex: Nome + Sobrenome),
+    // pelo menos 2 tokens devem coincidir E atingir no mínimo 60% dos tokens da descrição menor.
+    // Isso impede que homônimos parciais como "MARIA SILVA" e "JOÃO SILVA" sejam considerados o mesmo lançamento.
+    const minTokens = Math.min(tokens1.size, tokens2.size);
+    if (minTokens >= 2) {
+        return matchCount >= 2 && (matchCount / minTokens) >= 0.6;
+    }
+
+    return matchCount === minTokens;
 }
 
 export const LaunchService = {
@@ -154,10 +171,11 @@ export const LaunchService = {
                     const exAmt = Number(ex.amount || 0);
                     if (Math.abs(exAmt - numAmount) >= 0.001) return false;
 
-                    // Janela temporal de 0 a 3 dias (diferença de final de semana/feriado)
+                    // Janela temporal: para reconciliação cruzada (SMS/Notificação vs Extrato OFX),
+                    // transações de Pix ocorrem no mesmo dia ou no máximo 1 dia de diferença (ajuste de fuso horário / virada de noite)
                     const exDate = ex.transaction_date || ex.date || '';
                     const daysDiff = getDaysDifference(finalDate, exDate);
-                    if (daysDiff > 3) return false;
+                    if (daysDiff > 1) return false;
 
                     return true;
                 });
