@@ -28,6 +28,95 @@ export const strictNormalize = (str: string): string => {
         .trim();
 };
 
+export function cleanBankDescription(rawDescription: string): string {
+    if (!rawDescription) return 'Lançamento Bancário';
+
+    let cleaned = NameResolver.clean(rawDescription);
+
+    // List of generic operational prefixes and terms to strip out
+    const genericPatterns = [
+        /VOC[EÊ] RECEBEU UM PIX NO VALOR DE/gi,
+        /APROVEITE TODAS (?:AS )?VANTAGENS DO PIX NO SICREDI[\.!]?/gi,
+        /RECEBIMENTO PIX-PIX_CRED/gi,
+        /PAGAMENTO PIX-PIX_DEB/gi,
+        /PIX RECEBIDO - OUTRA IF/gi,
+        /PIX RECEBIDO OUTRA IF/gi,
+        /PIX RECEB\.OUTRA IF/gi,
+        /PIX EMIT\.OUTRA IF/gi,
+        /PIX ENVIADO - OUTRA IF/gi,
+        /PIX ENVIADO OUTRA IF/gi,
+        /RECEBIMENTO PIX -/gi,
+        /RECEBIMENTO PIX/gi,
+        /RECEBIMENTO DE PIX/gi,
+        /PAGAMENTO PIX -/gi,
+        /PAGAMENTO PIX/gi,
+        /PAGAMENTO DE PIX/gi,
+        /PIX RECEBIDO -/gi,
+        /PIX RECEBIDO/gi,
+        /PIX ENVIADO -/gi,
+        /PIX ENVIADO/gi,
+        /CREDITO DE PIX/gi,
+        /CRÉDITO DE PIX/gi,
+        /DEBITO DE PIX/gi,
+        /DÉBITO DE PIX/gi,
+        /PIX_CRED/gi,
+        /PIX_DEB/gi,
+        /TRANSFERENCIA RECEBIDA/gi,
+        /TRANSFERÊNCIA RECEBIDA/gi,
+        /TRANSFERENCIA ENVIADA/gi,
+        /TRANSFERÊNCIA ENVIADA/gi,
+        /CR COMPRAS CRE OUTRAS BANDEIRAS/gi,
+        /CR COMPRAS MASTERCARD/gi,
+        /CR COMPRAS VISA/gi,
+        /CR COMPRAS ELO/gi,
+        /CR COMPRAS/gi,
+        /COMPRAS CRE OUTRAS BANDEIRAS/gi,
+        /COMPRAS MASTERCARD/gi,
+        /COMPRAS VISA/gi,
+        /COMPRAS ELO/gi,
+        /DÉB\.TIT\.COMPE\.EFETI/gi,
+        /DEB\.TIT\.COMPE\.EFETI/gi,
+        /TAR MANUTENCAO/gi,
+        /TARIFA EXTRATO/gi,
+        /TARIFA BANCARIA/gi,
+        /TAR BANCARIA/gi,
+        /RSHOP-/gi,
+        /SAQUE BANCO 24HORAS/gi,
+        /SAQUE SICOOB/gi,
+        /INT TRANSF/gi,
+        /TRANSF TEF/gi,
+        /DOC ELETRONICO/gi,
+        /TED ELETRONICA/gi
+    ];
+
+    let tempDesc = cleaned;
+    for (const pattern of genericPatterns) {
+        tempDesc = tempDesc.replace(pattern, '');
+    }
+
+    // Clean up residual dashes, colons, spaces
+    tempDesc = tempDesc.replace(/^[\s\-:]+/, '').replace(/[\s\-:]+$/, '').trim();
+
+    // If there is still a meaningful description left (e.g., person's name or establishment), return it!
+    if (tempDesc.length >= 2) {
+        return tempDesc;
+    }
+
+    // Otherwise, if the original text was pure generic bank noise, map it to a clean human-readable title
+    const upperRaw = cleaned.toUpperCase();
+
+    if (upperRaw.includes('MASTERCARD')) return 'Compra Cartão Mastercard';
+    if (upperRaw.includes('VISA')) return 'Compra Cartão Visa';
+    if (upperRaw.includes('OUTRAS BANDEIRAS') || upperRaw.includes('CR COMPRAS') || upperRaw.includes('COMPRAS')) return 'Compra Cartão de Crédito';
+    if (upperRaw.includes('PIX') && (upperRaw.includes('RECEB') || upperRaw.includes('CRED'))) return 'PIX Recebido';
+    if (upperRaw.includes('PIX') && (upperRaw.includes('ENV') || upperRaw.includes('EMIT') || upperRaw.includes('PAG') || upperRaw.includes('DEB'))) return 'PIX Enviado';
+    if (upperRaw.includes('PIX')) return 'Transferência PIX';
+    if (upperRaw.includes('TARIFA') || upperRaw.includes('TAR ')) return 'Tarifa Bancária';
+    if (upperRaw.includes('TRANSFER') || upperRaw.includes('TED') || upperRaw.includes('DOC')) return 'Transferência Bancária';
+
+    return 'Lançamento Bancário';
+}
+
 /**
  * Extrai códigos numéricos significativos de uma string.
  */

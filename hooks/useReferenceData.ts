@@ -2,10 +2,11 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { getAuthToken } from '../services/auth/authAdapter';
 import { Bank, Church, ChurchFormData, ContributionType, LearnedAssociation, MatchResult } from '../types';
 import { usePersistentState } from './usePersistentState';
-import { strictNormalize, DEFAULT_CONTRIBUTION_KEYWORDS, isInvalidOrNumericName } from '../services/utils/parsingUtils';
+import { strictNormalize, DEFAULT_CONTRIBUTION_KEYWORDS, isInvalidOrNumericName, cleanBankDescription, normalizeString } from '../services/utils/parsingUtils';
 import { useAuth } from '../contexts/AuthContext';
 import { batchState } from './reconciliation/useCloudSync';
 import { fetchWithMemoryCache } from '../services/clientDataCache';
+import { getCachedContributors } from '../services/contributorsCache';
 
 const DEFAULT_PAYMENT_METHODS = ['PIX', 'DINHEIRO'];
 
@@ -281,11 +282,33 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         
         const normalizedDesc = strictNormalize(matchResult.transaction.description || '');
         const rawNormalizedDesc = matchResult.transaction.rawDescription ? strictNormalize(matchResult.transaction.rawDescription) : '';
+        const cleanDescStrict = strictNormalize(cleanBankDescription(matchResult.transaction.description || ''));
+        const cleanRawStrict = matchResult.transaction.rawDescription ? strictNormalize(cleanBankDescription(matchResult.transaction.rawDescription)) : '';
         
         if (isBatchUpdating) return;
 
         // 🛡️ Prioriza a igreja de cadastro original do contribuinte em vez de alteração temporária do lançamento
-        const originalChurchId = (contributorObj as any)?._churchId || (contributorObj as any)?.church?.id || (contributorObj as any)?.church_id || matchResult.church.id;
+        let originalChurchId = (contributorObj as any)?._churchId || (contributorObj as any)?.church?.id || (contributorObj as any)?.church_id;
+
+        // Se a igreja original não veio anexada no objeto, busca o cadastro original pelo ID ou pelo nome no cache de contribuintes
+        if (!originalChurchId && (contributorObj?.id || contributorName)) {
+            try {
+                const cachedList = await getCachedContributors();
+                const found = (Array.isArray(cachedList) ? cachedList : []).find((c: any) => {
+                    if (contributorObj?.id && c.id === contributorObj.id) return true;
+                    const cNorm = normalizeString(c.canonical_name || c.name || '');
+                    const targetNorm = normalizeString(contributorName);
+                    return cNorm && targetNorm && cNorm === targetNorm;
+                });
+                if (found && found.church_id && found.church_id !== 'church-1') {
+                    originalChurchId = found.church_id;
+                }
+            } catch (_) {}
+        }
+
+        if (!originalChurchId || originalChurchId === 'church-1') {
+            originalChurchId = matchResult.church.id;
+        }
 
         batchState.isAtomicUpdate = true;
         const newAssociation: LearnedAssociation = { 
@@ -296,10 +319,11 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             user_id: effectiveUserId 
         };
 
-        const descsToSave = [normalizedDesc];
-        if (rawNormalizedDesc && rawNormalizedDesc !== normalizedDesc) {
-            descsToSave.push(rawNormalizedDesc);
-        }
+        const descsToSave: string[] = [];
+        if (normalizedDesc) descsToSave.push(normalizedDesc);
+        if (rawNormalizedDesc && !descsToSave.includes(rawNormalizedDesc)) descsToSave.push(rawNormalizedDesc);
+        if (cleanDescStrict && !descsToSave.includes(cleanDescStrict)) descsToSave.push(cleanDescStrict);
+        if (cleanRawStrict && !descsToSave.includes(cleanRawStrict)) descsToSave.push(cleanRawStrict);
 
         setLearnedAssociations(prev => {
             const filtered = prev.filter(la => !descsToSave.includes(la.normalizedDescription));
@@ -417,6 +441,9 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const updateChurch = useCallback(async (churchId: string, formData: ChurchFormData) => {
         setChurches(prev => prev.map(c => c.id === churchId ? { ...c, ...formData } : c));
         closeEditChurch();
+        try {
+            localStorage.removeItem('iggestor_portal_churches_cache');
+        } catch (_) {}
         console.log(`[WRITE:ALREADY_CORRECT] Atualizando igreja (ID: ${churchId}) no VPS`);
         await fetch(`/api/v1/churches/${churchId}`, {
             method: 'PUT',
@@ -432,6 +459,9 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             showToast(`Limite atingido.`, 'error');
             return false;
         }
+        try {
+            localStorage.removeItem('iggestor_portal_churches_cache');
+        } catch (_) {}
         console.log(`[WRITE:FIX] Adicionando igreja com effectiveUserId: ${effectiveUserId} no VPS`);
         const res = await fetch('/api/v1/churches', {
             method: 'POST',

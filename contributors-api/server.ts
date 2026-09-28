@@ -117,6 +117,7 @@ class LocalSqliteEngine {
         address_city TEXT,
         address_state TEXT,
         notes TEXT,
+        congregation TEXT,
         is_global INTEGER DEFAULT 0,
         role_position TEXT,
         photo_url TEXT,
@@ -581,6 +582,7 @@ class LocalSqliteEngine {
     safeAdd('churches', 'whatsapp_responsible TEXT DEFAULT "tesouraria"');
     safeAdd('churches', 'auto_comm_enabled INTEGER DEFAULT 1');
     safeAdd('churches', 'auto_send_on_confirmation INTEGER DEFAULT 1');
+    safeAdd('contributors', 'congregation TEXT');
 
     // Ensure default headquarters church exists so foreign key & filters never fail
     try {
@@ -1041,6 +1043,7 @@ async function initializeDatabase() {
     await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS photo_url TEXT;");
     await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS name VARCHAR(255);");
     await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS whatsapp VARCHAR(50);");
+    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS congregation VARCHAR(255);");
     await client.query("CREATE INDEX IF NOT EXISTS idx_contributors_church_status ON contributors(church_id, status);");
     await client.query("CREATE INDEX IF NOT EXISTS idx_contributors_canonical_name ON contributors(canonical_name);");
     await client.query("CREATE INDEX IF NOT EXISTS idx_contributors_cpf ON contributors(cpf);");
@@ -2089,7 +2092,7 @@ const identifyContributorHandler = async (req: Request, res: Response) => {
         `SELECT id, church_id, canonical_name, name, cpf, email, phone, whatsapp, status,
                 person_type, trade_name, rg_ie, birth_date, contact_person, category,
                 pix_key, bank_name, bank_agency, bank_account, address_cep, address_street,
-                address_number, address_city, address_state, notes, role_position, photo_url
+                address_number, address_city, address_state, notes, role_position, photo_url, congregation
          FROM contributors 
          WHERE (status ILIKE 'ativ%' OR status = 'active' OR status = 'Ativo' OR status IS NULL)
            AND (
@@ -2109,7 +2112,7 @@ const identifyContributorHandler = async (req: Request, res: Response) => {
           `SELECT id, church_id, canonical_name, name, cpf, email, phone, whatsapp, status,
                   person_type, trade_name, rg_ie, birth_date, contact_person, category,
                   pix_key, bank_name, bank_agency, bank_account, address_cep, address_street,
-                  address_number, address_city, address_state, notes, role_position, photo_url
+                  address_number, address_city, address_state, notes, role_position, photo_url, congregation
            FROM contributors 
            WHERE (status ILIKE 'ativ%' OR status = 'active' OR status = 'Ativo' OR status IS NULL)`
         );
@@ -2127,7 +2130,7 @@ const identifyContributorHandler = async (req: Request, res: Response) => {
         `SELECT id, church_id, canonical_name, name, cpf, email, phone, whatsapp, status,
                 person_type, trade_name, rg_ie, birth_date, contact_person, category,
                 pix_key, bank_name, bank_agency, bank_account, address_cep, address_street,
-                address_number, address_city, address_state, notes, role_position, photo_url
+                address_number, address_city, address_state, notes, role_position, photo_url, congregation
          FROM contributors 
          WHERE (status ILIKE 'ativ%' OR status = 'active' OR status = 'Ativo' OR status IS NULL)
            AND (
@@ -2154,7 +2157,7 @@ const identifyContributorHandler = async (req: Request, res: Response) => {
         `SELECT id, church_id, canonical_name, name, cpf, email, phone, whatsapp, status,
                 person_type, trade_name, rg_ie, birth_date, contact_person, category,
                 pix_key, bank_name, bank_agency, bank_account, address_cep, address_street,
-                address_number, address_city, address_state, notes, role_position, photo_url
+                address_number, address_city, address_state, notes, role_position, photo_url, congregation
          FROM contributors 
          WHERE (status ILIKE 'ativ%' OR status = 'active' OR status = 'Ativo' OR status IS NULL)
            AND (
@@ -2175,7 +2178,7 @@ const identifyContributorHandler = async (req: Request, res: Response) => {
           `SELECT id, church_id, canonical_name, name, cpf, email, phone, whatsapp, status,
                   person_type, trade_name, rg_ie, birth_date, contact_person, category,
                   pix_key, bank_name, bank_agency, bank_account, address_cep, address_street,
-                  address_number, address_city, address_state, notes, role_position, photo_url
+                  address_number, address_city, address_state, notes, role_position, photo_url, congregation
            FROM contributors 
            WHERE (status ILIKE 'ativ%' OR status = 'active' OR status = 'Ativo' OR status IS NULL)`
         );
@@ -2189,7 +2192,7 @@ const identifyContributorHandler = async (req: Request, res: Response) => {
         `SELECT id, church_id, canonical_name, name, cpf, email, phone, whatsapp, status,
                 person_type, trade_name, rg_ie, birth_date, contact_person, category,
                 pix_key, bank_name, bank_agency, bank_account, address_cep, address_street,
-                address_number, address_city, address_state, notes, role_position, photo_url
+                address_number, address_city, address_state, notes, role_position, photo_url, congregation
          FROM contributors 
          WHERE (status ILIKE 'ativ%' OR status = 'active' OR status = 'Ativo' OR status IS NULL)
            AND LOWER(TRIM(COALESCE(email, ''))) = $1
@@ -2205,7 +2208,7 @@ const identifyContributorHandler = async (req: Request, res: Response) => {
           `SELECT id, church_id, canonical_name, name, cpf, email, phone, whatsapp, status,
                   person_type, trade_name, rg_ie, birth_date, contact_person, category,
                   pix_key, bank_name, bank_agency, bank_account, address_cep, address_street,
-                  address_number, address_city, address_state, notes, role_position, photo_url
+                  address_number, address_city, address_state, notes, role_position, photo_url, congregation
            FROM contributors 
            WHERE (status ILIKE 'ativ%' OR status = 'active' OR status = 'Ativo' OR status IS NULL)`
         );
@@ -2239,6 +2242,7 @@ const identifyContributorHandler = async (req: Request, res: Response) => {
       address_state: c.address_state || null,
       notes: c.notes || null,
       role_position: c.role_position || null,
+      congregation: c.congregation || null,
       photo_url: c.photo_url || null,
       updated_at: c.updated_at || c.created_at || null,
       created_at: c.created_at || null,
@@ -2321,7 +2325,7 @@ app.post('/api/v1/contributors/update-profile', async (req: Request, res: Respon
       birth_date, person_type, trade_name, rg_ie, contact_person,
       category, role_position, pix_key, bank_name, bank_agency, bank_account,
       address_cep, address_street, address_number, address_city, address_state, notes,
-      photo_url, photo
+      photo_url, photo, congregation
     } = req.body;
 
     const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -2450,6 +2454,7 @@ app.post('/api/v1/contributors/update-profile', async (req: Request, res: Respon
       if (address_city !== undefined) addField('address_city', address_city ? String(address_city).trim() : null);
       if (address_state !== undefined) addField('address_state', address_state ? String(address_state).trim() : null);
       if (notes !== undefined) addField('notes', notes ? String(notes).trim() : null);
+      if (congregation !== undefined) addField('congregation', congregation ? String(congregation).trim() : null);
       if (photo_url !== undefined || photo !== undefined) {
         addField('photo_url', cleanPhoto && typeof cleanPhoto === 'string' ? cleanPhoto.trim() : null);
       }
@@ -2481,13 +2486,13 @@ app.post('/api/v1/contributors/update-profile', async (req: Request, res: Respon
         birth_date, person_type, trade_name, rg_ie, contact_person,
         category, role_position, pix_key, bank_name, bank_agency, bank_account,
         address_cep, address_street, address_number, address_city, address_state, notes,
-        photo_url, is_global, status
+        photo_url, is_global, status, congregation
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8,
         $9, $10, $11, $12, $13,
         $14, $15, $16, $17, $18, $19,
         $20, $21, $22, $23, $24, $25,
-        $26, $27, 'active'
+        $26, $27, 'active', $28
       ) RETURNING *`,
       [
         finalNewId,
@@ -2516,7 +2521,8 @@ app.post('/api/v1/contributors/update-profile', async (req: Request, res: Respon
         address_state ? String(address_state).trim() : null,
         notes ? String(notes).trim() : null,
         cleanPhoto && typeof cleanPhoto === 'string' ? cleanPhoto.trim() : null,
-        true
+        true,
+        congregation ? String(congregation).trim() : null
       ]
     );
 
@@ -3348,7 +3354,7 @@ app.post('/api/v1/contributors', async (req: Request, res: Response) => {
       person_type, trade_name, rg_ie, birth_date, contact_person,
       category, pix_key, bank_name, bank_agency, bank_account,
       address_cep, address_street, address_number, address_city, address_state, notes,
-      is_global, role_position, photo_url, photo
+      is_global, role_position, photo_url, photo, congregation
     } = req.body;
 
     const cleanPhotoUrl = photo_url !== undefined ? photo_url : (photo !== undefined ? photo : null);
@@ -3421,6 +3427,7 @@ app.post('/api/v1/contributors', async (req: Request, res: Response) => {
                address_state = COALESCE($21, address_state),
                notes = COALESCE($22, notes),
                role_position = COALESCE($23, role_position),
+               congregation = COALESCE($24, congregation),
                updated_at = NOW() 
            WHERE id = $4 
            RETURNING *`,
@@ -3447,7 +3454,8 @@ app.post('/api/v1/contributors', async (req: Request, res: Response) => {
             address_city ? String(address_city).trim() : null,
             address_state ? String(address_state).trim() : null,
             notes ? String(notes).trim() : null,
-            role_position ? String(role_position).trim() : null
+            role_position ? String(role_position).trim() : null,
+            congregation ? String(congregation).trim() : null
           ]
         );
         return res.status(200).json(updateResult.rows[0] || existing);
@@ -3460,15 +3468,15 @@ app.post('/api/v1/contributors', async (req: Request, res: Response) => {
         church_id, canonical_name, name, cpf, email, phone, whatsapp, status,
         person_type, trade_name, rg_ie, birth_date, contact_person,
         category, pix_key, bank_name, bank_agency, bank_account,
-        address_cep, address_street, address_number, address_city, address_state, notes, is_global, role_position, photo_url
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
+        address_cep, address_street, address_number, address_city, address_state, notes, is_global, role_position, photo_url, congregation
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
       RETURNING *`,
       [
         cleanChurchId, sanitizedName, (req.body.name ? String(req.body.name).trim() : sanitizedName), sanitizedCpf, sanitizedEmail, sanitizedPhone, (req.body.whatsapp ? String(req.body.whatsapp).trim() : sanitizedPhone), sanitizedStatus,
         person_type || 'PF', trade_name || null, rg_ie || null, birth_date || null, contact_person || null,
         category || null, pix_key || null, bank_name || null, bank_agency || null, bank_account || null,
         address_cep || null, address_street || null, address_number || null, address_city || null, address_state || null, notes || null,
-        isGlobalValue, role_position || null, cleanPhotoUrl
+        isGlobalValue, role_position || null, cleanPhotoUrl, congregation ? String(congregation).trim() : null
       ]
     );
 
@@ -3532,7 +3540,7 @@ app.put('/api/v1/contributors/:id', async (req: Request, res: Response) => {
       person_type, trade_name, rg_ie, birth_date, contact_person,
       category, pix_key, bank_name, bank_agency, bank_account,
       address_cep, address_street, address_number, address_city, address_state, notes,
-      is_global, role_position, photo_url, photo
+      is_global, role_position, photo_url, photo, congregation
     } = req.body;
 
     const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -3643,6 +3651,7 @@ app.put('/api/v1/contributors/:id', async (req: Request, res: Response) => {
     addField('address_city', address_city);
     addField('address_state', address_state);
     addField('notes', notes);
+    if (congregation !== undefined) addField('congregation', congregation ? String(congregation).trim() : null);
 
     if (updates.length === 0) {
       return res.status(400).json({ error: 'NO_UPDATES_PROVIDED' });

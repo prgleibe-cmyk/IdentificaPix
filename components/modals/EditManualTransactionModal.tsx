@@ -401,7 +401,8 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
                     reference_date: date,
                     contributionType: contributionType,
                     paymentMethod: paymentMethod,
-                    _churchId: selectedChurch.id
+                    _churchId: (row.contributor as any)?._churchId || (row.contributor as any)?.church_id || selectedChurch.id,
+                    church_id: (row.contributor as any)?._churchId || (row.contributor as any)?.church_id || selectedChurch.id
                 } : null,
                 church: selectedChurch,
                 _churchId: selectedChurch.id,

@@ -324,6 +324,7 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
                     address_number: contrib.address_number,
                     address_city: contrib.address_city || contrib.city,
                     address_state: contrib.address_state || contrib.state,
+                    congregation: contrib.congregation || (churchName && churchName !== 'Igreja' ? churchName : null) || null,
                     role_position: contrib.role_position,
                     photo_url: contrib.photo_url || contrib.avatarUrl || null
                 };
@@ -346,6 +347,7 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
                 const updatedObj: ContributorMockProfile = {
                     ...contrib,
                     id: updatedRecord?.id || contrib.id,
+                    congregation: contrib.congregation || (churchName && churchName !== 'Igreja' ? churchName : undefined),
                     isExisting: true,
                     church_id: targetChurchId
                 };
@@ -382,6 +384,7 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
                     address_number: contrib.address_number,
                     address_city: contrib.address_city || contrib.city,
                     address_state: contrib.address_state || contrib.state,
+                    congregation: contrib.congregation || (churchName && churchName !== 'Igreja' ? churchName : null) || null,
                     role_position: contrib.role_position,
                     photo_url: contrib.photo_url || contrib.avatarUrl || null,
                     status: 'active'

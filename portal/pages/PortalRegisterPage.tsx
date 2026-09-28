@@ -40,8 +40,10 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
     const [name, setName] = useState('');
     const [phone, setPhone] = useState('');
     const [email, setEmail] = useState('');
-    const [birthDate, setBirthDate] = useState('');
-    const [congregation, setCongregation] = useState(() => (church?.name && church.name !== 'Igreja') ? church.name : '');
+    const initialChurchName = (church?.name && church.name !== 'Igreja') 
+        ? church.name 
+        : (churchesList?.[0]?.name && churchesList[0].name !== 'Igreja' ? churchesList[0].name : '');
+    const [congregation, setCongregation] = useState<string>(() => initialChurchName);
     const [city, setCity] = useState('');
     const [state, setState] = useState('SP');
     const [photoUrl, setPhotoUrl] = useState<string | null>(null);
@@ -70,13 +72,13 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
             setSelectedChurch(church);
             setSelectedChurchId(church.id);
             if (church.name && church.name !== 'Igreja') {
-                setCongregation(prev => (!prev || prev === 'Sede Central') ? church.name : prev);
+                setCongregation(prev => (!prev || prev === 'Sede Central' || prev === 'Igreja') ? church.name : prev);
             }
         } else if (churchesList.length > 0 && !selectedChurchId) {
             setSelectedChurch(churchesList[0]);
             setSelectedChurchId(churchesList[0].id);
             if (churchesList[0].name && churchesList[0].name !== 'Igreja') {
-                setCongregation(prev => (!prev || prev === 'Sede Central') ? churchesList[0].name : prev);
+                setCongregation(prev => (!prev || prev === 'Sede Central' || prev === 'Igreja') ? churchesList[0].name : prev);
             }
         }
     }, [church, churchesList]);
@@ -149,7 +151,12 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                     }
                     if (c.address_city) setCity(c.address_city);
                     if (c.address_state) setState(c.address_state);
-                    if (c.congregation) setCongregation(c.congregation);
+                    if (c.congregation) {
+                        setCongregation(c.congregation);
+                    } else {
+                        const portalChurchName = (selectedChurch?.name && selectedChurch.name !== 'Igreja') ? selectedChurch.name : (church?.name && church.name !== 'Igreja' ? church.name : '');
+                        if (portalChurchName) setCongregation(portalChurchName);
+                    }
                     if (c.photo_url || c.photo || c.avatarUrl) setPhotoUrl(c.photo_url || c.photo || c.avatarUrl);
 
                     setIsCheckingCpf(false);
@@ -173,6 +180,12 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                 }
                 if (localFound.address_city) setCity(localFound.address_city);
                 if (localFound.address_state) setState(localFound.address_state);
+                if (localFound.congregation) {
+                    setCongregation(localFound.congregation);
+                } else {
+                    const portalChurchName = (selectedChurch?.name && selectedChurch.name !== 'Igreja') ? selectedChurch.name : (church?.name && church.name !== 'Igreja' ? church.name : '');
+                    if (portalChurchName) setCongregation(portalChurchName);
+                }
                 if (localFound.photo_url || localFound.photo || localFound.avatarUrl) setPhotoUrl(localFound.photo_url || localFound.photo || localFound.avatarUrl);
                 setIsCheckingCpf(false);
                 return;
@@ -182,6 +195,10 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
             setIsExisting(false);
             setContributorId(null);
             setLookupMessage('Novo cadastro! Preencha seus dados abaixo para se cadastrar.');
+            const portalChurchName = (selectedChurch?.name && selectedChurch.name !== 'Igreja') ? selectedChurch.name : (church?.name && church.name !== 'Igreja' ? church.name : '');
+            if (portalChurchName && (!congregation || congregation === 'Sede Central' || congregation === 'Igreja')) {
+                setCongregation(portalChurchName);
+            }
         } catch (err) {
             console.error('[PortalRegisterPage] Erro ao consultar CPF:', err);
             setIsExisting(false);
@@ -195,6 +212,9 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
         const found = churchesList.find(c => c.id === churchId);
         if (found) {
             setSelectedChurch(found);
+            if (found.name && found.name !== 'Igreja') {
+                setCongregation(found.name);
+            }
         }
     };
 
@@ -283,6 +303,12 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
         if (c.birth_date) setBirthDate(formatDateToYmd(c.birth_date));
         if (c.address_city) setCity(c.address_city);
         if (c.address_state) setState(c.address_state);
+        if (c.congregation) {
+            setCongregation(c.congregation);
+        } else {
+            const portalChurchName = (selectedChurch?.name && selectedChurch.name !== 'Igreja') ? selectedChurch.name : (church?.name && church.name !== 'Igreja' ? church.name : '');
+            if (portalChurchName) setCongregation(portalChurchName);
+        }
         if (c.photo_url || c.photo || c.avatarUrl) setPhotoUrl(c.photo_url || c.photo || c.avatarUrl);
         
         setShowNameSuggestions(false);
@@ -335,6 +361,11 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
             newErrors.church = 'Selecione a sua congregação / igreja.';
         }
 
+        const activeChurchName = (selectedChurch?.name && selectedChurch.name !== 'Igreja') 
+            ? selectedChurch.name 
+            : (church?.name && church.name !== 'Igreja' ? church.name : '');
+        const effectiveCongregation = (congregation.trim() || activeChurchName || '').trim();
+
         if (Object.keys(newErrors).length > 0) {
             setErrors(newErrors);
             return;
@@ -360,6 +391,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                     birth_date: formatDateToDmy(birthDate) || null,
                     address_city: city || null,
                     address_state: state || null,
+                    congregation: effectiveCongregation || null,
                     role_position: 'Membro',
                     photo_url: photoUrl || null,
                     is_global: true
@@ -394,7 +426,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                     whatsapp: cleanPhone,
                     email: cleanEmail,
                     church_id: activeChurchId,
-                    congregation: congregation || selectedChurch?.name || 'Sede Central',
+                    congregation: effectiveCongregation || activeChurchName || 'Sede Central',
                     city: city,
                     state: state,
                     birth_date: formatDateToDmy(birthDate) || undefined,
@@ -425,6 +457,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                 birth_date: formatDateToDmy(birthDate) || null,
                 address_city: city || null,
                 address_state: state || null,
+                congregation: effectiveCongregation || null,
                 role_position: 'Membro',
                 photo_url: photoUrl || null,
                 is_global: true,
@@ -453,7 +486,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                     whatsapp: cleanPhone,
                     email: cleanEmail,
                     church_id: activeChurchId,
-                    congregation: congregation || selectedChurch?.name || 'Sede Central',
+                    congregation: effectiveCongregation || activeChurchName || 'Sede Central',
                     city: city,
                     state: state,
                     birth_date: formatDateToDmy(birthDate) || undefined,
@@ -486,7 +519,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                 whatsapp: cleanPhone,
                 email: cleanEmail,
                 church_id: activeChurchId,
-                congregation: congregation || selectedChurch?.name || 'Sede Central',
+                congregation: effectiveCongregation || activeChurchName || 'Sede Central',
                 city: city,
                 state: state,
                 birth_date: formatDateToDmy(birthDate) || undefined,
@@ -764,14 +797,14 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
 
                             <div>
                                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
-                                    <Building2 className="w-4 h-4 text-slate-400" />
-                                    <span>Congregação / Setor</span>
+                                    <Building2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                                    <span>Congregação / Igreja</span>
                                 </label>
                                 <input
                                     type="text"
                                     value={congregation}
                                     onChange={(e) => setCongregation(e.target.value)}
-                                    placeholder="Ex: Sede Central"
+                                    placeholder={selectedChurch?.name || church?.name || "Nome da Igreja"}
                                     className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                                 />
                             </div>

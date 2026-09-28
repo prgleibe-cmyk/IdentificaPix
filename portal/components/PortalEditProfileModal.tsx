@@ -78,10 +78,11 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
             setAddressNumber(contributor.address_number || '');
             setAddressCity(contributor.address_city || contributor.city || '');
             setAddressState(contributor.address_state || contributor.state || '');
+            const currentChurchName = (church?.name && church.name !== 'Igreja') ? church.name : (church?.name || '');
             setCongregation(
-                (contributor.congregation && contributor.congregation !== 'Sede Central') 
+                (contributor.congregation && contributor.congregation !== 'Sede Central' && contributor.congregation !== 'Igreja') 
                     ? contributor.congregation 
-                    : (church?.name || '')
+                    : (currentChurchName || contributor.congregation || '')
             );
             setRolePosition(contributor.role_position || '');
             setPhotoPreview(contributor.photo_url || contributor.photo || contributor.avatarUrl || null);
@@ -254,6 +255,8 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
             const cleanCpfDigits = cpf.replace(/\D/g, '');
             const cleanPhoneDigits = phone.replace(/\D/g, '');
             const targetChurchId = church?.id || contributor?.church_id || '00000000-0000-0000-0000-000000000001';
+            const currentChurchName = (church?.name && church.name !== 'Igreja') ? church.name : (church?.name || '');
+            const effectiveCongregation = (congregation.trim() || currentChurchName || '').trim();
 
             const payload: any = {
                 canonical_name: name.trim().toUpperCase(),
@@ -268,6 +271,7 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                 address_number: addressNumber.trim() || null,
                 address_city: addressCity.trim() || null,
                 address_state: addressState.trim() || null,
+                congregation: effectiveCongregation || null,
                 role_position: rolePosition.trim() || null,
                 photo_url: photoPreview || null,
                 photo: photoPreview || null,
@@ -352,7 +356,7 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                 address_state: addressState.trim() || undefined,
                 city: addressCity.trim() || undefined,
                 state: addressState.trim() || undefined,
-                congregation: (congregation && congregation.trim()) || (church?.name || undefined),
+                congregation: effectiveCongregation || currentChurchName || undefined,
                 role_position: rolePosition.trim() || undefined,
                 photo_url: photoPreview || undefined,
                 avatarUrl: photoPreview || undefined,
@@ -774,7 +778,7 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                                     type="text"
                                     value={congregation}
                                     onChange={(e) => setCongregation(e.target.value)}
-                                    placeholder="Ex: Sede Central ou Congregação Local"
+                                    placeholder={church?.name || "Ex: Sede Central ou Congregação Local"}
                                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                                 />
                             </div>

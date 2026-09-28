@@ -22,10 +22,10 @@ const formatCpfCnpj = (value: string) => {
 export const ContributorsList: React.FC = () => {
     const { showToast } = useUI();
     const { churches } = useContext(AppContext);
-    const { subscription, user } = useAuth();
+    const { subscription, user, isSecondaryUser } = useAuth();
     
-    // Principal User check: owner, admin, principal or ownerId matching user.id
-    const isPrincipalUser = !subscription?.role || subscription?.role === 'owner' || subscription?.role === 'admin' || subscription?.role === 'principal' || subscription?.ownerId === user?.id;
+    // Principal User check: owner, admin, principal or ownerId matching user.id (strictly false for secondary users)
+    const isPrincipalUser = !isSecondaryUser && (!subscription?.role || subscription?.role === 'owner' || subscription?.role === 'admin' || subscription?.role === 'principal' || subscription?.ownerId === user?.id);
     
     const [search, setSearch] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -800,11 +800,14 @@ export const ContributorsList: React.FC = () => {
             const sanitizedPhone = trimmedPhone.length > 0 ? trimmedPhone : null;
 
             const sanitizedStatus = status === 'Ativo' ? 'active' : 'inactive';
+            const foundChurch = churches.find((c: any) => c.id === effectiveChurchId);
+            const churchNameForContrib = foundChurch?.name || null;
 
             const payload = {
                 church_id: effectiveChurchId,
-                is_global: isGlobal,
+                is_global: isPrincipalUser ? isGlobal : (editingContributor ? Boolean(editingContributor.is_global) : false),
                 canonical_name,
+                congregation: churchNameForContrib,
                 role_position: rolePosition || category || 'Membro',
                 cpf: sanitizedCpf,
                 email: sanitizedEmail,
@@ -1148,18 +1151,21 @@ export const ContributorsList: React.FC = () => {
                                             )}
                                         </div>
 
-                                        <div className="flex items-center space-x-2 pt-2">
-                                            <input 
-                                                type="checkbox" 
-                                                id="contributor-global" 
-                                                checked={isGlobal} 
-                                                onChange={(e) => setIsGlobal(e.target.checked)} 
-                                                className="w-4 h-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue cursor-pointer"
-                                            />
-                                            <label htmlFor="contributor-global" className="text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
-                                                Visível em todas as igrejas / congregações (Global)
-                                            </label>
-                                        </div>
+                                        {/* Opção Global (visível apenas para o usuário principal / oculta para usuários secundários) */}
+                                        {isPrincipalUser && (
+                                            <div className="flex items-center space-x-2 pt-2">
+                                                <input 
+                                                    type="checkbox" 
+                                                    id="contributor-global" 
+                                                    checked={isGlobal} 
+                                                    onChange={(e) => setIsGlobal(e.target.checked)} 
+                                                    className="w-4 h-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue cursor-pointer"
+                                                />
+                                                <label htmlFor="contributor-global" className="text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                                                    Visível em todas as igrejas / congregações (Global)
+                                                </label>
+                                            </div>
+                                        )}
 
                                         {/* Status */}
                                         <div className="flex items-center space-x-2 pt-2">
@@ -1900,7 +1906,7 @@ export const ContributorsList: React.FC = () => {
                         </thead>
                         <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50 bg-white dark:bg-slate-900/30 font-sans">
                             {displayedContributors.map((c) => {
-                                const church = churches.find((ch: any) => ch.id === c.church_id);
+                                const church = churches.find((ch: any) => ch.id === c.church_id || (c.congregation && ch.name && ch.name.trim().toLowerCase() === c.congregation.trim().toLowerCase()));
                                 const isPJ = c.person_type === 'PJ' || (c.cpf && c.cpf.replace(/\D/g, '').length === 14);
                                 return (
                                     <tr key={c.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors animate-fade-in">
@@ -1954,7 +1960,7 @@ export const ContributorsList: React.FC = () => {
                                         <td className="px-4 py-3.5 whitespace-nowrap">
                                             <div className="flex flex-col gap-1">
                                                 <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                                                    {church ? church.name : 'Igreja não identificada'}
+                                                    {church ? church.name : (c.congregation || 'Igreja não identificada')}
                                                 </span>
                                                 {c.is_global && (
                                                     <span className="inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">

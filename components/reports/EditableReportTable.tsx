@@ -4,12 +4,13 @@ import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { formatCurrency, formatDate, isPeriodClosed, getClosedPeriodsSet, isDateInClosedPeriods, resolvePaymentMethod, resolveContributionType, resolveTransactionSource } from '../../utils/formatters';
 import { useAuth } from '../../contexts/AuthContext';
-import { GitFork, Printer, X, MessageCircle, CheckCircle2, Pencil, Receipt, FileText, FileSignature, Paperclip, Plus } from 'lucide-react';
-import { ExpenseAttachment } from '../../types/domain';
-import { preloadAllAttachmentsMap } from '../../services/expenseAttachmentService';
+import { GitFork, Printer, X, MessageCircle, CheckCircle2, Pencil, Receipt, FileText, FileSignature, Paperclip, Plus, PenTool, ShieldCheck } from 'lucide-react';
+import { ExpenseAttachment, DigitalSignature } from '../../types/domain';
+import { preloadAllAttachmentsMap, saveAttachmentsForTransaction } from '../../services/expenseAttachmentService';
 import { AttachmentPreviewModal } from '../financial/AttachmentPreviewModal';
 import { QuickAttachModal } from '../modals/QuickAttachModal';
 import { ServiceReceiptModal } from '../modals/ServiceReceiptModal';
+import { DigitalSignaturePadModal } from '../modals/DigitalSignaturePadModal';
 import { isWhatsAppSent, getWhatsAppSentMap, sendWhatsAppDirect } from '../modals/WhatsAppReceiptModal';
 import { 
     PencilIcon, 
@@ -418,16 +419,23 @@ const MobileCard = memo(({
                             )}
                         </button>
 
-                        {canPrintReceipt && (
-                            <button 
-                                onClick={() => onGenerateReceipt(row)} 
-                                className="px-3.5 py-2 rounded-xl text-blue-600 bg-blue-50 hover:bg-blue-100 font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors" 
-                                title="Gerar Recibo"
-                            >
-                                <Printer className="w-3.5 h-3.5" />
-                                <span>Recibo</span>
-                            </button>
-                        )}
+                        {canPrintReceipt && (() => {
+                            const hasSignedReceipt = Boolean((row as any).receiptSignatures && Object.keys((row as any).receiptSignatures).length > 0) || Boolean(serviceReceiptAtt);
+                            return (
+                                <button 
+                                    onClick={() => onGenerateReceipt(row)} 
+                                    className={`px-3.5 py-2 rounded-xl font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                                        hasSignedReceipt
+                                            ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-800'
+                                            : 'text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400'
+                                    }`} 
+                                    title={hasSignedReceipt ? "Recibo Assinado Digitalmente na Tela (Clique para visualizar/assinar)" : "Gerar e Assinar Recibo na Tela"}
+                                >
+                                    <Printer className="w-3.5 h-3.5" />
+                                    <span>{hasSignedReceipt ? 'Recibo ✓' : 'Recibo'}</span>
+                                </button>
+                            );
+                        })()}
                         {confirmed ? (
                             (!isClosedPeriod && canConfirmFinal) && (
                                 <button onClick={() => onToggleLock(row.transaction.id, false)} className="flex-1 py-2 rounded-xl text-indigo-600 bg-indigo-50 font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-2">
@@ -803,15 +811,25 @@ const IncomeRow = memo(({
                     <div className="flex gap-1.5 items-center justify-center">
                         {/* Ações adicionais no hover */}
                         <div className="flex gap-1 items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                            {canPrintReceipt && (
-                                <button 
-                                    onClick={() => onGenerateReceipt(row)} 
-                                    className="p-1.5 rounded-lg text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400 dark:hover:bg-blue-900/30 transition-all border border-blue-100/50 dark:border-blue-900/20 cursor-pointer shadow-sm" 
-                                    title="Gerar e Imprimir Recibo"
-                                >
-                                    <Printer className="w-3.5 h-3.5" />
-                                </button>
-                            )}
+                            {canPrintReceipt && (() => {
+                                const hasSignedReceipt = Boolean((row as any).receiptSignatures && Object.keys((row as any).receiptSignatures).length > 0) || Boolean(serviceReceiptAtt);
+                                return (
+                                    <button 
+                                        onClick={() => onGenerateReceipt(row)} 
+                                        className={`relative p-1.5 rounded-lg transition-all cursor-pointer shadow-sm ${
+                                            hasSignedReceipt
+                                                ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+                                                : 'text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400 dark:hover:bg-blue-900/30 border border-blue-100/50 dark:border-blue-900/20'
+                                        }`} 
+                                        title={hasSignedReceipt ? "Recibo com Assinatura Digital na Tela (Clique para visualizar/assinar)" : "Gerar e Assinar Digitalmente o Recibo"}
+                                    >
+                                        <Printer className="w-3.5 h-3.5" />
+                                        {hasSignedReceipt && (
+                                            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" title="Assinado Digitalmente na Tela" />
+                                        )}
+                                    </button>
+                                );
+                            })()}
 
                             {confirmed ? (
                                 (!isClosedPeriod && canConfirmFinal) && (
@@ -1153,6 +1171,156 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
     const receiptIsExpense = selectedReceipt ? (selectedReceipt.contributorAmount || selectedReceipt.contributor?.amount || selectedReceipt.transaction.amount) < 0 : false;
     const receiptRecordId = selectedReceipt ? selectedReceipt.transaction.id : '';
 
+    // Gestão de Assinatura Digital do Recibo na Tela (da mesma forma que no Livro Caixa)
+    const [receiptSignatures, setReceiptSignatures] = useState<{
+        recipient?: DigitalSignature;
+        treasurer?: DigitalSignature;
+    }>({});
+    const [isPadModalOpen, setIsPadModalOpen] = useState<boolean>(false);
+    const [activePadSlot, setActivePadSlot] = useState<'recipient' | 'treasurer'>('treasurer');
+
+    // Sincroniza assinaturas digitais quando o recibo selecionado mudar
+    useEffect(() => {
+        if (!selectedReceipt) {
+            setReceiptSignatures({});
+            return;
+        }
+        const txId = selectedReceipt.transaction?.id;
+        if (!txId) {
+            setReceiptSignatures({});
+            return;
+        }
+
+        // 1. Objeto direto da linha
+        if ((selectedReceipt as any).receiptSignatures && Object.keys((selectedReceipt as any).receiptSignatures).length > 0) {
+            setReceiptSignatures((selectedReceipt as any).receiptSignatures);
+            return;
+        }
+
+        // 2. Cache persistido do recibo
+        try {
+            const raw = localStorage.getItem(`idpix_receipt_sigs_${txId}`);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (parsed && typeof parsed === 'object') {
+                    setReceiptSignatures(parsed);
+                    return;
+                }
+            }
+        } catch (_) {}
+
+        setReceiptSignatures({});
+    }, [selectedReceipt]);
+
+    const handleOpenPad = (slot: 'recipient' | 'treasurer') => {
+        setActivePadSlot(slot);
+        setIsPadModalOpen(true);
+    };
+
+    const handleSaveReceiptSignature = (sig: DigitalSignature) => {
+        if (!selectedReceipt) return;
+        const txId = selectedReceipt.transaction?.id;
+        if (!txId) return;
+
+        const updatedSigs = {
+            ...receiptSignatures,
+            [activePadSlot]: sig
+        };
+        setReceiptSignatures(updatedSigs);
+
+        // Salva no localStorage para persistência imediata
+        try {
+            localStorage.setItem(`idpix_receipt_sigs_${txId}`, JSON.stringify(updatedSigs));
+        } catch (_) {}
+
+        // Atualiza o estado da linha selecionada
+        const updatedRow: MatchResult = {
+            ...selectedReceipt,
+            receiptSignatures: updatedSigs
+        } as any;
+        setSelectedReceipt(updatedRow);
+
+        // Notifica controlador do relatório
+        if (onRowChange) {
+            onRowChange(updatedRow);
+        }
+
+        // Registra também anexo de recibo digital assinado para compatibilidade com Livro Caixa e auditoria
+        try {
+            const currentAtts = attachmentsMap.get(txId) || selectedReceipt.attachments || selectedReceipt.transaction?.attachments || [];
+            const existingReciboIdx = currentAtts.findIndex(a => a.documentRole === 'recibo' || a.fileName?.includes('recibo_digital'));
+
+            const receiptAtt: ExpenseAttachment = {
+                id: `recibo-digital-${txId}`,
+                fileName: `recibo_digital_${receiptRecordId || txId}.pdf`,
+                fileSize: 2048,
+                fileType: 'application/pdf',
+                uploadedAt: new Date().toISOString(),
+                documentRole: 'recibo',
+                validationStatus: 'approved',
+                validationNotes: `Recibo assinado digitalmente na tela por ${sig.signerName} (${sig.signerRole})`,
+                extractedData: {
+                    documentType: 'recibo',
+                    extractedAmount: receiptAmount,
+                    extractedDate: receiptDisplayDate,
+                    extractedRecipient: receiptDisplayName,
+                    extractedPayer: receiptDisplayChurch,
+                    barcodeOrAuth: sig.id,
+                    rawText: `Recibo Oficial Assinado Digitalmente na Tela. Signatário: ${sig.signerName} (${sig.signerRole}). Data: ${new Date().toLocaleDateString('pt-BR')}`,
+                    confidenceScore: 1
+                }
+            };
+
+            let newAtts: ExpenseAttachment[];
+            if (existingReciboIdx >= 0) {
+                newAtts = [...currentAtts];
+                newAtts[existingReciboIdx] = receiptAtt;
+            } else {
+                newAtts = [...currentAtts, receiptAtt];
+            }
+
+            saveAttachmentsForTransaction(txId, newAtts);
+            setAttachmentsMap(prev => {
+                const next = new Map(prev);
+                next.set(txId, newAtts);
+                return next;
+            });
+        } catch (err) {
+            console.warn('Erro ao salvar anexo de recibo assinado:', err);
+        }
+
+        showToast?.(`Assinatura digital de ${sig.signerName} salva com sucesso no recibo!`, 'success');
+    };
+
+    const handleRemoveReceiptSignature = (slot: 'recipient' | 'treasurer') => {
+        if (!selectedReceipt) return;
+        const txId = selectedReceipt.transaction?.id;
+        if (!txId) return;
+
+        const updatedSigs = { ...receiptSignatures };
+        delete updatedSigs[slot];
+        setReceiptSignatures(updatedSigs);
+
+        try {
+            if (Object.keys(updatedSigs).length > 0) {
+                localStorage.setItem(`idpix_receipt_sigs_${txId}`, JSON.stringify(updatedSigs));
+            } else {
+                localStorage.removeItem(`idpix_receipt_sigs_${txId}`);
+            }
+        } catch (_) {}
+
+        const updatedRow: MatchResult = {
+            ...selectedReceipt,
+            receiptSignatures: updatedSigs
+        } as any;
+        setSelectedReceipt(updatedRow);
+
+        if (onRowChange) {
+            onRowChange(updatedRow);
+        }
+        showToast?.('Assinatura removida do recibo.', 'info');
+    };
+
     const [waSentMap, setWaSentMap] = useState<Record<string, string>>(() => getWhatsAppSentMap());
     const [closingVersion, setClosingVersion] = useState(0);
 
@@ -1421,30 +1589,154 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                                     </div>
                                 </div>
 
-                                {/* Signature block */}
-                                <div className="grid grid-cols-2 gap-8 mt-12 pt-6">
-                                    <div className="text-center">
-                                        <div className="border-t border-slate-300 w-full mb-1"></div>
-                                        <span className="text-[9px] font-bold text-slate-600 uppercase block">
-                                            {receiptIsExpense ? 'Favorecido / Recebedor' : 'Contribuinte'}
-                                        </span>
+                                {/* Signature block - Assinatura Digital na Tela */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8 pt-4">
+                                    {/* Slot 1: Favorecido / Contribuinte */}
+                                    <div className="text-center flex flex-col justify-end min-h-[110px] p-3 rounded-2xl bg-slate-50/80 dark:bg-black/20 border border-slate-200/80 dark:border-white/5 relative">
+                                        {receiptSignatures.recipient ? (
+                                            <div className="space-y-1 animate-fade-in">
+                                                <img 
+                                                    src={receiptSignatures.recipient.signatureDataUrl} 
+                                                    alt="Assinatura" 
+                                                    className="h-12 max-h-12 max-w-[170px] object-contain mx-auto select-none pointer-events-none" 
+                                                />
+                                                <div className="border-t border-slate-400 dark:border-slate-500 w-full mb-1"></div>
+                                                <span className="text-[10px] font-black text-slate-800 dark:text-slate-100 uppercase block truncate">
+                                                    {receiptSignatures.recipient.signerName}
+                                                </span>
+                                                <span className="text-[8px] font-bold text-slate-500 dark:text-slate-400 uppercase block truncate">
+                                                    {receiptSignatures.recipient.signerRole} {receiptSignatures.recipient.signerDocument ? `• ${receiptSignatures.recipient.signerDocument}` : ''}
+                                                </span>
+                                                <div className="inline-flex items-center gap-1 text-[7.5px] font-mono font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-800 mt-1 shadow-2xs">
+                                                    <ShieldCheck className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
+                                                    <span>Assinado na tela • {new Date(receiptSignatures.recipient.signedAt).toLocaleDateString('pt-BR')} {new Date(receiptSignatures.recipient.signedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                                </div>
+                                                <div className="flex items-center justify-center gap-3 pt-1.5">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleOpenPad('recipient')}
+                                                        className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer flex items-center gap-1"
+                                                    >
+                                                        <PenTool className="w-2.5 h-2.5" /> Refazer
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveReceiptSignature('recipient')}
+                                                        className="text-[9px] font-bold text-rose-500 hover:underline cursor-pointer"
+                                                    >
+                                                        Remover
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center space-y-2 py-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleOpenPad('recipient')}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-200 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/50 border border-indigo-200 dark:border-indigo-800/80 transition-all cursor-pointer shadow-xs active:scale-95"
+                                                    title={`Assinar como ${receiptIsExpense ? 'Favorecido / Recebedor' : 'Contribuinte'} diretamente na tela`}
+                                                >
+                                                    <PenTool className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                                                    <span>Assinar na Tela</span>
+                                                </button>
+                                                <div className="border-t border-dashed border-slate-300 dark:border-slate-700 w-full mt-2 mb-1"></div>
+                                                <span className="text-[9px] font-black text-slate-700 dark:text-slate-300 uppercase block">
+                                                    {receiptIsExpense ? 'Favorecido / Recebedor' : 'Contribuinte'}
+                                                </span>
+                                                <span className="text-[8px] text-slate-400 dark:text-slate-500 block truncate max-w-[180px]">
+                                                    {receiptDisplayName}
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="text-center">
-                                        <div className="border-t border-slate-300 w-full mb-1"></div>
-                                        <span className="text-[9px] font-bold text-slate-600 uppercase block">Responsável Financeiro</span>
+
+                                    {/* Slot 2: Responsável Financeiro */}
+                                    <div className="text-center flex flex-col justify-end min-h-[110px] p-3 rounded-2xl bg-slate-50/80 dark:bg-black/20 border border-slate-200/80 dark:border-white/5 relative">
+                                        {receiptSignatures.treasurer ? (
+                                            <div className="space-y-1 animate-fade-in">
+                                                <img 
+                                                    src={receiptSignatures.treasurer.signatureDataUrl} 
+                                                    alt="Assinatura" 
+                                                    className="h-12 max-h-12 max-w-[170px] object-contain mx-auto select-none pointer-events-none" 
+                                                />
+                                                <div className="border-t border-slate-400 dark:border-slate-500 w-full mb-1"></div>
+                                                <span className="text-[10px] font-black text-slate-800 dark:text-slate-100 uppercase block truncate">
+                                                    {receiptSignatures.treasurer.signerName}
+                                                </span>
+                                                <span className="text-[8px] font-bold text-slate-500 dark:text-slate-400 uppercase block truncate">
+                                                    {receiptSignatures.treasurer.signerRole} {receiptSignatures.treasurer.signerDocument ? `• ${receiptSignatures.treasurer.signerDocument}` : ''}
+                                                </span>
+                                                <div className="inline-flex items-center gap-1 text-[7.5px] font-mono font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-800 mt-1 shadow-2xs">
+                                                    <ShieldCheck className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
+                                                    <span>Assinado na tela • {new Date(receiptSignatures.treasurer.signedAt).toLocaleDateString('pt-BR')} {new Date(receiptSignatures.treasurer.signedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                                </div>
+                                                <div className="flex items-center justify-center gap-3 pt-1.5">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleOpenPad('treasurer')}
+                                                        className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer flex items-center gap-1"
+                                                    >
+                                                        <PenTool className="w-2.5 h-2.5" /> Refazer
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveReceiptSignature('treasurer')}
+                                                        className="text-[9px] font-bold text-rose-500 hover:underline cursor-pointer"
+                                                    >
+                                                        Remover
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center space-y-2 py-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleOpenPad('treasurer')}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-200 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/50 border border-indigo-200 dark:border-indigo-800/80 transition-all cursor-pointer shadow-xs active:scale-95"
+                                                    title="Assinar como Responsável Financeiro diretamente na tela"
+                                                >
+                                                    <PenTool className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                                                    <span>Assinar na Tela</span>
+                                                </button>
+                                                <div className="border-t border-dashed border-slate-300 dark:border-slate-700 w-full mt-2 mb-1"></div>
+                                                <span className="text-[9px] font-black text-slate-700 dark:text-slate-300 uppercase block">
+                                                    Responsável Financeiro
+                                                </span>
+                                                <span className="text-[8px] text-slate-400 dark:text-slate-500 block truncate max-w-[180px]">
+                                                    {receiptFullChurch?.treasurer || receiptFullChurch?.pastor || 'Tesouraria'}
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
                         </div>
 
                         {/* Modal Actions */}
-                        <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-white/5">
-                            <button
-                                onClick={() => setSelectedReceipt(null)}
-                                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
-                            >
-                                Fechar
-                            </button>
+                        <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-100 dark:border-white/5">
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => handleOpenPad(receiptSignatures.treasurer ? 'recipient' : 'treasurer')}
+                                    className="px-4 py-2.5 bg-gradient-to-r from-orange-500 via-amber-600 to-amber-700 hover:from-orange-600 hover:to-amber-800 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-orange-500/20 flex items-center gap-2 cursor-pointer active:scale-95 border border-orange-400/30"
+                                    title="Assinar digitalmente com dedo ou mouse diretamente na tela"
+                                >
+                                    <PenTool className="w-4 h-4" />
+                                    <span>
+                                        {receiptSignatures.treasurer || receiptSignatures.recipient
+                                            ? 'Assinar Outro Signatário'
+                                            : 'Assinar Digitalmente na Tela'}
+                                    </span>
+                                </button>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setSelectedReceipt(null)}
+                                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                                >
+                                    Fechar
+                                </button>
                             <button
                                 onClick={() => {
                                     const todayFormatted = new Date().toLocaleDateString('pt-BR');
@@ -1511,16 +1803,36 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                                                 </div>
                                             </div>
 
-                                            <div style="display: flex; justify-content: space-between; gap: 40px; margin-top: 60px;">
+                                            <div style="display: flex; justify-content: space-between; gap: 40px; margin-top: ${receiptSignatures.recipient || receiptSignatures.treasurer ? '35px' : '60px'};">
                                                 <div style="flex: 1; text-align: center;">
-                                                    <div style="border-top: 1px solid #cbd5e1; width: 100%; margin-bottom: 8px;"></div>
-                                                    <span style="font-size: 11px; font-weight: 700; color: #334155; display: block; text-transform: uppercase;">${isExpense ? 'Favorecido / Recebedor' : 'Contribuinte'}</span>
-                                                    <span style="font-size: 10px; color: #64748b; display: block; margin-top: 2px;">Assinatura</span>
+                                                    ${receiptSignatures.recipient ? `
+                                                        <img src="${receiptSignatures.recipient.signatureDataUrl}" style="height: 48px; max-width: 180px; object-fit: contain; margin: 0 auto 6px auto; display: block;" />
+                                                        <div style="border-top: 1px solid #0f172a; width: 100%; margin-bottom: 6px;"></div>
+                                                        <span style="font-size: 11px; font-weight: 800; color: #0f172a; display: block; text-transform: uppercase;">${receiptSignatures.recipient.signerName}</span>
+                                                        <span style="font-size: 9px; font-weight: 600; color: #475569; display: block; text-transform: uppercase;">${receiptSignatures.recipient.signerRole} ${receiptSignatures.recipient.signerDocument ? `• ${receiptSignatures.recipient.signerDocument}` : ''}</span>
+                                                        <div style="font-size: 8px; font-family: monospace; color: #059669; margin-top: 4px; background: #ecfdf5; border: 1px solid #a7f3d0; padding: 2px 6px; border-radius: 4px; display: inline-block;">
+                                                            ✓ Assinado Digitalmente na Tela • ${new Date(receiptSignatures.recipient.signedAt).toLocaleDateString('pt-BR')} às ${new Date(receiptSignatures.recipient.signedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                                        </div>
+                                                    ` : `
+                                                        <div style="border-top: 1px solid #cbd5e1; width: 100%; margin-top: 40px; margin-bottom: 8px;"></div>
+                                                        <span style="font-size: 11px; font-weight: 700; color: #334155; display: block; text-transform: uppercase;">${isExpense ? 'Favorecido / Recebedor' : 'Contribuinte'}</span>
+                                                        <span style="font-size: 10px; color: #64748b; display: block; margin-top: 2px;">Assinatura</span>
+                                                    `}
                                                 </div>
                                                 <div style="flex: 1; text-align: center;">
-                                                    <div style="border-top: 1px solid #cbd5e1; width: 100%; margin-bottom: 8px;"></div>
-                                                    <span style="font-size: 11px; font-weight: 700; color: #334155; display: block; text-transform: uppercase;">Responsável Financeiro</span>
-                                                    <span style="font-size: 10px; color: #64748b; display: block; margin-top: 2px;">Assinatura</span>
+                                                    ${receiptSignatures.treasurer ? `
+                                                        <img src="${receiptSignatures.treasurer.signatureDataUrl}" style="height: 48px; max-width: 180px; object-fit: contain; margin: 0 auto 6px auto; display: block;" />
+                                                        <div style="border-top: 1px solid #0f172a; width: 100%; margin-bottom: 6px;"></div>
+                                                        <span style="font-size: 11px; font-weight: 800; color: #0f172a; display: block; text-transform: uppercase;">${receiptSignatures.treasurer.signerName}</span>
+                                                        <span style="font-size: 9px; font-weight: 600; color: #475569; display: block; text-transform: uppercase;">${receiptSignatures.treasurer.signerRole} ${receiptSignatures.treasurer.signerDocument ? `• ${receiptSignatures.treasurer.signerDocument}` : ''}</span>
+                                                        <div style="font-size: 8px; font-family: monospace; color: #059669; margin-top: 4px; background: #ecfdf5; border: 1px solid #a7f3d0; padding: 2px 6px; border-radius: 4px; display: inline-block;">
+                                                            ✓ Assinado Digitalmente na Tela • ${new Date(receiptSignatures.treasurer.signedAt).toLocaleDateString('pt-BR')} às ${new Date(receiptSignatures.treasurer.signedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                                        </div>
+                                                    ` : `
+                                                        <div style="border-top: 1px solid #cbd5e1; width: 100%; margin-top: 40px; margin-bottom: 8px;"></div>
+                                                        <span style="font-size: 11px; font-weight: 700; color: #334155; display: block; text-transform: uppercase;">Responsável Financeiro</span>
+                                                        <span style="font-size: 10px; color: #64748b; display: block; margin-top: 2px;">Assinatura</span>
+                                                    `}
                                                 </div>
                                             </div>
 
@@ -1577,6 +1889,42 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                     </div>
                 </div>
             )}
+
+            {/* Modal de Assinatura Digital na Tela (Pad Interativo Idêntico ao Livro Caixa) */}
+            <DigitalSignaturePadModal
+                isOpen={isPadModalOpen}
+                onClose={() => setIsPadModalOpen(false)}
+                onSaveSignature={handleSaveReceiptSignature}
+                initialRole={
+                    activePadSlot === 'recipient'
+                        ? (receiptIsExpense ? 'Favorecido / Recebedor' : 'Contribuinte')
+                        : 'Responsável Financeiro'
+                }
+                initialName={
+                    activePadSlot === 'recipient'
+                        ? receiptDisplayName
+                        : (receiptFullChurch?.treasurer || receiptFullChurch?.pastor || user?.name || '')
+                }
+                allowedRoles={[
+                    'Responsável Financeiro',
+                    '1º Tesoureiro',
+                    '2º Tesoureiro',
+                    'Pastor Presidente',
+                    'Pastor Auxiliar',
+                    'Contribuinte',
+                    'Favorecido / Recebedor',
+                    'Secretário(a)',
+                    'Outro'
+                ]}
+                registeredPeople={[
+                    ...(receiptDisplayName ? [{ name: receiptDisplayName, role: receiptIsExpense ? 'Favorecido / Recebedor' : 'Contribuinte' }] : []),
+                    ...(receiptFullChurch?.pastors || []).map((p: any) => ({ name: p.name, role: p.title || 'Pastor' })),
+                    ...(receiptFullChurch?.treasurers || []).map((t: any) => ({ name: t.name, role: t.title || 'Tesoureiro' })),
+                    ...(receiptFullChurch?.pastor ? [{ name: receiptFullChurch.pastor, role: 'Pastor Presidente' }] : []),
+                    ...(receiptFullChurch?.treasurer ? [{ name: receiptFullChurch.treasurer, role: '1º Tesoureiro' }] : []),
+                    ...(user?.name ? [{ name: user.name, role: 'Operador Financeiro' }] : [])
+                ]}
+            />
 
             {/* Modal de Pré-visualização de Documento/Anexo */}
             <AttachmentPreviewModal

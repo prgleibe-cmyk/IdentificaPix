@@ -45,12 +45,24 @@ export const parsePortalLocation = (): { route: PortalRoute; slug?: string } => 
     } else if (parts[0] === 'church' && parts[1]) {
         if (parts[2] === 'cadastro' || parts[2] === 'cadastrar' || parts[2] === 'register') {
             return { route: 'register', slug: parts[1] };
+        } else if (parts[2] === 'identify' || parts[2] === 'identificar') {
+            return { route: 'identify', slug: parts[1] };
+        } else if (parts[2] === 'reports' || parts[2] === 'relatorios') {
+            return { route: 'reports', slug: parts[1] };
+        } else if (parts[2] === 'pledges' || parts[2] === 'carnes') {
+            return { route: 'pledges', slug: parts[1] };
         } else {
             return { route: 'church', slug: parts[1] };
         }
     } else if (parts[0]) {
         if (parts[1] === 'cadastro' || parts[1] === 'cadastrar' || parts[1] === 'register') {
             return { route: 'register', slug: parts[0] };
+        } else if (parts[1] === 'identify' || parts[1] === 'identificar') {
+            return { route: 'identify', slug: parts[0] };
+        } else if (parts[1] === 'reports' || parts[1] === 'relatorios') {
+            return { route: 'reports', slug: parts[0] };
+        } else if (parts[1] === 'pledges' || parts[1] === 'carnes') {
+            return { route: 'pledges', slug: parts[0] };
         } else {
             return { route: 'church', slug: parts[0] };
         }
@@ -87,9 +99,15 @@ export const PortalRouter: React.FC = () => {
         const routeKey = route as PortalRoute;
         setCurrentRoute(routeKey);
 
-        if (params?.churchSlug) {
-            setChurchSlug(params.churchSlug);
-            window.history.pushState({}, '', `/portal/church/${params.churchSlug}`);
+        const activeSlug = params?.churchSlug || churchSlug || (church?.slug && church.slug !== 'igreja' ? church.slug : undefined);
+
+        if (activeSlug) {
+            setChurchSlug(activeSlug);
+            if (routeKey === 'church' || routeKey === 'home') {
+                window.history.pushState({}, '', `/portal/church/${activeSlug}`);
+            } else {
+                window.history.pushState({}, '', `/portal/church/${activeSlug}/${routeKey}`);
+            }
         } else if (routeKey === 'home') {
             window.history.pushState({}, '', '/portal');
         } else {

@@ -1,6 +1,6 @@
 
 import { Contributor, MatchResult, Church, Transaction, ReconciliationStatus, MatchMethod } from '../../types';
-import { strictNormalize, extractIdentifyingCode, PLACEHOLDER_CHURCH, normalizeString, isInvalidOrNumericName } from '../utils/parsingUtils';
+import { strictNormalize, extractIdentifyingCode, PLACEHOLDER_CHURCH, normalizeString, isInvalidOrNumericName, cleanBankDescription } from '../utils/parsingUtils';
 import { extractNameAndCpf, isCpfCompatible } from '../../utils/contributorHelper';
 
 // --- CACHE INCREMENTAL DO MATCH ---
@@ -188,8 +188,11 @@ export const matchTransactions = (
             return;
         }
 
-        // 🎯 AJUSTE SOLICITADO: Normalização estrita da descrição bancária
-        const txDescStrict = strictNormalize(tx.description);
+        // 🎯 AJUSTE: Normalização estrita da descrição bancária e de suas variações limpas (SMS, OFX, etc.)
+        const txDescStrict = strictNormalize(tx.description || '');
+        const txRawStrict = tx.rawDescription ? strictNormalize(tx.rawDescription) : '';
+        const txCleanStrict = strictNormalize(cleanBankDescription(tx.description || ''));
+        const txCleanRawStrict = tx.rawDescription ? strictNormalize(cleanBankDescription(tx.rawDescription)) : '';
         
         let matchResult: MatchResult = {
             transaction: tx,
@@ -201,10 +204,16 @@ export const matchTransactions = (
             paymentMethod: tx.paymentMethod
         };
 
-        // PRIORIDADE 1: Aprendizado Manual (Usa a descrição exata como DNA)
-        const learned = learnedAssociations.find((la: any) => 
-            la.normalizedDescription === txDescStrict
-        );
+        // PRIORIDADE 1: Aprendizado Manual (Usa a descrição exata como DNA ou variações limpas)
+        const learned = learnedAssociations.find((la: any) => {
+            const laDesc = la.normalizedDescription;
+            return laDesc && (
+                laDesc === txDescStrict || 
+                (txRawStrict && laDesc === txRawStrict) ||
+                (txCleanStrict && laDesc === txCleanStrict) ||
+                (txCleanRawStrict && laDesc === txCleanRawStrict)
+            );
+        });
 
         if (learned) {
             const validName = (learned.contributorNormalizedName && !isInvalidOrNumericName(learned.contributorNormalizedName, tx.description))

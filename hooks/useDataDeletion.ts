@@ -47,6 +47,9 @@ export const useDataDeletion = ({
                     if (referenceData?.setChurches) {
                         referenceData.setChurches((prev: any[]) => prev.filter(c => c.id !== id));
                     }
+                    try {
+                        localStorage.removeItem('iggestor_portal_churches_cache');
+                    } catch (_) {}
                     showToast("Igreja excluída.", "success");
                     break;
                 }

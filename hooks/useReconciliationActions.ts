@@ -223,6 +223,7 @@ export const useReconciliationActions = ({
         }
 
         let registeredName = '';
+        let originalContributorChurchId = '';
         if (finalContributorId) {
           contributor.id = finalContributorId;
           const foundContrib = reconciliation.contributorFiles
@@ -230,6 +231,7 @@ export const useReconciliationActions = ({
             .find((c: any) => c.id === finalContributorId);
           if (foundContrib) {
             registeredName = foundContrib.name || foundContrib.cleanedName || foundContrib.canonical_name;
+            originalContributorChurchId = foundContrib._churchId || foundContrib.church_id || foundContrib.church?.id || '';
           } else {
             const { name } = extractNameAndCpf(finalDescription);
             if (name) {
@@ -243,6 +245,10 @@ export const useReconciliationActions = ({
         if (registeredName) {
           contributor.name = registeredName;
           contributor.cleanedName = registeredName;
+        }
+        if (originalContributorChurchId) {
+          (contributor as any)._churchId = originalContributorChurchId;
+          (contributor as any).church_id = originalContributorChurchId;
         }
 
         const isValidUuid = (id: any) => id && /^[0-9a-fA-F-]{36}$/.test(id);
@@ -426,12 +432,14 @@ export const useReconciliationActions = ({
           };
 
           let registeredName = '';
+          let originalContributorChurchId = '';
           if (matchingContributorId) {
             const foundContrib = reconciliation.contributorFiles
               ?.flatMap((f: any) => f.contributors || [])
               .find((c: any) => c.id === matchingContributorId);
             if (foundContrib) {
               registeredName = foundContrib.name || foundContrib.cleanedName || foundContrib.canonical_name;
+              originalContributorChurchId = foundContrib._churchId || foundContrib.church_id || foundContrib.church?.id || '';
             } else {
               // Fallback se acabou de ser criado e ainda não refletiu na lista
               const nameToUse = (txIds.length === 1 && manualDescription && manualDescription.trim().length > 0)
@@ -446,6 +454,10 @@ export const useReconciliationActions = ({
           if (registeredName) {
             contributor.name = registeredName;
             contributor.cleanedName = registeredName;
+          }
+          if (originalContributorChurchId) {
+            (contributor as any)._churchId = originalContributorChurchId;
+            (contributor as any).church_id = originalContributorChurchId;
           }
 
           const finalRefDate = selectedDate || r.reference_date || r.transaction.reference_date || null;
