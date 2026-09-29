@@ -166,33 +166,10 @@ export const useReconciliationActions = ({
         const globalHashKey = `U${userId}|Bmanual|R${stableRaw}|D${finalDate}|A${finalAmount}`;
         const globalHash = LaunchService.computeBaseHash(globalHashKey);
 
-        const newTxPayload = {
-          user_id: userId,
-          church_id: churchId || null,
-          status: 'pending' as const,
-          is_confirmed: false,
-          amount: finalAmount,
-          type: txType,
-          transaction_date: finalDate,
-          description: finalDescription,
-          bank_id: selectedBankId || null,
-          row_hash: globalHash,
-          source: 'manual'
-        };
-
-        const result = await consolidationService.addTransactions([newTxPayload]);
-
-        // 1. Capturar e validar ID REAL do Supabase
-        const realId = result?.[0]?.id;
-
-        if (!realId || !/^[0-9a-fA-F-]{36}$/.test(realId)) {
-          throw new Error(`ID REAL inválido retornado pelo banco após INSERT: ${realId}`);
-        }
-
-        // 2. Construir MatchResult temporário sem depender do ghost
-        const tempOriginal: MatchResult = {
+        // 1. Resolver e preparar contribuinte antes da inserção
+        const tempPreOriginal: MatchResult = {
           transaction: {
-            id: realId,
+            id: 'temp-manual',
             date: finalDate,
             description: finalDescription,
             rawDescription: '',
@@ -211,8 +188,7 @@ export const useReconciliationActions = ({
           updatedAt: new Date().toISOString()
         };
 
-        // 3. Executar o mesmo fluxo oficial já existente de identificação usando o ID REAL
-        const contributor = buildSafeContributor(tempOriginal, contributionType, paymentMethod);
+        const contributor = buildSafeContributor(tempPreOriginal, contributionType, paymentMethod);
 
         let finalContributorId = unifiedContributorId;
         if (!finalContributorId && finalDescription) {
@@ -254,33 +230,55 @@ export const useReconciliationActions = ({
         const isValidUuid = (id: any) => id && /^[0-9a-fA-F-]{36}$/.test(id);
         const actualContributorId = isValidUuid(contributor.id) ? contributor.id : undefined;
 
-        const updatePayload = {
-          id: realId,
+        // 2. Inserção Atômica já com status "identified" e todos os campos contábeis
+        const newTxPayload = {
+          user_id: userId,
+          church_id: isValidUuid(churchId) ? churchId : null,
           status: 'identified' as const,
-          churchId,
-          bankId: selectedBankId || undefined,
-          contributorId: actualContributorId,
-          isConfirmed: false,
+          is_confirmed: false,
+          amount: finalAmount,
           type: txType,
-          paymentMethod
+          transaction_date: finalDate,
+          description: finalDescription,
+          bank_id: isValidUuid(selectedBankId) ? selectedBankId : null,
+          row_hash: globalHash,
+          source: 'manual',
+          contributor_id: actualContributorId || null,
+          contribution_type: contributionType || null,
+          payment_method: paymentMethod || null
         };
 
-        const updateResult = await consolidationService.updateTransactionStatus(
-          realId,
-          'identified',
-          churchId,
-          selectedBankId || undefined,
-          actualContributorId,
-          false,
-          txType,
-          undefined,
-          contributionType,
-          paymentMethod
-        );
+        const result = await consolidationService.addTransactions([newTxPayload]);
 
-        if (!updateResult) {
-          throw new Error(`Falha ao identificar a transação com ID REAL no updateTransactionStatus.`);
+        // 3. Capturar e validar ID REAL do banco
+        const realId = result?.[0]?.id;
+
+        if (!realId || !/^[0-9a-fA-F-]{36}$/.test(realId)) {
+          throw new Error(`ID REAL inválido retornado pelo banco após INSERT: ${realId}`);
         }
+
+        const tempOriginal: MatchResult = {
+          transaction: {
+            id: realId,
+            date: finalDate,
+            description: finalDescription,
+            rawDescription: '',
+            amount: finalAmount,
+            type: txType,
+            isConfirmed: false,
+            cleanedDescription: finalDescription,
+            bank_id: selectedBankId || undefined,
+            source: 'manual',
+            isManual: true,
+            contributionType,
+            paymentMethod
+          },
+          contributor,
+          status: ReconciliationStatus.IDENTIFIED,
+          church,
+          isConfirmed: false,
+          updatedAt: new Date().toISOString()
+        };
 
         // Salva os comprovantes e faturas no armazenamento persistente
         if (attachments && attachments.length > 0) {

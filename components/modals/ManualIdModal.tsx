@@ -87,6 +87,7 @@ export const ManualIdModal: React.FC = () => {
     const [isBottomUploaderOpen, setIsBottomUploaderOpen] = useState(false);
     const [attachments, setAttachments] = useState<ExpenseAttachment[]>([]);
     const [isSaving, setIsSaving] = useState(false);
+    const isSavingRef = React.useRef<boolean>(false);
 
     const parsedCurrentAmount = useMemo(() => {
         if (!manualAmount) return 0;
@@ -743,6 +744,8 @@ export const ManualIdModal: React.FC = () => {
             return;
         }
 
+        if (isSavingRef.current || isSaving) return;
+        isSavingRef.current = true;
         setIsSaving(true);
 
         try {
@@ -781,6 +784,7 @@ export const ManualIdModal: React.FC = () => {
                 alert(`Erro ao salvar lançamento: ${errMsg}`);
             }
         } finally {
+            isSavingRef.current = false;
             setIsSaving(false);
         }
     };

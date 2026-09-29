@@ -342,8 +342,8 @@ try {
                 }
 
                 let response;
-                const isLocalDirect = cleanBaseUrl.includes('127.0.0.1') || cleanBaseUrl.includes('localhost');
-                const timeoutMs = isLocalDirect ? 30000 : 3000;
+                const isLocalDirect = cleanBaseUrl.includes('127.0.0.1') || cleanBaseUrl.includes('localhost') || cleanBaseUrl.includes('contributors-api');
+                const timeoutMs = 30000;
 
                 try {
                     const controller = new AbortController();

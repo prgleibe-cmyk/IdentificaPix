@@ -14,8 +14,13 @@ export const SystemVersionMonitor: React.FC = () => {
 
     const checkSystemStatus = async () => {
         try {
+            // Se o app estiver em background (celular bloqueado ou aba oculta), não executa polling
+            if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+                return;
+            }
+
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 6000);
+            const timeoutId = setTimeout(() => controller.abort(), 15000);
 
             const res = await fetch('/api/version', {
                 signal: controller.signal,
@@ -51,8 +56,8 @@ export const SystemVersionMonitor: React.FC = () => {
             }
         } catch (err) {
             consecutiveFailuresRef.current += 1;
-            // Só exibe status de reconexão se falhar 2 vezes seguidas para evitar alarme falso em micro instabilidades
-            if (consecutiveFailuresRef.current >= 2) {
+            // Só exibe status de reconexão se falhar 3 vezes seguidas com a tela visível para evitar alarme falso em micro instabilidades de rede móvel
+            if (consecutiveFailuresRef.current >= 3 && typeof document !== 'undefined' && document.visibilityState === 'visible') {
                 setIsReconnecting(true);
             }
         }
@@ -61,18 +66,26 @@ export const SystemVersionMonitor: React.FC = () => {
     useEffect(() => {
         checkSystemStatus();
 
-        // Checar a cada 30 segundos
-        const interval = setInterval(checkSystemStatus, 30000);
+        // Checar a cada 45 segundos quando ativo
+        const interval = setInterval(checkSystemStatus, 45000);
 
         const handleOnline = () => {
             checkSystemStatus();
         };
 
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                checkSystemStatus();
+            }
+        };
+
         window.addEventListener('online', handleOnline);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
 
         return () => {
             clearInterval(interval);
             window.removeEventListener('online', handleOnline);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
             if (reconnectedTimerRef.current) clearTimeout(reconnectedTimerRef.current);
         };
     }, [initialServerTime]);

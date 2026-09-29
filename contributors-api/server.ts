@@ -6166,6 +6166,19 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
       const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
       const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : (church_id || null);
 
+      // Prevenção cirúrgica contra duplicidades: se row_hash já existe para o usuário, reutiliza o registro existente
+      if (row_hash) {
+        const dupCheck = await client.query(
+          'SELECT * FROM consolidated_transactions WHERE user_id = $1 AND row_hash = $2 LIMIT 1',
+          [effectiveUserId, row_hash]
+        );
+        if (dupCheck.rows.length > 0) {
+          console.log(`[bulk] Transação existente detectada com row_hash (${row_hash}), evitando duplicata.`);
+          inserted.push(dupCheck.rows[0]);
+          continue;
+        }
+      }
+
       // 🛡️ Validação de Período Fechado (Congelamento)
       const closedCheck = await isChurchPeriodClosed(client, effectiveChurchId, transaction_date || reference_date);
       if (closedCheck.isClosed) {
@@ -6342,7 +6355,7 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
     const ctx = getTenantContext(req);
     const { amount, description, type, pix_key, source, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits } = req.body;
     
-    const oldTxRes = await pool.query('SELECT * FROM consolidated_transactions WHERE id = $1', [id]);
+    const oldTxRes = await pool.query('SELECT * FROM consolidated_transactions WHERE id::text = $1', [id]);
     const oldTx = oldTxRes.rows[0] || null;
     if (!oldTx) return res.status(404).json({ error: 'NOT_FOUND' });
 
@@ -6404,7 +6417,7 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
         contribution_request_id = COALESCE($16, contribution_request_id),
         splits = CASE WHEN $17::text IS NOT NULL THEN $17::jsonb ELSE splits END,
         updated_at = NOW()
-      WHERE id = $18 RETURNING *`,
+      WHERE id::text = $18 RETURNING *`,
       [
         amount, 
         description, 

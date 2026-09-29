@@ -85,6 +85,8 @@ export const consolidationService = {
                         finalDate = new Date().toISOString().split('T')[0];
                     }
 
+                    const isUuid = (id: any) => !id || id === null || /^[0-9a-fA-F-]{36}$/.test(id);
+
                     const payload = {
                         transaction_date: finalDate,
                         amount: isNaN(amount) ? 0 : amount,
@@ -93,16 +95,18 @@ export const consolidationService = {
                         pix_key: t.pix_key || null,
                         source: t.source || 'file',
                         user_id: effectiveUserId || t.user_id,
-                        church_id: (t as any).church_id || null,
-                        bank_id: t.bank_id || null,
+                        church_id: isUuid((t as any).church_id) ? (t as any).church_id : null,
+                        bank_id: isUuid(t.bank_id) ? t.bank_id : null,
                         status: t.status || 'pending',
                         row_hash: t.row_hash,
-                        is_confirmed: typeof t.is_confirmed === 'boolean' ? t.is_confirmed : false
+                        is_confirmed: typeof t.is_confirmed === 'boolean' ? t.is_confirmed : false,
+                        contributor_id: isUuid((t as any).contributor_id) ? (t as any).contributor_id : null,
+                        contribution_type: (t as any).contribution_type || null,
+                        payment_method: (t as any).payment_method || null
                     };
 
                     // Validação preventiva contra consolidated_transactions_type_check
                     const errors: string[] = [];
-                    const isUuid = (id: any) => !id || id === null || /^[0-9a-fA-F-]{36}$/.test(id);
 
                     if (!['income', 'expense'].includes(payload.type as any)) {
                         errors.push(`Type inválido: ${payload.type}`);
@@ -112,9 +116,6 @@ export const consolidationService = {
                     }
                     if (payload.status === 'resolved' && !payload.is_confirmed) {
                         errors.push('Inconsistência: status=resolved exige is_confirmed=true');
-                    }
-                    if (!isUuid(payload.bank_id)) {
-                        errors.push(`bank_id não é um UUID válido: ${payload.bank_id}`);
                     }
 
                     if (errors.length > 0) {
@@ -236,50 +237,27 @@ export const consolidationService = {
                 errors.push('Inconsistência: tentativa de desconfirmar mantendo status=resolved');
             }
 
-            // Validação de UUIDs
+            // Validação e Sanitização preventiva de UUIDs para compatibilidade total com o banco
             if (safeUpdateData.church_id !== undefined && !isUuid(safeUpdateData.church_id)) {
-                errors.push(`church_id inválido: ${safeUpdateData.church_id}`);
+                console.warn(`[Consolidation] church_id não é UUID válido (${safeUpdateData.church_id}), sanitizando para null.`);
+                safeUpdateData.church_id = null;
             }
             if (safeUpdateData.contributor_id !== undefined && !isUuid(safeUpdateData.contributor_id)) {
-                errors.push(`contributor_id inválido: ${safeUpdateData.contributor_id}`);
+                console.warn(`[Consolidation] contributor_id não é UUID válido (${safeUpdateData.contributor_id}), sanitizando para null.`);
+                safeUpdateData.contributor_id = null;
             }
             if (safeUpdateData.bank_id !== undefined && !isUuid(safeUpdateData.bank_id)) {
-                errors.push(`bank_id inválido: ${safeUpdateData.bank_id}`);
+                console.warn(`[Consolidation] bank_id não é UUID válido (${safeUpdateData.bank_id}), sanitizando para null.`);
+                safeUpdateData.bank_id = null;
             }
 
             // 🪵 [DIAGNOSTIC LOGS: TYPE_CHECK RESULT]
             console.log("[DIAGNOSTIC] safeUpdateData final:", safeUpdateData);
             console.log("[DIAGNOSTIC] TYPE_CHECK Errors Detected:", errors);
-            if (errors.length > 0) {
-                errors.forEach((err, idx) => {
-                    console.error(`[DIAGNOSTIC] ERROR #${idx + 1}: ${err}`);
-                    if (err.includes('Type inválido')) {
-                        console.error(`- Campo falho: type (contributionType ou tipo de lançamento)`);
-                        console.error(`- Motivo: O valor "${safeUpdateData.type}" não é "income" ou "expense"`);
-                    } else if (err.includes('status')) {
-                        console.error(`- Campo falho: status`);
-                        console.error(`- Motivo: O valor "${safeUpdateData.status}" é inválido`);
-                    } else if (err.includes('Inconsistência')) {
-                        console.error(`- Campo falho: status / is_confirmed`);
-                        console.error(`- Motivo: Relação inconsistente entre status e is_confirmed`);
-                    } else if (err.includes('church_id')) {
-                        console.error(`- Campo falho: church_id`);
-                        console.error(`- Motivo: O valor "${safeUpdateData.church_id}" não é um UUID válido`);
-                    } else if (err.includes('contributor_id')) {
-                        console.error(`- Campo falho: contributor_id`);
-                        console.error(`- Motivo: O valor "${safeUpdateData.contributor_id}" não é um UUID válido`);
-                    } else if (err.includes('bank_id')) {
-                        console.error(`- Campo falho: bank_id`);
-                        console.error(`- Motivo: O valor "${safeUpdateData.bank_id}" não é um UUID válido`);
-                    }
-                });
-            } else {
-                console.log("[DIAGNOSTIC] TYPE_CHECK passed successfully with 0 errors!");
-            }
 
             if (errors.length > 0) {
                 console.error('[TYPE_CHECK:BLOCKED_PAYLOAD] [updateTransactionStatus]', { errors, safeUpdateData });
-                return false; // Bloqueia o PATCH
+                throw new Error(`Validação de dados falhou: ${errors.join('; ')}`);
             }
 
             console.log('[FIX:PERSIST_FIELDS]', {
@@ -301,14 +279,20 @@ export const consolidationService = {
 
             if (!response.ok) {
                 const errorText = await response.text();
-                throw new Error(`Erro ao atualizar transação na VPS: ${errorText}`);
+                let parsedErrorMsg = errorText;
+                try {
+                    const parsed = JSON.parse(errorText);
+                    if (parsed?.message) parsedErrorMsg = parsed.message;
+                    else if (parsed?.error) parsedErrorMsg = parsed.error;
+                } catch (_) {}
+                throw new Error(parsedErrorMsg || `Erro HTTP ${response.status} ao atualizar transação.`);
             }
 
             return true;
 
-        } catch (error) {
+        } catch (error: any) {
             console.error("[Consolidation] Erro ao atualizar status:", error);
-            return false;
+            throw error;
         }
     },
 
