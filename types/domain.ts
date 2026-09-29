@@ -187,6 +187,7 @@ export interface Contributor {
   whatsapp?: string;
   _churchName?: string;
   _churchId?: string;
+  church_id?: string;
   _internalId?: string;
 }
 

@@ -7,6 +7,7 @@ import { SicoobParser } from '../core/parsers/SicoobParser';
 import { NameResolver } from '../core/processors/NameResolver';
 import { resolveBankKey } from '../utils/bankHelper';
 
+import { cleanBankDescription } from './utils/parsingUtils';
 export * from './utils/parsingUtils';
 export * from './logic/matchingLogic';
 export * from './logic/filteringLogic';

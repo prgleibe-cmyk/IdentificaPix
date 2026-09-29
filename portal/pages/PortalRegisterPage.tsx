@@ -40,6 +40,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
     const [name, setName] = useState('');
     const [phone, setPhone] = useState('');
     const [email, setEmail] = useState('');
+    const [birthDate, setBirthDate] = useState('');
     const initialChurchName = (church?.name && church.name !== 'Igreja') 
         ? church.name 
         : (churchesList?.[0]?.name && churchesList[0].name !== 'Igreja' ? churchesList[0].name : '');

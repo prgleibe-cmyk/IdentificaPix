@@ -1257,11 +1257,13 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                 fileType: 'application/pdf',
                 uploadedAt: new Date().toISOString(),
                 documentRole: 'recibo',
-                validationStatus: 'approved',
+                validationStatus: 'validated',
                 validationNotes: `Recibo assinado digitalmente na tela por ${sig.signerName} (${sig.signerRole})`,
                 extractedData: {
                     documentType: 'recibo',
+                    documentTypeLabel: 'Recibo Oficial',
                     extractedAmount: receiptAmount,
+                    allDetectedAmounts: [receiptAmount],
                     extractedDate: receiptDisplayDate,
                     extractedRecipient: receiptDisplayName,
                     extractedPayer: receiptDisplayChurch,
@@ -1888,6 +1890,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                         </div>
                     </div>
                 </div>
+            </div>
             )}
 
             {/* Modal de Assinatura Digital na Tela (Pad Interativo Idêntico ao Livro Caixa) */}
