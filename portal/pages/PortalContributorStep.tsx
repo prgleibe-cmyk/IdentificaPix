@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PortalCard } from '../components/PortalCard';
 import { PortalButton } from '../components/PortalButton';
 import { ContributorMockProfile, PortalChurch } from '../types/portal';
@@ -28,6 +28,44 @@ export const PortalContributorStep: React.FC<PortalContributorStepProps> = ({
     onContinue
 }) => {
     const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+    const [churchesList, setChurchesList] = useState<PortalChurch[]>(() => {
+        if (church) return [church];
+        return [];
+    });
+
+    useEffect(() => {
+        let isMounted = true;
+        const fetchChurches = async () => {
+            try {
+                const res = await fetch('/api/v1/churches', { cache: 'no-store' });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (isMounted && Array.isArray(data) && data.length > 0) {
+                        const formatted = data.map((c: any) => ({
+                            id: c.id,
+                            name: c.name || 'Igreja',
+                            slug: c.slug || 'igreja',
+                            address: c.address || '',
+                            logoUrl: c.logoUrl || '',
+                            pastor: c.pastor || '',
+                            description: c.address ? `Endereço: ${c.address}` : 'Ambiente Oficial de Contribuição'
+                        }));
+                        setChurchesList(formatted);
+                    }
+                }
+            } catch (_) {}
+        };
+        fetchChurches();
+        return () => { isMounted = false; };
+    }, []);
+
+    // Ensure congregation defaults to church from portal link
+    useEffect(() => {
+        if (!contributor.congregation || contributor.congregation === 'Sede Central') {
+            const defaultChurchName = (church?.name && church.name !== 'Igreja') ? church.name : (churchesList[0]?.name || 'Igreja Sede / Matriz');
+            onUpdateContributor({ congregation: defaultChurchName, church_id: church?.id || churchesList[0]?.id });
+        }
+    }, [church, churchesList.length]);
 
     const handleFormSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -217,14 +255,27 @@ export const PortalContributorStep: React.FC<PortalContributorStepProps> = ({
                             Congregação *
                         </label>
                         <select
-                            value={contributor.congregation}
-                            onChange={(e) => onUpdateContributor({ congregation: e.target.value })}
-                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 font-semibold"
+                            value={contributor.congregation || (church?.name && church.name !== 'Igreja' ? church.name : (churchesList[0]?.name || ''))}
+                            onChange={(e) => {
+                                const selectedName = e.target.value;
+                                const matched = churchesList.find(c => c.name === selectedName);
+                                onUpdateContributor({ 
+                                    congregation: selectedName,
+                                    church_id: matched?.id || contributor.church_id || church?.id
+                                });
+                            }}
+                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 font-semibold cursor-pointer"
                         >
-                            <option value="Sede Central">Sede Central</option>
-                            <option value="Congregação Norte">Congregação Norte</option>
-                            <option value="Congregação Sul">Congregação Sul</option>
-                            <option value="Congregação Leste">Congregação Leste</option>
+                            {churchesList.length === 0 && (
+                                <option value={church?.name || 'Igreja Sede / Matriz'}>
+                                    {church?.name || 'Igreja Sede / Matriz'}
+                                </option>
+                            )}
+                            {churchesList.map((c) => (
+                                <option key={c.id} value={c.name}>
+                                    {c.name}
+                                </option>
+                            ))}
                         </select>
                     </div>
 

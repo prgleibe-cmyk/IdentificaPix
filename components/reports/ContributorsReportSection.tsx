@@ -293,8 +293,10 @@ export const ContributorsReportSection: React.FC = () => {
         };
     }, [filteredContributors]);
 
-    const getChurchName = (cId: string) => {
-        return churches.find(c => c.id === cId)?.name || 'Igreja Sede';
+    const getChurchName = (cId?: string, item?: any) => {
+        const churchId = cId || item?.church_id || item?.churchId;
+        const matched = churches.find(c => c.id === churchId || (item?.congregation && c.name && c.name.trim().toLowerCase() === item.congregation.trim().toLowerCase()));
+        return matched?.name || item?.congregation || churches[0]?.name || 'Igreja Sede';
     };
 
     // Download format runner
@@ -597,7 +599,7 @@ export const ContributorsReportSection: React.FC = () => {
                                             </td>
 
                                             <td className="py-3 px-4 font-semibold text-slate-700 dark:text-slate-300">
-                                                {getChurchName(item.churchId)}
+                                                {getChurchName(item.churchId || item.church_id, item)}
                                             </td>
 
                                             <td className="py-3 px-4">
@@ -720,7 +722,7 @@ export const ContributorsReportSection: React.FC = () => {
                             <div>
                                 <h3 className="font-black text-slate-800 dark:text-white text-base">{selectedContributor.name || selectedContributor.fullName}</h3>
                                 <p className="text-xs text-slate-400">
-                                    {selectedContributor.role || selectedContributor.churchRole || 'Membro'} · {getChurchName(selectedContributor.churchId)}
+                                    {selectedContributor.role || selectedContributor.churchRole || 'Membro'} · {getChurchName(selectedContributor.churchId || selectedContributor.church_id, selectedContributor)}
                                 </p>
                             </div>
                         </div>

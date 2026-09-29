@@ -18,7 +18,8 @@ import {
     Edit3,
     Check,
     UserCheck,
-    AlertCircle
+    AlertCircle,
+    ChevronDown
 } from 'lucide-react';
 
 interface PortalRegisterPageProps {
@@ -32,8 +33,13 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
     churchesList = [], 
     onNavigate 
 }) => {
-    const [selectedChurchId, setSelectedChurchId] = useState<string>(church?.id || '');
-    const [selectedChurch, setSelectedChurch] = useState<PortalChurch | null>(church || null);
+    const [allChurches, setAllChurches] = useState<PortalChurch[]>(() => {
+        if (churchesList && churchesList.length > 0) return churchesList;
+        if (church) return [church];
+        return [];
+    });
+    const [selectedChurchId, setSelectedChurchId] = useState<string>(() => church?.id || (churchesList?.[0]?.id || ''));
+    const [selectedChurch, setSelectedChurch] = useState<PortalChurch | null>(() => church || churchesList?.[0] || null);
     
     // Form fields
     const [cpf, setCpf] = useState('');
@@ -67,22 +73,58 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [apiError, setApiError] = useState<string | null>(null);
 
-    // Sync selected church when prop arrives or list loads
+    // Fetch all registered churches from backend so user has the complete relation to choose from
     useEffect(() => {
-        if (church) {
+        let isMounted = true;
+        const fetchAllChurches = async () => {
+            try {
+                const res = await fetch('/api/v1/churches', { cache: 'no-store' });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (isMounted && Array.isArray(data) && data.length > 0) {
+                        const formatted: PortalChurch[] = data.map((c: any) => ({
+                            id: c.id,
+                            name: c.name || 'Igreja',
+                            slug: c.slug || 'igreja',
+                            address: c.address || '',
+                            logoUrl: c.logoUrl || '',
+                            pastor: c.pastor || '',
+                            description: c.address ? `Endereço: ${c.address}` : 'Ambiente Oficial de Contribuição'
+                        }));
+                        setAllChurches(formatted);
+                    }
+                }
+            } catch (_) {}
+        };
+        fetchAllChurches();
+        return () => { isMounted = false; };
+    }, []);
+
+    // Sync selected church with portal link church by default
+    useEffect(() => {
+        if (church && church.id) {
             setSelectedChurch(church);
             setSelectedChurchId(church.id);
             if (church.name && church.name !== 'Igreja') {
-                setCongregation(prev => (!prev || prev === 'Sede Central' || prev === 'Igreja') ? church.name : prev);
+                setCongregation(church.name);
             }
-        } else if (churchesList.length > 0 && !selectedChurchId) {
-            setSelectedChurch(churchesList[0]);
-            setSelectedChurchId(churchesList[0].id);
-            if (churchesList[0].name && churchesList[0].name !== 'Igreja') {
-                setCongregation(prev => (!prev || prev === 'Sede Central' || prev === 'Igreja') ? churchesList[0].name : prev);
+        } else if (allChurches.length > 0 && !selectedChurchId) {
+            setSelectedChurch(allChurches[0]);
+            setSelectedChurchId(allChurches[0].id);
+            if (allChurches[0].name && allChurches[0].name !== 'Igreja') {
+                setCongregation(allChurches[0].name);
             }
         }
-    }, [church, churchesList]);
+        if (churchesList && churchesList.length > 0) {
+            setAllChurches(prev => {
+                const merged = [...churchesList];
+                prev.forEach(p => {
+                    if (!merged.some(m => m.id === p.id)) merged.push(p);
+                });
+                return merged;
+            });
+        }
+    }, [church, churchesList, allChurches.length]);
 
     // Pre-load contributors list for smooth name suggestions and instant identification
     useEffect(() => {
@@ -210,12 +252,13 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
 
     const handleChurchChange = (churchId: string) => {
         setSelectedChurchId(churchId);
-        const found = churchesList.find(c => c.id === churchId);
+        if (errors.church) {
+            setErrors(prev => ({ ...prev, church: '' }));
+        }
+        const found = allChurches.find(c => c.id === churchId) || churchesList.find(c => c.id === churchId);
         if (found) {
             setSelectedChurch(found);
-            if (found.name && found.name !== 'Igreja') {
-                setCongregation(found.name);
-            }
+            setCongregation(found.name);
         }
     };
 
@@ -797,17 +840,38 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+                                <label htmlFor="portal-church-select" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
                                     <Building2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                                    <span>Congregação / Igreja</span>
+                                    <span>Congregação / Igreja *</span>
                                 </label>
-                                <input
-                                    type="text"
-                                    value={congregation}
-                                    onChange={(e) => setCongregation(e.target.value)}
-                                    placeholder={selectedChurch?.name || church?.name || "Nome da Igreja"}
-                                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                                />
+                                <div className="relative">
+                                    <select
+                                        id="portal-church-select"
+                                        value={selectedChurchId}
+                                        onChange={(e) => handleChurchChange(e.target.value)}
+                                        className={`w-full px-4 py-3 rounded-2xl border ${errors.church ? 'border-rose-500 focus:ring-rose-500/20' : 'border-slate-200 dark:border-slate-700'} bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 appearance-none cursor-pointer pr-10`}
+                                        required
+                                    >
+                                        {allChurches.length === 0 && selectedChurch && (
+                                            <option value={selectedChurch.id}>
+                                                {selectedChurch.name}
+                                            </option>
+                                        )}
+                                        {allChurches.map((c) => (
+                                            <option key={c.id} value={c.id} className="text-slate-800 dark:text-white font-semibold">
+                                                {c.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                        <ChevronDown className="w-4 h-4" />
+                                    </div>
+                                </div>
+                                {errors.church && (
+                                    <span className="text-[11px] text-rose-500 font-bold mt-1 block">
+                                        {errors.church}
+                                    </span>
+                                )}
                             </div>
                         </div>
 

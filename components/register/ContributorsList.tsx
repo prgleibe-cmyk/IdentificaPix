@@ -5,7 +5,7 @@ import { useUI } from '../../contexts/UIContext';
 import { AppContext } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { UsersIcon, PlusCircleIcon, SearchIcon, XMarkIcon } from '../Icons';
-import { Camera, Trash2, Edit2, Loader2, Upload, Check, AlertTriangle, FileUp, Sparkles, User, Building2, Landmark, MapPin, Phone, Mail, FileText, Tag, Calendar, ShieldCheck, Globe, ChevronDown, ChevronUp } from 'lucide-react';
+import { Camera, Trash2, Edit2, Loader2, Upload, Check, AlertTriangle, FileUp, Sparkles, User, Building2, Landmark, MapPin, Phone, Mail, FileText, Tag, Calendar, ShieldCheck, Globe, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { InlineRoleSelector } from './InlineRoleSelector';
 
@@ -559,6 +559,32 @@ export const ContributorsList: React.FC = () => {
         ...churches.map((c: any) => ({ id: c.id, name: c.name }))
     ];
 
+    const [isRepairingChurches, setIsRepairingChurches] = useState(false);
+
+    const handleRepairChurchNames = async () => {
+        setIsRepairingChurches(true);
+        try {
+            const res = await fetch('/api/v1/contributors/repair-churches', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                showToast(data.message || "Cadastros sincronizados com suas igrejas!", "success");
+                invalidateContributorsCache();
+                fetchContributors(true);
+                notifyContributorUpdated();
+            } else {
+                showToast(data.message || "Erro ao sincronizar igrejas dos cadastros.", "error");
+            }
+        } catch (err) {
+            console.error('[ContributorsList] Erro ao sincronizar igrejas:', err);
+            showToast("Erro ao conectar com o servidor.", "error");
+        } finally {
+            setIsRepairingChurches(false);
+        }
+    };
+
     const fetchContributors = async (forceRefresh = false) => {
         try {
             setIsLoadingContributors(true);
@@ -566,12 +592,22 @@ export const ContributorsList: React.FC = () => {
             // 🛡️ Preserva todos os cadastros válidos (com nome preenchido) e normaliza congregação padrão
             const validOnly = (Array.isArray(data) ? data : [])
                 .filter((c: any) => Boolean((c.canonical_name || c.name) && String(c.canonical_name || c.name).trim()))
-                .map((c: any) => ({
-                    ...c,
-                    church_id: (!c.church_id || c.church_id === 'church-1') 
-                        ? (churches[0]?.id || '00000000-0000-0000-0000-000000000001') 
-                        : c.church_id
-                }));
+                .map((c: any) => {
+                    const matchedChurch = churches.find((ch: any) => ch.id === c.church_id || (c.congregation && ch.name && ch.name.trim().toLowerCase() === c.congregation.trim().toLowerCase()));
+                    const effectiveChurchId = (!c.church_id || c.church_id === 'church-1') 
+                        ? (matchedChurch?.id || churches[0]?.id || '00000000-0000-0000-0000-000000000001') 
+                        : c.church_id;
+                    const effectiveChurchName = matchedChurch?.name || churches.find((ch: any) => ch.id === effectiveChurchId)?.name || churches[0]?.name || 'Igreja Sede / Matriz';
+                    const effectiveCongregation = (!c.congregation || c.congregation === 'Igreja' || c.congregation === 'Igreja não identificada')
+                        ? effectiveChurchName
+                        : c.congregation;
+
+                    return {
+                        ...c,
+                        church_id: effectiveChurchId,
+                        congregation: effectiveCongregation
+                    };
+                });
             setContributors(validOnly);
         } catch (error) {
             console.error('[ContributorsList] Error fetching contributors:', error);
@@ -1567,11 +1603,21 @@ export const ContributorsList: React.FC = () => {
                             </div>
                         </div>
                         
-                        {/* Buttons: Importar Lote & + Novo Contribuinte */}
-                        <div className="flex-shrink-0 flex items-center gap-2">
+                        {/* Buttons: Importar Lote, Vincular Igrejas & + Novo Contribuinte */}
+                        <div className="flex-shrink-0 flex items-center gap-2 flex-wrap">
+                            <button 
+                                onClick={handleRepairChurchNames}
+                                disabled={isRepairingChurches}
+                                title="Identifica cadastros anteriores do portal e vincula o nome da congregação correspondente"
+                                className="w-full sm:w-auto flex items-center justify-center space-x-1.5 px-4 py-2 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-2xl shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50"
+                                id="repair-churches-btn"
+                            >
+                                <RefreshCw className={`w-3.5 h-3.5 text-orange-500 ${isRepairingChurches ? 'animate-spin' : ''}`} />
+                                <span>{isRepairingChurches ? 'Sincronizando...' : 'Vincular Igrejas'}</span>
+                            </button>
                             <button 
                                 onClick={() => setIsImportModalOpen(true)}
-                                className="w-full md:w-auto flex items-center justify-center space-x-1.5 px-5 py-2 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-2xl shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                                className="w-full sm:w-auto flex items-center justify-center space-x-1.5 px-5 py-2 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-2xl shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
                                 id="import-contributors-btn"
                             >
                                 <Upload className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />

@@ -614,6 +614,22 @@ class LocalSqliteEngine {
         SET church_id = '00000000-0000-0000-0000-000000000001' 
         WHERE church_id IS NULL OR trim(church_id) = '' OR church_id = 'church-1';
       `);
+      // 🛡️ Regra de Identificação e Sincronização de Igrejas para Cadastros do Portal:
+      this.db.exec(`
+        UPDATE contributors 
+        SET congregation = (
+          SELECT name FROM churches WHERE churches.id = contributors.church_id LIMIT 1
+        )
+        WHERE (congregation IS NULL OR trim(congregation) = '' OR congregation = 'Igreja' OR congregation = 'Igreja não identificada')
+          AND church_id IS NOT NULL 
+          AND EXISTS (SELECT 1 FROM churches WHERE churches.id = contributors.church_id AND name IS NOT NULL AND trim(name) != '');
+      `);
+      this.db.exec(`
+        UPDATE contributors 
+        SET congregation = (SELECT name FROM churches ORDER BY created_at ASC LIMIT 1),
+            church_id = (SELECT id FROM churches ORDER BY created_at ASC LIMIT 1)
+        WHERE (congregation IS NULL OR trim(congregation) = '' OR congregation = 'Igreja' OR congregation = 'Igreja não identificada');
+      `);
     } catch (_) {}
 
     // 2. Remove apenas cadastros verdadeiramente incompletos (sem nenhum nome identificável)
@@ -1208,6 +1224,25 @@ async function initializeDatabase() {
         ON CONFLICT DO NOTHING;
       `);
       console.log('[Contributors API] Default church seeded.');
+    }
+
+    // 🛡️ Regra de Identificação e Sincronização de Igrejas para Cadastros do Portal (PostgreSQL):
+    try {
+      await client.query(`
+        UPDATE contributors c
+        SET congregation = ch.name
+        FROM churches ch
+        WHERE c.church_id = ch.id
+          AND (c.congregation IS NULL OR trim(c.congregation) = '' OR c.congregation = 'Igreja' OR c.congregation = 'Igreja não identificada');
+      `);
+      await client.query(`
+        UPDATE contributors
+        SET congregation = (SELECT name FROM churches ORDER BY created_at ASC LIMIT 1),
+            church_id = (SELECT id FROM churches ORDER BY created_at ASC LIMIT 1)
+        WHERE (congregation IS NULL OR trim(congregation) = '' OR congregation = 'Igreja' OR congregation = 'Igreja não identificada');
+      `);
+    } catch (syncErr: any) {
+      console.warn('[Contributors API] Aviso ao sincronizar congregações no PostgreSQL:', syncErr?.message);
     }
 
     // Create table consolidated_transactions
@@ -2028,6 +2063,17 @@ app.get('/api/v1/contributors', async (req: Request, res: Response) => {
     query += ' ORDER BY canonical_name ASC';
 
     const result = await pool.query(query, params);
+
+    // Query church names map to enrich missing congregations seamlessly
+    const churchMap = new Map<string, string>();
+    try {
+      const chRes = await pool.query('SELECT id, name FROM churches');
+      chRes.rows.forEach((ch: any) => {
+        if (ch.id && ch.name) churchMap.set(String(ch.id), ch.name);
+      });
+    } catch (_) {}
+    const defaultChurchName = churchMap.get('00000000-0000-0000-0000-000000000001') || Array.from(churchMap.values())[0] || 'Igreja Sede / Matriz';
+
     const validRows = result.rows
       .filter((r: any) => {
         const cleanName = (r.canonical_name || r.name || '').trim();
@@ -2038,9 +2084,14 @@ app.get('/api/v1/contributors', async (req: Request, res: Response) => {
         if (!church_id || church_id === 'church-1') {
           church_id = '00000000-0000-0000-0000-000000000001';
         }
+        let congregation = (r.congregation || '').trim();
+        if (!congregation || congregation === 'Igreja' || congregation === 'Igreja não identificada') {
+          congregation = churchMap.get(church_id) || defaultChurchName;
+        }
         return {
           ...r,
-          church_id
+          church_id,
+          congregation
         };
       });
     return res.json(validRows);
@@ -3499,6 +3550,62 @@ app.post('/api/v1/contributors', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'VALIDATION_ERROR' });
     }
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// POST /api/v1/contributors/repair-churches (Identifica cadastros anteriores do portal/sistema sem igreja e preenche com o nome da congregação)
+app.post('/api/v1/contributors/repair-churches', async (req: Request, res: Response) => {
+  try {
+    // 1. Fetch all churches
+    const churchesRes = await pool.query('SELECT id, name FROM churches');
+    const churches = churchesRes.rows;
+    const defaultChurch = churches.find((c: any) => c.id === '00000000-0000-0000-0000-000000000001') || churches[0] || { id: '00000000-0000-0000-0000-000000000001', name: 'Igreja Sede / Matriz' };
+    const churchMap = new Map<string, string>();
+    churches.forEach((c: any) => {
+      if (c.id && c.name) churchMap.set(String(c.id), c.name);
+    });
+
+    // 2. Query candidates for repair
+    const candidatesRes = await pool.query(`
+      SELECT id, canonical_name, name, cpf, church_id, congregation, role_position, is_global, created_at
+      FROM contributors
+      WHERE congregation IS NULL 
+         OR trim(congregation) = '' 
+         OR congregation = 'Igreja' 
+         OR congregation = 'Igreja não identificada'
+    `);
+
+    const updatedList: any[] = [];
+
+    for (const row of candidatesRes.rows) {
+      let targetChurchId = (row.church_id && row.church_id !== 'church-1') ? row.church_id : defaultChurch.id;
+      let targetChurchName = churchMap.get(targetChurchId) || defaultChurch.name;
+
+      await pool.query(
+        'UPDATE contributors SET congregation = $1, church_id = $2, updated_at = NOW() WHERE id = $3',
+        [targetChurchName, targetChurchId, row.id]
+      );
+
+      updatedList.push({
+        id: row.id,
+        name: row.canonical_name || row.name,
+        cpf: row.cpf,
+        church_id: targetChurchId,
+        congregation: targetChurchName
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: updatedList.length > 0 
+        ? `${updatedList.length} cadastros identificados e atualizados com o nome da congregação.`
+        : 'Todos os cadastros já estão devidamente vinculados e sincronizados com a respectiva igreja.',
+      updatedCount: updatedList.length,
+      updatedContributors: updatedList
+    });
+  } catch (err: any) {
+    console.error('[Contributors API] Error repairing contributor church names:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: err?.message || String(err) });
   }
 });
 

@@ -23,7 +23,8 @@ import {
     Camera,
     Upload,
     Trash2,
-    Image as ImageIcon
+    Image as ImageIcon,
+    ChevronDown
 } from 'lucide-react';
 
 interface PortalEditProfileModalProps {
@@ -58,12 +59,45 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    const [allChurches, setAllChurches] = useState<PortalChurch[]>(() => {
+        if (church) return [church];
+        return [];
+    });
+    const [selectedChurchId, setSelectedChurchId] = useState<string>(() => church?.id || contributor?.church_id || '');
+
     const [isSearchingCep, setIsSearchingCep] = useState(false);
     const [cepError, setCepError] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [formErrors, setFormErrors] = useState<Record<string, string>>({});
     const [apiError, setApiError] = useState<string | null>(null);
+
+    // Load registered churches list
+    useEffect(() => {
+        let isMounted = true;
+        const fetchChurches = async () => {
+            try {
+                const res = await fetch('/api/v1/churches', { cache: 'no-store' });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (isMounted && Array.isArray(data) && data.length > 0) {
+                        const formatted: PortalChurch[] = data.map((c: any) => ({
+                            id: c.id,
+                            name: c.name || 'Igreja',
+                            slug: c.slug || 'igreja',
+                            address: c.address || '',
+                            logoUrl: c.logoUrl || '',
+                            pastor: c.pastor || '',
+                            description: c.address ? `Endereço: ${c.address}` : 'Ambiente Oficial de Contribuição'
+                        }));
+                        setAllChurches(formatted);
+                    }
+                }
+            } catch (_) {}
+        };
+        fetchChurches();
+        return () => { isMounted = false; };
+    }, []);
 
     // Initialize or reset form state when modal opens
     useEffect(() => {
@@ -79,11 +113,14 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
             setAddressCity(contributor.address_city || contributor.city || '');
             setAddressState(contributor.address_state || contributor.state || '');
             const currentChurchName = (church?.name && church.name !== 'Igreja') ? church.name : (church?.name || '');
-            setCongregation(
-                (contributor.congregation && contributor.congregation !== 'Sede Central' && contributor.congregation !== 'Igreja') 
-                    ? contributor.congregation 
-                    : (currentChurchName || contributor.congregation || '')
-            );
+            const initialCongregation = (contributor.congregation && contributor.congregation !== 'Sede Central' && contributor.congregation !== 'Igreja') 
+                ? contributor.congregation 
+                : (currentChurchName || contributor.congregation || '');
+            setCongregation(initialCongregation);
+
+            const initialChurchId = contributor.church_id || church?.id || allChurches.find(c => c.name.trim().toLowerCase() === initialCongregation.trim().toLowerCase())?.id || allChurches[0]?.id || '00000000-0000-0000-0000-000000000001';
+            setSelectedChurchId(initialChurchId);
+
             setRolePosition(contributor.role_position || '');
             setPhotoPreview(contributor.photo_url || contributor.photo || contributor.avatarUrl || null);
             setFormErrors({});
@@ -92,7 +129,15 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
             setCepError(null);
             setIsProcessingPhoto(false);
         }
-    }, [isOpen, contributor, church]);
+    }, [isOpen, contributor, church, allChurches.length]);
+
+    const handleChurchSelect = (cId: string) => {
+        setSelectedChurchId(cId);
+        const found = allChurches.find(c => c.id === cId);
+        if (found) {
+            setCongregation(found.name);
+        }
+    };
 
     if (!isOpen) return null;
 
@@ -254,8 +299,9 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
         try {
             const cleanCpfDigits = cpf.replace(/\D/g, '');
             const cleanPhoneDigits = phone.replace(/\D/g, '');
-            const targetChurchId = church?.id || contributor?.church_id || '00000000-0000-0000-0000-000000000001';
-            const currentChurchName = (church?.name && church.name !== 'Igreja') ? church.name : (church?.name || '');
+            const targetChurchId = selectedChurchId || church?.id || contributor?.church_id || '00000000-0000-0000-0000-000000000001';
+            const matchedChurch = allChurches.find(c => c.id === targetChurchId);
+            const currentChurchName = matchedChurch?.name || ((church?.name && church.name !== 'Igreja') ? church.name : (church?.name || ''));
             const effectiveCongregation = (congregation.trim() || currentChurchName || '').trim();
 
             const payload: any = {
@@ -772,15 +818,30 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                             <div>
                                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                    Congregação / Igreja
+                                    Congregação / Igreja *
                                 </label>
-                                <input
-                                    type="text"
-                                    value={congregation}
-                                    onChange={(e) => setCongregation(e.target.value)}
-                                    placeholder={church?.name || "Ex: Sede Central ou Congregação Local"}
-                                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                                />
+                                <div className="relative">
+                                    <select
+                                        value={selectedChurchId}
+                                        onChange={(e) => handleChurchSelect(e.target.value)}
+                                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none cursor-pointer pr-10"
+                                        required
+                                    >
+                                        {allChurches.length === 0 && (
+                                            <option value={church?.id || '00000000-0000-0000-0000-000000000001'}>
+                                                {church?.name || 'Igreja Sede / Matriz'}
+                                            </option>
+                                        )}
+                                        {allChurches.map((c) => (
+                                            <option key={c.id} value={c.id} className="text-slate-800 dark:text-white font-semibold">
+                                                {c.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                        <ChevronDown className="w-4 h-4" />
+                                    </div>
+                                </div>
                             </div>
 
                             <div>
