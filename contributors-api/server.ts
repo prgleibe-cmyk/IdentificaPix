@@ -43,14 +43,31 @@ class LocalSqliteEngine {
   private init() {
     try {
       const { DatabaseSync } = requireFallback('node:sqlite');
-      const rootAppDir = fs.existsSync(path.resolve(__dirname, '..', 'package.json')) 
-        ? path.resolve(__dirname, '..') 
-        : (fs.existsSync(path.resolve(process.cwd(), 'data')) ? process.cwd() : path.resolve(process.cwd(), '..'));
+      // Unificação absoluta: apontar sempre para o diretório raiz data/ do projeto
+      let rootAppDir = process.cwd();
+      if (!fs.existsSync(path.join(rootAppDir, 'data')) && fs.existsSync(path.resolve(rootAppDir, '..', 'data'))) {
+        rootAppDir = path.resolve(rootAppDir, '..');
+      } else if (fs.existsSync(path.resolve(__dirname, '..', '..', 'data'))) {
+        rootAppDir = path.resolve(__dirname, '..', '..');
+      }
       const dbDir = path.resolve(rootAppDir, 'data');
       if (!fs.existsSync(dbDir)) {
         fs.mkdirSync(dbDir, { recursive: true });
       }
       const dbPath = path.join(dbDir, 'contributors_local.sqlite');
+
+      // Se houver banco legado em contributors-api/data com tamanho superior, preserva seus dados
+      const subDbPath = path.resolve(rootAppDir, 'contributors-api', 'data', 'contributors_local.sqlite');
+      if (fs.existsSync(subDbPath) && subDbPath !== dbPath) {
+        try {
+          const mainSize = fs.existsSync(dbPath) ? fs.statSync(dbPath).size : 0;
+          const subSize = fs.statSync(subDbPath).size;
+          if (subSize > mainSize) {
+            fs.copyFileSync(subDbPath, dbPath);
+          }
+        } catch (_) {}
+      }
+
       this.db = new DatabaseSync(dbPath);
 
       // Register SQL custom functions
@@ -471,6 +488,9 @@ class LocalSqliteEngine {
     safeAdd('app_users', 'last_login TEXT');
     safeAdd('app_users', 'updated_at TEXT DEFAULT (now())');
     safeAdd('app_users', 'deleted_at TEXT');
+    safeAdd('app_users', 'subscription_status TEXT DEFAULT "trial"');
+    safeAdd('app_users', 'subscription_ends_at TEXT');
+    safeAdd('app_users', 'trial_ends_at TEXT');
 
     safeAdd('profiles', 'email TEXT');
     safeAdd('profiles', 'name TEXT');

@@ -12,23 +12,84 @@ const normalizeRole = (r: any, hasSeparateOwner: boolean): 'owner' | 'member' | 
     return 'owner';
 };
 
+export const SUBSCRIPTION_STORAGE_KEY = 'iggestor_vps_subscription';
+
+const computeRemainingDays = (dateStr?: string | null): number => {
+    if (!dateStr) return 0;
+    try {
+        const diff = new Date(dateStr).getTime() - Date.now();
+        return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+    } catch {
+        return 0;
+    }
+};
+
 // Fix: Added React to imports and typed settingsRef as React.MutableRefObject
 export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemSettings>) => {
     const [subscription, setSubscription] = useState<SubscriptionStatus>(() => {
         try {
             const rawUser = typeof window !== 'undefined' ? localStorage.getItem('iggestor_vps_user') : null;
+            const rawSub = typeof window !== 'undefined' ? localStorage.getItem(SUBSCRIPTION_STORAGE_KEY) : null;
+            let u: any = null;
             if (rawUser) {
-                const u = JSON.parse(rawUser);
-                const hasSeparateOwner = Boolean(u?.owner_id && u?.owner_id !== u?.id);
-                const role = normalizeRole(u?.role, hasSeparateOwner);
-                const ownerId = u?.owner_id || (role === 'owner' ? u?.id : '');
+                try { u = JSON.parse(rawUser); } catch {}
+            }
+            let cached: any = null;
+            if (rawSub) {
+                try { cached = JSON.parse(rawSub); } catch {}
+            }
+
+            const hasSeparateOwner = Boolean(u?.owner_id && u?.owner_id !== u?.id);
+            const role = normalizeRole(u?.role, hasSeparateOwner);
+            const ownerId = u?.owner_id || (role === 'owner' ? u?.id : '');
+
+            // 🛡️ Prioridade de hidratação: Cache de assinatura persistido para evitar reset em deploy
+            if (cached) {
+                let dynamicDays = cached.daysRemaining;
+                let dynamicPlan = cached.plan || 'trial';
+                if (cached.isLifetime || dynamicPlan === 'lifetime') {
+                    dynamicDays = 9999;
+                    dynamicPlan = 'lifetime';
+                } else if (cached.subscription_ends_at) {
+                    dynamicDays = computeRemainingDays(cached.subscription_ends_at);
+                    dynamicPlan = dynamicDays > 0 ? (cached.plan === 'trial' ? 'trial' : 'active') : 'expired';
+                } else if (cached.trial_ends_at) {
+                    dynamicDays = computeRemainingDays(cached.trial_ends_at);
+                    dynamicPlan = dynamicDays > 0 ? 'trial' : 'expired';
+                }
+
                 return {
-                    plan: 'trial',
-                    daysRemaining: 10,
-                    totalDays: 10,
-                    isExpired: false,
+                    ...cached,
+                    plan: dynamicPlan,
+                    daysRemaining: dynamicDays,
+                    isExpired: dynamicPlan !== 'lifetime' && dynamicDays <= 0,
+                    role: role,
+                    ownerId: ownerId,
+                    permissions: u?.permissions || cached.permissions || {}
+                };
+            }
+
+            // 🛡️ Fallback secundário: dados presentes no objeto local do usuário
+            if (u) {
+                let dynamicDays = 10;
+                let dynamicPlan: any = u.subscription_status || 'trial';
+                if (dynamicPlan === 'lifetime') {
+                    dynamicDays = 9999;
+                } else if (u.subscription_ends_at) {
+                    dynamicDays = computeRemainingDays(u.subscription_ends_at);
+                    dynamicPlan = dynamicDays > 0 ? 'active' : 'expired';
+                } else if (u.trial_ends_at) {
+                    dynamicDays = computeRemainingDays(u.trial_ends_at);
+                    dynamicPlan = dynamicDays > 0 ? 'trial' : 'expired';
+                }
+
+                return {
+                    plan: dynamicPlan,
+                    daysRemaining: dynamicDays,
+                    totalDays: dynamicPlan === 'trial' ? 10 : 30,
+                    isExpired: dynamicPlan !== 'lifetime' && dynamicDays <= 0,
                     isBlocked: false,
-                    isLifetime: false,
+                    isLifetime: dynamicPlan === 'lifetime',
                     aiLimit: 100, 
                     aiUsage: 0,
                     maxChurches: 2, 
@@ -71,11 +132,14 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
         lastProcessedUserId.current = userId;
         const settings = settingsRef.current;
 
-        // Obtain fallback user metadata from localStorage
+        // Obtain fallback user metadata and cached subscription from localStorage
         let localUser: any = null;
+        let cachedSub: any = null;
         try {
             const raw = localStorage.getItem('iggestor_vps_user');
             if (raw) localUser = JSON.parse(raw);
+            const rawSub = localStorage.getItem(SUBSCRIPTION_STORAGE_KEY);
+            if (rawSub) cachedSub = JSON.parse(rawSub);
         } catch {}
 
         try {
@@ -111,6 +175,19 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
                     console.warn("[useSubscriptionState] Aviso ao buscar dados do proprietário:", ownerErr);
                 }
             }
+
+            // 🛡️ Se o perfil remoto não trouxe dados de assinatura válidos, preserva os dados de assinatura em cache
+            if (!p.subscription_ends_at && !p.trial_ends_at) {
+                if (cachedSub?.subscription_ends_at || cachedSub?.trial_ends_at) {
+                    p.subscription_status = cachedSub.plan || p.subscription_status;
+                    p.subscription_ends_at = cachedSub.subscription_ends_at;
+                    p.trial_ends_at = cachedSub.trial_ends_at;
+                } else if (localUser?.subscription_ends_at || localUser?.trial_ends_at) {
+                    p.subscription_status = localUser.subscription_status || p.subscription_status;
+                    p.subscription_ends_at = localUser.subscription_ends_at;
+                    p.trial_ends_at = localUser.trial_ends_at;
+                }
+            }
             
             const isBlocked = p.is_blocked === true;
             const isLifetime = p.is_lifetime === true || p.subscription_status === 'lifetime';
@@ -120,12 +197,27 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
             if (isLifetime) {
                 status = 'lifetime';
                 daysRemaining = 9999;
-            } else if (status === 'active' && p.subscription_ends_at) {
+            } else if ((status === 'active' || p.subscription_ends_at) && p.subscription_ends_at) {
                 const diff = new Date(p.subscription_ends_at).getTime() - now.getTime();
                 daysRemaining = Math.ceil(diff / (1000 * 60 * 60 * 24));
-                if (daysRemaining <= 0) { status = 'expired'; daysRemaining = 0; }
+                if (daysRemaining <= 0) { 
+                    status = 'expired'; 
+                    daysRemaining = 0; 
+                } else {
+                    status = 'active';
+                }
             } else {
-                const trialEnd = p.trial_ends_at ? new Date(p.trial_ends_at) : new Date(now.getTime() + settings.defaultTrialDays * 86400000);
+                // Cálculo de período de teste: usa data fixada para que nunca resete em deploys
+                const trialEnd = p.trial_ends_at 
+                    ? new Date(p.trial_ends_at) 
+                    : (cachedSub?.trial_ends_at ? new Date(cachedSub.trial_ends_at) : new Date(now.getTime() + settings.defaultTrialDays * 86400000));
+                
+                // Se a data final do teste ainda não estava gravada no perfil remoto, grava de forma definitiva
+                if (!p.trial_ends_at && userId) {
+                    p.trial_ends_at = trialEnd.toISOString();
+                    profileService.updateProfile(userId, { trial_ends_at: p.trial_ends_at }).catch(() => {});
+                }
+
                 const diff = trialEnd.getTime() - now.getTime();
                 daysRemaining = Math.ceil(diff / (1000 * 60 * 60 * 24));
                 if (daysRemaining <= 0) { status = 'expired'; daysRemaining = 0; }
@@ -171,7 +263,7 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
             const finalRole = normalizeRole(rawRoleCandidate, hasSeparateOwner);
             const finalOwnerId = p.owner_id || localUser?.owner_id || (finalRole === 'owner' ? userId : '');
 
-            setSubscription({
+            const newSubscription: SubscriptionStatus = {
                 plan: status as any,
                 daysRemaining: Math.max(0, daysRemaining),
                 totalDays: status === 'trial' ? settings.defaultTrialDays : 30,
@@ -188,7 +280,24 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
                 congregationIds: congregationIds,
                 bankIds: bankIds,
                 permissions: permissions
-            });
+            };
+
+            // 🛡️ Salva estado no localStorage para manter a fidelidade dos dias em deploys
+            try {
+                localStorage.setItem(SUBSCRIPTION_STORAGE_KEY, JSON.stringify({
+                    ...newSubscription,
+                    subscription_ends_at: p.subscription_ends_at || null,
+                    trial_ends_at: p.trial_ends_at || null
+                }));
+                if (localUser) {
+                    localUser.subscription_status = status;
+                    localUser.subscription_ends_at = p.subscription_ends_at || null;
+                    localUser.trial_ends_at = p.trial_ends_at || null;
+                    localStorage.setItem('iggestor_vps_user', JSON.stringify(localUser));
+                }
+            } catch (_) {}
+
+            setSubscription(newSubscription);
         } catch (e) {
             console.error("Erro assinatura (resgatando padrão):", e);
             if (localUser) {

@@ -15,12 +15,45 @@ export const useAuthActions = (
         const currentEnd = p?.subscription_ends_at ? new Date(p.subscription_ends_at) : now;
         const baseDate = currentEnd.getTime() < now.getTime() ? now : currentEnd;
         const next = new Date(baseDate.getTime() + days * 86400000);
+        const nextIso = next.toISOString();
+
         await profileService.updateProfile(user.id, {
             subscription_status: 'active',
-            subscription_ends_at: next.toISOString()
+            subscription_ends_at: nextIso
         });
+
+        // 🛡️ Salva também imediatamente no cache local do usuário e assinatura para resiliência total contra deploys
+        try {
+            const rawUser = localStorage.getItem('iggestor_vps_user');
+            if (rawUser) {
+                const u = JSON.parse(rawUser);
+                u.subscription_status = 'active';
+                u.subscription_ends_at = nextIso;
+                localStorage.setItem('iggestor_vps_user', JSON.stringify(u));
+            }
+            const rawSub = localStorage.getItem('iggestor_vps_subscription');
+            const prevSub = rawSub ? JSON.parse(rawSub) : {};
+            const diffDays = Math.ceil((next.getTime() - now.getTime()) / 86400000);
+            localStorage.setItem('iggestor_vps_subscription', JSON.stringify({
+                ...prevSub,
+                plan: 'active',
+                subscription_status: 'active',
+                subscription_ends_at: nextIso,
+                daysRemaining: Math.max(0, diffDays),
+                totalDays: 30,
+                isExpired: false
+            }));
+            setSubscription(s => ({
+                ...s,
+                plan: 'active',
+                daysRemaining: Math.max(0, diffDays),
+                totalDays: 30,
+                isExpired: false
+            }));
+        } catch (_) {}
+
         await refreshSubscription();
-    }, [user, refreshSubscription]);
+    }, [user, setSubscription, refreshSubscription]);
 
     const updateLimits = useCallback(async (slots: number) => {
         if (!user) return;

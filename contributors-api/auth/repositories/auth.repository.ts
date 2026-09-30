@@ -138,7 +138,10 @@ export class AuthRepository {
               COALESCE(p.role, u.role) as resolved_role,
               COALESCE(p.name, u.name) as resolved_name,
               COALESCE(p.congregation, u.church_id::text) as resolved_church_id,
-              COALESCE(p.permissions, u.permissions) as resolved_permissions
+              COALESCE(p.permissions, u.permissions) as resolved_permissions,
+              COALESCE(p.subscription_status, u.subscription_status, 'trial') as resolved_subscription_status,
+              COALESCE(p.subscription_ends_at, u.subscription_ends_at) as resolved_subscription_ends_at,
+              COALESCE(p.trial_ends_at, u.trial_ends_at) as resolved_trial_ends_at
        FROM app_users u 
        LEFT JOIN profiles p ON (p.id = u.id::text OR LOWER(p.email) = LOWER(u.email))
        WHERE LOWER(u.email) = LOWER($1) AND u.deleted_at IS NULL LIMIT 1`,
@@ -174,7 +177,10 @@ export class AuthRepository {
               COALESCE(p.role, u.role) as resolved_role,
               COALESCE(p.name, u.name) as resolved_name,
               COALESCE(p.congregation, u.church_id::text) as resolved_church_id,
-              COALESCE(p.permissions, u.permissions) as resolved_permissions
+              COALESCE(p.permissions, u.permissions) as resolved_permissions,
+              COALESCE(p.subscription_status, u.subscription_status, 'trial') as resolved_subscription_status,
+              COALESCE(p.subscription_ends_at, u.subscription_ends_at) as resolved_subscription_ends_at,
+              COALESCE(p.trial_ends_at, u.trial_ends_at) as resolved_trial_ends_at
        FROM app_users u 
        LEFT JOIN profiles p ON (p.id = u.id::text OR LOWER(p.email) = LOWER(u.email))
        WHERE (u.id::text = $1 OR LOWER(u.email) = LOWER($1) OR p.id = $1) AND u.deleted_at IS NULL LIMIT 1`,
@@ -546,6 +552,9 @@ export class AuthRepository {
       failed_attempts: Number(row.failed_attempts || 0),
       lock_until: row.lock_until ? new Date(row.lock_until) : null,
       last_login: row.last_login ? new Date(row.last_login) : null,
+      subscription_status: row.resolved_subscription_status || row.subscription_status || 'trial',
+      subscription_ends_at: row.resolved_subscription_ends_at || row.subscription_ends_at || null,
+      trial_ends_at: row.resolved_trial_ends_at || row.trial_ends_at || null,
       created_at: new Date(row.created_at),
       updated_at: new Date(row.updated_at),
       deleted_at: row.deleted_at ? new Date(row.deleted_at) : null

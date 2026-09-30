@@ -65,6 +65,9 @@ export class LocalAuthProvider implements IAuthProvider {
             owner_id: userObj.owner_id || null,
             church_id: userObj.church_id,
             permissions: userObj.permissions || [],
+            subscription_status: userObj.subscription_status || null,
+            subscription_ends_at: userObj.subscription_ends_at || null,
+            trial_ends_at: userObj.trial_ends_at || null,
           };
         } catch {
           // ignore parse error
@@ -91,6 +94,9 @@ export class LocalAuthProvider implements IAuthProvider {
             owner_id: u.owner_id || null,
             church_id: u.church_id,
             permissions: u.permissions || [],
+            subscription_status: u.subscription_status || null,
+            subscription_ends_at: u.subscription_ends_at || null,
+            trial_ends_at: u.trial_ends_at || null,
           };
           localStorage.setItem(USER_KEY, JSON.stringify(authUser));
           return authUser;

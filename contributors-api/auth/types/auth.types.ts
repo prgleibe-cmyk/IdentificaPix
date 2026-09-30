@@ -15,6 +15,9 @@ export interface LocalUser {
   failed_attempts: number;
   lock_until?: Date | null;
   last_login?: Date | null;
+  subscription_status?: string | null;
+  subscription_ends_at?: string | null;
+  trial_ends_at?: string | null;
   created_at: Date;
   updated_at: Date;
   deleted_at?: Date | null;
@@ -33,6 +36,9 @@ export interface UserResponse {
   is_active: boolean;
   is_verified: boolean;
   two_factor_enabled: boolean;
+  subscription_status?: string | null;
+  subscription_ends_at?: string | null;
+  trial_ends_at?: string | null;
   last_login?: Date | null;
   created_at: Date;
 }

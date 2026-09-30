@@ -93,6 +93,9 @@ export class AuthService {
       is_active: user.is_active,
       is_verified: user.is_verified,
       two_factor_enabled: Boolean(user.two_factor_enabled),
+      subscription_status: user.subscription_status || 'trial',
+      subscription_ends_at: user.subscription_ends_at || null,
+      trial_ends_at: user.trial_ends_at || null,
       last_login: user.last_login,
       created_at: user.created_at
     };

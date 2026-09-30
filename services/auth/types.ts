@@ -8,6 +8,9 @@ export interface AuthUser {
   owner_id?: string | null;
   church_id?: string | null;
   permissions?: string[];
+  subscription_status?: string | null;
+  subscription_ends_at?: string | null;
+  trial_ends_at?: string | null;
   user_metadata?: Record<string, any>;
   app_metadata?: Record<string, any>;
 }
