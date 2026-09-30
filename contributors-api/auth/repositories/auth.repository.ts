@@ -225,11 +225,13 @@ export class AuthRepository {
     try {
       const effectiveOwnerId = userData.owner_id || createdUser.id;
       const initialRole = userData.owner_id && userData.owner_id !== createdUser.id ? (userData.role || 'member') : 'owner';
+      const defaultTrialEnd = new Date(Date.now() + 10 * 86400000).toISOString();
       await this.pool.query(
-        `INSERT INTO profiles (id, email, name, role, owner_id, subscription_status, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, 'trial', NOW(), NOW())
-         ON CONFLICT (id) DO NOTHING`,
-        [createdUser.id, createdUser.email, createdUser.name || null, initialRole, effectiveOwnerId]
+        `INSERT INTO profiles (id, email, name, role, owner_id, subscription_status, trial_ends_at, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, 'trial', $6, NOW(), NOW())
+         ON CONFLICT (id) DO UPDATE SET
+           trial_ends_at = COALESCE(profiles.trial_ends_at, EXCLUDED.trial_ends_at)`,
+        [createdUser.id, createdUser.email, createdUser.name || null, initialRole, effectiveOwnerId, defaultTrialEnd]
       );
     } catch {
       // Ignore if profiles table does not exist yet

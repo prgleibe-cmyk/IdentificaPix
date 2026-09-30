@@ -148,17 +148,21 @@ export class ProfileController {
       const user = (req as any).user;
       const isSuperAdmin = Boolean(user?.isSuperAdmin || user?.role === 'SUPER_ADMIN' || user?.role === 'ADMINISTRADOR_GERAL');
       const authenticatedUserId = user?.userId || user?.id;
+      const userEmail = user?.email?.toLowerCase().trim();
 
       const existing = await this.service.getById(id);
-      if (!existing) {
-        return res.status(404).json({ success: false, error: 'PERFIL_NAO_ENCONTRADO' });
+
+      // Se o usuário existir e houver autenticação, valida autorização por ownerId ou email
+      if (existing && user && !isSuperAdmin && authenticatedUserId && existing.owner_id) {
+        const ownerMatches = existing.owner_id === authenticatedUserId || 
+                             (userEmail && existing.owner_id.toLowerCase().trim() === userEmail);
+        if (!ownerMatches) {
+          return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'Acesso negado para remover este perfil.' });
+        }
       }
 
-      if (user && !isSuperAdmin && authenticatedUserId && existing.owner_id && existing.owner_id !== authenticatedUserId) {
-        return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'Acesso negado para remover este perfil.' });
-      }
-
-      const deleted = await this.service.delete(id);
+      // Executa exclusão resiliente e idempotente (limpa de profiles e app_users)
+      await this.service.delete(id);
       return res.json({ success: true, message: 'Perfil removido com sucesso.' });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: 'FALHA_AO_EXCLUIR_PERFIL', message: err?.message });

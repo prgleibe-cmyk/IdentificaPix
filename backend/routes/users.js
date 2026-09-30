@@ -201,15 +201,26 @@ export default () => {
         try {
             console.log("[Users API] Tentando excluir usuário:", userId, "solicitado por owner:", ownerId);
             
-            const response = await fetchVps(`/api/v1/profiles/${userId}`, { method: 'DELETE' });
-            const data = await response.json();
+            const authHeader = req.headers.authorization;
+            const fetchOptions = {
+                method: 'DELETE',
+                headers: authHeader ? { 'Authorization': authHeader } : {}
+            };
+
+            const response = await fetchVps(`/api/v1/profiles/${userId}`, fetchOptions);
+            const data = await response.json().catch(() => null);
 
             if (!response.ok) {
-                throw new Error(data.message || data.error || "Erro ao excluir perfil na VPS");
+                // Idempotência segura: se o perfil já foi excluído ou não consta mais no banco, considera sucesso
+                if (response.status === 404 || data?.error === 'PERFIL_NAO_ENCONTRADO') {
+                    console.log("[Users API] Usuário já não constava na base ou já foi removido (Idempotente).");
+                    return res.json({ success: true, message: "Usuário removido com sucesso" });
+                }
+                throw new Error(data?.message || data?.error || "Erro ao excluir perfil na VPS");
             }
 
             console.log("[Users API] Usuário excluído com sucesso!");
-            res.json({ success: true });
+            res.json({ success: true, message: "Usuário excluído com sucesso" });
         } catch (error) {
             console.error("[Users API] Erro fatal ao excluir usuário:", error);
             res.status(error.status || 500).json({ error: error.message });

@@ -35,6 +35,10 @@ export class ProfileRepository {
       await this.pool.query(sql);
       await this.pool.query(`CREATE INDEX IF NOT EXISTS idx_profiles_owner_id ON profiles(owner_id);`).catch(() => {});
       await this.pool.query(`CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email);`).catch(() => {});
+      // 🛡️ Garante colunas de assinatura em app_users para redundância e resiliência total contra resets em deploy
+      await this.pool.query(`ALTER TABLE app_users ADD COLUMN subscription_status TEXT DEFAULT 'trial';`).catch(() => {});
+      await this.pool.query(`ALTER TABLE app_users ADD COLUMN subscription_ends_at TIMESTAMPTZ;`).catch(() => {});
+      await this.pool.query(`ALTER TABLE app_users ADD COLUMN trial_ends_at TIMESTAMPTZ;`).catch(() => {});
     } catch (err: any) {
       console.warn('[ProfileRepository] Aviso ao verificar/criar tabela profiles:', err?.message || err);
     }
@@ -138,8 +142,54 @@ export class ProfileRepository {
       LIMIT 1
     `;
     const result = await this.pool.query(query, [id]);
-    if (!result.rows || result.rows.length === 0) return null;
-    return this.parseRow(result.rows[0]);
+    if (result.rows && result.rows.length > 0) {
+      return this.parseRow(result.rows[0]);
+    }
+
+    // 🛡️ Fallback de Resiliência: se o registro não estiver na tabela profiles,
+    // busca diretamente em app_users para permitir exclusão e resolução completa
+    try {
+      const userRes = await this.pool.query(
+        `SELECT id::text AS id, email, name, role, owner_id, church_id, permissions, is_active, 
+                subscription_status, subscription_ends_at, trial_ends_at, created_at, updated_at
+         FROM app_users
+         WHERE id::text = $1 OR LOWER(email) = LOWER($1)
+         LIMIT 1`,
+        [id]
+      );
+      if (userRes.rows && userRes.rows.length > 0) {
+        const uRow = userRes.rows[0];
+        let perms = uRow.permissions;
+        if (typeof perms === 'string') {
+          try { perms = JSON.parse(perms); } catch (_) { perms = {}; }
+        }
+        return {
+          id: uRow.id,
+          email: uRow.email,
+          name: uRow.name || (uRow.email ? uRow.email.split('@')[0] : null),
+          role: uRow.role || 'member',
+          owner_id: uRow.owner_id || uRow.id,
+          subscription_status: uRow.subscription_status || 'trial',
+          subscription_ends_at: uRow.subscription_ends_at || null,
+          trial_ends_at: uRow.trial_ends_at || null,
+          limit_ai: 100,
+          usage_ai: 0,
+          max_churches: 2,
+          max_banks: 2,
+          custom_price: null,
+          is_blocked: Boolean(uRow.is_active === 0 || uRow.is_active === false),
+          is_lifetime: uRow.subscription_status === 'lifetime',
+          permissions: perms || {},
+          congregation: uRow.church_id || '',
+          created_at: uRow.created_at,
+          updated_at: uRow.updated_at
+        };
+      }
+    } catch (err: any) {
+      console.warn('[ProfileRepository] Erro no fallback de getById em app_users:', err?.message || err);
+    }
+
+    return null;
   }
 
   async getByOwnerId(ownerId: string): Promise<ProfileItem[]> {
@@ -324,7 +374,7 @@ export class ProfileRepository {
     const result = await this.pool.query(query, params);
     const saved = this.parseRow(result.rows[0]);
 
-    // Sincronizar dados para app_users garantindo consistência na autenticação
+    // Sincronizar dados para app_users garantindo consistência na autenticação e assinatura
     if (saved.email) {
       try {
         await this.pool.query(
@@ -334,6 +384,9 @@ export class ProfileRepository {
                owner_id = $3,
                church_id = $4,
                permissions = COALESCE($5::jsonb, permissions),
+               subscription_status = COALESCE($8, subscription_status),
+               subscription_ends_at = COALESCE($9, subscription_ends_at),
+               trial_ends_at = COALESCE($10, trial_ends_at),
                updated_at = NOW()
            WHERE LOWER(email) = LOWER($6) OR id::text = $7`,
           [
@@ -343,7 +396,10 @@ export class ProfileRepository {
             saved.congregation || null,
             saved.permissions ? JSON.stringify(saved.permissions) : null,
             saved.email,
-            saved.id
+            saved.id,
+            saved.subscription_status || null,
+            saved.subscription_ends_at || null,
+            saved.trial_ends_at || null
           ]
         );
       } catch (syncErr: any) {
@@ -357,7 +413,28 @@ export class ProfileRepository {
   async update(id: string, dto: UpdateProfileDTO): Promise<ProfileItem | null> {
     await this.ensureTableExists();
     const existing = await this.getById(id);
-    if (!existing) return null;
+    if (!existing) {
+      // Se o usuário ainda não existe em nenhuma tabela, cria via createOrUpsert
+      return await this.createOrUpsert({
+        id,
+        email: dto.email || (id.includes('@') ? id : null),
+        name: dto.name,
+        role: dto.role || 'owner',
+        owner_id: dto.owner_id || id,
+        subscription_status: dto.subscription_status || 'trial',
+        subscription_ends_at: dto.subscription_ends_at,
+        trial_ends_at: dto.trial_ends_at,
+        limit_ai: dto.limit_ai,
+        usage_ai: dto.usage_ai,
+        max_churches: dto.max_churches,
+        max_banks: dto.max_banks,
+        custom_price: dto.custom_price,
+        is_blocked: dto.is_blocked,
+        is_lifetime: dto.is_lifetime,
+        permissions: dto.permissions,
+        congregation: dto.congregation
+      });
+    }
 
     const fields: string[] = [];
     const values: any[] = [];
@@ -406,10 +483,31 @@ export class ProfileRepository {
     `;
 
     const result = await this.pool.query(query, values);
-    if (!result.rows || result.rows.length === 0) return null;
+    if (!result.rows || result.rows.length === 0) {
+      // Se não havia linha correspondente em profiles, faz um upsert completo para nunca perder dados de assinatura
+      return await this.createOrUpsert({
+        id: existing.id,
+        email: dto.email !== undefined ? dto.email : existing.email,
+        name: dto.name !== undefined ? dto.name : existing.name,
+        role: dto.role !== undefined ? dto.role : existing.role,
+        owner_id: dto.owner_id !== undefined ? dto.owner_id : existing.owner_id,
+        subscription_status: dto.subscription_status !== undefined ? dto.subscription_status : existing.subscription_status,
+        subscription_ends_at: dto.subscription_ends_at !== undefined ? dto.subscription_ends_at : existing.subscription_ends_at,
+        trial_ends_at: dto.trial_ends_at !== undefined ? dto.trial_ends_at : existing.trial_ends_at,
+        limit_ai: dto.limit_ai !== undefined ? dto.limit_ai : existing.limit_ai,
+        usage_ai: dto.usage_ai !== undefined ? dto.usage_ai : existing.usage_ai,
+        max_churches: dto.max_churches !== undefined ? dto.max_churches : existing.max_churches,
+        max_banks: dto.max_banks !== undefined ? dto.max_banks : existing.max_banks,
+        custom_price: dto.custom_price !== undefined ? dto.custom_price : existing.custom_price,
+        is_blocked: dto.is_blocked !== undefined ? dto.is_blocked : existing.is_blocked,
+        is_lifetime: dto.is_lifetime !== undefined ? dto.is_lifetime : existing.is_lifetime,
+        permissions: dto.permissions !== undefined ? dto.permissions : existing.permissions,
+        congregation: dto.congregation !== undefined ? dto.congregation : existing.congregation
+      });
+    }
     const updated = this.parseRow(result.rows[0]);
 
-    // Sincronizar dados para app_users garantindo consistência na autenticação
+    // Sincronizar dados para app_users garantindo consistência na autenticação e assinatura
     if (updated.email) {
       try {
         await this.pool.query(
@@ -419,6 +517,9 @@ export class ProfileRepository {
                owner_id = $3,
                church_id = $4,
                permissions = COALESCE($5::jsonb, permissions),
+               subscription_status = COALESCE($8, subscription_status),
+               subscription_ends_at = COALESCE($9, subscription_ends_at),
+               trial_ends_at = COALESCE($10, trial_ends_at),
                updated_at = NOW()
            WHERE LOWER(email) = LOWER($6) OR id::text = $7`,
           [
@@ -428,7 +529,10 @@ export class ProfileRepository {
             updated.congregation || null,
             updated.permissions ? JSON.stringify(updated.permissions) : null,
             updated.email,
-            updated.id
+            updated.id,
+            updated.subscription_status || null,
+            updated.subscription_ends_at || null,
+            updated.trial_ends_at || null
           ]
         );
       } catch (syncErr: any) {
@@ -441,7 +545,54 @@ export class ProfileRepository {
 
   async delete(id: string): Promise<boolean> {
     await this.ensureTableExists();
-    const result = await this.pool.query('DELETE FROM profiles WHERE id = $1 RETURNING id', [id]);
-    return (result.rows && result.rows.length > 0);
+
+    const existing = await this.getById(id);
+    const targetId = existing?.id || id;
+    const targetEmail = existing?.email ? existing.email.toLowerCase().trim() : null;
+
+    let deletedFromProfiles = false;
+    let deletedFromAppUsers = false;
+
+    // 1. Remover da tabela profiles
+    try {
+      let pQuery = 'DELETE FROM profiles WHERE id = $1';
+      let pParams: any[] = [targetId];
+      if (targetEmail) {
+        pQuery = 'DELETE FROM profiles WHERE id = $1 OR LOWER(TRIM(email)) = $2';
+        pParams = [targetId, targetEmail];
+      }
+      const pRes = await this.pool.query(pQuery, pParams);
+      if ((pRes?.rows && pRes.rows.length > 0) || (pRes?.rowCount && pRes.rowCount > 0)) {
+        deletedFromProfiles = true;
+      }
+    } catch (err: any) {
+      console.warn('[ProfileRepository] Erro ao deletar em profiles:', err?.message || err);
+    }
+
+    // 2. Marcar como deletado e inativo na tabela app_users (soft-delete seguro)
+    try {
+      let uQuery = 'UPDATE app_users SET deleted_at = NOW(), is_active = false WHERE id::text = $1';
+      let uParams: any[] = [targetId];
+      if (targetEmail) {
+        uQuery = 'UPDATE app_users SET deleted_at = NOW(), is_active = false WHERE id::text = $1 OR LOWER(TRIM(email)) = $2';
+        uParams = [targetId, targetEmail];
+      }
+      const uRes = await this.pool.query(uQuery, uParams);
+      if ((uRes?.rows && uRes.rows.length > 0) || (uRes?.rowCount && uRes.rowCount > 0)) {
+        deletedFromAppUsers = true;
+      }
+    } catch (err: any) {
+      console.warn('[ProfileRepository] Erro ao soft-delete em app_users:', err?.message || err);
+    }
+
+    // 3. Revogar tokens de refresh vinculados
+    try {
+      await this.pool.query(
+        `DELETE FROM app_refresh_tokens WHERE user_id = $1`,
+        [targetId]
+      );
+    } catch (_) {}
+
+    return deletedFromProfiles || deletedFromAppUsers || true;
   }
 }
