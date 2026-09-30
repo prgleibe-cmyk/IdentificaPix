@@ -18,7 +18,7 @@ export function checkProfileCompleteness(
                 { key: 'email', label: 'E-mail', iconName: 'mail', importance: 'recommended', hint: 'Para recibos digitais e relatórios anuais' },
                 { key: 'birth_date', label: 'Data de Nascimento', iconName: 'calendar', importance: 'recommended', hint: 'Para felicitações e aniversariantes' },
                 { key: 'address', label: 'Endereço Completo', iconName: 'mapPin', importance: 'recommended', hint: 'CEP, rua, número e cidade' },
-                { key: 'congregation', label: 'Congregação / Vínculo', iconName: 'church', importance: 'optional', hint: 'Igreja ou congregação que congrega' }
+                { key: 'congregation', label: 'Congregação / Igreja', iconName: 'church', importance: 'optional', hint: 'Igreja ou congregação que frequenta' }
             ],
             totalFields: 7,
             filledFields: 0,
@@ -137,10 +137,10 @@ export function checkProfileCompleteness(
     } else {
         missingFields.push({
             key: 'congregation',
-            label: 'Congregação / Vínculo',
+            label: 'Congregação / Igreja',
             iconName: 'church',
             importance: 'optional',
-            hint: 'Selecione ou confirme a congregação onde você frequenta.'
+            hint: 'Selecione ou confirme a igreja ou congregação onde você frequenta.'
         });
     }
 

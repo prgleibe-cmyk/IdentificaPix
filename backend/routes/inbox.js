@@ -110,74 +110,120 @@ function parseSMS(text, bankHint = '') {
         }
     }
 
-    // 4. EXTRAÇÃO DE NOME / DESCRIÇÃO (A MÁGICA DE PURIFICAÇÃO)
-    const patterns = [
-        // Sicoob: "Pix de R$0,02 recebido de Gleibe Oliveira Da Silva, CPF ***.169.901-**."
-        /(?:pix\s+de\s+r\$\s*[0-9.,]+\s+recebido\s+de\s+)([^\,\.\;\:\*\-\/]+?)(?:,\s*(?:cpf|cnpj)|\s+(?:cpf|cnpj)|,\s*chave|\s+chave|\s*\.|\s*$)/i,
-        /(?:pix\s+de\s+r\$\s*[0-9.,]+\s+enviado\s+para\s+)([^\,\.\;\:\*\-\/]+?)(?:,\s*(?:cpf|cnpj)|\s+(?:cpf|cnpj)|,\s*chave|\s+chave|\s*\.|\s*$)/i,
-        
-        // Sicredi / Sicoob / Itaú / Bradesco / Nubank / Caixa / Santander / Inter / C6 / PagBank / Mercado Pago
-        /(?:recebeu\s+(?:uma\s+transfer[eê]ncia\s+)?(?:um\s+)?pix\s+(?:no\s+valor\s+de\s+|de\s+)?r\$\s*[0-9.,]+\s+(?:de|por)\s+)(.+?)(?:,\s*(?:cpf|cnpj)|\s+(?:cpf|cnpj)|\s+em\s+\d{2}\/\d{2}|\s+\d{2}\/\d{2}(?:\/\d{2,4})?|\s+via\s+pix|\s+pelo\s+pix|\s*\.|\s*$)/i,
-        /(?:recebeu\s+(?:uma\s+transfer[eê]ncia\s+)?(?:um\s+)?pix\s+(?:de|por)\s+)([^\,\.\;\:\*\-\/]+?)(?:\s+no\s+valor|\s+de\s+r\$|\s*r\$)/i,
-        /(?:pix\s+recebido\s+(?:no\s+valor\s+de\s+|de\s+)?r\$\s*[0-9.,]+\s+(?:de|por)\s+)([^\,\.\;\:\*\-\/]+?)(?:,\s*(?:cpf|cnpj)|\s+(?:cpf|cnpj)|\s+em\s+\d|\s*\.|\s*$)/i,
-        /(?:pix\s+recebido\s+(?:de|por)\s+)([^\,\.\;\:\*\-\/]+?)(?:\s+no\s+valor|\s+de\s+r\$|\s*r\$|\s*-\s*r\$)/i,
-        /(?:transfer[eê]ncia\s+(?:pix\s+)?recebida\s+(?:de|por)\s+)([^\,\.\;\:\*\-\/]+?)(?:\s+no\s+valor|\s+de\s+r\$|\s*r\$)/i,
-        /(?:transfer[eê]ncia\s+(?:pix\s+)?(?:no\s+valor\s+de\s+|de\s+)?r\$\s*[0-9.,]+\s+(?:recebida\s+)?(?:de|por)\s+)([^\,\.\;\:\*\-\/]+?)(?:,\s*(?:cpf|cnpj)|\s+(?:cpf|cnpj)|\s*\.|\s*$)/i,
-        
-        // Padrões com palavras-chave diretas
-        /(?:pagador|remetente|origem|cliente)\s*:\s*([^\,\.\;\:\*\-\/]+?)(?:,\s*(?:cpf|cnpj)|\s+(?:cpf|cnpj)|\s+no\s+valor|\s+em\s+|\s*\.|\s*R\$|\d|$)/i,
-        /(?:recebido\s+de\s+|enviado\s+por\s+|de\s*:\s*)([^\,\.\;\:\*\-\/]+?)(?:,\s*(?:cpf|cnpj)|\s+(?:cpf|cnpj)|\s+no\s+valor|\s+em\s+|\s+para\s+|\s+via\s+|\s*\.|\s*R\$|\d{2}\/\d{2}|$)/i,
-        /(?:enviado\s+para\s+|pago\s+a\s+|para\s*:\s*)([^\,\.\;\:\*\-\/]+?)(?:,\s*(?:cpf|cnpj)|\s+(?:cpf|cnpj)|\s+no\s+valor|\s+em\s+|\s+via\s+|\s*\.|\s*R\$|\d{2}\/\d{2}|$)/i,
-        /de\s+([A-Z\s\u00C0-\u00FF]+?)\s+em\s+\d{2}\/\d{2}/i,
-        /de\s+([A-Z\s\u00C0-\u00FF]{3,40})(?:\s+em\s+|\s+no\s+valor|\s*R\$|\s*\.|\s*$)/i,
-        /para\s+([A-Z\s\u00C0-\u00FF]{3,40})(?:\s+em\s+|\s+no\s+valor|\s*R\$|\s*\.|\s*$)/i
-    ];
+    // 4. EXTRAÇÃO DETERMINÍSTICA DO NOME DO CONTRIBUINTE (PURIFICAÇÃO CIRÚRGICA)
+    const INSTITUTION_WORDS_REGEX = /^(?:PICPAY|INSTITUI[CÇ][AÃ]O|BCO|BANCO|NU\s+PAGAMENTOS|NUBANK|CREDISIS|BRADESCO|ITAU|ITAÚ|SANTANDER|CAIXA|INTER|C6|PAGBANK|PAGSEGURO|MERCADO\s+PAGO|STONE|NEON|SICOOB|SICREDI|UNICRED|AILOS|CRESOL|ASAAS|FITBANK|CELCOIN|IUGU|EFI|GERENCIANET|SAFRA|BANRISUL)/i;
+    const INSTITUTION_TAIL_REGEX = /\s+(?:PICPAY(?:\s+INSTITUI[CÇ][AÃ]O(?:\s+DE\s+PAGAMENTO)?)?|INSTITUI[CÇ][AÃ]O(?:\s+DE\s+PAGAMENTO)?|NEON(?:\s+PAGAMENTOS)?|NU(?:\s+PAGAMENTOS)?|NUBANK|CREDISIS|BRADESCO|ITAU|ITAÚ|CAIXA(?:\s+ECONOMICA|\s+ECONÔMICA)?|BANCO\s+DO\s+BRASIL|BCO\s+DO\s+BRASIL|SANTANDER|SICOOB|SICREDI|PAGSEGURO|PAGBANK|MERCADO\s+PAGO|STONE|INTER|C6(?:\s+BANK)?|BANCO|COOPERATIVO|COOP\s|ASAAS|FITBANK|CELCOIN|IUGU|EFI|GERENCIANET|SAFRA|BANRISUL).*$/i;
+    const INVALID_CANDIDATE_EXACT = /^(?:PAGAMENTO\s*S\.?A?|PAGAMENTO\s*S|PAGAMENTO|PAGAMENTOS|INSTITUICAO|INSTITUIÇÃO|INSTITUICAO\s+DE\s+PAGAMENTO|INSTITUIÇÃO\s+DE\s+PAGAMENTO|PICPAY|SICREDI|SICOOB|BRADESCO|ITAU|ITAÚ|CAIXA|NUBANK|BANCO|BANCO\s+DO\s+BRASIL|BCO\s+DO\s+BRASIL|INTER|SANTANDER|NOTIFICACAO\s+SMS|NOTIFICACAO|NOTIFICAÇÃO)$/i;
 
-    for (const pattern of patterns) {
-        const m = normalizedText.match(pattern);
-        if (m && m[1]) {
-            let candidate = m[1].trim();
-            // Remove prefixos indesejados
-            candidate = candidate.replace(/^(UM|UMA|PIX|CONTA|POUPANCA|CORRENTE|VALOR|REAIS|EM|POR|PARA|DE)\s+/i, '');
-            candidate = candidate.replace(/\s+(UM|UMA|PIX|CONTA|POUPANCA|CORRENTE|VALOR|REAIS|EM|POR|PARA|DE)$/i, '');
-            
-            // Remove sufixos bancários comuns anexados no final do nome do pagador para deixar o nome limpo
-            candidate = candidate.replace(/\s+(NEON PAGAMENTOS|NU PAGAMENTOS|PICPAY|CREDISIS|BRADESCO|ITAU|ITAÚ|CAIXA ECONOMICA|CAIXA ECONÔMICA|BANCO DO BRASIL|BCO DO BRASIL|SANDER|SANTANDER|SICOOB|SICREDI|PAGSEGURO|PAGBANK|MERCADO PAGO|STONE|INTER|NUBANK|BANCO|COOPERATIVO|COOP\s).*$/i, '');
-            
-            if (candidate.length >= 3 && !/^\d+$/.test(candidate)) {
-                description = candidate;
-                break;
+    function sanitizeCandidate(raw) {
+        if (!raw || typeof raw !== 'string') return '';
+        let c = raw.trim();
+        // Remove prefixos indesejados
+        c = c.replace(/^(UM|UMA|PIX|CONTA|POUPANCA|CORRENTE|VALOR|REAIS|EM|POR|PARA|DE)\s+/i, '');
+        c = c.replace(/\s+(UM|UMA|PIX|CONTA|POUPANCA|CORRENTE|VALOR|REAIS|EM|POR|PARA|DE)$/i, '');
+        // Remove sufixo de instituição bancária (ex: Picpay Instituição de Pagamento, Bco do Brasil S.A.)
+        c = c.replace(INSTITUTION_TAIL_REGEX, '');
+        // Remove data/hora, slogans e reticências anexadas
+        c = c.replace(/\s+\d{2}\/\d{2}(?:\/\d{2,4})?.*$/i, '');
+        c = c.replace(/\s+-\s+\d{2}:\d{2}.*$/i, '');
+        c = c.replace(/\s+aproveite\s+todas.*$/i, '');
+        c = c.replace(/\s+via(?:\s+pix)?.*$/i, '');
+        c = c.replace(/\s+pelo\s+pix.*$/i, '');
+        c = c.replace(/\.{2,}$/g, '');
+        c = c.replace(/[\,\:\;\*]/g, '').trim();
+        c = c.replace(/\s+/g, ' ');
+
+        // Se o resultado for puramente números, muito curto ou termo de sistema inválido (ex: PAGAMENTO S)
+        if (c.length < 3 || /^\d+$/.test(c) || INVALID_CANDIDATE_EXACT.test(c)) {
+            return '';
+        }
+        return c;
+    }
+
+    // 4A. ESTRATÉGIA MULTILINHA: para notificações expandidas do Android (ex: Sicredi Pix)
+    const rawLines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if (rawLines.length >= 2) {
+        for (let i = 0; i < rawLines.length; i++) {
+            const line = rawLines[i];
+            if (/(?:recebeu\s+(?:um\s+)?pix|pix\s+(?:de\s+r\$|recebido))/i.test(line)) {
+                // A linha do nome do pagador é a próxima linha não-bancária
+                for (let j = i + 1; j < rawLines.length; j++) {
+                    const nextLine = rawLines[j];
+                    if (/^\d{2}\/\d{2}/.test(nextLine) || /^\d{2}:\d{2}/.test(nextLine)) continue;
+                    if (/aproveite\s+todas/i.test(nextLine)) continue;
+                    if (INSTITUTION_WORDS_REGEX.test(nextLine) && !/LTDA/i.test(nextLine)) continue;
+
+                    const cleanedLine = sanitizeCandidate(nextLine);
+                    if (cleanedLine && cleanedLine.length >= 3) {
+                        description = cleanedLine;
+                        break;
+                    }
+                }
+                if (description !== "NOTIFICACAO SMS") break;
             }
         }
     }
 
+    // 4B. ESTRATÉGIA REGEX INLINE: para mensagens contínuas em uma só linha
+    if (description === "NOTIFICACAO SMS") {
+        const patterns = [
+            // Sicredi Push Notification (com ou sem "de", seguido do nome e cortando antes de instituição, data, CPF ou slogan)
+            /(?:voc[eê]\s+recebeu\s+(?:uma\s+transfer[eê]ncia\s+)?(?:um\s+)?pix\s+(?:no\s+valor\s+de\s+|de\s+)?r\$\s*[0-9.,]+\s+(?:(?:de|por)\s+)?)(.+?)(?=(?:\s+(?:picpay|institui[cç][aã]o|bco|banco|nu\s+pagamentos|nubank|bradesco|itau|itaú|santander|caixa|inter|c6|pagbank|pagseguro|mercado\s+pago|stone|neon|sicoob|sicredi|credisis|unicred|ailos|cresol|\d{2}\/\d{2}|,\s*(?:cpf|cnpj)|\s+(?:cpf|cnpj)|aproveite\s+todas)|\.\.\.|\.|$|\n))/i,
+
+            // Sicoob: "Pix de R$0,02 recebido de Gleibe Oliveira Da Silva, CPF ***.169.901-**."
+            /(?:pix\s+de\s+r\$\s*[0-9.,]+\s+recebido\s+de\s+)([^\,\.\;\:\*\-\/]+?)(?:,\s*(?:cpf|cnpj)|\s+(?:cpf|cnpj)|,\s*chave|\s+chave|\s+em\s+\d|\s*\.|\s*$|\n)/i,
+            /(?:pix\s+de\s+r\$\s*[0-9.,]+\s+enviado\s+para\s+)([^\,\.\;\:\*\-\/]+?)(?:,\s*(?:cpf|cnpj)|\s+(?:cpf|cnpj)|,\s*chave|\s+chave|\s*\.|\s*$|\n)/i,
+
+            // Padrão com "recebeu pix ... de/por <Nome>"
+            /(?:recebeu\s+(?:uma\s+transfer[eê]ncia\s+)?(?:um\s+)?pix\s+(?:no\s+valor\s+de\s+|de\s+)?r\$\s*[0-9.,]+\s+(?:de|por)\s+)(.+?)(?:,\s*(?:cpf|cnpj)|\s+(?:cpf|cnpj)|\s+em\s+\d{2}\/\d{2}|\s+\d{2}\/\d{2}(?:\/\d{2,4})?|\s+via\s+pix|\s+pelo\s+pix|\s*\.|\s*$|\n)/i,
+            /(?:recebeu\s+(?:uma\s+transfer[eê]ncia\s+)?(?:um\s+)?pix\s+(?:de|por)\s+)([^\,\.\;\:\*\-\/]+?)(?:\s+no\s+valor|\s+de\s+r\$|\s*r\$)/i,
+            /(?:pix\s+recebido\s+(?:no\s+valor\s+de\s+|de\s+)?r\$\s*[0-9.,]+\s+(?:de|por)\s+)([^\,\.\;\:\*\-\/]+?)(?:,\s*(?:cpf|cnpj)|\s+(?:cpf|cnpj)|\s+em\s+\d|\s*\.|\s*$|\n)/i,
+            /(?:pix\s+recebido\s+(?:de|por)\s+)([^\,\.\;\:\*\-\/]+?)(?:\s+no\s+valor|\s+de\s+r\$|\s*r\$|\s*-\s*r\$)/i,
+            /(?:transfer[eê]ncia\s+(?:pix\s+)?(?:recebida\s+)?(?:no\s+valor\s+de\s+|de\s+)?r\$\s*[0-9.,]+\s+(?:(?:de|por)\s+)?)(.+?)(?:,\s*(?:cpf|cnpj)|\s+(?:cpf|cnpj)|\s+em\s+\d|\s*\.|\s*$|\n)/i,
+            /(?:transfer[eê]ncia\s+(?:pix\s+)?recebida\s+(?:de|por)\s+)([^\,\.\;\:\*\-\/]+?)(?:\s+no\s+valor|\s+de\s+r\$|\s*r\$)/i,
+
+            // Padrões com palavras-chave diretas
+            /(?:pagador|remetente|origem|cliente)\s*:\s*([^\,\.\;\:\*\-\/]+?)(?:,\s*(?:cpf|cnpj)|\s+(?:cpf|cnpj)|\s+no\s+valor|\s+em\s+|\s*\.|\s*R\$|\d|$)/i,
+            /(?:recebido\s+de\s+|enviado\s+por\s+|de\s*:\s*)([^\,\.\;\:\*\-\/]+?)(?:,\s*(?:cpf|cnpj)|\s+(?:cpf|cnpj)|\s+no\s+valor|\s+em\s+|\s+para\s+|\s+via\s+|\s*\.|\s*R\$|\d{2}\/\d{2}|$)/i,
+            /(?:enviado\s+para\s+|pago\s+a\s+|para\s*:\s*)([^\,\.\;\:\*\-\/]+?)(?:,\s*(?:cpf|cnpj)|\s+(?:cpf|cnpj)|\s+no\s+valor|\s+em\s+|\s+via\s+|\s*\.|\s*R\$|\d{2}\/\d{2}|$)/i,
+            /de\s+([A-Z\s\u00C0-\u00FF]+?)\s+em\s+\d{2}\/\d{2}/i
+        ];
+
+        for (const pattern of patterns) {
+            const m = normalizedText.match(pattern);
+            if (m && m[1]) {
+                const cleaned = sanitizeCandidate(m[1]);
+                if (cleaned) {
+                    description = cleaned;
+                    break;
+                }
+            }
+        }
+    }
+
+    // 4C. FALLBACK DE LIMPEZA SE NENHUM PADRÃO ESPECÍFICO CAPTUROU
     if (description === "NOTIFICACAO SMS") {
         let cleaned = normalizedText;
         cleaned = cleaned.replace(/^(SICOOB|SICREDI|BRADESCO|ITAU|CAIXA|INTER|NUBANK|BB|BANCO DO BRASIL|SANTANDER|C6|PAGBANK|PICPAY):\s*/i, '');
+        cleaned = cleaned.replace(/^(SICOOB\s+PIX|SICREDI\s+PIX)\s*(?:\d{2}:\d{2})?\s*/i, '');
+        cleaned = cleaned.replace(/voc[eê]\s+recebeu\s+(?:uma\s+transfer[eê]ncia\s+)?(?:um\s+)?pix\s*(?:no\s+valor\s+de\s+|de\s+)?/gi, '');
         cleaned = cleaned.replace(/pix\s+(de\s+)?(recebido\s+de|recebido|enviado\s+para|enviado|realizado|efetuado|pago)/i, '');
         cleaned = cleaned.replace(/pix\s+de/i, '');
         cleaned = cleaned.replace(/(no\s+valor\s+de|valor:|R\$)\s*[0-9.,]+/i, '');
         cleaned = cleaned.replace(/,\s*(?:CPF|CNPJ)\s*[\*0-9\.\-\/]+/i, '');
         cleaned = cleaned.replace(/\s*(?:CPF|CNPJ)\s*[\*0-9\.\-\/]+/i, '');
         cleaned = cleaned.replace(/(em|no\s+dia)\s*\d{2}\/\d{2}(\/\d{2,4})?/i, '');
+        cleaned = cleaned.replace(INSTITUTION_TAIL_REGEX, '');
+        cleaned = cleaned.replace(/aproveite\s+todas\s+(?:as\s+)?vantagens\s+do\s+pix\s+no\s+sicredi[\.!]?/gi, '');
         cleaned = cleaned.replace(/\s+/g, ' ').trim();
         cleaned = cleaned.replace(/^(de|para|por|recebido de|enviado para)\s+/i, '');
         cleaned = cleaned.replace(/\s+(de|para|por)$/i, '');
 
-        if (cleaned.length > 2) {
-            description = cleaned;
+        const candidateFallback = sanitizeCandidate(cleaned);
+        if (candidateFallback) {
+            description = candidateFallback;
         }
     }
-
-    // Purificação final
-    description = description
-        .replace(/voc[eê]\s+recebeu\s+um\s+pix\s+no\s+valor\s+de\s*/gi, '')
-        .replace(/aproveite\s+todas\s+(?:as\s+)?vantagens\s+do\s+pix\s+no\s+sicredi[\.!]?/gi, '')
-        .replace(/,\s*(?:CPF|CNPJ)\s*[\*0-9\.\-\/]+/gi, '')
-        .replace(/\s*(?:CPF|CNPJ)\s*[\*0-9\.\-\/]+/gi, '')
-        .replace(/[\.\,\:\;\-\*]/g, '')
-        .replace(/\s+/g, ' ')
-        .trim();
 
     return {
         date,

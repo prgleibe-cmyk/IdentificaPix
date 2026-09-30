@@ -35,6 +35,43 @@ interface PortalEditProfileModalProps {
     onProfileUpdated: (updated: ContributorMockProfile) => void;
 }
 
+const DEFAULT_ROLES_LIST = [
+    'Membro',
+    'Visitante',
+    'Pastor / Pastora',
+    'Diácono / Diaconisa',
+    'Presbítero / Evangelista',
+    'Obreiro / Obreira',
+    'Líder de Ministério / Célula',
+    'Voluntário',
+    'Dizimista',
+    'Músico / Louvor',
+    'Prestador de Serviços',
+    'Fornecedor / Empresa',
+    'Concessionária / Utilidades',
+    'Outro'
+];
+
+const getMembroOption = (roles: string[]): string => {
+    const exact = roles.find(r => r.trim().toLowerCase() === 'membro');
+    if (exact) return exact;
+    const starts = roles.find(r => r.trim().toLowerCase().startsWith('membro'));
+    if (starts) return starts;
+    const partial = roles.find(r => r.trim().toLowerCase().includes('membro'));
+    if (partial) return partial;
+    return 'Membro';
+};
+
+const resolveInitialRole = (currentRole: string | undefined | null, roles: string[]): string => {
+    const trimmed = (currentRole || '').trim();
+    if (!trimmed) {
+        return getMembroOption(roles);
+    }
+    const matched = roles.find(r => r.trim().toLowerCase() === trimmed.toLowerCase());
+    if (matched) return matched;
+    return trimmed;
+};
+
 export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
     isOpen,
     onClose,
@@ -53,7 +90,25 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
     const [addressCity, setAddressCity] = useState('');
     const [addressState, setAddressState] = useState('');
     const [congregation, setCongregation] = useState('');
-    const [rolePosition, setRolePosition] = useState('');
+    const [availableRoles, setAvailableRoles] = useState<string[]>(() => {
+        const list = [...DEFAULT_ROLES_LIST];
+        try {
+            const saved = localStorage.getItem('iggestor_custom_roles_v1');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) {
+                    parsed.forEach((r: any) => {
+                        if (typeof r === 'string' && r.trim() && !list.some(x => x.toLowerCase() === r.trim().toLowerCase())) {
+                            list.push(r.trim());
+                        }
+                    });
+                }
+            }
+        } catch (_) {}
+        return list;
+    });
+    const [rolePosition, setRolePosition] = useState<string>(() => getMembroOption(DEFAULT_ROLES_LIST));
+    const [customRoleInput, setCustomRoleInput] = useState('');
     const [photoPreview, setPhotoPreview] = useState<string | null>(null);
     const [isProcessingPhoto, setIsProcessingPhoto] = useState(false);
 
@@ -99,6 +154,32 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
         return () => { isMounted = false; };
     }, []);
 
+    // Load registered roles list
+    useEffect(() => {
+        let isMounted = true;
+        const fetchRoles = async () => {
+            try {
+                const res = await fetch('/api/v1/contributors/roles', { cache: 'no-store' });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (isMounted && Array.isArray(data) && data.length > 0) {
+                        setAvailableRoles(prev => {
+                            const merged = [...prev];
+                            data.forEach((r: any) => {
+                                if (typeof r === 'string' && r.trim() && !merged.some(x => x.toLowerCase() === r.trim().toLowerCase())) {
+                                    merged.push(r.trim());
+                                }
+                            });
+                            return merged;
+                        });
+                    }
+                }
+            } catch (_) {}
+        };
+        fetchRoles();
+        return () => { isMounted = false; };
+    }, []);
+
     // Initialize or reset form state when modal opens
     useEffect(() => {
         if (isOpen && contributor) {
@@ -121,7 +202,14 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
             const initialChurchId = contributor.church_id || church?.id || allChurches.find(c => c.name.trim().toLowerCase() === initialCongregation.trim().toLowerCase())?.id || allChurches[0]?.id || '00000000-0000-0000-0000-000000000001';
             setSelectedChurchId(initialChurchId);
 
-            setRolePosition(contributor.role_position || '');
+            // Resolve initial role: defaults to registered 'Membro' option if empty/null
+            const initialRole = resolveInitialRole(contributor.role_position, availableRoles);
+            setRolePosition(initialRole);
+            if (initialRole && !availableRoles.some(r => r.toLowerCase() === initialRole.toLowerCase())) {
+                setAvailableRoles(prev => [initialRole, ...prev]);
+            }
+            setCustomRoleInput(initialRole === 'Outro' ? (contributor.role_position || '') : '');
+
             setPhotoPreview(contributor.photo_url || contributor.photo || contributor.avatarUrl || null);
             setFormErrors({});
             setApiError(null);
@@ -129,7 +217,7 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
             setCepError(null);
             setIsProcessingPhoto(false);
         }
-    }, [isOpen, contributor, church, allChurches.length]);
+    }, [isOpen, contributor, church, allChurches.length, availableRoles.length]);
 
     const handleChurchSelect = (cId: string) => {
         setSelectedChurchId(cId);
@@ -140,6 +228,10 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
     };
 
     if (!isOpen) return null;
+
+    const effectiveRole = (rolePosition === 'Outro' && customRoleInput.trim())
+        ? customRoleInput.trim()
+        : (rolePosition.trim() || getMembroOption(availableRoles));
 
     // Temporary object to calculate live completeness
     const liveProfile: ContributorMockProfile = {
@@ -159,7 +251,7 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
         city: addressCity,
         state: addressState,
         congregation,
-        role_position: rolePosition,
+        role_position: effectiveRole,
         photo_url: photoPreview || undefined,
         avatarUrl: photoPreview || undefined,
         isExisting: contributor?.isExisting ?? true
@@ -318,7 +410,7 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                 address_city: addressCity.trim() || null,
                 address_state: addressState.trim() || null,
                 congregation: effectiveCongregation || null,
-                role_position: rolePosition.trim() || null,
+                role_position: effectiveRole || null,
                 photo_url: photoPreview || null,
                 photo: photoPreview || null,
                 church_id: targetChurchId,
@@ -403,7 +495,7 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                 city: addressCity.trim() || undefined,
                 state: addressState.trim() || undefined,
                 congregation: effectiveCongregation || currentChurchName || undefined,
-                role_position: rolePosition.trim() || undefined,
+                role_position: effectiveRole || undefined,
                 photo_url: photoPreview || undefined,
                 avatarUrl: photoPreview || undefined,
                 photo: photoPreview || undefined,
@@ -416,6 +508,11 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
             // Save to localStorage and notify entire application
             try {
                 localStorage.setItem('iggestor_portal_contributor', JSON.stringify(updatedProfileObj));
+                if (effectiveRole && !availableRoles.some(r => r.toLowerCase() === effectiveRole.toLowerCase())) {
+                    const nextRoles = [...availableRoles, effectiveRole];
+                    setAvailableRoles(nextRoles);
+                    localStorage.setItem('iggestor_custom_roles_v1', JSON.stringify(nextRoles));
+                }
                 notifyContributorUpdated(updatedProfileObj);
             } catch (_) {}
 
@@ -848,13 +945,38 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                                     Cargo / Função / Vínculo
                                 </label>
-                                <input
-                                    type="text"
-                                    value={rolePosition}
-                                    onChange={(e) => setRolePosition(e.target.value)}
-                                    placeholder="Ex: Membro, Diácono, Obreiro, Visitante..."
-                                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                                />
+                                <div className="relative">
+                                    <select
+                                        value={rolePosition}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setRolePosition(val);
+                                            if (val !== 'Outro') setCustomRoleInput('');
+                                        }}
+                                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none pr-10 cursor-pointer"
+                                    >
+                                        {availableRoles.map((role) => (
+                                            <option key={role} value={role} className="text-slate-800 dark:text-white font-semibold">
+                                                {role}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                        <ChevronDown className="w-4 h-4" />
+                                    </div>
+                                </div>
+                                {rolePosition === 'Outro' && (
+                                    <div className="mt-2 animate-fadeIn">
+                                        <input
+                                            type="text"
+                                            value={customRoleInput}
+                                            onChange={(e) => setCustomRoleInput(e.target.value)}
+                                            placeholder="Especifique seu cargo ou função..."
+                                            className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-800 dark:text-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                            autoFocus
+                                        />
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>

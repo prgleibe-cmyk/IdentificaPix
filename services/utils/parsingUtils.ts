@@ -35,6 +35,8 @@ export function cleanBankDescription(rawDescription: string): string {
 
     // List of generic operational prefixes and terms to strip out
     const genericPatterns = [
+        /SICREDI PIX/gi,
+        /SICOOB PIX/gi,
         /VOC[EÊ] RECEBEU UM PIX NO VALOR DE/gi,
         /APROVEITE TODAS (?:AS )?VANTAGENS DO PIX NO SICREDI[\.!]?/gi,
         /RECEBIMENTO PIX-PIX_CRED/gi,
@@ -178,9 +180,17 @@ export const isInvalidOrNumericName = (name: string | undefined | null, txDescri
         if (numericOrCurrencyRegex.test(txDescription.trim())) return true;
     }
 
+    // Se for termo falso de instituição ou sistema (ex: PAGAMENTO S, INSTITUIÇÃO DE PAGAMENTO, NOTIFICACAO SMS)
+    const upper = trimmed.toUpperCase();
+    if (
+        upper === 'PAGAMENTO S' || upper === 'PAGAMENTO S.A.' || upper === 'PAGAMENTO' || 
+        upper === 'NOTIFICACAO SMS' || upper.startsWith('INSTITUICAO DE PAGAMENTO') || upper.startsWith('INSTITUIÇÃO DE PAGAMENTO')
+    ) {
+        return true;
+    }
+
     // Se for palavra de sistema/cabeçalho conhecido ou operação financeira automática
     const systemKeywords = ['SALDO', 'RESUMO', 'EXTRATO', 'DEMONSTRATIVO', 'PERÍODO', 'PERIODO', 'TOTAL', 'SICOOB', 'SICREDI', 'RECEBIMENTO', 'LANCAMENTO', 'LANÇAMENTO', 'RDC', 'AUTOMATICO', 'AUTOMÁTICO', 'RESGATE', 'APLIC'];
-    const upper = trimmed.toUpperCase();
     if (systemKeywords.some(k => upper.includes(k))) {
         if (
             upper.includes('SALDO') || upper.includes('RESUMO') || upper.includes('EXTRATO') || 
@@ -196,21 +206,31 @@ export const isInvalidOrNumericName = (name: string | undefined | null, txDescri
 };
 
 /**
- * 🛡️ Oculta visualmente cabeçalhos extensos e frases promocionais (ex: Sicredi)
- * e formata horários contínuos (ex: 191552 -> 19:15:52) preservando a integridade original.
+ * 🛡️ Oculta visualmente cabeçalhos extensos, instituições bancárias de envio e frases promocionais (ex: Sicredi)
+ * preservando com precisão o nome autêntico e completo do contribuinte.
  */
 export const cleanDisplayDescription = (text: string): string => {
     if (!text || typeof text !== 'string') return '';
-    return text
-        .replace(/^(?:sicredi\s*:\s*)?/gi, '')
-        .replace(/voc[eê]\s+recebeu\s+(?:uma\s+transfer[eê]ncia\s+)?(?:um\s+)?pix\s+(?:no\s+valor\s+de\s+|de\s+)?(?:r\$\s*[0-9.,]+\s+(?:de\s+|por\s+)?)?/gi, '')
-        .replace(/aproveite\s+todas\s+(?:as\s+)?vantagens\s+do\s+pix\s+no\s+sicredi[\.!]?/gi, '')
+    let t = text
+        .replace(/^(?:sicredi\s*:\s*|sicoob\s*:\s*)?/gi, '')
+        .replace(/^(?:sicredi\s+pix|sicoob\s+pix)\s*(?:\d{2}:\d{2})?\s*/gi, '')
+        .replace(/voc[eê]\s+recebeu\s+(?:uma\s+transfer[eê]ncia\s+)?(?:um\s+)?pix\s+(?:no\s+valor\s+de\s+|de\s+)?(?:r\$\s*[0-9.,]+\s+(?:(?:de|por)\s+)?)?/gi, '')
+        .replace(/aproveite\s+todas\s+(?:as\s+)?vantagens\s+do\s+pix\s+no\s+sicredi[\.!]?/gi, '');
+
+    const INSTITUTION_TAIL_REGEX = /\s+(?:PICPAY(?:\s+INSTITUI[CÇ][AÃ]O(?:\s+DE\s+PAGAMENTO)?)?|INSTITUI[CÇ][AÃ]O(?:\s+DE\s+PAGAMENTO)?|NEON(?:\s+PAGAMENTOS)?|NU(?:\s+PAGAMENTOS)?|NUBANK|CREDISIS|BRADESCO|ITAU|ITAÚ|CAIXA(?:\s+ECONOMICA|\s+ECONÔMICA)?|BANCO\s+DO\s+BRASIL|BCO\s+DO\s+BRASIL|SANTANDER|SICOOB|SICREDI|PAGSEGURO|PAGBANK|MERCADO\s+PAGO|STONE|INTER|C6(?:\s+BANK)?|BANCO|COOPERATIVO|COOP\s|ASAAS|FITBANK|CELCOIN|IUGU|EFI|GERENCIANET|SAFRA|BANRISUL).*$/i;
+
+    t = t.replace(INSTITUTION_TAIL_REGEX, '')
         .replace(/(\d{2}\/\d{2}(?:\/\d{2,4})?)\s+([0-2]\d)([0-5]\d)([0-5]\d)\b/gi, '$1 $2:$3:$4')
         .replace(/(\d{2}\/\d{2}(?:\/\d{2,4})?)\s+([0-2]\d)([0-5]\d)\b/gi, '$1 $2:$3')
         .replace(/(?:às|as)\s+([0-2]\d)([0-5]\d)([0-5]\d)\b/gi, 'às $1:$2:$3')
         .replace(/\b([0-2]\d)([0-5]\d)([0-5]\d)\s*(h|hs|hrs|horas|sicredi|pix)\b/gi, '$1:$2:$3 $4')
+        .replace(/\s+\d{2}\/\d{2}(?:\/\d{2,4})?.*$/i, '')
+        .replace(/\s+-\s+\d{2}:\d{2}.*$/i, '')
+        .replace(/\.{2,}$/g, '')
         .replace(/\s+/g, ' ')
         .trim();
+
+    return t;
 };
 
 /**

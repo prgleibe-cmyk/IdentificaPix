@@ -28,8 +28,11 @@ import {
     RefreshCw,
     Edit3,
     Calendar,
-    MapPin
+    MapPin,
+    ChevronDown,
+    Briefcase
 } from 'lucide-react';
+import { usePortalRoles } from '../hooks/usePortalRoles';
 
 const logoImg = '/logo.png?v=15';
 
@@ -74,6 +77,15 @@ export const PortalIdentifyStep: React.FC<PortalIdentifyStepProps> = ({
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [inputError, setInputError] = useState<string | null>(null);
     const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+
+    const { roles: availableRoles, defaultMembro } = usePortalRoles();
+    const [customRoleInput, setCustomRoleInput] = useState('');
+
+    React.useEffect(() => {
+        if (!contributor.role_position && defaultMembro) {
+            onUpdateContributor({ role_position: defaultMembro });
+        }
+    }, [defaultMembro, contributor.role_position, onUpdateContributor]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const raw = e.target.value;
@@ -320,6 +332,9 @@ export const PortalIdentifyStep: React.FC<PortalIdentifyStepProps> = ({
                                             <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                                                 Congregação: <span className="text-slate-700 dark:text-slate-200">{(contributor.congregation && contributor.congregation !== 'Sede Central') ? contributor.congregation : (church?.name || 'Igreja Local')}</span>
                                             </p>
+                                            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                                                Cargo / Função: <span className="text-slate-700 dark:text-slate-200 font-bold">{contributor.role_position || defaultMembro || 'Membro'}</span>
+                                            </p>
                                         </div>
 
                                         <div className="w-full pt-3 border-t border-slate-200/60 dark:border-slate-700/60 flex flex-col gap-1.5 text-xs text-slate-600 dark:text-slate-300 text-left">
@@ -475,6 +490,48 @@ export const PortalIdentifyStep: React.FC<PortalIdentifyStepProps> = ({
                                         />
                                     </div>
                                     {formErrors.email && <p className="text-xs font-semibold text-rose-500 mt-1">{formErrors.email}</p>}
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
+                                        <Briefcase className="w-4 h-4 text-brand-blue dark:text-blue-400" />
+                                        <span>Cargo / Função / Vínculo *</span>
+                                    </label>
+                                    <div className="relative">
+                                        <select
+                                            value={contributor.role_position || defaultMembro || 'Membro'}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                onUpdateContributor({ role_position: val });
+                                                if (val !== 'Outro') setCustomRoleInput('');
+                                            }}
+                                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none cursor-pointer pr-10"
+                                        >
+                                            {availableRoles.map((role) => (
+                                                <option key={role} value={role} className="text-slate-800 dark:text-white font-semibold">
+                                                    {role}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                            <ChevronDown className="w-4 h-4" />
+                                        </div>
+                                    </div>
+                                    {contributor.role_position === 'Outro' && (
+                                        <div className="mt-2 animate-fadeIn">
+                                            <input
+                                                type="text"
+                                                value={customRoleInput}
+                                                onChange={(e) => {
+                                                    setCustomRoleInput(e.target.value);
+                                                    onUpdateContributor({ role_position: e.target.value || 'Outro' });
+                                                }}
+                                                placeholder="Especifique seu cargo ou função..."
+                                                className="w-full px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                                autoFocus
+                                            />
+                                        </div>
+                                    )}
                                 </div>
 
                                 {apiError && (

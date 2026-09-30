@@ -14,13 +14,15 @@ import {
     Sparkles, 
     ArrowRight, 
     Loader2, 
-    Search,
-    Edit3,
-    Check,
-    UserCheck,
-    AlertCircle,
-    ChevronDown
+    Search, 
+    Edit3, 
+    Check, 
+    UserCheck, 
+    AlertCircle, 
+    ChevronDown,
+    Briefcase
 } from 'lucide-react';
+import { usePortalRoles } from '../hooks/usePortalRoles';
 
 interface PortalRegisterPageProps {
     church?: PortalChurch | null;
@@ -54,6 +56,23 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
     const [city, setCity] = useState('');
     const [state, setState] = useState('SP');
     const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+
+    // Vínculo / Cargo States (Loaded from system / database)
+    const { roles: availableRoles, defaultMembro } = usePortalRoles();
+    const [rolePosition, setRolePosition] = useState<string>('Membro');
+    const [customRoleInput, setCustomRoleInput] = useState<string>('');
+
+    // Ensure default 'Membro' option from system list is selected initially
+    useEffect(() => {
+        if (defaultMembro) {
+            setRolePosition(prev => {
+                if (!prev || prev === 'Membro' || prev.toLowerCase() === 'membro') {
+                    return defaultMembro;
+                }
+                return prev;
+            });
+        }
+    }, [defaultMembro]);
 
     // Existing Contributor lookup states
     const [contributorId, setContributorId] = useState<string | null>(null);
@@ -200,6 +219,9 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                         const portalChurchName = (selectedChurch?.name && selectedChurch.name !== 'Igreja') ? selectedChurch.name : (church?.name && church.name !== 'Igreja' ? church.name : '');
                         if (portalChurchName) setCongregation(portalChurchName);
                     }
+                    if (c.role_position) {
+                        setRolePosition(c.role_position);
+                    }
                     if (c.photo_url || c.photo || c.avatarUrl) setPhotoUrl(c.photo_url || c.photo || c.avatarUrl);
 
                     setIsCheckingCpf(false);
@@ -228,6 +250,9 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                 } else {
                     const portalChurchName = (selectedChurch?.name && selectedChurch.name !== 'Igreja') ? selectedChurch.name : (church?.name && church.name !== 'Igreja' ? church.name : '');
                     if (portalChurchName) setCongregation(portalChurchName);
+                }
+                if (localFound.role_position) {
+                    setRolePosition(localFound.role_position);
                 }
                 if (localFound.photo_url || localFound.photo || localFound.avatarUrl) setPhotoUrl(localFound.photo_url || localFound.photo || localFound.avatarUrl);
                 setIsCheckingCpf(false);
@@ -353,6 +378,9 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
             const portalChurchName = (selectedChurch?.name && selectedChurch.name !== 'Igreja') ? selectedChurch.name : (church?.name && church.name !== 'Igreja' ? church.name : '');
             if (portalChurchName) setCongregation(portalChurchName);
         }
+        if (c.role_position) {
+            setRolePosition(c.role_position);
+        }
         if (c.photo_url || c.photo || c.avatarUrl) setPhotoUrl(c.photo_url || c.photo || c.avatarUrl);
         
         setShowNameSuggestions(false);
@@ -418,6 +446,10 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
         setIsSaving(true);
         setApiError(null);
 
+        const effectiveRole = (rolePosition === 'Outro' && customRoleInput.trim()) 
+            ? customRoleInput.trim() 
+            : (rolePosition || defaultMembro || 'Membro');
+
         try {
             let finalId = contributorId;
 
@@ -436,7 +468,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                     address_city: city || null,
                     address_state: state || null,
                     congregation: effectiveCongregation || null,
-                    role_position: 'Membro',
+                    role_position: effectiveRole,
                     photo_url: photoUrl || null,
                     is_global: true
                 };
@@ -471,6 +503,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                     email: cleanEmail,
                     church_id: activeChurchId,
                     congregation: effectiveCongregation || activeChurchName || 'Sede Central',
+                    role_position: effectiveRole,
                     city: city,
                     state: state,
                     birth_date: formatDateToDmy(birthDate) || undefined,
@@ -502,7 +535,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                 address_city: city || null,
                 address_state: state || null,
                 congregation: effectiveCongregation || null,
-                role_position: 'Membro',
+                role_position: effectiveRole,
                 photo_url: photoUrl || null,
                 is_global: true,
                 status: 'active'
@@ -531,6 +564,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                     email: cleanEmail,
                     church_id: activeChurchId,
                     congregation: effectiveCongregation || activeChurchName || 'Sede Central',
+                    role_position: effectiveRole,
                     city: city,
                     state: state,
                     birth_date: formatDateToDmy(birthDate) || undefined,
@@ -564,6 +598,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                 email: cleanEmail,
                 church_id: activeChurchId,
                 congregation: effectiveCongregation || activeChurchName || 'Sede Central',
+                role_position: effectiveRole,
                 city: city,
                 state: state,
                 birth_date: formatDateToDmy(birthDate) || undefined,
@@ -873,6 +908,47 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                                     </span>
                                 )}
                             </div>
+                        </div>
+
+                        {/* Cargo / Função / Vínculo Selector */}
+                        <div>
+                            <label htmlFor="portal-role-select" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+                                <Briefcase className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                                <span>Cargo / Função / Vínculo *</span>
+                            </label>
+                            <div className="relative">
+                                <select
+                                    id="portal-role-select"
+                                    value={rolePosition}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setRolePosition(val);
+                                        if (val !== 'Outro') setCustomRoleInput('');
+                                    }}
+                                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 appearance-none cursor-pointer pr-10"
+                                >
+                                    {availableRoles.map((role) => (
+                                        <option key={role} value={role} className="text-slate-800 dark:text-white font-semibold">
+                                            {role}
+                                        </option>
+                                    ))}
+                                </select>
+                                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                    <ChevronDown className="w-4 h-4" />
+                                </div>
+                            </div>
+                            {rolePosition === 'Outro' && (
+                                <div className="mt-2 animate-fadeIn">
+                                    <input
+                                        type="text"
+                                        value={customRoleInput}
+                                        onChange={(e) => setCustomRoleInput(e.target.value)}
+                                        placeholder="Especifique seu cargo ou função..."
+                                        className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                        autoFocus
+                                    />
+                                </div>
+                            )}
                         </div>
 
                         {/* Error Alert */}

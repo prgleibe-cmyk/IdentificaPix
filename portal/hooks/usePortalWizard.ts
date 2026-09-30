@@ -7,6 +7,37 @@ import {
 } from '../types/portal';
 import { generateMockReferenceNumber, formatDateToDmy } from '../utils/portalFormatters';
 
+export const DEFAULT_CONTRIBUTION_ITEMS: ContributionItemMock[] = [
+    {
+        id: 'contrib-default-dizimo',
+        label: 'Dízimo',
+        description: 'Contribuição para Dízimo',
+        selected: true,
+        amount: 100
+    },
+    {
+        id: 'contrib-default-oferta',
+        label: 'Oferta',
+        description: 'Contribuição para Oferta',
+        selected: false,
+        amount: 0
+    },
+    {
+        id: 'contrib-default-especial',
+        label: 'Contribuição Especial',
+        description: 'Contribuição para Contribuição Especial',
+        selected: false,
+        amount: 0
+    },
+    {
+        id: 'contrib-default-doacao',
+        label: 'Doação / Voto',
+        description: 'Contribuição para Doação / Voto',
+        selected: false,
+        amount: 0
+    }
+];
+
 const INITIAL_EMPTY_CONTRIBUTOR: ContributorMockProfile = {
     id: '',
     name: '',
@@ -21,6 +52,7 @@ const INITIAL_EMPTY_CONTRIBUTOR: ContributorMockProfile = {
     city: '',
     state: '',
     congregation: '',
+    role_position: 'Membro',
     photo_url: '',
     avatarUrl: '',
     isExisting: false
@@ -48,7 +80,7 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
             identificationValue: savedContrib.cpf || savedContrib.phone || savedContrib.email || '',
             mockSearchFound: !!savedContrib.id,
             contributor: savedContrib,
-            contributionItems: [],
+            contributionItems: DEFAULT_CONTRIBUTION_ITEMS,
             referenceNumber: generateMockReferenceNumber(),
             createdAt: new Date().toISOString()
         };
@@ -84,7 +116,7 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
             const res = await fetch(url);
             if (res.ok) {
                 const data = await res.json();
-                if (Array.isArray(data)) {
+                if (Array.isArray(data) && data.length > 0) {
                     const seenNames = new Set<string>();
                     const mapped: ContributionItemMock[] = data
                         .filter((item: any) => {
@@ -102,29 +134,38 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
                             bank_id: item.bank_id
                         }));
 
-                    setWizardState(prev => {
-                        // Preserve previous selections/amounts for items that still exist
-                        const currentMap = new Map(
-                            prev.contributionItems.map(i => [i.label.trim().toLowerCase(), { amount: i.amount, selected: i.selected }])
-                        );
+                    if (mapped.length > 0) {
+                        setWizardState(prev => {
+                            const currentMap = new Map(
+                                prev.contributionItems.map(i => [i.label.trim().toLowerCase(), { amount: i.amount, selected: i.selected }])
+                            );
 
-                        const mergedItems = mapped.map(item => {
-                            const existing = currentMap.get(item.label.trim().toLowerCase());
-                            if (existing) {
-                                return {
-                                    ...item,
-                                    selected: existing.selected,
-                                    amount: existing.amount
-                                };
+                            const mergedItems = mapped.map(item => {
+                                const existing = currentMap.get(item.label.trim().toLowerCase());
+                                if (existing) {
+                                    return {
+                                        ...item,
+                                        selected: existing.selected,
+                                        amount: existing.amount
+                                    };
+                                }
+                                return item;
+                            });
+
+                            const hasSelected = mergedItems.some(i => i.selected && i.amount > 0);
+                            if (!hasSelected && mergedItems.length > 0) {
+                                mergedItems[0].selected = true;
+                                if (mergedItems[0].amount <= 0) {
+                                    mergedItems[0].amount = 100;
+                                }
                             }
-                            return item;
-                        });
 
-                        return {
-                            ...prev,
-                            contributionItems: mergedItems
-                        };
-                    });
+                            return {
+                                ...prev,
+                                contributionItems: mergedItems
+                            };
+                        });
+                    }
                 }
             }
         } catch (err) {

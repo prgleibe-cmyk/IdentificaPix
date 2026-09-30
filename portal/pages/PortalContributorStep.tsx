@@ -3,6 +3,8 @@ import { PortalCard } from '../components/PortalCard';
 import { PortalButton } from '../components/PortalButton';
 import { ContributorMockProfile, PortalChurch } from '../types/portal';
 import { formatCpf, formatPhone, validateEmailVisual } from '../utils/portalFormatters';
+import { usePortalRoles } from '../hooks/usePortalRoles';
+import { ChevronDown, Briefcase } from 'lucide-react';
 
 interface PortalContributorStepProps {
     church?: PortalChurch | null;
@@ -66,6 +68,16 @@ export const PortalContributorStep: React.FC<PortalContributorStepProps> = ({
             onUpdateContributor({ congregation: defaultChurchName, church_id: church?.id || churchesList[0]?.id });
         }
     }, [church, churchesList.length]);
+
+    // Roles / Cargos loaded from system
+    const { roles: availableRoles, defaultMembro } = usePortalRoles();
+    const [customRoleInput, setCustomRoleInput] = useState('');
+
+    useEffect(() => {
+        if (!contributor.role_position && defaultMembro) {
+            onUpdateContributor({ role_position: defaultMembro });
+        }
+    }, [defaultMembro, contributor.role_position, onUpdateContributor]);
 
     const handleFormSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -277,6 +289,48 @@ export const PortalContributorStep: React.FC<PortalContributorStepProps> = ({
                                 </option>
                             ))}
                         </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
+                            <Briefcase className="w-4 h-4 text-brand-blue dark:text-blue-400" />
+                            <span>Cargo / Função / Vínculo *</span>
+                        </label>
+                        <div className="relative">
+                            <select
+                                value={contributor.role_position || defaultMembro || 'Membro'}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    onUpdateContributor({ role_position: val });
+                                    if (val !== 'Outro') setCustomRoleInput('');
+                                }}
+                                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 font-semibold cursor-pointer appearance-none pr-10"
+                            >
+                                {availableRoles.map((role) => (
+                                    <option key={role} value={role} className="text-slate-800 dark:text-white font-semibold">
+                                        {role}
+                                    </option>
+                                ))}
+                            </select>
+                            <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                <ChevronDown className="w-4 h-4" />
+                            </div>
+                        </div>
+                        {contributor.role_position === 'Outro' && (
+                            <div className="mt-2 animate-fadeIn">
+                                <input
+                                    type="text"
+                                    value={customRoleInput}
+                                    onChange={(e) => {
+                                        setCustomRoleInput(e.target.value);
+                                        onUpdateContributor({ role_position: e.target.value || 'Outro' });
+                                    }}
+                                    placeholder="Especifique seu cargo ou função..."
+                                    className="w-full px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                    autoFocus
+                                />
+                            </div>
+                        )}
                     </div>
 
                     {apiError && (
