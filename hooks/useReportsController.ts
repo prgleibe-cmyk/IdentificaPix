@@ -194,7 +194,8 @@ export const useReportsController = () => {
             if (selectedBankId && selectedBankId !== 'all') {
                 if (String(r.transaction?.bank_id) !== selectedBankId) return false;
             } else if (isSecondary && subscription?.bankIds && subscription.bankIds.length > 0) {
-                if (!subscription.bankIds.includes(String(r.transaction?.bank_id))) return false;
+                const isManual = r.transaction?.isManual || r.transaction?.source === 'manual';
+                if (!isManual && !subscription.bankIds.includes(String(r.transaction?.bank_id))) return false;
             }
             return true;
         });

@@ -344,8 +344,9 @@ export const useCloudSync = ({
                     const savedPaymentMethod = t.payment_method || assoc?.paymentMethod || undefined;
 
                     const isManualTx = t.source === 'manual' || 
-                        (t.row_hash && t.row_hash.includes('|bmanual|')) || 
-                        (t.id && typeof t.id === 'string' && t.id.startsWith('ghost-manual-'));
+                        Boolean(t.isManual) ||
+                        (t.row_hash && (t.row_hash.includes('|bmanual|') || t.row_hash.startsWith('manual-'))) || 
+                        (t.id && typeof t.id === 'string' && (t.id.startsWith('ghost-manual-') || t.id.startsWith('manual-')));
 
                     const descUpper = (t.description || '').toUpperCase();
                     let effectiveType = t.type;
@@ -396,7 +397,7 @@ export const useCloudSync = ({
 
                     let status = ReconciliationStatus.UNIDENTIFIED;
                     if (t.status === 'resolved') status = ReconciliationStatus.RESOLVED;
-                    else if (t.status === 'identified') status = ReconciliationStatus.IDENTIFIED;
+                    else if (t.status === 'identified' || isManualTx) status = ReconciliationStatus.IDENTIFIED;
 
                     // ⚡ AUTO-IDENTIFICAÇÃO DE VÍNCULOS SALVOS (SEM IA)
                     // Se a transação no banco está 'pending', mas existe uma associação aprendida (assoc),
@@ -566,9 +567,13 @@ export const useCloudSync = ({
                         hasChanges = true;
                     });
 
-                    // Preserva estritamente lançamentos manuais temporários locais não persistidos no banco ainda
+                    // Preserva estritamente lançamentos manuais locais (persistidos ou temporários) que ainda não vieram na fatia atual do banco
                     prev.forEach(p => {
-                        if (!map.has(p.transaction.id) && (p.transaction.id.startsWith('ghost-manual-') || p.transaction.id.startsWith('manual-temp-'))) {
+                        const isManual = p.transaction?.isManual || 
+                            p.transaction?.source === 'manual' || 
+                            p.matchMethod === MatchMethod.MANUAL ||
+                            (p.transaction?.id && typeof p.transaction.id === 'string' && (p.transaction.id.startsWith('ghost-manual-') || p.transaction.id.startsWith('manual-')));
+                        if (!map.has(p.transaction.id) && isManual) {
                             map.set(p.transaction.id, p);
                             hasChanges = true;
                         }

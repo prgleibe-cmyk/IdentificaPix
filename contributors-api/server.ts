@@ -6646,10 +6646,13 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
       const { id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits } = tx;
       
       const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
-      const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : (church_id || null);
+      const effectiveChurchId = (church_id && church_id !== 'unidentified')
+        ? church_id
+        : ((ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : (church_id || null));
 
       // Prevenção cirúrgica contra duplicidades: se row_hash já existe para o usuário, reutiliza o registro existente
-      if (row_hash) {
+      // Lançamentos manuais são criados intencionalmente pelo usuário e não devem ser ignorados por colisão de hash
+      if (row_hash && source !== 'manual') {
         const dupCheck = await client.query(
           'SELECT * FROM consolidated_transactions WHERE user_id = $1 AND row_hash = $2 LIMIT 1',
           [effectiveUserId, row_hash]
