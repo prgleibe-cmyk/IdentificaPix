@@ -1112,7 +1112,7 @@ async function initializeDatabase() {
       await pool.query(`
         UPDATE contributors 
         SET church_id = '00000000-0000-0000-0000-000000000001' 
-        WHERE church_id IS NULL OR trim(church_id) = '' OR church_id = 'church-1';
+        WHERE church_id IS NULL OR trim(church_id::text) = '' OR church_id::text = 'church-1';
       `);
       await pool.query(`
         DELETE FROM contributors 

@@ -147,7 +147,8 @@ export async function dumpDatabase(pool: pg.Pool): Promise<string> {
  * Compresses (gzip) and encrypts (AES-256-GCM) the dump text
  */
 export function encryptAndCompress(sqlDump: string, key: Buffer): Buffer {
-  const gzippedBuffer = zlib.gzipSync(Buffer.from(sqlDump, 'utf8'), { level: 9 });
+  // Level 6 provides optimal balance between high compression and minimal CPU time (up to 4x faster than level 9)
+  const gzippedBuffer = zlib.gzipSync(Buffer.from(sqlDump, 'utf8'), { level: 6 });
 
   const iv = crypto.randomBytes(IV_LENGTH);
   const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
@@ -192,16 +193,42 @@ export function decryptAndDecompress(encryptedBuffer: Buffer, key: Buffer): stri
 
 /**
  * Verifies that an encrypted backup file exists, size > 0, and can be decrypted correctly
+ * Optimized to verify cryptographic authTag and gzip header without decompressing hundreds of MBs in memory.
  */
 export function verifyBackupFile(filePath: string, key: Buffer): boolean {
   if (!fs.existsSync(filePath)) return false;
   const stats = fs.statSync(filePath);
-  if (stats.size === 0) return false;
+  const minRequiredLength = MAGIC_HEADER.length + IV_LENGTH + AUTH_TAG_LENGTH;
+  if (stats.size <= minRequiredLength) return false;
 
   try {
     const fileBuffer = fs.readFileSync(filePath);
-    const sqlDump = decryptAndDecompress(fileBuffer, key);
-    return sqlDump.includes('IgGestor') || sqlDump.includes('SET ') || sqlDump.includes('INSERT INTO') || sqlDump.length > 0;
+    const magic = fileBuffer.subarray(0, MAGIC_HEADER.length);
+    if (!magic.equals(MAGIC_HEADER)) {
+      return false;
+    }
+
+    let offset = MAGIC_HEADER.length;
+    const iv = fileBuffer.subarray(offset, offset + IV_LENGTH);
+    offset += IV_LENGTH;
+
+    const authTag = fileBuffer.subarray(offset, offset + AUTH_TAG_LENGTH);
+    offset += AUTH_TAG_LENGTH;
+
+    const encryptedPayload = fileBuffer.subarray(offset);
+
+    // Cryptographic authentication: decipher.final() verifies GCM authTag
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(authTag);
+
+    const decryptedCompressed = Buffer.concat([decipher.update(encryptedPayload), decipher.final()]);
+    
+    // Verify gzip magic bytes (0x1f, 0x8b) on decrypted stream without heavy RAM decompression
+    if (decryptedCompressed.length < 2 || decryptedCompressed[0] !== 0x1f || decryptedCompressed[1] !== 0x8b) {
+      return false;
+    }
+
+    return true;
   } catch (err: any) {
     console.error('[BackupService] Verification failed for backup file:', filePath, err?.message || err);
     return false;
@@ -460,27 +487,11 @@ export async function executeBackupWithLock(pool: pg.Pool): Promise<BackupResult
 }
 
 /**
- * Schedules daily backup execution in Node process if enabled via env
+ * Schedules daily backup execution in Node process if enabled via env.
+ * Delegated to SchedulerService to guarantee single execution, advisory locking, and prevent startup freezes.
  */
 export function scheduleAutomatedBackups(pool: pg.Pool): void {
-  const enabled = process.env.BACKUP_SCHEDULE_ENABLED === 'true' || process.env.NODE_ENV === 'production';
-  if (!enabled) {
-    console.log('[BackupService] Automated in-process backup schedule disabled (set BACKUP_SCHEDULE_ENABLED=true to enable).');
-    return;
-  }
-
-  console.log('[BackupService] Initializing automated daily PostgreSQL backup schedule with distributed advisory lock protection...');
-  
-  // Run once on startup (after a short delay to let DB initialize)
-  setTimeout(() => {
-    executeBackupWithLock(pool).catch(e => console.error('[BackupService] Scheduled backup error:', e));
-  }, 10000);
-
-  // Run every 24 hours
-  const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
-  setInterval(() => {
-    executeBackupWithLock(pool).catch(e => console.error('[BackupService] Scheduled backup error:', e));
-  }, TWENTY_FOUR_HOURS_MS);
+  console.log('[BackupService] Automated backup schedule coordinated with centralized SchedulerService.');
 }
 
 export interface BackupListResult {
