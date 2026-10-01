@@ -422,7 +422,11 @@ export const useCloudSync = ({
                         contributionType: savedContribType,
                         paymentMethod: savedPaymentMethod,
                         reference_date: t.reference_date || null,
-                        splits: (Array.isArray(t.splits) && t.splits.length > 0) ? t.splits : undefined,
+                        splits: (Array.isArray(t.splits) && t.splits.length > 0)
+                            ? t.splits
+                            : (typeof t.splits === 'string' && t.splits.trim().startsWith('[')
+                                ? (() => { try { const p = JSON.parse(t.splits); return Array.isArray(p) && p.length > 0 ? p : undefined; } catch (_) { return undefined; } })()
+                                : undefined),
                         updatedAt: t.updated_at
                     };
 

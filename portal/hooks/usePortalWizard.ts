@@ -107,13 +107,45 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
         }
     }, [churchName]);
 
-    // Fetch exclusively the real registered contribution types from the main system
-    const fetchPublicTypes = useCallback(async () => {
+    // Fetch church bank accounts
+    const fetchBankAccounts = useCallback(async () => {
+        if (!churchId) return [];
         try {
-            const url = churchId 
-                ? `/api/v1/contribution-types/public?church_id=${encodeURIComponent(churchId)}`
-                : '/api/v1/contribution-types/public';
-            const res = await fetch(url);
+            const res = await fetch(`/api/v1/church-banks/public?church_id=${encodeURIComponent(churchId)}`, { cache: 'no-store' });
+            if (res.ok) {
+                const data = await res.json();
+                if (Array.isArray(data) && data.length > 0) {
+                    setWizardState(prev => {
+                        const activeBankId = prev.selectedBankId || data[0].id;
+                        return {
+                            ...prev,
+                            bankAccounts: data,
+                            selectedBankId: activeBankId
+                        };
+                    });
+                    return data;
+                }
+            }
+        } catch (err) {
+            console.error('[usePortalWizard] Erro ao carregar contas bancárias da igreja:', err);
+        }
+        return [];
+    }, [churchId]);
+
+    // Fetch exclusively the real registered contribution types (filtering by bank when selected)
+    const fetchPublicTypes = useCallback(async (targetBankId?: string) => {
+        try {
+            let url = '/api/v1/contribution-types/public';
+            const params = new URLSearchParams();
+            if (churchId) params.set('church_id', churchId);
+            const effectiveBankId = targetBankId !== undefined ? targetBankId : wizardState.selectedBankId;
+            if (effectiveBankId && effectiveBankId !== 'default-church-account') {
+                params.set('bank_id', effectiveBankId);
+            }
+            const qs = params.toString();
+            if (qs) url += `?${qs}`;
+
+            const res = await fetch(url, { cache: 'no-store' });
             if (res.ok) {
                 const data = await res.json();
                 if (Array.isArray(data) && data.length > 0) {
@@ -171,13 +203,25 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
         } catch (err) {
             console.error('[usePortalWizard] Erro ao carregar tipos de contribuição:', err);
         }
-    }, [churchId]);
+    }, [churchId, wizardState.selectedBankId]);
+
+    const setSelectedBankId = useCallback((bankId: string) => {
+        setWizardState(prev => ({
+            ...prev,
+            selectedBankId: bankId
+        }));
+        fetchPublicTypes(bankId);
+    }, [fetchPublicTypes]);
 
     useEffect(() => {
-        fetchPublicTypes();
+        fetchBankAccounts().then((accounts) => {
+            const firstId = accounts && accounts.length > 0 ? accounts[0].id : undefined;
+            fetchPublicTypes(firstId);
+        });
 
         const handleTypesUpdated = () => {
             fetchPublicTypes();
+            fetchBankAccounts();
         };
 
         window.addEventListener('contribution_types_updated', handleTypesUpdated);
@@ -189,6 +233,7 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
                 bc.onmessage = (ev) => {
                     if (ev.data?.type === 'contribution_types_updated') {
                         fetchPublicTypes();
+                        fetchBankAccounts();
                     }
                 };
             } catch (_) {}
@@ -200,7 +245,7 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
                 try { bc.close(); } catch (_) {}
             }
         };
-    }, [fetchPublicTypes]);
+    }, [fetchPublicTypes, fetchBankAccounts]);
 
     const setStep = useCallback((step: number) => {
         setWizardState(prev => ({ ...prev, step: Math.max(1, Math.min(5, step)) }));
@@ -570,10 +615,11 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
     }, [wizardState.contributionItems]);
 
     // Register official Contribution Request on backend
-    const createContributionRequest = useCallback(async (activeChurchId?: string): Promise<boolean> => {
+    const createContributionRequest = useCallback(async (activeChurchId?: string, bankIdToUse?: string): Promise<boolean> => {
         const targetChurchId = activeChurchId || churchId;
         const contrib = wizardState.contributor;
         const total = getTotalAmount();
+        const effectiveBankId = bankIdToUse || wizardState.selectedBankId;
 
         if (!targetChurchId) {
             setApiError('Igreja não identificada. Por favor, recarregue a página.');
@@ -594,10 +640,24 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
         setApiError(null);
 
         try {
-            const selectedItemsStr = wizardState.contributionItems
-                .filter(i => i.selected && i.amount > 0)
+            const selectedItems = wizardState.contributionItems.filter(i => i.selected && i.amount > 0);
+            const selectedItemsStr = selectedItems
                 .map(i => `${i.label}: R$ ${i.amount.toFixed(2)}`)
                 .join('; ');
+
+            const splits = selectedItems.map(i => ({
+                id: `split-${crypto.randomUUID()}`,
+                amount: i.amount,
+                contributionType: i.label,
+                description: i.label,
+                contributorId: contrib.id,
+                contributorName: contrib.name || contrib.canonical_name || '',
+                churchId: targetChurchId,
+                churchName: churchName || 'Igreja',
+                bankId: effectiveBankId || i.bank_id || null,
+                paymentMethod: 'PIX',
+                date: new Date().toISOString().split('T')[0]
+            }));
 
             const response = await fetch('/api/v1/contribution-requests', {
                 method: 'POST',
@@ -606,7 +666,9 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
                     church_id: targetChurchId,
                     contributor_id: contrib.id,
                     amount: total,
-                    description: selectedItemsStr || 'Intenção de Contribuição'
+                    description: selectedItemsStr || 'Intenção de Contribuição',
+                    bank_id: effectiveBankId && effectiveBankId !== 'default-church-account' ? effectiveBankId : null,
+                    splits: splits
                 })
             });
 
@@ -624,7 +686,8 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
                 ...prev,
                 referenceNumber: shortRef,
                 contributionRequestId: requestRecord.id,
-                contributionRequestStatus: requestRecord.status || 'pending'
+                contributionRequestStatus: requestRecord.status || 'pending',
+                selectedBankId: effectiveBankId
             }));
 
             setIsSaving(false);
@@ -635,7 +698,7 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
             setIsSaving(false);
             return false;
         }
-    }, [wizardState.contributor, wizardState.contributionItems, getTotalAmount, churchId]);
+    }, [wizardState.contributor, wizardState.contributionItems, wizardState.selectedBankId, getTotalAmount, churchId, churchName]);
 
     const setMockSearchFound = useCallback((found: boolean) => {
         setWizardState(prev => ({
@@ -719,6 +782,9 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
         performSearchContributor,
         saveContributor,
         createContributionRequest,
+        setSelectedBankId,
+        fetchBankAccounts,
+        fetchPublicTypes,
         setMockSearchFound,
         updateContributor,
         updateContributorProfileOnServer,

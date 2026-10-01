@@ -16,9 +16,11 @@ export function usePortalPix(churchId?: string, bankId?: string) {
 
         setLoading(true);
         setError(null);
-
         try {
-            const queryParam = bankId ? `bank_id=${encodeURIComponent(bankId)}` : `church_id=${encodeURIComponent(churchId!)}`;
+            const params = new URLSearchParams();
+            if (churchId) params.set('church_id', churchId);
+            if (bankId && bankId !== 'default-church-account') params.set('bank_id', bankId);
+            const queryParam = params.toString();
             const response = await fetch(`/api/v1/church-pix-keys/public?${queryParam}`, {
                 cache: 'no-store'
             });

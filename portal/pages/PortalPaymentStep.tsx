@@ -8,6 +8,7 @@ import { ContributionItemMock, ChurchPixKeyPublic } from '../types/portal';
 
 interface PortalPaymentStepProps {
     churchId?: string;
+    selectedBankId?: string;
     requestId?: string;
     totalAmount: number;
     referenceNumber: string;
@@ -24,6 +25,7 @@ interface PaymentGroup {
 
 export const PortalPaymentStep: React.FC<PortalPaymentStepProps> = ({
     churchId,
+    selectedBankId,
     requestId,
     totalAmount,
     referenceNumber,
@@ -31,7 +33,7 @@ export const PortalPaymentStep: React.FC<PortalPaymentStepProps> = ({
     onBack,
     onFinish
 }) => {
-    const { pixKeys, selectedKey, selectedKeyId, setSelectedKeyId, loading, error, refetch } = usePortalPix(churchId);
+    const { pixKeys, selectedKey, selectedKeyId, setSelectedKeyId, loading, error, refetch } = usePortalPix(churchId, selectedBankId);
     const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
 
     const handleCopyPix = (keyId: string, keyToCopy: string) => {
@@ -53,23 +55,27 @@ export const PortalPaymentStep: React.FC<PortalPaymentStepProps> = ({
         }
     };
 
-    // Group selected items by bank Pix key
+    // Group selected items by bank Pix key (prioritizing the user-selected bank account)
     const selectedItems = items ? items.filter(i => i.selected && i.amount > 0) : [];
     const paymentGroups: PaymentGroup[] = [];
 
     if (pixKeys.length > 0) {
+        // Prioritize key for selectedBankId
+        const preferredKey = (selectedBankId ? pixKeys.find(k => k.bank_id === selectedBankId) : null) || selectedKey || pixKeys[0];
+
         if (selectedItems.length > 0) {
             const keyGroupMap = new Map<string, PaymentGroup>();
 
             selectedItems.forEach(item => {
-                // Find a key that directly matches the contribution type's target bank_id
                 let matchingKey: ChurchPixKeyPublic | undefined;
-                if (item.bank_id) {
+                if (selectedBankId) {
+                    matchingKey = preferredKey;
+                } else if (item.bank_id) {
                     matchingKey = pixKeys.find(k => k.bank_id === item.bank_id);
                 }
 
                 if (!matchingKey) {
-                    matchingKey = selectedKey || pixKeys[0];
+                    matchingKey = preferredKey;
                 }
 
                 if (matchingKey) {
@@ -83,8 +89,8 @@ export const PortalPaymentStep: React.FC<PortalPaymentStepProps> = ({
             });
 
             paymentGroups.push(...Array.from(keyGroupMap.values()));
-        } else if (selectedKey) {
-            paymentGroups.push({ key: selectedKey, items: [], total: totalAmount });
+        } else if (preferredKey) {
+            paymentGroups.push({ key: preferredKey, items: [], total: totalAmount });
         }
     }
 

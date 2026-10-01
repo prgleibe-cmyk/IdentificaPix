@@ -48,6 +48,7 @@ export const PortalHome: React.FC<PortalHomeProps> = ({ church }) => {
         performSearchContributor,
         saveContributor,
         createContributionRequest,
+        setSelectedBankId,
         setMockSearchFound,
         updateContributor,
         confirmContributorProfileOnServer,
@@ -83,12 +84,21 @@ export const PortalHome: React.FC<PortalHomeProps> = ({ church }) => {
             case 2:
                 return (
                     <PortalContributionsStep
+                        bankAccounts={wizardState.bankAccounts}
+                        selectedBankId={wizardState.selectedBankId}
+                        onSelectBank={setSelectedBankId}
                         items={wizardState.contributionItems}
                         onToggleItem={toggleItemSelection}
                         onSetAmount={setItemAmount}
                         totalAmount={getTotalAmount()}
+                        isSaving={isSaving}
                         onBack={prevStep}
-                        onContinue={nextStep}
+                        onContinue={async () => {
+                            const ok = await createContributionRequest(church?.id, wizardState.selectedBankId);
+                            if (ok) {
+                                setStep(4);
+                            }
+                        }}
                     />
                 );
             case 3:
@@ -103,7 +113,7 @@ export const PortalHome: React.FC<PortalHomeProps> = ({ church }) => {
                         apiError={apiError}
                         onBack={prevStep}
                         onContinue={async () => {
-                            const ok = await createContributionRequest(church?.id);
+                            const ok = await createContributionRequest(church?.id, wizardState.selectedBankId);
                             if (ok) {
                                 nextStep();
                             }
@@ -114,11 +124,12 @@ export const PortalHome: React.FC<PortalHomeProps> = ({ church }) => {
                 return (
                     <PortalPaymentStep
                         churchId={church?.id}
+                        selectedBankId={wizardState.selectedBankId}
                         requestId={wizardState.contributionRequestId}
                         totalAmount={getTotalAmount()}
                         referenceNumber={wizardState.referenceNumber}
                         items={wizardState.contributionItems}
-                        onBack={prevStep}
+                        onBack={() => setStep(2)}
                         onFinish={nextStep}
                     />
                 );

@@ -115,6 +115,18 @@ export interface ContributionItemMock {
     bank_id?: string;
 }
 
+export interface ChurchBankAccountPublic {
+    id: string;
+    name: string;
+    account_name?: string | null;
+    bank_key?: string | null;
+    pix_key?: string | null;
+    pix_type?: string | null;
+    holder_name?: string | null;
+    pix_key_id?: string | null;
+    accepted_contribution_types?: string[] | null;
+}
+
 export interface ContributionWizardState {
     step: number; // 1: Identify, 2: Contributor/Register, 3: Select Items, 4: Summary, 5: Payment, 6: Success
     identificationType: IdentificationType;
@@ -126,6 +138,8 @@ export interface ContributionWizardState {
     createdAt: string;
     contributionRequestId?: string;
     contributionRequestStatus?: 'pending' | 'confirmed' | string;
+    selectedBankId?: string;
+    bankAccounts?: ChurchBankAccountPublic[];
 }
 
 export interface ChurchPixKeyPublic {

@@ -357,7 +357,10 @@ class LocalSqliteEngine {
         amount REAL,
         description TEXT,
         status TEXT DEFAULT 'pending',
-        created_at TEXT DEFAULT (now())
+        bank_id TEXT,
+        splits TEXT,
+        created_at TEXT DEFAULT (now()),
+        updated_at TEXT DEFAULT (now())
       );
 
       CREATE TABLE IF NOT EXISTS app_users (
@@ -567,6 +570,10 @@ class LocalSqliteEngine {
     safeAdd('consolidated_transactions', 'contribution_request_id TEXT');
     safeAdd('consolidated_transactions', 'splits TEXT');
     safeAdd('consolidated_transactions', 'updated_at TEXT DEFAULT CURRENT_TIMESTAMP');
+
+    safeAdd('contribution_requests', 'bank_id TEXT');
+    safeAdd('contribution_requests', 'splits TEXT');
+    safeAdd('contribution_requests', 'updated_at TEXT DEFAULT CURRENT_TIMESTAMP');
 
     try {
       this.db?.exec("UPDATE consolidated_transactions SET description = 'ALOISIO DA SILVA UCHOA' WHERE (UPPER(description) = 'PAGAMENTO S' OR UPPER(description) = 'PAGAMENTO S.') AND amount = 1.80;");
@@ -848,7 +855,7 @@ class LocalSqliteEngine {
     const command = s.split(' ')[0].toUpperCase();
 
     try {
-      if (command === 'SELECT' || s.toUpperCase().includes(' RETURNING ')) {
+      if (command === 'SELECT' || /\bRETURNING\b/i.test(s)) {
         const stmt = this.db.prepare(s);
         let rows = (expandedParams.length > 0 ? stmt.all(...expandedParams) : stmt.all()) as any[];
         if (s.toLowerCase().includes('pg_try_advisory_lock')) {
@@ -955,18 +962,25 @@ export const app = express();
 app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3010;
 
-app.use(cors());
-app.use(compression({
-  level: 6,
-  threshold: 1024,
-  filter: (req, res) => {
-    if (req.headers['x-no-compression']) {
-      return false;
+if (!process.env.INTEGRATED_MODE) {
+  app.use(cors());
+  app.use(compression({
+    level: 6,
+    threshold: 1024,
+    filter: (req, res) => {
+      if (req.headers['x-no-compression']) {
+        return false;
+      }
+      return compression.filter(req, res);
     }
-    return compression.filter(req, res);
+  }) as any);
+}
+app.use((req, res, next) => {
+  if (req.body !== undefined && typeof req.body === 'object') {
+    return next();
   }
-}) as any);
-app.use(express.json({ limit: '50mb' }));
+  express.json({ limit: '50mb' })(req, res, next);
+});
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Configure PostgreSQL connection
@@ -1460,6 +1474,8 @@ async function initializeDatabase() {
     await client.query("ALTER TABLE contribution_requests ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'pending';");
     await client.query("ALTER TABLE contribution_requests ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();");
     await client.query("ALTER TABLE contribution_requests ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();");
+    await client.query("ALTER TABLE contribution_requests ADD COLUMN IF NOT EXISTS bank_id UUID;");
+    await client.query("ALTER TABLE contribution_requests ADD COLUMN IF NOT EXISTS splits JSONB;");
     await client.query("CREATE INDEX IF NOT EXISTS idx_contribution_requests_church ON contribution_requests(church_id);");
     await client.query("CREATE INDEX IF NOT EXISTS idx_contribution_requests_contributor ON contribution_requests(church_id, contributor_id);");
     await client.query("CREATE INDEX IF NOT EXISTS idx_contribution_requests_status ON contribution_requests(church_id, status);");
@@ -2675,7 +2691,7 @@ app.post('/api/v1/contributors/update-profile', async (req: Request, res: Respon
 // POST /api/v1/contribution-requests (Register contribution request intention)
 app.post('/api/v1/contribution-requests', async (req: Request, res: Response) => {
   try {
-    const { church_id, contributor_id, amount, description } = req.body;
+    const { church_id, contributor_id, amount, description, bank_id, splits } = req.body;
 
     const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
@@ -2735,9 +2751,12 @@ app.post('/api/v1/contribution-requests', async (req: Request, res: Response) =>
       ? description.trim() 
       : 'Intenção de Contribuição';
 
+    const cleanBankId = bank_id && typeof bank_id === 'string' && uuidRegex.test(bank_id) ? bank_id : null;
+    const parsedSplits = splits ? (typeof splits === 'string' ? splits : JSON.stringify(splits)) : null;
+
     // 4. Anti-duplication check: same contributor, church, amount, pending status within last 2 minutes
     const existingReqRes = await pool.query(
-      `SELECT id, church_id, contributor_id, amount, description, status, created_at, updated_at
+      `SELECT id, church_id, contributor_id, amount, description, status, bank_id, splits, created_at, updated_at
        FROM contribution_requests
        WHERE church_id = $1 
          AND contributor_id = $2 
@@ -2764,14 +2783,17 @@ app.post('/api/v1/contribution-requests', async (req: Request, res: Response) =>
 
     try {
       const insertRes = await pool.query(
-        `INSERT INTO contribution_requests (id, church_id, contributor_id, amount, description, status, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, 'pending', NOW(), NOW())
-         RETURNING id, church_id, contributor_id, amount, description, status, created_at, updated_at`,
-        [newReqId, church_id, contributor_id, parsedAmount, cleanDescription]
+        `INSERT INTO contribution_requests (id, church_id, contributor_id, amount, description, status, bank_id, splits, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7, NOW(), NOW())
+         RETURNING id, church_id, contributor_id, amount, description, status, bank_id, splits, created_at, updated_at`,
+        [newReqId, church_id, contributor_id, parsedAmount, cleanDescription, cleanBankId, parsedSplits]
       );
       newRequest = insertRes.rows[0];
     } catch (dbErr) {
       console.warn('[Contributors API] Failed DB insert for contribution request, returning synthetic record:', dbErr);
+    }
+
+    if (!newRequest) {
       newRequest = {
         id: newReqId,
         church_id,
@@ -2779,6 +2801,8 @@ app.post('/api/v1/contribution-requests', async (req: Request, res: Response) =>
         amount: parsedAmount,
         description: cleanDescription,
         status: 'pending',
+        bank_id: cleanBankId,
+        splits: parsedSplits,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -2810,7 +2834,7 @@ app.get('/api/v1/contribution-requests/:id', async (req: Request, res: Response)
     }
 
     const result = await pool.query(
-      'SELECT id, church_id, contributor_id, amount, description, status, created_at, updated_at FROM contribution_requests WHERE id = $1 LIMIT 1',
+      'SELECT id, church_id, contributor_id, amount, description, status, bank_id, splits, created_at, updated_at FROM contribution_requests WHERE id = $1 LIMIT 1',
       [id]
     );
 
@@ -2883,7 +2907,7 @@ app.get('/api/v1/contribution-requests', async (req: Request, res: Response) => 
       });
     }
 
-    let query = 'SELECT id, church_id, contributor_id, amount, description, status, created_at, updated_at FROM contribution_requests WHERE church_id = $1';
+    let query = 'SELECT id, church_id, contributor_id, amount, description, status, bank_id, splits, created_at, updated_at FROM contribution_requests WHERE church_id = $1';
     const params: any[] = [effectiveChurchId];
     let paramCounter = 2;
 
@@ -3030,7 +3054,33 @@ app.get('/api/v1/church-pix-keys/public', async (req: Request, res: Response) =>
         ORDER BY k.created_at DESC
       `;
       const result = await pool.query(query, [bank_id]);
-      return res.json(result.rows);
+      if (result.rows.length > 0) {
+        return res.json(result.rows);
+      }
+
+      // Fallback: check if the bank itself has bank_key
+      const bankRes = await pool.query(
+        'SELECT id, name, bank_key, account_name, accepted_contribution_types FROM banks WHERE id = $1 LIMIT 1',
+        [bank_id]
+      );
+      if (bankRes.rows.length > 0 && bankRes.rows[0].bank_key) {
+        const b = bankRes.rows[0];
+        return res.json([{
+          id: `bank-pix-${b.id}`,
+          bank_id: b.id,
+          church_id: church_id || null,
+          pix_type: 'chave',
+          pix_key: b.bank_key,
+          holder_name: b.account_name || b.name,
+          description: b.name,
+          is_active: true,
+          created_at: new Date().toISOString(),
+          bank_name: b.name,
+          accepted_contribution_types: b.accepted_contribution_types
+        }]);
+      }
+
+      return res.json([]);
     }
 
     if (!church_id || typeof church_id !== 'string' || !uuidRegex.test(church_id)) {
@@ -3069,13 +3119,153 @@ app.get('/api/v1/church-pix-keys/public', async (req: Request, res: Response) =>
     `;
 
     const result = await pool.query(query, [church_id]);
-    return res.json(result.rows);
+    if (result.rows.length > 0) {
+      return res.json(result.rows);
+    }
+
+    // Fallback: search banks belonging to church's user with bank_key
+    const fallbackBanks = await pool.query(`
+      SELECT b.id, b.name, b.bank_key, b.account_name, b.accepted_contribution_types
+      FROM banks b
+      WHERE b.user_id = (SELECT user_id FROM churches WHERE id = $1 LIMIT 1)
+        AND b.bank_key IS NOT NULL AND b.bank_key != ''
+    `, [church_id]);
+
+    if (fallbackBanks.rows.length > 0) {
+      return res.json(fallbackBanks.rows.map((b: any) => ({
+        id: `bank-pix-${b.id}`,
+        bank_id: b.id,
+        church_id: church_id,
+        pix_type: 'chave',
+        pix_key: b.bank_key,
+        holder_name: b.account_name || b.name,
+        description: b.name,
+        is_active: true,
+        created_at: new Date().toISOString(),
+        bank_name: b.name,
+        accepted_contribution_types: b.accepted_contribution_types
+      })));
+    }
+
+    // Fallback 2: Check church direct pix_key, pixKey, or cnpj
+    const churchRes = await pool.query(
+      'SELECT id, name, pix_key, "pixKey", cnpj FROM churches WHERE id = $1 LIMIT 1',
+      [church_id]
+    );
+    if (churchRes.rows.length > 0) {
+      const c = churchRes.rows[0];
+      const directKey = c.pix_key || c.pixKey || c.cnpj || null;
+      if (directKey) {
+        return res.json([{
+          id: `church-pix-${c.id}`,
+          church_id: c.id,
+          pix_type: c.cnpj && directKey === c.cnpj ? 'cnpj' : 'chave',
+          pix_key: directKey,
+          holder_name: c.name,
+          description: c.name,
+          is_active: true,
+          created_at: new Date().toISOString(),
+          bank_name: c.name
+        }]);
+      }
+    }
+
+    return res.json([]);
   } catch (err: any) {
     console.error('[Contributors API] Error fetching public Pix keys:', err);
     return res.status(500).json({
       error: 'INTERNAL_SERVER_ERROR',
       message: 'Erro ao consultar chaves Pix.'
     });
+  }
+});
+
+// GET /api/v1/church-banks/public (List active bank accounts with Pix keys for a church)
+app.get('/api/v1/church-banks/public', async (req: Request, res: Response) => {
+  try {
+    const { church_id } = req.query;
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    if (!church_id || typeof church_id !== 'string' || !uuidRegex.test(church_id)) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'church_id é obrigatório e deve ser um UUID válido.' });
+    }
+
+    const query = `
+      SELECT 
+        b.id,
+        b.name,
+        b.account_name,
+        b.bank_key,
+        b.accepted_contribution_types,
+        k.pix_key,
+        k.pix_type,
+        k.holder_name,
+        k.id as pix_key_id
+      FROM banks b
+      LEFT JOIN church_pix_keys k ON b.id = k.bank_id AND k.is_active = true
+      WHERE (
+        b.user_id = (SELECT user_id FROM churches WHERE id = $1 LIMIT 1)
+        OR b.user_id = $1
+        OR (SELECT user_id FROM churches WHERE id = $1 LIMIT 1) IS NULL
+      )
+      ORDER BY b.name ASC
+    `;
+
+    const result = await pool.query(query, [church_id]);
+    let rows = (result && result.rows) ? result.rows : [];
+
+    // Fallback if church-specific bank search returned 0 rows: look for any active bank registered in system
+    if (rows.length === 0) {
+      const anyBanksRes = await pool.query(`
+        SELECT 
+          b.id,
+          b.name,
+          b.account_name,
+          b.bank_key,
+          b.accepted_contribution_types,
+          k.pix_key,
+          k.pix_type,
+          k.holder_name,
+          k.id as pix_key_id
+        FROM banks b
+        LEFT JOIN church_pix_keys k ON b.id = k.bank_id AND k.is_active = true
+        ORDER BY b.name ASC
+      `);
+      if (anyBanksRes && anyBanksRes.rows && anyBanksRes.rows.length > 0) {
+        rows = anyBanksRes.rows;
+      }
+    }
+
+    // Retrieve default Pix key of church to guarantee all accounts have a valid Pix key
+    const churchRes = await pool.query('SELECT id, name, pix_key, "pixKey", cnpj FROM churches WHERE id = $1 LIMIT 1', [church_id]);
+    const churchRow = (churchRes && churchRes.rows) ? churchRes.rows[0] : null;
+    const defaultPix = churchRow?.pix_key || churchRow?.pixKey || churchRow?.cnpj || null;
+
+    if (rows.length === 0) {
+      // Default fallback account
+      rows = [{
+        id: 'default-church-account',
+        name: churchRow?.name || 'Conta Principal da Igreja',
+        account_name: 'Conta Corrente Principal',
+        bank_key: 'GERAL',
+        pix_key: defaultPix,
+        pix_type: defaultPix ? 'aleatoria' : null,
+        holder_name: churchRow?.name || 'Igreja',
+        pix_key_id: 'default-key'
+      }];
+    } else {
+      // If a bank has no explicit pix_key attached, inherit default church pix_key
+      rows = rows.map((r: any) => ({
+        ...r,
+        pix_key: r.pix_key || defaultPix,
+        pix_type: r.pix_type || (defaultPix ? 'aleatoria' : null),
+        holder_name: r.holder_name || churchRow?.name || 'Igreja'
+      }));
+    }
+
+    return res.json(rows);
+  } catch (err: any) {
+    console.error('[Contributors API] Error fetching public church banks:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: 'Erro ao consultar contas bancárias.' });
   }
 });
 
@@ -3221,7 +3411,7 @@ app.patch('/api/v1/church-pix-keys/:id', async (req: Request, res: Response) => 
 // GET /api/v1/contribution-types/public (Public active contribution types for Portal)
 app.get('/api/v1/contribution-types/public', async (req: Request, res: Response) => {
   try {
-    const { church_id } = req.query;
+    const { church_id, bank_id } = req.query;
     const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
     let query = `
@@ -3236,11 +3426,25 @@ app.get('/api/v1/contribution-types/public', async (req: Request, res: Response)
         b.name as bank_name
       FROM contribution_types ct
       LEFT JOIN banks b ON CAST(ct.bank_id AS VARCHAR) = CAST(b.id AS VARCHAR)
-      WHERE ct.is_active = true AND ct.type = 'entrada'
+      WHERE (ct.is_active = true OR ct.is_active = 1) AND LOWER(ct.type) = 'entrada'
     `;
     const params: any[] = [];
 
-    if (church_id && typeof church_id === 'string' && uuidRegex.test(church_id)) {
+    if (bank_id && typeof bank_id === 'string' && bank_id !== 'default-church-account' && uuidRegex.test(bank_id)) {
+      // Check if this bank has exclusive contribution types assigned
+      const specificCheck = await pool.query(
+        `SELECT id FROM contribution_types WHERE (is_active = true OR is_active = 1) AND LOWER(type) = 'entrada' AND CAST(bank_id AS VARCHAR) = $1 LIMIT 1`,
+        [bank_id]
+      );
+      params.push(bank_id);
+      if (specificCheck && specificCheck.rows && specificCheck.rows.length > 0) {
+        // Exclusively show contribution types registered for that bank!
+        query += ` AND CAST(ct.bank_id AS VARCHAR) = $${params.length}`;
+      } else {
+        // If this bank has no exclusive types assigned, show general types
+        query += ` AND (ct.bank_id IS NULL OR CAST(ct.bank_id AS VARCHAR) = $${params.length})`;
+      }
+    } else if (church_id && typeof church_id === 'string' && uuidRegex.test(church_id)) {
       params.push(church_id);
       query += ` AND (ct.bank_id IS NULL OR ct.bank_id IN (
         SELECT id FROM banks WHERE user_id = (SELECT user_id FROM churches WHERE id = $1 LIMIT 1)
@@ -3252,8 +3456,8 @@ app.get('/api/v1/contribution-types/public', async (req: Request, res: Response)
     const result = await pool.query(query, params);
     let rows = (result && result.rows) ? result.rows : [];
 
-    // If church-specific bank filter yielded no rows, fallback to all active entrada contribution types
-    if (rows.length === 0) {
+    // If query yielded no rows and no bank was explicitly filtered, fallback to all active entrada contribution types
+    if (rows.length === 0 && !bank_id) {
       const fallbackQuery = `
         SELECT 
           ct.id,
@@ -5792,7 +5996,7 @@ async function matchAndLinkContributionRequest(clientOrPool: any, tx: {
 
     // Deterministic match: search oldest pending request for same church, contributor, and exact amount
     const matchRes = await clientOrPool.query(
-      `SELECT id, amount 
+      `SELECT id, amount, splits, description 
        FROM contribution_requests 
        WHERE church_id = $1 
          AND contributor_id = $2 
@@ -5804,7 +6008,8 @@ async function matchAndLinkContributionRequest(clientOrPool: any, tx: {
     );
 
     if (matchRes.rows.length > 0) {
-      const matchedReqId = matchRes.rows[0].id;
+      const matchedReq = matchRes.rows[0];
+      const matchedReqId = matchedReq.id;
 
       // Atomically update request status to 'confirmed'
       await clientOrPool.query(
@@ -5813,6 +6018,20 @@ async function matchAndLinkContributionRequest(clientOrPool: any, tx: {
          WHERE id = $1 AND status = 'pending'`,
         [matchedReqId]
       );
+
+      // If the matched request has splits and tx.id is known, copy splits to consolidated_transactions
+      if (tx.id && matchedReq.splits) {
+        try {
+          const splitsVal = typeof matchedReq.splits === 'string' ? matchedReq.splits : JSON.stringify(matchedReq.splits);
+          await clientOrPool.query(
+            `UPDATE consolidated_transactions 
+             SET splits = COALESCE(splits, $1::jsonb),
+                 contribution_request_id = $2
+             WHERE id = $3`,
+            [splitsVal, matchedReqId, tx.id]
+          );
+        } catch (_) {}
+      }
 
       return matchedReqId;
     }
@@ -6312,14 +6531,37 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
       }
     }
 
+    const finalId = id || crypto.randomUUID();
+
     const finalContribReqId = await matchAndLinkContributionRequest(pool, {
+      id: finalId,
       church_id: effectiveChurchId,
       contributor_id,
       amount,
       contribution_request_id
     });
 
-    const finalId = id || crypto.randomUUID();
+    let initialSplits = splits ? (typeof splits === 'string' ? splits : JSON.stringify(splits)) : null;
+    let initialContributionType = contribution_type || null;
+
+    if (finalContribReqId && !initialSplits) {
+      try {
+        const reqCheck = await pool.query('SELECT splits, description FROM contribution_requests WHERE id = $1 LIMIT 1', [finalContribReqId]);
+        if (reqCheck.rows.length > 0 && reqCheck.rows[0].splits) {
+          const reqSplits = reqCheck.rows[0].splits;
+          initialSplits = typeof reqSplits === 'string' ? reqSplits : JSON.stringify(reqSplits);
+          try {
+            const parsed = typeof reqSplits === 'string' ? JSON.parse(reqSplits) : reqSplits;
+            if (Array.isArray(parsed) && parsed.length > 1) {
+              initialContributionType = initialContributionType || 'Rateado';
+            } else if (Array.isArray(parsed) && parsed.length === 1) {
+              initialContributionType = initialContributionType || parsed[0]?.contributionType || parsed[0]?.label || null;
+            }
+          } catch (_) {}
+        }
+      } catch (_) {}
+    }
+
     let query = '';
     let params: any[] = [];
     if (finalId) {
@@ -6342,12 +6584,12 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
           splits = EXCLUDED.splits,
           updated_at = NOW()
         RETURNING *`;
-      params = [finalId, amount, description, effectiveType, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, reference_date || null, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null, splits ? JSON.stringify(splits) : null];
+      params = [finalId, amount, description, effectiveType, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, reference_date || null, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, initialContributionType, finalContribReqId || null, initialSplits];
     } else {
       query = `INSERT INTO consolidated_transactions 
         (amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits) 
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING *`;
-      params = [amount, description, effectiveType, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, reference_date || null, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null, splits ? JSON.stringify(splits) : null];
+      params = [amount, description, effectiveType, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, reference_date || null, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, initialContributionType, finalContribReqId || null, initialSplits];
     }
 
     const result = await pool.query(query, params);
@@ -6422,14 +6664,37 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
         });
       }
 
+      const finalId = id || crypto.randomUUID();
+
       const finalContribReqId = await matchAndLinkContributionRequest(client, {
+        id: finalId,
         church_id: effectiveChurchId,
         contributor_id,
         amount,
         contribution_request_id
       });
 
-      const finalId = id || undefined;
+      let initialSplits = splits ? (typeof splits === 'string' ? splits : JSON.stringify(splits)) : null;
+      let initialContributionType = contribution_type || null;
+
+      if (finalContribReqId && !initialSplits) {
+        try {
+          const reqCheck = await client.query('SELECT splits, description FROM contribution_requests WHERE id = $1 LIMIT 1', [finalContribReqId]);
+          if (reqCheck.rows.length > 0 && reqCheck.rows[0].splits) {
+            const reqSplits = reqCheck.rows[0].splits;
+            initialSplits = typeof reqSplits === 'string' ? reqSplits : JSON.stringify(reqSplits);
+            try {
+              const parsed = typeof reqSplits === 'string' ? JSON.parse(reqSplits) : reqSplits;
+              if (Array.isArray(parsed) && parsed.length > 1) {
+                initialContributionType = initialContributionType || 'Rateado';
+              } else if (Array.isArray(parsed) && parsed.length === 1) {
+                initialContributionType = initialContributionType || parsed[0]?.contributionType || parsed[0]?.label || null;
+              }
+            } catch (_) {}
+          }
+        } catch (_) {}
+      }
+
       let query = '';
       let params: any[] = [];
       if (finalId) {
@@ -6452,12 +6717,12 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
             splits = EXCLUDED.splits,
             updated_at = NOW()
           RETURNING *`;
-        params = [finalId, amount, description, type, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, reference_date || null, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null, splits ? JSON.stringify(splits) : null];
+        params = [finalId, amount, description, type, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, reference_date || null, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, initialContributionType, finalContribReqId || null, initialSplits];
       } else {
         query = `INSERT INTO consolidated_transactions 
           (amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits) 
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING *`;
-        params = [amount, description, type, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, reference_date || null, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null, splits ? JSON.stringify(splits) : null];
+        params = [amount, description, type, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, reference_date || null, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, initialContributionType, finalContribReqId || null, initialSplits];
       }
 
       const result = await client.query(query, params);
@@ -6618,11 +6883,33 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
     let finalContribReqId = contribution_request_id;
     if (!finalContribReqId && (church_id || contributor_id || amount !== undefined)) {
       finalContribReqId = await matchAndLinkContributionRequest(pool, {
+        id: id,
         church_id: church_id || oldTx.church_id,
         contributor_id: contributor_id || oldTx.contributor_id,
         amount: amount !== undefined ? amount : oldTx.amount,
         contribution_request_id: oldTx.contribution_request_id
       });
+    }
+
+    let finalSplitsToSet = splits !== undefined ? JSON.stringify(splits) : null;
+    let finalContributionTypeToSet = contribution_type !== undefined ? contribution_type : null;
+
+    if (splits === undefined && finalContribReqId) {
+      try {
+        const reqCheck = await pool.query('SELECT splits, description FROM contribution_requests WHERE id = $1 LIMIT 1', [finalContribReqId]);
+        if (reqCheck.rows.length > 0 && reqCheck.rows[0].splits) {
+          const reqSplits = reqCheck.rows[0].splits;
+          finalSplitsToSet = typeof reqSplits === 'string' ? reqSplits : JSON.stringify(reqSplits);
+          try {
+            const parsed = typeof reqSplits === 'string' ? JSON.parse(reqSplits) : reqSplits;
+            if (Array.isArray(parsed) && parsed.length > 1) {
+              finalContributionTypeToSet = finalContributionTypeToSet || 'Rateado';
+            } else if (Array.isArray(parsed) && parsed.length === 1) {
+              finalContributionTypeToSet = finalContributionTypeToSet || parsed[0]?.contributionType || parsed[0]?.label || null;
+            }
+          } catch (_) {}
+        }
+      } catch (_) {}
     }
 
     const result = await pool.query(
@@ -6662,9 +6949,9 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
         contributor_id !== undefined ? contributor_id : null, 
         report_id, 
         payment_method, 
-        contribution_type, 
+        finalContributionTypeToSet, 
         finalContribReqId || null, 
-        splits !== undefined ? JSON.stringify(splits) : null, 
+        finalSplitsToSet, 
         id,
         bank_id !== undefined,
         church_id !== undefined,
