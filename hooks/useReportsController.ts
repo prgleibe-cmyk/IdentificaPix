@@ -41,6 +41,7 @@ export const useReportsController = () => {
         hydrate,
         regenerateReportPreview,
         churches,
+        contributionTypes,
         isHydrating,
         isSyncing,
         isLoading,
@@ -113,7 +114,7 @@ export const useReportsController = () => {
         const amount = r.status === 'PENDENTE' ? r.contributorAmount : r.transaction?.amount;
         const displayAmount = amount !== undefined ? amount : (r.transaction?.amount || 0);
         const desc = (r.transaction?.description || r.transaction?.rawDescription || '').toLowerCase();
-        const cat = (r.contributionType || (r.transaction as any)?.contributionType || '').toLowerCase();
+        const cat = (r.contributionType || (r.transaction as any)?.contributionType || r.contributor?.contributionType || '').toLowerCase();
         const txType = (r.transaction?.type || '').toLowerCase();
 
         // 🛡️ Proteção: Se o texto original explicita recebimento/crédito, nunca trata como despesa
@@ -127,14 +128,23 @@ export const useReportsController = () => {
             return false;
         }
 
+        const isRegisteredSaida = (contributionTypes || []).some((ct: any) => 
+            ct.type === 'saida' && ct.name && ct.name.toLowerCase() === cat
+        );
+
         return displayAmount < 0 || 
                txType === 'expense' || 
                txType === 'saida' || 
                cat.includes('saída') || 
-               cat.includes('saida') ||
-               desc.includes('lançamento manual saída') ||
-               desc.includes('lancamento manual saida');
-    }, []);
+               cat.includes('saida') || 
+               cat.includes('despesa') ||
+               isRegisteredSaida ||
+               desc.includes('lançamento manual saída') || 
+               desc.includes('lancamento manual saida') ||
+               desc.includes('pix enviado') ||
+               desc.includes('pagamento boleto') ||
+               desc.includes('ted enviada');
+    }, [contributionTypes]);
 
     // ⚡ Executa a sincronização incremental ou o rebuild completo do cache
     const currentResults = matchResults || [];
@@ -773,11 +783,17 @@ export const useReportsController = () => {
                 amount = parseNumeric(rawAmount);
             }
 
+            const cat = (r.contributionType || (r.transaction as any)?.contributionType || r.contributor?.contributionType || '').toLowerCase();
+            const isRegisteredSaida = (contributionTypes || []).some((ct: any) => 
+                ct.type === 'saida' && ct.name && ct.name.toLowerCase() === cat
+            );
             const isExp = amount < 0 || 
                           r.transaction?.type?.toLowerCase() === 'expense' || 
                           r.transaction?.type?.toLowerCase() === 'saida' || 
-                          r.contributionType?.toLowerCase() === 'saída' || 
-                          r.contributionType?.toLowerCase() === 'saida';
+                          cat.includes('saída') || 
+                          cat.includes('saida') || 
+                          cat.includes('despesa') ||
+                          isRegisteredSaida;
             const finalAmt = isExp ? -Math.abs(amount) : amount;
             const isIdentified = r.status === 'IDENTIFICADO';
             const isPending = r.status === 'PENDENTE' || r.status === 'NÃO IDENTIFICADO';

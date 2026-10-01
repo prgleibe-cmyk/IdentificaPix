@@ -114,14 +114,21 @@ const MobileCard = memo(({
     const displayAmount = row.transaction.amount;
     const rawDescUpper = (row.transaction?.rawDescription || row.transaction?.cleanedDescription || row.transaction?.description || '').toUpperCase();
     const hasIncomingKeywords = rawDescUpper.includes('RECEBEU') || rawDescUpper.includes('RECEBIDO') || rawDescUpper.includes('CRÉDITO') || rawDescUpper.includes('CREDITO') || (rawDescUpper.includes('NU PAGAMENTOS') && (rawDescUpper.includes('SICREDI') || rawDescUpper.includes('PIX')));
+    const catUpper = (row.contributionType || (row.transaction as any)?.contributionType || row.contributor?.contributionType || '').toUpperCase();
+    const isRegisteredSaida = (contributionTypes || []).some((ct: any) => ct.type === 'saida' && ct.name?.toUpperCase() === catUpper);
     const isExpense = !hasIncomingKeywords && (
                       displayAmount < 0 || 
                       row.transaction?.type?.toLowerCase() === 'expense' || 
                       row.transaction?.type?.toLowerCase() === 'saida' || 
-                      row.contributionType?.toLowerCase() === 'saída' || 
-                      row.contributionType?.toLowerCase() === 'saida' ||
+                      catUpper.includes('SAÍDA') || 
+                      catUpper.includes('SAIDA') || 
+                      catUpper.includes('DESPESA') ||
+                      isRegisteredSaida ||
                       (row.transaction as any)?.description?.toLowerCase().includes('lançamento manual saída') ||
-                      (row.transaction as any)?.description?.toLowerCase().includes('lancamento manual saida')
+                      (row.transaction as any)?.description?.toLowerCase().includes('lancamento manual saida') ||
+                      rawDescUpper.includes('PIX ENVIADO') ||
+                      rawDescUpper.includes('PAGAMENTO BOLETO') ||
+                      rawDescUpper.includes('TED ENVIADA')
     );
     const refDate = row.contributor?.reference_date || row.reference_date || row.transaction.reference_date;
     const hasRefDate = refDate && refDate !== row.transaction.date;
@@ -506,14 +513,21 @@ const IncomeRow = memo(({
     const displayAmount = row.transaction.amount;
     const rawDescUpper = (row.transaction?.rawDescription || row.transaction?.cleanedDescription || row.transaction?.description || '').toUpperCase();
     const hasIncomingKeywords = rawDescUpper.includes('RECEBEU') || rawDescUpper.includes('RECEBIDO') || rawDescUpper.includes('CRÉDITO') || rawDescUpper.includes('CREDITO') || (rawDescUpper.includes('NU PAGAMENTOS') && (rawDescUpper.includes('SICREDI') || rawDescUpper.includes('PIX')));
+    const catUpper = (row.contributionType || (row.transaction as any)?.contributionType || row.contributor?.contributionType || '').toUpperCase();
+    const isRegisteredSaida = (contributionTypes || []).some((ct: any) => ct.type === 'saida' && ct.name?.toUpperCase() === catUpper);
     const isExpense = !hasIncomingKeywords && (
                       displayAmount < 0 || 
                       row.transaction?.type?.toLowerCase() === 'expense' || 
                       row.transaction?.type?.toLowerCase() === 'saida' || 
-                      row.contributionType?.toLowerCase() === 'saída' || 
-                      row.contributionType?.toLowerCase() === 'saida' ||
+                      catUpper.includes('SAÍDA') || 
+                      catUpper.includes('SAIDA') || 
+                      catUpper.includes('DESPESA') || 
+                      isRegisteredSaida ||
                       (row.transaction as any)?.description?.toLowerCase().includes('lançamento manual saída') ||
-                      (row.transaction as any)?.description?.toLowerCase().includes('lancamento manual saida')
+                      (row.transaction as any)?.description?.toLowerCase().includes('lancamento manual saida') ||
+                      rawDescUpper.includes('PIX ENVIADO') ||
+                      rawDescUpper.includes('PAGAMENTO BOLETO') ||
+                      rawDescUpper.includes('TED ENVIADA')
     );
     const refDate = row.contributor?.reference_date || row.reference_date || row.transaction.reference_date;
     const hasRefDate = refDate && refDate !== row.transaction.date;

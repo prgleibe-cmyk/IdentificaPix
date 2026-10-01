@@ -385,8 +385,33 @@ export const useReconciliationActions = ({
         const contributorIdToUse = finalContributorId || original.contributor?.id;
 
         if (!id.includes('ghost') && !id.startsWith('sim')) {
-          const itemType = (original.transaction.amount >= 0) ? 'income' : 'expense';
+          const isSelectedCategorySaida = 
+            (contributionType && (contributionType.toLowerCase().includes('saida') || contributionType.toLowerCase().includes('saída') || contributionType.toLowerCase().includes('despesa'))) ||
+            (referenceData.contributionTypes || []).some((ct: any) => ct.name?.toUpperCase() === contributionType?.toUpperCase() && ct.type === 'saida');
+
+          const isTxDescSaida = (() => {
+            const d = (original.transaction.description || original.transaction.rawDescription || '').toLowerCase();
+            return d.includes('pix enviado') || d.includes('pagamento') || d.includes('pagto') || d.includes('pago a') || d.includes('debito') || d.includes('débito') || d.includes('ted enviada') || d.includes('doc enviado');
+          })();
+
+          const isExpense = 
+            manualType === 'saida' ||
+            isSelectedCategorySaida ||
+            (manualType !== 'entrada' && (
+              Number(original.transaction.amount) < 0 ||
+              original.transaction.type === 'expense' ||
+              original.transaction.type === 'saida' ||
+              original.contributionType?.toLowerCase().includes('saída') ||
+              original.contributionType?.toLowerCase().includes('saida') ||
+              original.contributionType?.toLowerCase().includes('despesa') ||
+              isTxDescSaida
+            ));
+
+          const itemType: 'income' | 'expense' = isExpense ? 'expense' : 'income';
+          const originalAmountNum = Number(original.transaction.amount) || 0;
+          const finalAmount = isExpense ? -Math.abs(originalAmountNum) : Math.abs(originalAmountNum);
           const finalRefDate = selectedDate || original.reference_date || original.transaction.reference_date || undefined;
+
           await consolidationService.updateTransactionStatus(
             id, 
             'identified', 
@@ -398,7 +423,8 @@ export const useReconciliationActions = ({
             undefined,
             contributionType,
             paymentMethod,
-            finalRefDate
+            finalRefDate,
+            finalAmount
           );
         }
         affectedCount++;
@@ -423,9 +449,36 @@ export const useReconciliationActions = ({
 
           const matchingContributorId = txToContributorIdMap.get(r.transaction.id) || unifiedContributorId;
 
+          const isSelectedCategorySaida = 
+            (contributionType && (contributionType.toLowerCase().includes('saida') || contributionType.toLowerCase().includes('saída') || contributionType.toLowerCase().includes('despesa'))) ||
+            (referenceData.contributionTypes || []).some((ct: any) => ct.name?.toUpperCase() === contributionType?.toUpperCase() && ct.type === 'saida');
+
+          const isTxDescSaida = (() => {
+            const d = (r.transaction.description || r.transaction.rawDescription || '').toLowerCase();
+            return d.includes('pix enviado') || d.includes('pagamento') || d.includes('pagto') || d.includes('pago a') || d.includes('debito') || d.includes('débito') || d.includes('ted enviada') || d.includes('doc enviado');
+          })();
+
+          const isExpense = 
+            manualType === 'saida' ||
+            isSelectedCategorySaida ||
+            (manualType !== 'entrada' && (
+              Number(r.transaction.amount) < 0 ||
+              r.transaction.type === 'expense' ||
+              r.transaction.type === 'saida' ||
+              r.contributionType?.toLowerCase().includes('saída') ||
+              r.contributionType?.toLowerCase().includes('saida') ||
+              r.contributionType?.toLowerCase().includes('despesa') ||
+              isTxDescSaida
+            ));
+
+          const finalTxType: 'income' | 'expense' = isExpense ? 'expense' : 'income';
+          const originalAmountNum = Number(r.transaction.amount) || (r.contributor ? Number(r.contributor.amount) : 0);
+          const finalAmount = isExpense ? -Math.abs(originalAmountNum) : Math.abs(originalAmountNum);
+
           const contributor = {
             ...buildSafeContributor(r, contributionType, paymentMethod),
             ...(matchingContributorId ? { id: matchingContributorId } : {}),
+            amount: finalAmount,
             reference_date: selectedDate || r.reference_date || r.transaction.reference_date || null
           };
 
@@ -469,12 +522,15 @@ export const useReconciliationActions = ({
             _churchId: church.id,
             matchMethod: MatchMethod.MANUAL,
             similarity: 100,
-            contributorAmount: contributor.amount,
+            contributorAmount: finalAmount,
             contributionType: contributor.contributionType, // Proteção contra sobrescrita
             paymentMethod: contributor.paymentMethod,       // Proteção contra sobrescrita
             reference_date: finalRefDate,
             transaction: { 
               ...r.transaction,
+              type: finalTxType,
+              amount: finalAmount,
+              contributionType: contributor.contributionType,
               reference_date: finalRefDate,
               isConfirmed: false,
               attachments: (attachments && attachments.length > 0) ? attachments : r.transaction.attachments

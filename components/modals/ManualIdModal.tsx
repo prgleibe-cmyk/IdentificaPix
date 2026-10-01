@@ -559,10 +559,43 @@ export const ManualIdModal: React.FC = () => {
                 setSelectedPaymentMethod('PIX');
             }
 
-            if (matchedResult?.contributionType) {
-                setSelectedType(matchedResult.contributionType);
+            const descLower = (tx.rawDescription || tx.description || '').toLowerCase();
+            const isDescSaida = 
+                descLower.includes('pix enviado') || 
+                descLower.includes('pagamento') || 
+                descLower.includes('pagto') || 
+                descLower.includes('pago a') || 
+                descLower.includes('debito') || 
+                descLower.includes('débito') || 
+                descLower.includes('ted enviada') || 
+                descLower.includes('doc enviado') || 
+                descLower.includes('lançamento manual saída') || 
+                descLower.includes('lancamento manual saida');
+
+            const isTxSaida = 
+                Number(tx.amount) < 0 || 
+                tx.type?.toLowerCase() === 'expense' || 
+                tx.type?.toLowerCase() === 'saida' ||
+                matchedResult?.contributionType?.toLowerCase().includes('saída') || 
+                matchedResult?.contributionType?.toLowerCase().includes('saida') ||
+                matchedResult?.contributionType?.toLowerCase().includes('despesa') ||
+                (contributionTypes || []).some((ct: any) => ct.name?.toUpperCase() === matchedResult?.contributionType?.toUpperCase() && ct.type === 'saida') ||
+                isDescSaida;
+
+            if (isTxSaida) {
+                setManualType('saida');
+                if (matchedResult?.contributionType) {
+                    setSelectedType(matchedResult.contributionType);
+                } else {
+                    setSelectedType(defaultSaidaType);
+                }
             } else {
-                setSelectedType(defaultEntradaType);
+                setManualType('entrada');
+                if (matchedResult?.contributionType) {
+                    setSelectedType(matchedResult.contributionType);
+                } else {
+                    setSelectedType(defaultEntradaType);
+                }
             }
 
             // Inicializa a data de referência com a data da transação ou a reference_date existente
@@ -757,6 +790,13 @@ export const ManualIdModal: React.FC = () => {
                 const parsedManualAmt = manualAmount ? (parseFloat(manualAmount.replace(/\./g, '').replace(',', '.')) || 0) : 0;
                 const calculatedTotalAmount = isManualLaunch ? parsedManualAmt : bulkIdentificationTxs.reduce((sum, tx) => sum + (tx.amount || 0), 0);
 
+                const isSelectedSaidaCat = 
+                    selectedType.toLowerCase().includes('saída') || 
+                    selectedType.toLowerCase().includes('saida') || 
+                    selectedType.toLowerCase().includes('despesa') ||
+                    (contributionTypes || []).some((ct: any) => ct.name?.toUpperCase() === selectedType.toUpperCase() && ct.type === 'saida');
+                const effectiveManualType = manualType || (isSelectedSaidaCat ? 'saida' : undefined);
+
                 await confirmBulkManualIdentification(
                     ids, 
                     selectedChurchId, 
@@ -766,7 +806,7 @@ export const ManualIdModal: React.FC = () => {
                     manualDescription,
                     manualAmount,
                     selectedAssociationType === 'unify' ? selectedUnifiedField : undefined,
-                    isManualLaunch ? manualType : undefined,
+                    effectiveManualType,
                     selectedBankId || undefined,
                     attachments.length > 0 ? attachments : undefined
                 );
@@ -1585,6 +1625,32 @@ export const ManualIdModal: React.FC = () => {
                                             {formatCurrency(bulkIdentificationTxs[0].amount, language)}
                                         </span>
                                     </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200/60 dark:border-white/5">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleTypeSwitch('entrada')}
+                                        className={`py-1.5 px-3 rounded-xl font-black uppercase text-[10px] flex items-center justify-center gap-1.5 transition-all border cursor-pointer select-none ${
+                                            manualType === 'entrada'
+                                                ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm'
+                                                : 'bg-emerald-50 hover:bg-emerald-100/80 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/80 font-bold'
+                                        }`}
+                                    >
+                                        <ArrowUpRight className={`w-3.5 h-3.5 ${manualType === 'entrada' ? 'text-white' : 'text-emerald-600 dark:text-emerald-400'}`} />
+                                        <span>Entrada (Receita)</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleTypeSwitch('saida')}
+                                        className={`py-1.5 px-3 rounded-xl font-black uppercase text-[10px] flex items-center justify-center gap-1.5 transition-all border cursor-pointer select-none ${
+                                            manualType === 'saida'
+                                                ? 'bg-rose-600 text-white border-rose-500 shadow-md shadow-rose-600/30'
+                                                : 'bg-rose-50 hover:bg-rose-100/80 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/80 font-bold'
+                                        }`}
+                                    >
+                                        <ArrowDownRight className={`w-3.5 h-3.5 ${manualType === 'saida' ? 'text-white' : 'text-rose-600 dark:text-rose-400'}`} />
+                                        <span>Saída (Despesa)</span>
+                                    </button>
                                 </div>
                                 {/* Mostrar destinação atual se já estiver identificado */}
                                 {(() => {

@@ -151,12 +151,19 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                             const displayAmount = transaction.amount;
                             const rawDescUpper = (transaction.rawDescription || transaction.description || '').toUpperCase();
                             const hasIncomingKeywords = rawDescUpper.includes('RECEBEU') || rawDescUpper.includes('RECEBIDO') || rawDescUpper.includes('CRÉDITO') || rawDescUpper.includes('CREDITO') || (rawDescUpper.includes('NU PAGAMENTOS') && (rawDescUpper.includes('SICREDI') || rawDescUpper.includes('PIX')));
+                            const catUpper = (contributionType || (transaction as any)?.contributionType || contributor?.contributionType || '').toUpperCase();
+                            const isRegisteredSaida = (contributionTypes || []).some((ct: any) => ct.type === 'saida' && ct.name?.toUpperCase() === catUpper);
                             const isExpense = !hasIncomingKeywords && (
                                               displayAmount < 0 || 
                                               transaction.type?.toLowerCase() === 'expense' || 
                                               transaction.type?.toLowerCase() === 'saida' || 
-                                              contributionType?.toLowerCase() === 'saída' || 
-                                              contributionType?.toLowerCase() === 'saida'
+                                              catUpper.includes('SAÍDA') || 
+                                              catUpper.includes('SAIDA') ||
+                                              catUpper.includes('DESPESA') ||
+                                              isRegisteredSaida ||
+                                              rawDescUpper.includes('PIX ENVIADO') ||
+                                              rawDescUpper.includes('PAGAMENTO BOLETO') ||
+                                              rawDescUpper.includes('TED ENVIADA')
                             );
                             const refDate = contributor?.reference_date || transaction.reference_date;
                             const hasRefDate = refDate && refDate !== transaction.date;
