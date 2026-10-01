@@ -2032,6 +2032,9 @@ app.get('/api/v1/audit-logs', async (req: Request, res: Response) => {
   }
 });
 
+let cachedChurchesNameMap: Map<string, string> | null = null;
+let lastChurchesNameMapFetch = 0;
+
 // GET /api/v1/contributors
 app.get('/api/v1/contributors', async (req: Request, res: Response) => {
   try {
@@ -2108,14 +2111,22 @@ app.get('/api/v1/contributors', async (req: Request, res: Response) => {
 
     const result = await pool.query(query, params);
 
-    // Query church names map to enrich missing congregations seamlessly
-    const churchMap = new Map<string, string>();
-    try {
-      const chRes = await pool.query('SELECT id, name FROM churches');
-      chRes.rows.forEach((ch: any) => {
-        if (ch.id && ch.name) churchMap.set(String(ch.id), ch.name);
-      });
-    } catch (_) {}
+    // Query church names map to enrich missing congregations seamlessly (cached for 60s)
+    let churchMap = cachedChurchesNameMap;
+    if (!churchMap || Date.now() - lastChurchesNameMapFetch > 60000) {
+      const newMap = new Map<string, string>();
+      try {
+        const chRes = await pool.query('SELECT id, name FROM churches');
+        chRes.rows.forEach((ch: any) => {
+          if (ch.id && ch.name) newMap.set(String(ch.id), ch.name);
+        });
+        cachedChurchesNameMap = newMap;
+        lastChurchesNameMapFetch = Date.now();
+        churchMap = newMap;
+      } catch (_) {
+        churchMap = cachedChurchesNameMap || newMap;
+      }
+    }
     const defaultChurchName = churchMap.get('00000000-0000-0000-0000-000000000001') || Array.from(churchMap.values())[0] || 'Igreja Sede / Matriz';
 
     const validRows = result.rows

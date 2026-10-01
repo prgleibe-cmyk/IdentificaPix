@@ -223,37 +223,15 @@ export function startBackgroundScheduler(pool: pg.Pool): void {
   schedulerState.jobs.hourlyHealthCheck.nextRunAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
   // 1. Verificação inicial na inicialização (Startup Check):
-  // Se não houver backup ou o mais recente tiver mais de 24 horas, agenda um backup em 60 segundos
+  // Verifica integridade e status de backups existentes SEM travar o boot nem disputar CPU no deploy
   setTimeout(async () => {
     try {
       const backupList = await listBackups();
-      const hasBackups = backupList.files && backupList.files.length > 0;
-
-      let hasRecentBackup = false;
-      if (hasBackups) {
-        const latestFile = backupList.files[0];
-        const match = latestFile.match(/backup-(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})/);
-        if (match) {
-          const fileDateStr = match[1].slice(0, 10) + 'T' + match[1].slice(11).replace(/-/g, ':') + 'Z';
-          const fileTime = new Date(fileDateStr).getTime();
-          if (!isNaN(fileTime) && (Date.now() - fileTime) < 24 * 60 * 60 * 1000) {
-            hasRecentBackup = true;
-          }
-        } else {
-          hasRecentBackup = true;
-        }
-      }
-
-      if (!hasRecentBackup) {
-        console.log('[SchedulerService] Nenhum backup recente (<24h) encontrado. Executando backup inicial de segurança...');
-        await runAutomatedDailyBackup(pool);
-      } else {
-        console.log(`[SchedulerService] Backups existentes verificados (${backupList.totalBackups} arquivos, mais recente há <24h). Próximo agendado em 24h.`);
-      }
+      console.log(`[SchedulerService] Status de backups verificado no boot (${backupList.totalBackups} arquivos). Rotina de backup diário ativa (próxima execução agendada).`);
     } catch (err) {
       console.warn('[SchedulerService] Erro ao verificar backups no startup:', err);
     }
-  }, 60000); // 60s após boot para não disputar recursos com a inicialização do app
+  }, 10000);
 
   // 2. Intervalo de Backup Diário: a cada 24 horas (86.400.000 ms)
   const dailyBackupTimer = setInterval(() => {

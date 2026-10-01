@@ -617,7 +617,7 @@ export const ContributorsList: React.FC = () => {
     };
 
     useEffect(() => {
-        fetchContributors(true);
+        fetchContributors(false);
 
         const unsubscribe = subscribeToContributorUpdates(() => {
             fetchContributors(true);
