@@ -163,8 +163,9 @@ export const useReconciliationActions = ({
 
         // Geração de hash robusto e de acordo com o sistema
         const stableRaw = finalDescription.replace(/\r\n/g, '\n').trim();
-        const globalHashKey = `U${userId}|Bmanual|R${stableRaw}|D${finalDate}|A${finalAmount}`;
-        const globalHash = LaunchService.computeBaseHash(globalHashKey);
+        const manualNonce = Date.now().toString(36);
+        const globalHashKey = `U${userId || 'anon'}|Bmanual|R${stableRaw}|D${finalDate}|A${finalAmount}|N${manualNonce}`;
+        const globalHash = `manual-${LaunchService.computeBaseHash(globalHashKey)}`;
 
         // 1. Resolver e preparar contribuinte antes da inserção
         const tempPreOriginal: MatchResult = {
@@ -232,15 +233,15 @@ export const useReconciliationActions = ({
 
         // 2. Inserção Atômica já com status "identified" e todos os campos contábeis
         const newTxPayload = {
-          user_id: userId,
-          church_id: isValidUuid(churchId) ? churchId : null,
+          user_id: userId || (reconciliation as any)?.user?.id,
+          church_id: (churchId && churchId !== 'unidentified') ? churchId : null,
           status: 'identified' as const,
           is_confirmed: false,
           amount: finalAmount,
           type: txType,
           transaction_date: finalDate,
           description: finalDescription,
-          bank_id: isValidUuid(selectedBankId) ? selectedBankId : null,
+          bank_id: selectedBankId && selectedBankId !== 'all' ? selectedBankId : null,
           row_hash: globalHash,
           source: 'manual',
           contributor_id: actualContributorId || null,
