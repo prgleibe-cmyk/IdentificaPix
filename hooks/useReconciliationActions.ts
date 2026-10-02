@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { MatchResult, Church, ReconciliationStatus, MatchMethod, Contributor } from '../types';
 import { groupResultsByChurch } from '../services/processingService';
 import { consolidationService } from '../services/ConsolidationService';
-import { batchState } from './reconciliation/useCloudSync';
+import { batchState, lastRealtimeUpdate } from './reconciliation/useCloudSync';
 import { getAuthSession } from '../services/auth/authAdapter';
 import { LaunchService } from '../services/LaunchService';
 import { extractNameAndCpf } from '../utils/contributorHelper';

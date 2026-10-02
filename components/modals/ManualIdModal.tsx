@@ -1,5 +1,5 @@
 
-import React, { useState, useContext, useEffect, useMemo } from 'react';
+import React, { useState, useContext, useEffect, useMemo, useCallback } from 'react';
 import { Calendar, FileText, DollarSign, PlusCircle, ArrowLeft, ArrowUpRight, ArrowDownRight, CheckCircle2, Sparkles, X, ChevronUp, ChevronDown } from 'lucide-react';
 import { AppContext } from '../../contexts/AppContext';
 import { useUI } from '../../contexts/UIContext';
@@ -262,6 +262,31 @@ export const ManualIdModal: React.FC = () => {
         }
     };
 
+    // Algoritmo de similaridade de strings para busca tolerante a erros de digitação e variações fonéticas
+    const computeStringSimilarity = (s1: string, s2: string): number => {
+        if (!s1 || !s2) return 0;
+        if (s1 === s2) return 1;
+        if (s1.length < 2 || s2.length < 2) return s1 === s2 ? 1 : 0;
+
+        const pairs1 = new Map<string, number>();
+        for (let i = 0; i < s1.length - 1; i++) {
+            const pair = s1.substr(i, 2);
+            pairs1.set(pair, (pairs1.get(pair) || 0) + 1);
+        }
+
+        let intersection = 0;
+        for (let i = 0; i < s2.length - 1; i++) {
+            const pair = s2.substr(i, 2);
+            const count = pairs1.get(pair) || 0;
+            if (count > 0) {
+                pairs1.set(pair, count - 1);
+                intersection++;
+            }
+        }
+
+        return (2.0 * intersection) / (s1.length + s2.length - 2);
+    };
+
     const allContributors = useMemo(() => {
         const map = new Map<string, any>();
         const churchMap = new Map<string, any>();
@@ -269,12 +294,38 @@ export const ManualIdModal: React.FC = () => {
             if (ch?.id) churchMap.set(ch.id, ch);
         });
 
+        const resolveChurch = (rawChurchId: any, congregationName: any, churchName: any) => {
+            // 1. Correspondência direta pelo ID no mapa de igrejas
+            if (rawChurchId && rawChurchId !== 'church-1' && churchMap.has(rawChurchId)) {
+                const ch = churchMap.get(rawChurchId);
+                return { id: ch.id, name: ch.name };
+            }
+            // 2. Correspondência por nome da congregação / filial
+            const normCong = (congregationName || churchName || '').trim().toLowerCase();
+            if (normCong && normCong !== 'geral' && normCong !== 'todas as congregações' && normCong !== 'desconhecida') {
+                const ch = (churches || []).find((c: any) => {
+                    const cName = (c.name || '').trim().toLowerCase();
+                    return cName === normCong || cName.includes(normCong) || normCong.includes(cName);
+                });
+                if (ch) return { id: ch.id, name: ch.name };
+            }
+            // 3. Correspondência direta na lista caso exista
+            if (rawChurchId && rawChurchId !== 'church-1') {
+                const ch = (churches || []).find((c: any) => c.id === rawChurchId);
+                if (ch) return { id: ch.id, name: ch.name };
+            }
+            // 4. Se existir apenas 1 igreja cadastrada no sistema, associa diretamente a ela
+            if (churches && churches.length === 1) {
+                return { id: churches[0].id, name: churches[0].name };
+            }
+            return { id: rawChurchId || '', name: congregationName || churchName || (rawChurchId ? 'Igreja' : 'Geral') };
+        };
+
         // 1. Cadastros persistidos no banco de dados VPS (Geral)
         if (Array.isArray(dbContributors)) {
             dbContributors.forEach(c => {
                 if (c.status === 'inactive') return;
-                const churchId = c.church_id || c._churchId;
-                const ch = churchId ? churchMap.get(churchId) : null;
+                const chInfo = resolveChurch(c.church_id || c._churchId, c.congregation, c.church_name);
                 const displayName = c.canonical_name || c.name || c.trade_name || c.cleanedName || '';
                 if (!displayName) return;
 
@@ -288,8 +339,10 @@ export const ManualIdModal: React.FC = () => {
                     cpf: c.cpf || '',
                     phone: c.phone || '',
                     email: c.email || '',
-                    _churchId: churchId || '',
-                    _churchName: ch?.name || (c.is_global ? 'Todas as Congregações' : 'Geral')
+                    contact_person: c.contact_person || '',
+                    person_type: c.person_type || (c.cpf && c.cpf.replace(/\D/g, '').length === 14 ? 'PJ' : 'PF'),
+                    _churchId: chInfo.id,
+                    _churchName: chInfo.name
                 };
                 map.set(c.id, item);
             });
@@ -301,7 +354,7 @@ export const ManualIdModal: React.FC = () => {
                 const church = churches.find((c: any) => c.id === file.churchId);
                 file.contributors?.forEach((c: any) => {
                     const churchId = c._churchId || file.churchId;
-                    const ch = churchId ? churchMap.get(churchId) : church;
+                    const chInfo = resolveChurch(churchId, church?.name, church?.name);
                     const displayName = c.name || c.canonical_name || c.cleanedName || '';
                     if (!displayName) return;
 
@@ -313,8 +366,11 @@ export const ManualIdModal: React.FC = () => {
                             name: displayName,
                             canonical_name: c.canonical_name || displayName,
                             cleanedName: c.cleanedName || displayName,
-                            _churchName: ch?.name || 'Desconhecida',
-                            _churchId: churchId
+                            trade_name: c.trade_name || '',
+                            contact_person: c.contact_person || '',
+                            person_type: c.person_type || 'PF',
+                            _churchName: chInfo.name,
+                            _churchId: chInfo.id
                         });
                     }
                 });
@@ -324,6 +380,7 @@ export const ManualIdModal: React.FC = () => {
         return Array.from(map.values());
     }, [dbContributors, contributorFiles, churches]);
 
+    // Busca inteligente por semelhança (Pessoas ou Empresas)
     const filteredContributors = useMemo(() => {
         if (!manualDescription || manualDescription.trim().length < 1) {
             return allContributors.slice(0, 15);
@@ -333,49 +390,116 @@ export const ManualIdModal: React.FC = () => {
         const queryDigits = rawQuery.replace(/\D/g, '');
         const queryTokens = queryNorm.split(/\s+/).filter(Boolean);
 
+        const scoredMatches: { item: any; score: number }[] = [];
         const seenKeys = new Set<string>();
-        const matches: any[] = [];
 
         for (const c of allContributors) {
-            const name = c.name || c.canonical_name || c.cleanedName || '';
+            const name = (c.name || c.canonical_name || c.cleanedName || '');
             const normName = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            const normTrade = (c.trade_name || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const trade = (c.trade_name || '');
+            const normTrade = trade.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
             const normEmail = (c.email || '').toLowerCase();
+            const contactPerson = (c.contact_person || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
             const cpfClean = (c.cpf || '').replace(/\D/g, '');
             const phoneClean = (c.phone || '').replace(/\D/g, '');
 
-            // 1. Correspondência por tokens/palavras do nome, razão social ou email
-            const matchesTokens = queryTokens.length > 0 && queryTokens.every(tok => 
-                normName.includes(tok) || normTrade.includes(tok) || normEmail.includes(tok)
-            );
+            let score = 0;
 
-            // 2. Correspondência por CPF/CNPJ ou telefone
-            const matchesCpf = queryDigits.length >= 3 && cpfClean.includes(queryDigits);
-            const matchesPhone = queryDigits.length >= 4 && phoneClean.includes(queryDigits);
+            // 1. CPF / CNPJ ou telefone direto
+            if (queryDigits.length >= 3 && cpfClean.includes(queryDigits)) {
+                score = 1000 + (cpfClean === queryDigits ? 500 : (100 - (cpfClean.length - queryDigits.length)));
+            } else if (queryDigits.length >= 4 && phoneClean.includes(queryDigits)) {
+                score = 800;
+            }
 
-            if (matchesTokens || matchesCpf || matchesPhone) {
-                const uniqueKey = c.id || `${name.toLowerCase().trim()}_${c._churchId || ''}`;
-                if (!seenKeys.has(uniqueKey)) {
-                    seenKeys.add(uniqueKey);
-                    matches.push(c);
+            // 2. Correspondência exata de nome ou razão social/fantasia
+            if (normName === queryNorm || normTrade === queryNorm) {
+                score = Math.max(score, 900);
+            }
+            // 3. Prefixo do nome ou razão social
+            else if (normName.startsWith(queryNorm) || normTrade.startsWith(queryNorm)) {
+                score = Math.max(score, 750 + (normName.startsWith(queryNorm) ? 50 : 0));
+            }
+            // 4. Substring contida no nome ou razão social
+            else if (normName.includes(queryNorm) || normTrade.includes(queryNorm)) {
+                score = Math.max(score, 600);
+            }
+            // 5. Todos os tokens da consulta contidos nos dados cadastrais
+            else if (queryTokens.length > 0) {
+                const targetText = `${normName} ${normTrade} ${normEmail} ${contactPerson}`;
+                const allTokensMatch = queryTokens.every(tok => targetText.includes(tok));
+                if (allTokensMatch) {
+                    score = Math.max(score, 500 + (queryTokens.length * 10));
+                } else {
+                    // Semelhança por aproximação de palavras/tokens (tolerância a pequenos erros de digitação)
+                    const targetWords = targetText.split(/\s+/).filter(Boolean);
+                    let matchedWordCount = 0;
+                    for (const qTok of queryTokens) {
+                        if (qTok.length < 2) continue;
+                        const hasWordMatch = targetWords.some(tWord => {
+                            if (tWord.includes(qTok) || qTok.includes(tWord)) return true;
+                            if (qTok.length >= 3 && tWord.length >= 3) {
+                                return computeStringSimilarity(qTok, tWord) >= 0.65;
+                            }
+                            return false;
+                        });
+                        if (hasWordMatch) matchedWordCount++;
+                    }
+                    if (matchedWordCount > 0 && matchedWordCount >= Math.ceil(queryTokens.length / 2)) {
+                        score = Math.max(score, 300 + (matchedWordCount * 20));
+                    }
                 }
             }
 
-            if (matches.length >= 30) break;
+            // 6. Semelhança global de strings (tolerância a typos quando query >= 3 caracteres)
+            if (score === 0 && queryNorm.length >= 3) {
+                const simName = computeStringSimilarity(queryNorm, normName);
+                const simTrade = normTrade ? computeStringSimilarity(queryNorm, normTrade) : 0;
+                const maxSim = Math.max(simName, simTrade);
+                if (maxSim >= 0.40) {
+                    score = Math.round(maxSim * 250);
+                }
+            }
+
+            if (score > 0) {
+                const uniqueKey = c.id || `${name.toLowerCase().trim()}_${c._churchId || ''}`;
+                if (!seenKeys.has(uniqueKey)) {
+                    seenKeys.add(uniqueKey);
+                    scoredMatches.push({ item: c, score });
+                }
+            }
         }
 
-        matches.sort((a, b) => {
-            const aName = (a.name || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            const bName = (b.name || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            const aStarts = aName.startsWith(queryNorm);
-            const bStarts = bName.startsWith(queryNorm);
-            if (aStarts && !bStarts) return -1;
-            if (!aStarts && bStarts) return 1;
-            return aName.localeCompare(bName);
-        });
+        // Ordenar rigorosamente do mais semelhante para o menos semelhante
+        scoredMatches.sort((a, b) => b.score - a.score);
 
-        return matches;
+        return scoredMatches.slice(0, 30).map(m => m.item);
     }, [manualDescription, allContributors]);
+
+    // Função cirúrgica para selecionar contribuinte e preencher a igreja imediatamente conforme o cadastro
+    const handleChooseContributor = useCallback((col: any) => {
+        const chosenName = col.name || col.canonical_name || col.cleanedName || '';
+        setManualDescription(chosenName);
+        isDescManuallyChangedRef.current = true;
+
+        // Auto-preenche a igreja conforme o cadastro imediatamente
+        const targetChurch = (churches || []).find((ch: any) => 
+            (col._churchId && ch.id === col._churchId) ||
+            (col.church_id && ch.id === col.church_id) ||
+            (col.churchId && ch.id === col.churchId) ||
+            (col._churchName && ch.name && ch.name.trim().toLowerCase() === col._churchName.trim().toLowerCase()) ||
+            (col.congregation && ch.name && ch.name.trim().toLowerCase() === col.congregation.trim().toLowerCase()) ||
+            (col.church_name && ch.name && ch.name.trim().toLowerCase() === col.church_name.trim().toLowerCase())
+        ) || (col._churchId && churches.some(ch => ch.id === col._churchId) ? { id: col._churchId, name: col._churchName } : null) || (churches && churches.length === 1 ? churches[0] : null);
+
+        if (targetChurch?.id) {
+            setSelectedChurchId(targetChurch.id);
+        }
+
+        setSelectedAssociationType('unify');
+        setSelectedUnifiedField(col.id);
+        setShowSuggestions(false);
+    }, [churches]);
 
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
@@ -1096,12 +1220,34 @@ export const ManualIdModal: React.FC = () => {
                                     setManualDescription(val);
                                     setShowSuggestions(true);
                                     
-                                    if (selectedAssociationType === 'unify') {
+                                    // Se o texto digitado corresponder exatamente a um cadastro existente, auto-preenche a igreja
+                                    const valNorm = val.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                                    if (valNorm.length >= 3) {
+                                        const exactMatch = allContributors.find(c => {
+                                            const cName = (c.name || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                                            const cTrade = (c.trade_name || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                                            return cName === valNorm || cTrade === valNorm;
+                                        });
+                                        if (exactMatch) {
+                                            setSelectedAssociationType('unify');
+                                            setSelectedUnifiedField(exactMatch.id);
+                                            if (exactMatch._churchId && churches.some(ch => ch.id === exactMatch._churchId)) {
+                                                setSelectedChurchId(exactMatch._churchId);
+                                            }
+                                        }
+                                    } else if (selectedAssociationType === 'unify') {
                                         const matchedCol = allContributors.find(c => c.id === selectedUnifiedField);
                                         if (matchedCol && matchedCol.name !== val) {
                                             setSelectedAssociationType('create_new');
                                             setSelectedUnifiedField('');
                                         }
+                                    }
+                                }}
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter' && showSuggestions && filteredContributors.length > 0) {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleChooseContributor(filteredContributors[0]);
                                     }
                                 }}
                                 onFocus={() => setShowSuggestions(true)}
@@ -1114,34 +1260,44 @@ export const ManualIdModal: React.FC = () => {
                                         <span>🔍 Pessoas / Empresas Cadastradas</span>
                                         <span className="text-[8px] font-semibold text-emerald-600 dark:text-emerald-400">Preenche a Igreja</span>
                                     </div>
-                                    {filteredContributors.map((col, cIdx) => (
-                                        <button
-                                            key={col.id || cIdx}
-                                            type="button"
-                                            onClick={() => {
-                                                setManualDescription(col.name);
-                                                if (col._churchId) {
-                                                    setSelectedChurchId(col._churchId);
-                                                }
-                                                setSelectedAssociationType('unify');
-                                                setSelectedUnifiedField(col.id);
-                                                setShowSuggestions(false);
-                                            }}
-                                            className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-800 dark:text-slate-200 text-xs font-semibold transition-colors flex justify-between items-center border-b border-slate-50 dark:border-white/5 last:border-none cursor-pointer"
-                                        >
-                                            <div className="flex flex-col min-w-0 pr-2">
-                                                <span className="font-bold text-slate-800 dark:text-slate-200 truncate">{col.name}</span>
-                                                {col.cpf && (
-                                                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">
-                                                        {col.cpf.replace(/\D/g, '').length === 14 ? 'CNPJ' : 'CPF'}: {formatCpfCnpj(col.cpf)}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <span className="text-[9px] font-black bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded border border-emerald-200/50 dark:border-emerald-800/50 shrink-0 max-w-[170px] truncate">
-                                                🏛️ {col._churchName}
-                                            </span>
-                                        </button>
-                                    ))}
+                                    {filteredContributors.map((col, cIdx) => {
+                                        const chosenName = col.name || col.canonical_name || col.cleanedName || '';
+                                        const hasTrade = col.trade_name && col.trade_name.trim() && col.trade_name.trim().toLowerCase() !== chosenName.trim().toLowerCase();
+                                        const isPj = col.person_type === 'PJ' || (col.cpf && col.cpf.replace(/\D/g, '').length === 14);
+
+                                        return (
+                                            <button
+                                                key={col.id || cIdx}
+                                                type="button"
+                                                onClick={() => handleChooseContributor(col)}
+                                                className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-800 dark:text-slate-200 text-xs font-semibold transition-colors flex justify-between items-center border-b border-slate-50 dark:border-white/5 last:border-none cursor-pointer"
+                                            >
+                                                <div className="flex flex-col min-w-0 pr-2">
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        <span className="font-bold text-slate-800 dark:text-slate-200 truncate">{chosenName}</span>
+                                                        {isPj && (
+                                                            <span className="text-[9px] font-black bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-1.5 py-0.2 rounded border border-blue-200 dark:border-blue-800">
+                                                                🏢 Empresa (PJ)
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {hasTrade && (
+                                                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">
+                                                            Fantasia / Razão: {col.trade_name}
+                                                        </span>
+                                                    )}
+                                                    {col.cpf && (
+                                                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">
+                                                            {col.cpf.replace(/\D/g, '').length === 14 ? 'CNPJ' : 'CPF'}: {formatCpfCnpj(col.cpf)}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <span className="text-[9px] font-black bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded border border-emerald-200/50 dark:border-emerald-800/50 shrink-0 max-w-[170px] truncate">
+                                                    🏛️ {col._churchName || 'Igreja'}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>
@@ -1684,8 +1840,40 @@ export const ManualIdModal: React.FC = () => {
                                         type="text"
                                         value={manualDescription}
                                         onChange={e => {
-                                            setManualDescription(e.target.value);
+                                            const val = e.target.value;
+                                            isDescManuallyChangedRef.current = true;
+                                            setManualDescription(val);
                                             setShowSuggestions(true);
+
+                                            // Se o texto digitado corresponder exatamente a um cadastro existente, auto-preenche a igreja
+                                            const valNorm = val.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                                            if (valNorm.length >= 3) {
+                                                const exactMatch = allContributors.find(c => {
+                                                    const cName = (c.name || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                                                    const cTrade = (c.trade_name || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                                                    return cName === valNorm || cTrade === valNorm;
+                                                });
+                                                if (exactMatch) {
+                                                    setSelectedAssociationType('unify');
+                                                    setSelectedUnifiedField(exactMatch.id);
+                                                    if (exactMatch._churchId && churches.some(ch => ch.id === exactMatch._churchId)) {
+                                                        setSelectedChurchId(exactMatch._churchId);
+                                                    }
+                                                }
+                                            } else if (selectedAssociationType === 'unify') {
+                                                const matchedCol = allContributors.find(c => c.id === selectedUnifiedField);
+                                                if (matchedCol && matchedCol.name !== val) {
+                                                    setSelectedAssociationType('create_new');
+                                                    setSelectedUnifiedField('');
+                                                }
+                                            }
+                                        }}
+                                        onKeyDown={e => {
+                                            if (e.key === 'Enter' && showSuggestions && filteredContributors.length > 0) {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                handleChooseContributor(filteredContributors[0]);
+                                            }
                                         }}
                                         onFocus={() => setShowSuggestions(true)}
                                         placeholder="Digite o nome do verdadeiro contribuinte"
@@ -1694,28 +1882,35 @@ export const ManualIdModal: React.FC = () => {
                                     {showSuggestions && filteredContributors.length > 0 && (
                                         <div className="absolute left-0 right-0 top-[105%] z-50 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl overflow-hidden max-h-56 overflow-y-auto custom-scrollbar">
                                             <div className="p-2 border-b border-slate-100 dark:border-white/5 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider px-3 py-1.5 bg-slate-50 dark:bg-slate-900/80 flex justify-between items-center">
-                                                <span>🔍 Cadastros Encontrados</span>
+                                                <span>🔍 Cadastros Encontrados (Pessoas e Empresas)</span>
                                                 <span className="text-[8px] font-semibold text-indigo-600 dark:text-indigo-400">{filteredContributors.length} encontrados</span>
                                             </div>
                                             {filteredContributors.map((col, cIdx) => {
                                                 const chosenName = col.name || col.canonical_name || col.cleanedName || '';
+                                                const hasTrade = col.trade_name && col.trade_name.trim() && col.trade_name.trim().toLowerCase() !== chosenName.trim().toLowerCase();
+                                                const isPj = col.person_type === 'PJ' || (col.cpf && col.cpf.replace(/\D/g, '').length === 14);
+
                                                 return (
                                                     <button
                                                         key={col.id || cIdx}
                                                         type="button"
-                                                        onClick={() => {
-                                                            setManualDescription(chosenName);
-                                                            if (col._churchId) {
-                                                                setSelectedChurchId(col._churchId);
-                                                            }
-                                                            setSelectedAssociationType('unify');
-                                                            setSelectedUnifiedField(col.id);
-                                                            setShowSuggestions(false);
-                                                        }}
+                                                        onClick={() => handleChooseContributor(col)}
                                                         className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-800 dark:text-slate-200 text-xs font-semibold transition-colors flex justify-between items-center border-b border-slate-50 dark:border-white/5 last:border-none cursor-pointer"
                                                     >
                                                         <div className="flex flex-col min-w-0 pr-2">
-                                                            <span className="font-bold text-slate-800 dark:text-slate-200 truncate">{chosenName}</span>
+                                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                                <span className="font-bold text-slate-800 dark:text-slate-200 truncate">{chosenName}</span>
+                                                                {isPj && (
+                                                                    <span className="text-[9px] font-black bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-1.5 py-0.2 rounded border border-blue-200 dark:border-blue-800">
+                                                                        🏢 Empresa (PJ)
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {hasTrade && (
+                                                                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">
+                                                                    Fantasia / Razão: {col.trade_name}
+                                                                </span>
+                                                            )}
                                                             {col.cpf && (
                                                                 <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">
                                                                     {col.cpf.replace(/\D/g, '').length === 14 ? 'CNPJ' : 'CPF'}: {formatCpfCnpj(col.cpf)}
@@ -1723,7 +1918,7 @@ export const ManualIdModal: React.FC = () => {
                                                             )}
                                                         </div>
                                                         <span className="text-[9px] font-black bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded border border-indigo-200/50 dark:border-indigo-800/50 shrink-0 max-w-[160px] truncate">
-                                                            🏛️ {col._churchName}
+                                                            🏛️ {col._churchName || 'Igreja'}
                                                         </span>
                                                     </button>
                                                 );

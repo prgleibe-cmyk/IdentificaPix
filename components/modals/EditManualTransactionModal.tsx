@@ -262,15 +262,67 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
         return () => { isMounted = false; };
     }, []);
 
-    // Filter suggestions based on typed description
+    // Filter suggestions based on typed description with similarity algorithm
     const filteredContributors = useMemo(() => {
-        if (!description || description.trim().length < 2) return [];
-        const lower = description.toLowerCase().trim();
-        return dbContributors.filter((c: any) => {
-            const name = (c.name || '').toLowerCase();
-            const cpf = (c.cpf || '').replace(/\D/g, '');
-            return name.includes(lower) || cpf.includes(lower);
-        }).slice(0, 5);
+        if (!description || description.trim().length < 1) return [];
+        const rawQuery = description.trim();
+        const queryNorm = rawQuery.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const queryDigits = rawQuery.replace(/\D/g, '');
+        const queryTokens = queryNorm.split(/\s+/).filter(Boolean);
+
+        const scoredMatches: { item: any; score: number }[] = [];
+        const seenKeys = new Set<string>();
+
+        for (const c of dbContributors) {
+            const name = (c.name || c.canonical_name || c.cleanedName || '');
+            const normName = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const trade = (c.trade_name || '');
+            const normTrade = trade.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const contactPerson = (c.contact_person || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const cpfClean = (c.cpf || '').replace(/\D/g, '');
+
+            let score = 0;
+
+            if (queryDigits.length >= 3 && cpfClean.includes(queryDigits)) {
+                score = 1000 + (cpfClean === queryDigits ? 500 : 0);
+            }
+
+            if (normName === queryNorm || normTrade === queryNorm) {
+                score = Math.max(score, 900);
+            } else if (normName.startsWith(queryNorm) || normTrade.startsWith(queryNorm)) {
+                score = Math.max(score, 750);
+            } else if (normName.includes(queryNorm) || normTrade.includes(queryNorm)) {
+                score = Math.max(score, 600);
+            } else if (queryTokens.length > 0) {
+                const targetText = `${normName} ${normTrade} ${contactPerson}`;
+                const allTokensMatch = queryTokens.every(tok => targetText.includes(tok));
+                if (allTokensMatch) {
+                    score = Math.max(score, 500 + (queryTokens.length * 10));
+                } else {
+                    const targetWords = targetText.split(/\s+/).filter(Boolean);
+                    let matchedWordCount = 0;
+                    for (const qTok of queryTokens) {
+                        if (qTok.length < 2) continue;
+                        const hasWordMatch = targetWords.some(tWord => tWord.includes(qTok) || qTok.includes(tWord));
+                        if (hasWordMatch) matchedWordCount++;
+                    }
+                    if (matchedWordCount > 0 && matchedWordCount >= Math.ceil(queryTokens.length / 2)) {
+                        score = Math.max(score, 300 + (matchedWordCount * 20));
+                    }
+                }
+            }
+
+            if (score > 0) {
+                const key = c.id || name;
+                if (!seenKeys.has(key)) {
+                    seenKeys.add(key);
+                    scoredMatches.push({ item: c, score });
+                }
+            }
+        }
+
+        scoredMatches.sort((a, b) => b.score - a.score);
+        return scoredMatches.slice(0, 10).map(m => m.item);
     }, [description, dbContributors]);
 
     const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -290,10 +342,21 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
     };
 
     const handleSelectContributor = (contrib: any) => {
-        setDescription(contrib.name || '');
+        const chosenName = contrib.name || contrib.canonical_name || '';
+        setDescription(chosenName);
         setSelectedContributorId(contrib.id || null);
-        if (contrib.church_id && churches.some(c => c.id === contrib.church_id)) {
-            setChurchId(contrib.church_id);
+
+        // Preenchimento imediato da igreja conforme o cadastro
+        const targetChurch = (churches || []).find((c: any) => 
+            (contrib.church_id && c.id === contrib.church_id) ||
+            (contrib.churchId && c.id === contrib.churchId) ||
+            (contrib._churchId && c.id === contrib._churchId) ||
+            (contrib.congregation && c.name && c.name.trim().toLowerCase() === contrib.congregation.trim().toLowerCase()) ||
+            (contrib.church_name && c.name && c.name.trim().toLowerCase() === contrib.church_name.trim().toLowerCase())
+        ) || (churches && churches.length === 1 ? churches[0] : null);
+
+        if (targetChurch?.id) {
+            setChurchId(targetChurch.id);
         }
         setShowSuggestions(false);
     };
@@ -301,8 +364,23 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
     const handleDescriptionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;
         setDescription(val);
-        const match = dbContributors.find((c: any) => (c.name || '').trim().toLowerCase() === val.trim().toLowerCase());
+        const valNorm = val.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const match = dbContributors.find((c: any) => {
+            const cName = (c.name || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const cTrade = (c.trade_name || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            return cName === valNorm || cTrade === valNorm;
+        });
         setSelectedContributorId(match ? match.id : null);
+        if (match) {
+            const targetChurch = (churches || []).find((c: any) => 
+                (match.church_id && c.id === match.church_id) ||
+                (match.churchId && c.id === match.churchId) ||
+                (match.congregation && c.name && c.name.trim().toLowerCase() === match.congregation.trim().toLowerCase())
+            ) || (churches && churches.length === 1 ? churches[0] : null);
+            if (targetChurch?.id) {
+                setChurchId(targetChurch.id);
+            }
+        }
         setShowSuggestions(true);
         if (errorMessage) setErrorMessage(null);
     };
@@ -564,6 +642,13 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
                         type="text"
                         value={description}
                         onChange={handleDescriptionChange}
+                        onKeyDown={e => {
+                            if (e.key === 'Enter' && showSuggestions && filteredContributors.length > 0) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleSelectContributor(filteredContributors[0]);
+                            }
+                        }}
                         onFocus={() => setShowSuggestions(true)}
                         placeholder={type === 'entrada' ? 'Digite o nome do contribuinte ou selecione abaixo...' : 'Ex: Copel, Sanepar, Papelaria Alfa, etc.'}
                         className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2.5 px-3.5 transition-all outline-none text-xs font-bold"
@@ -573,21 +658,54 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
                 {/* Dropdown de sugestões */}
                 {showSuggestions && filteredContributors.length > 0 && (
                     <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden max-h-48 overflow-y-auto">
-                        <div className="p-1.5 bg-slate-50 dark:bg-slate-800 text-[9px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-700 flex items-center gap-1">
-                            <Search className="w-3 h-3 text-slate-400" />
-                            <span>Contribuintes Cadastrados Sugeridos</span>
+                        <div className="p-1.5 bg-slate-50 dark:bg-slate-800 text-[9px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                            <div className="flex items-center gap-1">
+                                <Search className="w-3 h-3 text-slate-400" />
+                                <span>Cadastros Sugeridos (Pessoas e Empresas)</span>
+                            </div>
+                            <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400">Preenche a Igreja</span>
                         </div>
-                        {filteredContributors.map((c: any) => (
-                            <button
-                                key={c.id}
-                                type="button"
-                                onClick={() => handleSelectContributor(c)}
-                                className="w-full text-left px-3 py-2 hover:bg-orange-50 dark:hover:bg-orange-950/20 text-xs font-semibold text-slate-800 dark:text-slate-200 border-b border-slate-50 dark:border-slate-800/40 last:border-0 flex items-center justify-between cursor-pointer"
-                            >
-                                <span className="truncate">{c.name}</span>
-                                {c.cpf && <span className="text-[10px] text-slate-400 font-mono">{c.cpf}</span>}
-                            </button>
-                        ))}
+                        {filteredContributors.map((c: any) => {
+                            const matchedChurch = (churches || []).find((ch: any) => 
+                                (c.church_id && ch.id === c.church_id) ||
+                                (c.churchId && ch.id === c.churchId) ||
+                                (c.congregation && ch.name && ch.name.trim().toLowerCase() === c.congregation.trim().toLowerCase())
+                            ) || (churches && churches.length === 1 ? churches[0] : null);
+                            const churchName = matchedChurch?.name || c.congregation || c.church_name;
+                            const isPj = c.person_type === 'PJ' || (c.cpf && c.cpf.replace(/\D/g, '').length === 14);
+                            const hasTrade = c.trade_name && c.trade_name.trim() && c.trade_name.trim().toLowerCase() !== (c.name || '').trim().toLowerCase();
+
+                            return (
+                                <button
+                                    key={c.id}
+                                    type="button"
+                                    onClick={() => handleSelectContributor(c)}
+                                    className="w-full text-left px-3 py-2 hover:bg-orange-50 dark:hover:bg-orange-950/20 text-xs font-semibold text-slate-800 dark:text-slate-200 border-b border-slate-50 dark:border-slate-800/40 last:border-0 flex items-center justify-between cursor-pointer"
+                                >
+                                    <div className="flex flex-col min-w-0 pr-2">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                            <span className="font-bold text-slate-800 dark:text-slate-200 truncate">{c.name}</span>
+                                            {isPj && (
+                                                <span className="text-[9px] font-black bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-1.5 py-0.2 rounded border border-blue-200 dark:border-blue-800">
+                                                    🏢 Empresa
+                                                </span>
+                                            )}
+                                        </div>
+                                        {hasTrade && (
+                                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">
+                                                Fantasia / Razão: {c.trade_name}
+                                            </span>
+                                        )}
+                                        {c.cpf && <span className="text-[10px] text-slate-400 font-mono mt-0.5">{c.cpf}</span>}
+                                    </div>
+                                    {churchName && (
+                                        <span className="text-[9px] font-black bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded border border-emerald-200/50 dark:border-emerald-800/50 shrink-0 max-w-[150px] truncate">
+                                            🏛️ {churchName}
+                                        </span>
+                                    )}
+                                </button>
+                            );
+                        })}
                     </div>
                 )}
             </div>
