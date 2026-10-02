@@ -89,6 +89,7 @@ export const consolidationService = {
 
                     const payload = {
                         transaction_date: finalDate,
+                        reference_date: (t as any).reference_date || (t.source === 'manual' ? finalDate : null),
                         amount: isNaN(amount) ? 0 : amount,
                         description: t.description,
                         type: t.type || (amount >= 0 ? 'income' : 'expense'),

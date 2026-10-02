@@ -34,9 +34,12 @@ export const batchState = { isBatchUpdating: false, isAtomicUpdate: false };
 export const lastRealtimeUpdate = { txId: null as string | null, timestamp: 0 };
 const ENABLE_HEAVY_LOGS = false;
 
-const toIsoDate = (str: string): string => {
+const toIsoDate = (str: any): string => {
     if (!str) return '';
-    const clean = str.split('T')[0].trim();
+    if (str instanceof Date) {
+        return str.toISOString().split('T')[0];
+    }
+    const clean = String(str).split(/[T ]/)[0].trim();
     if (clean.includes('/')) {
         const parts = clean.split('/');
         if (parts.length === 3) {
@@ -359,10 +362,13 @@ export const useCloudSync = ({
                         effectiveType = 'income';
                     }
 
+                    const manualRefDate = isManualTx && t.transaction_date ? String(t.transaction_date).split(/[T ]/)[0] : null;
+                    const resolvedRefDate = t.reference_date || manualRefDate || null;
+
                     const transaction: Transaction = {
                         id: t.id,
                         date: t.transaction_date,
-                        reference_date: t.reference_date || null,
+                        reference_date: resolvedRefDate,
                         description: t.description,
                         rawDescription: isManualTx ? '' : t.description,
                         amount: t.amount,
@@ -392,7 +398,7 @@ export const useCloudSync = ({
                         cleanedName: effectiveContribName,
                         contributionType: savedContribType,
                         paymentMethod: savedPaymentMethod,
-                        reference_date: t.reference_date || null
+                        reference_date: resolvedRefDate
                     } : null;
 
                     let status = ReconciliationStatus.UNIDENTIFIED;
@@ -422,7 +428,7 @@ export const useCloudSync = ({
                         similarity: 100,
                         contributionType: savedContribType,
                         paymentMethod: savedPaymentMethod,
-                        reference_date: t.reference_date || null,
+                        reference_date: resolvedRefDate,
                         splits: (Array.isArray(t.splits) && t.splits.length > 0)
                             ? t.splits
                             : (typeof t.splits === 'string' && t.splits.trim().startsWith('[')
@@ -479,24 +485,30 @@ export const useCloudSync = ({
                 });
 
                 // 2. Complementa com itens salvos no relatório que eventualmente não estejam na consulta do banco, RESPEITANDO O FILTRO DE PERÍODO
-                // NOTA: Executado exclusivamente para relatórios históricos salvos (activeReportId != null).
-                // Na Lista Viva (!activeReportId), o banco de dados (txs) é a única fonte da verdade: itens deletados do banco não devem ser ressuscitados.
-                if (activeReportId) {
-                    const startStr = searchFilters?.dateRange?.start ? toIsoDate(searchFilters.dateRange.start) : null;
-                    const endStr = searchFilters?.dateRange?.end ? toIsoDate(searchFilters.dateRange.end) : null;
+                // NOTA: Para relatórios históricos salvos (activeReportId != null) OU para lançamentos manuais na Lista Viva (!activeReportId)
+                const startStr = searchFilters?.dateRange?.start ? toIsoDate(searchFilters.dateRange.start) : null;
+                const endStr = searchFilters?.dateRange?.end ? toIsoDate(searchFilters.dateRange.end) : null;
 
-                    reportsMap.forEach((value, key) => {
-                        if (!reconstructedMap.has(key)) {
-                            const txDate = value.contributor?.reference_date || value.reference_date || value.transaction?.reference_date || value.transaction?.date || (value as any).date;
-                            if (txDate && (startStr || endStr)) {
-                                const itemIso = toIsoDate(txDate);
-                                if (startStr && itemIso < startStr) return;
-                                if (endStr && itemIso > endStr) return;
+                reportsMap.forEach((value, key) => {
+                    if (!reconstructedMap.has(key)) {
+                        const isManual = value.transaction?.isManual || 
+                            value.transaction?.source === 'manual' || 
+                            value.matchMethod === MatchMethod.MANUAL ||
+                            (value.transaction?.id && typeof value.transaction.id === 'string' && (value.transaction.id.startsWith('ghost-manual-') || value.transaction.id.startsWith('manual-')));
+
+                        if (activeReportId || isManual) {
+                            if (activeReportId) {
+                                const txDate = value.contributor?.reference_date || value.reference_date || value.transaction?.reference_date || value.transaction?.date || (value as any).date;
+                                if (txDate && (startStr || endStr)) {
+                                    const itemIso = toIsoDate(txDate);
+                                    if (startStr && itemIso < startStr) return;
+                                    if (endStr && itemIso > endStr) return;
+                                }
                             }
                             reconstructedMap.set(key, value);
                         }
-                    });
-                }
+                    }
+                });
 
                 const reconstructed = Array.from(reconstructedMap.values());
 

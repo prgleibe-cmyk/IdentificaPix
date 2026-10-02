@@ -9,9 +9,12 @@ import { consolidationService } from '../services/ConsolidationService';
 import { filterByUniversalQuery, applyAdvancedFilters } from '../services/processingService';
 import { batchState, lastRealtimeUpdate } from './reconciliation/useCloudSync';
 
-const toIsoDate = (str: string): string => {
+const toIsoDate = (str: any): string => {
     if (!str) return '';
-    const clean = str.split('T')[0].trim();
+    if (str instanceof Date) {
+        return str.toISOString().split('T')[0];
+    }
+    const clean = String(str).split(/[T ]/)[0].trim();
     if (clean.includes('/')) {
         const parts = clean.split('/');
         if (parts.length === 3) {
@@ -192,7 +195,9 @@ export const useReportsController = () => {
                 }
             }
             if (selectedBankId && selectedBankId !== 'all') {
-                if (String(r.transaction?.bank_id) !== selectedBankId) return false;
+                const isManual = r.transaction?.isManual || r.transaction?.source === 'manual';
+                if (!isManual && String(r.transaction?.bank_id) !== selectedBankId) return false;
+                if (isManual && r.transaction?.bank_id && String(r.transaction?.bank_id) !== selectedBankId) return false;
             } else if (isSecondary && subscription?.bankIds && subscription.bankIds.length > 0) {
                 const isManual = r.transaction?.isManual || r.transaction?.source === 'manual';
                 if (!isManual && !subscription.bankIds.includes(String(r.transaction?.bank_id))) return false;
@@ -487,9 +492,12 @@ export const useReportsController = () => {
             if (!matchesCat) return false;
 
             if (selectedBankId && selectedBankId !== 'all') {
-                if (String(item.transaction?.bank_id) !== selectedBankId) return false;
+                const isManual = item.transaction?.isManual || item.transaction?.source === 'manual';
+                if (!isManual && String(item.transaction?.bank_id) !== selectedBankId) return false;
+                if (isManual && item.transaction?.bank_id && String(item.transaction?.bank_id) !== selectedBankId) return false;
             } else if (isSecondary && subscription?.bankIds && subscription.bankIds.length > 0) {
-                if (!subscription.bankIds.includes(String(item.transaction?.bank_id))) return false;
+                const isManual = item.transaction?.isManual || item.transaction?.source === 'manual';
+                if (!isManual && !subscription.bankIds.includes(String(item.transaction?.bank_id))) return false;
             }
 
             if (searchFilters.dateRange && (searchFilters.dateRange.start || searchFilters.dateRange.end)) {

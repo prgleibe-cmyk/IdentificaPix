@@ -2,9 +2,12 @@ import { Transaction, MatchResult, SearchFilters } from '../../types';
 import { NameResolver } from '../../core/processors/NameResolver';
 import { parseDate } from '../utils/parsingUtils';
 
-const toIsoDate = (str: string): string => {
+const toIsoDate = (str: any): string => {
     if (!str) return '';
-    const clean = str.split('T')[0].trim();
+    if (str instanceof Date) {
+        return str.toISOString().split('T')[0];
+    }
+    const clean = String(str).split(/[T ]/)[0].trim();
     if (clean.includes('/')) {
         const parts = clean.split('/');
         if (parts.length === 3) {

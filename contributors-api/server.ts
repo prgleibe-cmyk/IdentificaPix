@@ -828,20 +828,10 @@ class LocalSqliteEngine {
 
     const expandedParams: any[] = [];
 
-    // Replace array placeholders first
-    s = s.replace(/__ARRAY_PARAM_(\d+)__/g, (_, pNum) => {
-      const pVal = params[parseInt(pNum, 10) - 1];
-      if (Array.isArray(pVal)) {
-        expandedParams.push(...pVal.map(normalizeParam));
-        return pVal.map(() => '?').join(', ');
-      }
-      expandedParams.push(normalizeParam(pVal));
-      return '?';
-    });
-
-    // Replace standard $1, $2...
-    s = s.replace(/\$(\d+)/g, (_, num) => {
-      const originalIndex = parseInt(num, 10) - 1;
+    // Replace both standard $X and array placeholders in exact order of appearance in the SQL query
+    s = s.replace(/(\$(\d+)|__ARRAY_PARAM_(\d+)__)/g, (fullMatch, _, standardNum, arrayNum) => {
+      const pNum = standardNum || arrayNum;
+      const originalIndex = parseInt(pNum, 10) - 1;
       const val = params[originalIndex];
       if (Array.isArray(val)) {
         expandedParams.push(...val.map(normalizeParam));

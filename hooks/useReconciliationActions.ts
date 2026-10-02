@@ -240,6 +240,7 @@ export const useReconciliationActions = ({
           amount: finalAmount,
           type: txType,
           transaction_date: finalDate,
+          reference_date: finalDate,
           description: finalDescription,
           bank_id: selectedBankId && selectedBankId !== 'all' ? selectedBankId : null,
           row_hash: globalHash,
@@ -262,6 +263,7 @@ export const useReconciliationActions = ({
           transaction: {
             id: realId,
             date: finalDate,
+            reference_date: finalDate,
             description: finalDescription,
             rawDescription: '',
             amount: finalAmount,
@@ -274,7 +276,11 @@ export const useReconciliationActions = ({
             contributionType,
             paymentMethod
           },
-          contributor,
+          contributor: contributor ? {
+            ...contributor,
+            reference_date: finalDate
+          } : null,
+          reference_date: finalDate,
           status: ReconciliationStatus.IDENTIFIED,
           church,
           isConfirmed: false,
@@ -293,8 +299,11 @@ export const useReconciliationActions = ({
         // 4. Registrar o aprendizado (Association) usando o ID real
         const updatedMatchResult: MatchResult = {
           ...tempOriginal,
+          reference_date: finalDate,
           transaction: {
             ...tempOriginal.transaction,
+            date: finalDate,
+            reference_date: finalDate,
             type: txType,
             bank_id: selectedBankId || undefined,
             attachments: attachments && attachments.length > 0 ? attachments : undefined
@@ -302,7 +311,10 @@ export const useReconciliationActions = ({
           attachments: attachments && attachments.length > 0 ? attachments : undefined,
           status: ReconciliationStatus.IDENTIFIED,
           isConfirmed: false,
-          contributor,
+          contributor: contributor ? {
+            ...contributor,
+            reference_date: finalDate
+          } : null,
           church,
           _churchId: church.id,
           matchMethod: MatchMethod.MANUAL,
@@ -316,6 +328,9 @@ export const useReconciliationActions = ({
         referenceData.learnAssociation(updatedMatchResult);
 
         // 5. Sincronização Realtime (Padrão de Propagação Imediata)
+        lastRealtimeUpdate.txId = realId;
+        lastRealtimeUpdate.timestamp = Date.now();
+
         if (reconciliation.triggerSync) {
           reconciliation.triggerSync(updatedMatchResult);
         }
