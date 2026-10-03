@@ -24,6 +24,11 @@ interface ChurchClosingModalProps {
     initialMonth?: number;
     initialYear?: number;
     asView?: boolean;
+    periodLabel?: string;
+    initialClosingDate?: string;
+    finalBalance?: number;
+    totalIncome?: number;
+    totalExpenses?: number;
 }
 
 export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
@@ -33,7 +38,12 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
     currentBankId,
     initialMonth,
     initialYear,
-    asView = false
+    asView = false,
+    periodLabel,
+    initialClosingDate,
+    finalBalance,
+    totalIncome,
+    totalExpenses
 }) => {
     const { 
         churches, 
@@ -55,8 +65,15 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
     const [originChurchId, setOriginChurchId] = useState<string>('');
     const [originBankId, setOriginBankId] = useState<string>(currentBankId || 'all');
     const [destChurchId, setDestChurchId] = useState<string>('');
-    const [transferAmount, setTransferAmount] = useState<string>('');
-    const [closingDate, setClosingDate] = useState<string>(new Date().toISOString().split('T')[0]);
+    const [isAmountManuallyEdited, setIsAmountManuallyEdited] = useState<boolean>(false);
+    const [transferAmount, setTransferAmount] = useState<string>(() => {
+        if (finalBalance !== undefined) {
+            const abs = Math.abs(finalBalance);
+            return abs > 0 ? abs.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00';
+        }
+        return '';
+    });
+    const [closingDate, setClosingDate] = useState<string>(() => initialClosingDate || new Date().toISOString().split('T')[0]);
     const [customMemo, setCustomMemo] = useState<string>('');
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -64,9 +81,8 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
 
     // Gestão de Assinaturas Digitais e Fechamento Sem Papel
     const [signatures, setSignatures] = useState<DigitalSignature[]>([]);
-    const [isTransferEnabled, setIsTransferEnabled] = useState<boolean>(false);
+    const [isTransferEnabled, setIsTransferEnabled] = useState<boolean>(true);
     const [existingRecord, setExistingRecord] = useState<MonthClosingRecord | null>(null);
-    // 🛡️ O Transporte de Saldo agora aparece e abre por padrão ANTES das assinaturas
     const [activeTab, setActiveTab] = useState<'transfer' | 'signatures'>('transfer');
     const [calculatedHash, setCalculatedHash] = useState<string>('');
 
@@ -241,6 +257,17 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
         };
     }, [originChurchId, originBankId, matchResults, closingMonth, closingYear]);
 
+    // Valores contábeis efetivos (priorizam o cálculo consolidado do Livro Caixa)
+    const effectiveBalance = finalBalance !== undefined ? finalBalance : metrics.balance;
+    const effectiveIncome = totalIncome !== undefined ? totalIncome : metrics.income;
+    const effectiveExpenses = totalExpenses !== undefined ? totalExpenses : metrics.expenses;
+
+    useEffect(() => {
+        if (initialClosingDate) {
+            setClosingDate(initialClosingDate);
+        }
+    }, [initialClosingDate]);
+
     // Carrega fechamento existente para este mês e ano caso já tenha sido homologado
     useEffect(() => {
         let isMounted = true;
@@ -275,10 +302,10 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                 churchId: originChurchId,
                 month: closingMonth,
                 year: closingYear,
-                totalIncome: metrics.income,
-                totalExpenses: metrics.expenses,
+                totalIncome: effectiveIncome,
+                totalExpenses: effectiveExpenses,
                 previousBalance: 0,
-                finalBalance: metrics.balance,
+                finalBalance: effectiveBalance,
                 timestamp: closingDate
             });
             if (isMounted) {
@@ -287,17 +314,19 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
         }
         updateHash();
         return () => { isMounted = false; };
-    }, [originChurchId, closingMonth, closingYear, metrics.income, metrics.expenses, metrics.balance, closingDate]);
+    }, [originChurchId, closingMonth, closingYear, effectiveIncome, effectiveExpenses, effectiveBalance, closingDate]);
 
-    // 🛡️ Preenche automaticamente com o valor absoluto do saldo líquido (tanto positivo quanto negativo para zerar o caixa)
+    // 🛡️ Preenche automaticamente com o saldo do Livro Caixa (respeitando se o usuário editou manualmente)
     useEffect(() => {
-        const absVal = Math.abs(metrics.balance || 0);
-        if (absVal > 0) {
-            setTransferAmount(absVal.toFixed(2).replace('.', ','));
-        } else {
-            setTransferAmount('0,00');
+        if (!isAmountManuallyEdited && effectiveBalance !== undefined) {
+            const absVal = Math.abs(effectiveBalance || 0);
+            if (absVal > 0) {
+                setTransferAmount(absVal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+            } else {
+                setTransferAmount('0,00');
+            }
         }
-    }, [metrics.balance]);
+    }, [effectiveBalance, isAmountManuallyEdited]);
 
     // Filter destination churches: list of all registered churches except origin
     const destinationChurches = useMemo(() => {
@@ -325,9 +354,17 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
         }
     }, [destinationChurches, effectiveGeneralCashId, originChurchId, originBankId]);
 
+    const parsedAmount = useMemo(() => {
+        if (!transferAmount) return 0;
+        if (transferAmount.includes(',')) {
+            const clean = transferAmount.replace(/\./g, '').replace(',', '.');
+            return parseFloat(clean) || 0;
+        }
+        return parseFloat(transferAmount) || 0;
+    }, [transferAmount]);
+
     if (!isOpen) return null;
 
-    const parsedAmount = parseFloat(transferAmount.replace(',', '.')) || 0;
     const fullChurch = (churches || []).find(c => c.id === originChurchId);
     const selectedOriginChurch = fullChurch || activeChurches.find(c => c.id === originChurchId);
 
@@ -344,41 +381,15 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
             return;
         }
 
-        // Validação: Todas as transações da igreja no período devem estar com Fechamento Final confirmado
-        const churchTxs = (matchResults || []).filter(r => {
-            const churchId = r.church?.id || r._churchId;
-            if (churchId !== originChurchId) return false;
-            if (originBankId && originBankId !== 'all') {
-                const txBankId = (r.transaction as any)?.bank_id || (r.transaction as any)?.bankId || (r as any).bankId || (r as any)._bankId;
-                if (txBankId && txBankId !== originBankId) return false;
-            }
-            const txDate = r.contributor?.reference_date || r.reference_date || r.transaction?.reference_date || r.transaction?.date || '';
-            if (txDate) {
-                const parts = txDate.split('-');
-                if (parts.length >= 2) {
-                    const y = parseInt(parts[0], 10);
-                    const m = parseInt(parts[1], 10);
-                    if (y !== closingYear || m !== closingMonth) return false;
-                }
-            }
-            return true;
-        });
-
-        const unconfirmedInChurch = churchTxs.filter(r => !r.isConfirmed && !r.transaction?.isConfirmed);
-        if (unconfirmedInChurch.length > 0) {
-            setErrorMessage(`Existem ${unconfirmedInChurch.length} lançamento(s) sem Fechamento Final neste período. Conclua a confirmação final no relatório Financeiro antes de homologar.`);
-            return;
-        }
-
         // Validação se transporte para Caixa Geral estiver ativado
         let destChurch: Church | undefined;
-        if (isTransferEnabled) {
+        if (isTransferEnabled && destinationChurches.length > 0 && parsedAmount > 0) {
             if (!destChurchId) {
                 setErrorMessage('Selecione um caixa de destino para transportar o saldo.');
                 return;
             }
-            if (parsedAmount <= 0) {
-                setErrorMessage('O valor a ser transportado deve ser maior que zero.');
+            if (parsedAmount < 0) {
+                setErrorMessage('O valor a ser transportado não pode ser negativo.');
                 return;
             }
             destChurch = churches.find(c => c.id === destChurchId);
@@ -392,11 +403,14 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
         try {
             const timestamp = Date.now();
             const dateStr = closingDate;
-            const memoText = customMemo.trim() || `FECHAMENTO DE CAIXA PERÍODO ${String(closingMonth).padStart(2, '0')}/${closingYear}`;
+            const memoText = customMemo.trim() || `FECHAMENTO DE CAIXA PERÍODO ${periodLabel || `${String(closingMonth).padStart(2, '0')}/${closingYear}`}`;
 
-            // 1. Processar transferência de saldo se habilitada
-            if (isTransferEnabled && destChurch) {
-                const isNegative = metrics.balance < 0;
+            // 1. Processar transferência de saldo se habilitada e valor > 0
+            let originMatch: MatchResult | null = null;
+            let destMatch: MatchResult | null = null;
+
+            if (isTransferEnabled && destChurch && parsedAmount > 0) {
+                const isNegative = effectiveBalance < 0;
                 const originTxId = `closing-${isNegative ? 'deficit-cover' : 'outflow'}-${timestamp}`;
                 const destTxId = `closing-${isNegative ? 'deficit-transfer' : 'inflow'}-${timestamp}`;
 
@@ -462,16 +476,42 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                     updatedAt: new Date().toISOString()
                 };
 
-                let updatedResults: MatchResult[] = [];
-                setMatchResults((prev: any) => {
-                    const next = [...(prev || []), originMatch, destMatch];
-                    updatedResults = next;
-                    return next;
+            }
+
+            // Confirma automaticamente todas as transações da congregação no período contábil
+            let updatedResults: MatchResult[] = [];
+            setMatchResults((prev: any) => {
+                const confirmedList = (prev || []).map((r: MatchResult) => {
+                    const cId = r.church?.id || r._churchId;
+                    if (cId === originChurch.id) {
+                        const txDate = r.contributor?.reference_date || r.reference_date || r.transaction?.reference_date || r.transaction?.date || '';
+                        if (txDate) {
+                            const parts = txDate.split('-');
+                            if (parts.length >= 2) {
+                                const y = parseInt(parts[0], 10);
+                                const m = parseInt(parts[1], 10);
+                                if (y === closingYear && m === closingMonth) {
+                                    return {
+                                        ...r,
+                                        isConfirmed: true,
+                                        transaction: r.transaction ? { ...r.transaction, isConfirmed: true } : r.transaction
+                                    };
+                                }
+                            }
+                        }
+                    }
+                    return r;
                 });
 
-                if (saveCurrentReportChanges) {
-                    await saveCurrentReportChanges(updatedResults);
-                }
+                const next = (originMatch && destMatch)
+                    ? [...confirmedList, originMatch, destMatch]
+                    : confirmedList;
+                updatedResults = next;
+                return next;
+            });
+
+            if (saveCurrentReportChanges) {
+                await saveCurrentReportChanges(updatedResults);
             }
 
             // 2. Salvar Registro de Fechamento Contábil com Assinaturas Digitais e Hash SHA-256
@@ -482,11 +522,11 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                 month: closingMonth,
                 year: closingYear,
                 closedAt: new Date().toISOString(),
-                totalIncome: metrics.income,
-                totalExpenses: metrics.expenses,
+                totalIncome: effectiveIncome,
+                totalExpenses: effectiveExpenses,
                 previousBalance: 0,
-                finalBalance: metrics.balance,
-                transferredBalance: isTransferEnabled ? (metrics.balance < 0 ? -parsedAmount : parsedAmount) : undefined,
+                finalBalance: effectiveBalance,
+                transferredBalance: isTransferEnabled ? (effectiveBalance < 0 ? -parsedAmount : parsedAmount) : undefined,
                 targetChurchId: isTransferEnabled && destChurch ? destChurch.id : null,
                 targetChurchName: isTransferEnabled && destChurch ? destChurch.name : undefined,
                 signatures: signatures,
@@ -695,376 +735,193 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                         </div>
                     )}
 
-                    {/* Seletor de Igreja, Conta Bancária e Data */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                        <div className="space-y-1.5">
-                            <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
-                                Igreja do Fechamento
-                            </label>
-                            <select
-                                value={originChurchId}
-                                onChange={e => setOriginChurchId(e.target.value)}
-                                className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2.5 text-xs font-bold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-orange-500 transition-all shadow-xs cursor-pointer"
-                            >
-                                <option value="" disabled>Selecione a Igreja...</option>
-                                {activeChurches.map(c => (
-                                    <option key={c.id} value={c.id}>{c.name}</option>
-                                ))}
-                                {activeChurches.length === 0 && (churches || []).map(c => (
-                                    <option key={c.id} value={c.id}>{c.name}</option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
-                                Conta Bancária
-                            </label>
-                            <select
-                                value={originBankId}
-                                onChange={e => setOriginBankId(e.target.value)}
-                                className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2.5 text-xs font-bold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-orange-500 transition-all shadow-xs cursor-pointer"
-                            >
-                                <option value="all">Todas as Contas (Consolidado)</option>
-                                {(banks || []).map((b: any) => (
-                                    <option key={b.id} value={b.id}>{b.name}</option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
-                                Data de Encerramento Contábil
-                            </label>
-                            <div className="relative">
-                                <Calendar className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                                <input
-                                    type="date"
-                                    value={closingDate}
-                                    onChange={e => setClosingDate(e.target.value)}
-                                    className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500 py-2 pl-10 pr-3 outline-none text-xs font-bold"
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Resumo Financeiro / Balanço Apurado do Mês (Faixa Idêntica ao Livro Caixa) */}
-                    {originChurchId && (
-                        <div className="flex flex-wrap items-center justify-between gap-4 p-3 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-100 dark:border-white/5 text-xs font-bold">
-                            <div className="flex items-center gap-1.5">
-                                <span className="text-slate-400 text-[10px] uppercase tracking-wider">Receitas:</span>
-                                <span className="text-emerald-600 dark:text-emerald-400 font-mono font-black">{formatCurrency(metrics.income, language)}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                                <span className="text-slate-400 text-[10px] uppercase tracking-wider">Despesas:</span>
-                                <span className="text-rose-600 dark:text-rose-400 font-mono font-black">{formatCurrency(metrics.expenses, language)}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                                <span className="text-slate-400 text-[10px] uppercase tracking-wider">Saldo Líquido:</span>
-                                <span className={`font-mono font-black ${metrics.balance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`}>
-                                    {formatCurrency(metrics.balance, language)}
-                                </span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                                <span className="text-slate-400 text-[10px] uppercase tracking-wider">Igreja:</span>
-                                <span className="text-slate-700 dark:text-slate-200 font-bold uppercase">{selectedOriginChurch?.name || 'Geral'}</span>
-                            </div>
-                            {originBankId && originBankId !== 'all' && (
-                                <div className="flex items-center gap-1.5">
-                                    <span className="text-slate-400 text-[10px] uppercase tracking-wider">Conta:</span>
-                                    <span className="text-orange-600 dark:text-orange-400 font-bold uppercase">
-                                        {(banks || []).find((b: any) => b.id === originBankId)?.name || 'Conta'}
+                    <div className="max-w-2xl mx-auto space-y-5 py-1">
+                        {/* Card Principal: Período, Saldo a Transportar e Caixa de Destino */}
+                        <div className="bg-slate-50/80 dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3.5 border-b border-slate-200/70 dark:border-slate-800 gap-3">
+                                <div>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                        Período do Livro Caixa
                                     </span>
+                                    <h4 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2 mt-0.5">
+                                        <Calendar className="w-4 h-4 text-orange-500" />
+                                        <span>{periodLabel || `Mês ${String(closingMonth).padStart(2, '0')}/${closingYear}`}</span>
+                                    </h4>
                                 </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Abas de Navegação - Transporte de Saldo vem ANTES das Assinaturas */}
-                    <div className="flex border-b border-slate-200 dark:border-slate-800 gap-2">
-                        <button
-                            type="button"
-                            onClick={() => setActiveTab('transfer')}
-                            className={`pb-2.5 px-4 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
-                                activeTab === 'transfer'
-                                    ? 'border-orange-500 text-orange-600 dark:text-orange-400'
-                                    : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-                            }`}
-                        >
-                            <Building2 className="w-4 h-4" />
-                            <span>1. Transporte de Saldo (Caixa Geral)</span>
-                            {isTransferEnabled && (
-                                <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                            )}
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={() => setActiveTab('signatures')}
-                            className={`pb-2.5 px-4 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
-                                activeTab === 'signatures'
-                                    ? 'border-orange-500 text-orange-600 dark:text-orange-400'
-                                    : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-                            }`}
-                        >
-                            <PenTool className="w-4 h-4" />
-                            <span>2. Assinaturas Digitais & Termo</span>
-                            {signatures.length > 0 && (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] bg-orange-100 dark:bg-orange-950 text-orange-700 dark:text-orange-300 font-mono font-bold">
-                                    {signatures.length}
-                                </span>
-                            )}
-                        </button>
-                    </div>
-
-                    {/* Conteúdo da Aba 1: Transporte de Saldo (Aparece antes das assinaturas) */}
-                    {activeTab === 'transfer' && (
-                        <div className="space-y-4 animate-fade-in">
-                            {/* Alerta se a igreja em fechamento for o Caixa Geral */}
-                            {isOriginGeneralCash && (
-                                <div className="p-3.5 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 text-blue-800 dark:text-blue-300 text-xs flex items-start gap-2.5">
-                                    <span className="text-base leading-none mt-0.5">ℹ️</span>
-                                    <div>
-                                        <strong className="block font-bold">Igreja em Fechamento é o Caixa Geral</strong>
-                                        Normalmente o Caixa Geral recebe os saldos apurados pelas congregações. Se for necessário repassar este saldo para outro caixa específico, selecione o destino abaixo.
-                                    </div>
+                                <div className="sm:text-right">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                        Caixa de Origem
+                                    </span>
+                                    {activeChurches.length > 1 && !currentChurchId ? (
+                                        <select
+                                            value={originChurchId}
+                                            onChange={e => setOriginChurchId(e.target.value)}
+                                            className="block mt-0.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-800 dark:text-white px-2 py-1 outline-none"
+                                        >
+                                            {activeChurches.map(c => (
+                                                <option key={c.id} value={c.id}>{c.name}</option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <div className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase mt-0.5">
+                                            {selectedOriginChurch?.name || 'Igreja Local'}
+                                        </div>
+                                    )}
                                 </div>
-                            )}
+                            </div>
 
-                            {/* Card de Habilitação do Transporte */}
-                            <div className="p-4 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 flex items-center justify-between">
-                                <div className="space-y-0.5 pr-2">
-                                    <h5 className="text-xs font-black text-slate-900 dark:text-white">
-                                        {metrics.balance < 0 
-                                            ? 'Cobrir Saldo Negativo via Caixa Geral (Aporte para Zerar)?'
-                                            : 'Transportar Saldo Líquido para o Caixa Geral?'}
-                                    </h5>
+                            {/* Destaque: Saldo a Transportar & Campo Editável */}
+                            <div className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+                                effectiveBalance >= 0 
+                                    ? 'bg-emerald-50/70 dark:bg-emerald-950/25 border-emerald-200/80 dark:border-emerald-800/50' 
+                                    : 'bg-rose-50/70 dark:bg-rose-950/25 border-rose-200/80 dark:border-rose-800/50'
+                            }`}>
+                                <div className="space-y-1">
+                                    <span className={`text-[10px] font-black uppercase tracking-wider block ${
+                                        effectiveBalance >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'
+                                    }`}>
+                                        {effectiveBalance >= 0 ? 'Saldo a Transportar (Superávit)' : 'Saldo a Transportar (Déficit / Aporte)'}
+                                    </span>
+                                    <span className={`text-2xl font-black font-mono tracking-tight block ${
+                                        effectiveBalance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                                    }`}>
+                                        {formatCurrency(effectiveBalance, language)}
+                                    </span>
                                     <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                                        {metrics.balance < 0 
-                                            ? `Saldo apurado deficitário (${formatCurrency(metrics.balance, language)}). Ao ativar, o Caixa Geral enviará o valor correspondente para cobrir este caixa, garantindo que feche com valor ZERO para o próximo mês.`
-                                            : 'Gera automaticamente as contrapartidas (saída no caixa atual e entrada no Caixa Geral selecionado) mantendo o saldo zerado para o próximo mês.'}
+                                        {effectiveBalance >= 0
+                                            ? 'Ao confirmar, este saldo será enviado ao Caixa de destino, zerando este caixa para o próximo mês.'
+                                            : 'Ao confirmar, o Caixa de destino enviará um repasse para cobrir este déficit e fechar com saldo zero.'}
                                     </p>
                                 </div>
-                                <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                                    <input 
-                                        type="checkbox" 
-                                        checked={isTransferEnabled} 
-                                        onChange={e => {
-                                            const checked = e.target.checked;
-                                            setIsTransferEnabled(checked);
-                                            if (checked) {
-                                                const absVal = Math.abs(metrics.balance || 0);
-                                                setTransferAmount(absVal > 0 ? absVal.toFixed(2).replace('.', ',') : '0,00');
-                                            }
-                                        }} 
-                                        className="sr-only peer" 
-                                    />
-                                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-orange-500"></div>
-                                </label>
+
+                                <div className="w-full sm:w-56 space-y-1 bg-white/80 dark:bg-slate-900/80 p-3 rounded-xl border border-slate-200/70 dark:border-slate-800 shrink-0">
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                                        Saldo a Transportar (R$)
+                                    </label>
+                                    <div className="relative">
+                                        <DollarSign className="w-4 h-4 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                        <input
+                                            type="text"
+                                            value={transferAmount}
+                                            onChange={e => {
+                                                setIsAmountManuallyEdited(true);
+                                                setTransferAmount(e.target.value.replace(/[^0-9,.]/g, ''));
+                                            }}
+                                            placeholder="0,00"
+                                            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500 py-1.5 pl-8 pr-2.5 outline-none text-sm font-black font-mono"
+                                        />
+                                    </div>
+                                    <span className="text-[9px] text-slate-400 block text-right">Preenchido auto • Editável se desejar</span>
+                                </div>
                             </div>
 
-                            {isTransferEnabled && (
-                                <div className="space-y-4 pt-2">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {/* Caixa Geral de Destino */}
-                                        <div className="space-y-1.5">
-                                            <div className="flex items-center justify-between">
-                                                <label className="block text-[10px] font-black text-orange-600 dark:text-orange-400 uppercase tracking-widest ml-1">
-                                                    {metrics.balance < 0 ? 'Caixa Geral (Origem do Aporte)' : 'Caixa Geral (Destino do Saldo)'}
-                                                </label>
-                                                {destChurchId === effectiveGeneralCashId && (
-                                                    <span className="text-[9px] font-black bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 px-2 py-0.5 rounded-md flex items-center gap-1">
-                                                        ⭐ Caixa Geral Oficial
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <select
-                                                value={destChurchId}
-                                                onChange={e => setDestChurchId(e.target.value)}
-                                                disabled={destinationChurches.length === 0}
-                                                className="w-full rounded-xl border border-orange-200 dark:border-orange-900 bg-orange-50/10 dark:bg-orange-950/10 p-2.5 text-xs font-bold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-orange-500 transition-all shadow-xs cursor-pointer"
-                                            >
-                                                {destinationChurches.length === 0 ? (
-                                                    <option value="">Nenhum outro caixa registrado</option>
-                                                ) : (
-                                                    <>
-                                                        <option value="" disabled>Selecione o Caixa Geral...</option>
-                                                        {destinationChurches.map(c => {
-                                                            const isCG = c.id === effectiveGeneralCashId;
-                                                            return (
-                                                                <option key={c.id} value={c.id}>
-                                                                    {c.name} {isCG ? '⭐ (Caixa Geral Oficial)' : ''}
-                                                                </option>
-                                                            );
-                                                        })}
-                                                    </>
-                                                )}
-                                            </select>
-
-                                            {/* Ação para Definir o Caixa Geral Oficial Desta Igreja e Conta Bancária */}
-                                            {isPrincipalUser && destChurchId && destChurchId !== effectiveGeneralCashId && (
-                                                <div className="pt-1">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleSetAsGeneralCash(destChurchId)}
-                                                        className="text-[10px] font-bold text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-200 flex items-center gap-1.5 py-1 px-2.5 rounded-lg bg-amber-100/60 dark:bg-amber-950/40 hover:bg-amber-200/60 dark:hover:bg-amber-900/50 transition-all cursor-pointer border border-amber-300/50 dark:border-amber-800/50"
-                                                    >
-                                                        <span>⭐</span>
-                                                        <span>Definir este caixa como Caixa Geral Oficial desta Igreja/Conta</span>
-                                                    </button>
-                                                    <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-1 ml-1 leading-tight">
-                                                        Salva a definição oficial para esta congregação e conta bancária. Nos próximos fechamentos com esta mesma igreja e conta, este caixa já virá pré-selecionado automaticamente.
-                                                    </p>
-                                                </div>
-                                            )}
-                                            {destChurchId === effectiveGeneralCashId && (
-                                                <p className="text-[9px] text-emerald-600 dark:text-emerald-400 mt-1 ml-1 font-medium flex items-center gap-1">
-                                                    <Check className="w-3 h-3" />
-                                                    Caixa Geral oficial memorizado para esta igreja e conta bancária.
-                                                </p>
-                                            )}
-                                        </div>
-
-                                        {/* Valor a Transportar (Já preenchido automaticamente) */}
-                                        <div className="space-y-1.5">
-                                            <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
-                                                {metrics.balance < 0 ? 'Valor do Aporte do Caixa Geral (R$)' : 'Valor a Transportar (R$)'}
-                                            </label>
-                                            <div className="relative">
-                                                <DollarSign className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                                                <input
-                                                    type="text"
-                                                    value={transferAmount}
-                                                    onChange={e => setTransferAmount(e.target.value.replace(/[^0-9,]/g, ''))}
-                                                    placeholder="0,00"
-                                                    className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500 py-2 pl-10 pr-3 outline-none text-xs font-black font-mono"
-                                                />
-                                            </div>
-                                            <p className="text-[9px] text-slate-400 ml-1">
-                                                Saldo apurado no período: <span className={`font-bold ${metrics.balance < 0 ? 'text-rose-600' : 'text-slate-600 dark:text-slate-300'}`}>{formatCurrency(metrics.balance, language)}</span>
-                                                {metrics.balance < 0 && (
-                                                    <span className="block text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5">
-                                                        ✓ Valor pré-preenchido para zerar o saldo negativo e fechar o mês com R$ 0,00.
-                                                    </span>
-                                                )}
-                                                {metrics.balance > 0 && (
-                                                    <span className="block text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5">
-                                                        ✓ Valor pré-preenchido com o saldo total. Digite apenas se desejar transportar um valor diferente.
-                                                    </span>
-                                                )}
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    {/* Botão de Atalho para Avançar para Assinaturas */}
-                                    <div className="pt-2 flex justify-end">
-                                        <button
-                                            type="button"
-                                            onClick={() => setActiveTab('signatures')}
-                                            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-black uppercase tracking-wider rounded-xl transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
-                                        >
-                                            <span>Prosseguir para Assinaturas Digitais</span>
-                                            <ArrowRight className="w-3.5 h-3.5" />
-                                        </button>
-                                    </div>
+                            {/* Caixa de Destino */}
+                            <div className="space-y-1.5 pt-1">
+                                <div className="flex items-center justify-between">
+                                    <label className="block text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider ml-0.5">
+                                        Caixa de Destino
+                                    </label>
+                                    {destChurchId === effectiveGeneralCashId && (
+                                        <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100/70 dark:bg-amber-950/60 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                            ⭐ Caixa Geral Oficial
+                                        </span>
+                                    )}
                                 </div>
-                            )}
-                        </div>
-                    )}
+                                <select
+                                    value={destChurchId}
+                                    onChange={e => setDestChurchId(e.target.value)}
+                                    disabled={destinationChurches.length === 0}
+                                    className="w-full rounded-xl border-2 border-orange-400/80 dark:border-orange-500/80 bg-white dark:bg-slate-900 p-3 text-sm font-black text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500 transition-all shadow-xs cursor-pointer"
+                                >
+                                    {destinationChurches.length === 0 ? (
+                                        <option value="">Nenhum outro caixa registrado</option>
+                                    ) : (
+                                        <>
+                                            <option value="" disabled>Selecione o Caixa de Destino...</option>
+                                            {destinationChurches.map(c => {
+                                                const isCG = c.id === effectiveGeneralCashId;
+                                                return (
+                                                    <option key={c.id} value={c.id}>
+                                                        {c.name} {isCG ? '⭐ (Caixa Geral Oficial)' : ''}
+                                                    </option>
+                                                );
+                                            })}
+                                        </>
+                                    )}
+                                </select>
+                            </div>
 
-                    {/* Conteúdo da Aba 2: Assinaturas Digitais & Termo */}
-                    {activeTab === 'signatures' && (
-                        <div className="space-y-4 animate-fade-in">
-                            {(() => {
-                                const destChurch = churches?.find(c => c.id === destChurchId) || null;
-                                const targetChurchForSignatures = destChurch || (effectiveGeneralCashId ? (churches?.find(c => c.id === effectiveGeneralCashId) || null) : null);
-                                const targetTreasurerName = (targetChurchForSignatures?.treasurers && targetChurchForSignatures.treasurers[0]?.name) || targetChurchForSignatures?.treasurer || '';
+                            {/* Data do Fechamento */}
+                            <div className="space-y-1 pt-1">
+                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 ml-0.5">
+                                    Data do Fechamento
+                                </label>
+                                <div className="relative">
+                                    <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                    <input
+                                        type="date"
+                                        value={closingDate}
+                                        onChange={e => setClosingDate(e.target.value)}
+                                        className="w-full sm:w-56 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500 py-1.5 pl-9 pr-3 outline-none text-xs font-bold"
+                                    />
+                                </div>
+                                <p className="text-[10px] text-slate-400 ml-0.5">
+                                    Definida automaticamente pelo período do Livro Caixa ({formatDateBRL(closingDate)}).
+                                </p>
+                            </div>
 
-                                return (
+                            {/* Opções Avançadas Recolhidas por Padrão */}
+                            <details className="pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                                <summary className="text-[11px] font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer select-none py-1">
+                                    + Observações e Assinaturas Digitais (Opcional)
+                                </summary>
+                                <div className="space-y-3 pt-2">
+                                    <div className="space-y-1">
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                            Parecer / Observações do Fechamento
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={customMemo}
+                                            onChange={e => setCustomMemo(e.target.value)}
+                                            placeholder="Ex: CONTAS ANALISADAS E APROVADAS SEM RESSALVAS"
+                                            className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2 text-xs font-semibold uppercase placeholder:normal-case outline-none focus:ring-2 focus:ring-orange-500"
+                                        />
+                                    </div>
+
                                     <DigitalSignatureCollectionSection
                                         signatures={signatures}
                                         onChangeSignatures={setSignatures}
                                         church={fullChurch}
                                         defaultPastorName={selectedOriginChurch?.pastor || ''}
                                         defaultTreasurerName={fullChurch?.treasurer || ''}
-                                        targetChurch={targetChurchForSignatures}
-                                        defaultTargetTreasurerName={targetTreasurerName}
+                                        targetChurch={churches?.find(c => c.id === destChurchId) || null}
+                                        defaultTargetTreasurerName=""
                                     />
-                                );
-                            })()}
-
-                            {/* Carimbo de Integridade SHA-256 */}
-                            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
-                                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-                                        Selo de Autenticidade & Hash Criptográfico
-                                    </span>
-                                    <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded">
-                                        SHA-256 ATIVO
-                                    </span>
                                 </div>
-                                <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                                    Ao homologar, este código é gerado com base no saldo apurado, data e assinaturas, garantindo que o relatório contábil é original e inviolável.
-                                </p>
-                                <p className="font-mono text-[9px] text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-950 p-2 rounded-lg border border-slate-200 dark:border-slate-800 break-all select-all">
-                                    {calculatedHash || 'Calculando Hash...'}
-                                </p>
-                            </div>
-
-                            {/* Observação / Parecer */}
-                            <div className="space-y-1.5">
-                                <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
-                                    Parecer do Fechamento / Observações (Opcional)
-                                </label>
-                                <input
-                                    type="text"
-                                    value={customMemo}
-                                    onChange={e => setCustomMemo(e.target.value)}
-                                    placeholder="Ex: CONTAS ANALISADAS E APROVADAS PELO CONSELHO FISCAL SEM RESSALVAS"
-                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500 p-2.5 outline-none text-xs font-semibold uppercase placeholder:normal-case placeholder:text-slate-400 dark:placeholder:text-slate-600"
-                                />
-                            </div>
+                            </details>
                         </div>
-                    )}
 
-                    {/* Action Footer */}
-                    <div className="pt-4 border-t border-slate-100 dark:border-white/5 flex flex-col sm:flex-row justify-between items-center gap-3">
-                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                        {/* Botões de Ação */}
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
                             <button
                                 type="button"
                                 onClick={onClose}
-                                className="w-full sm:w-auto px-5 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-300 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xs transition-all tracking-wider uppercase cursor-pointer"
+                                className="w-full sm:w-auto px-5 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-750 border border-slate-200 dark:border-slate-700 rounded-xl transition-all cursor-pointer"
                             >
                                 Voltar ao Livro Caixa
                             </button>
-                            {existingRecord && existingRecord.status !== 'reopened' && isPrincipalUser && (
-                                <button
-                                    type="button"
-                                    disabled={isReopening}
-                                    onClick={handleReopenClosing}
-                                    className="w-full sm:w-auto px-4 py-2.5 text-xs font-black text-rose-700 dark:text-rose-300 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 border border-rose-300 dark:border-rose-800 rounded-xl shadow-xs transition-all tracking-wider uppercase cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
-                                >
-                                    <Lock className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
-                                    <span>{isReopening ? 'Reabrindo...' : 'Desfazer Fechamento'}</span>
-                                </button>
-                            )}
+
+                            <button
+                                type="button"
+                                disabled={isSubmitting || !originChurchId || (destinationChurches.length > 0 && !destChurchId)}
+                                onClick={handleConfirm}
+                                className="w-full sm:w-auto px-8 py-3 text-xs font-black text-white bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 rounded-xl shadow-lg shadow-orange-500/25 transition-all uppercase tracking-wider cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-95"
+                            >
+                                <ShieldCheck className="w-4 h-4" />
+                                <span>{isSubmitting ? 'Confirmando Fechamento...' : 'Confirmar Fechamento'}</span>
+                            </button>
                         </div>
-                        <button
-                            type="button"
-                            disabled={isSubmitting || !originChurchId || (isTransferEnabled && destinationChurches.length === 0)}
-                            onClick={handleConfirm}
-                            className="w-full sm:w-auto px-7 py-2.5 text-xs font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-xl shadow-md shadow-orange-500/20 hover:opacity-95 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-95"
-                        >
-                            <ShieldCheck className="w-4 h-4" />
-                            <span>
-                                {isSubmitting 
-                                    ? 'Homologando...' 
-                                    : signatures.length > 0 
-                                        ? `Homologar Fechamento (${signatures.length} Assinatura${signatures.length > 1 ? 's' : ''})` 
-                                        : 'Homologar Fechamento'}
-                            </span>
-                        </button>
                     </div>
                 </>
             )}
@@ -1083,10 +940,10 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                             </div>
                             <div>
                                 <h1 className="text-xl font-black text-slate-800 dark:text-white tracking-tight">
-                                    Fechamento Mensal & Assinaturas Digitais
+                                    Fechamento do Livro Caixa
                                 </h1>
                                 <p className="text-xs text-slate-400">
-                                    Homologação contábil 100% digital com integridade SHA-256 e transporte de recursos.
+                                    Confira o saldo a transportar, selecione o Caixa de destino e confirme o fechamento.
                                 </p>
                             </div>
                         </div>
@@ -1114,7 +971,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                             </div>
                             <div>
                                 <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
-                                    Homologação Contábil & Termo de Fechamento
+                                    Fechamento do Livro Caixa
                                 </h3>
                                 <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
                                     {selectedOriginChurch?.name ? `${selectedOriginChurch.name} • ` : ''}Mês {String(closingMonth).padStart(2, '0')}/{closingYear}
@@ -1130,7 +987,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                         ) : (
                             <span className="px-3 py-1 rounded-xl text-xs font-black bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 flex items-center gap-1.5">
                                 <Lock className="w-3.5 h-3.5" />
-                                <span>AGUARDANDO ASSINATURAS</span>
+                                <span>PRONTO PARA HOMOLOGAÇÃO</span>
                             </span>
                         )}
                     </div>
@@ -1152,10 +1009,10 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                         </div>
                         <div>
                             <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">
-                                Fechamento Mensal & Assinaturas Digitais
+                                Fechamento do Livro Caixa
                             </h3>
                             <p className="text-[10px] text-slate-400 dark:text-slate-500 font-semibold uppercase tracking-wider mt-0.5">
-                                Homologação contábil 100% digital com integridade SHA-256 e transporte de recursos
+                                Confira o saldo a transportar, selecione o Caixa de destino e confirme
                             </p>
                         </div>
                     </div>

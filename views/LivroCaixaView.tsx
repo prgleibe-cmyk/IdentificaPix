@@ -961,7 +961,7 @@ export const LivroCaixaView: React.FC = memo(() => {
         );
     };
 
-    // 🔒 VALIDAÇÃO DE FECHAMENTO FINAL ANTES DE LIBERAR O FECHAMENTO DO LIVRO CAIXA
+    // 🔒 ABERTURA DO FECHAMENTO DO LIVRO CAIXA
     const handleOpenClosing = () => {
         // Se já existe fechamento homologado e assinado para este período, libera a tela para consulta/gerenciamento
         if (monthClosingRecord && monthClosingRecord.status !== 'reopened') {
@@ -975,61 +975,36 @@ export const LivroCaixaView: React.FC = memo(() => {
             return;
         }
 
-        // Validação: Todas as linhas do período selecionado devem estar com Fechamento Final confirmado
-        const unconfirmedItems = filteredReportData.filter((item: any) => {
-            const confirmed = item.isConfirmed === true || 
-                              item.raw?.isConfirmed === true || 
-                              item.raw?.transaction?.isConfirmed === true;
-            return !confirmed;
-        });
-
-        if (unconfirmedItems.length > 0) {
-            // Sincroniza o período selecionado para que o Financeiro já abra exatamente no mesmo mês/período
-            const startDate = selectionMode === 'month' 
-                ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01` 
-                : (customStartDate || `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`);
-            const lastDay = new Date(selectedYear, selectedMonth, 0).getDate();
-            const endDate = selectionMode === 'month' 
-                ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}` 
-                : (customEndDate || `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`);
-
-            if (context?.setSearchFilters) {
-                context.setSearchFilters((prev: any) => ({
-                    ...prev,
-                    dateRange: { start: startDate, end: endDate }
-                }));
-            }
-
-            const unconfirmedCount = unconfirmedItems.length;
-            const periodLabel = selectionMode === 'month' 
-                ? `${String(selectedMonth).padStart(2, '0')}/${selectedYear}` 
-                : 'selecionado';
-
-            showToast(
-                `Existem ${unconfirmedCount} lançamento(s) sem Fechamento Final no período ${periodLabel}. Conclua o Fechamento Final no Financeiro.`,
-                'error'
-            );
-
-            // Redireciona o usuário para o relatório na aba Financeiro para realizar o fechamento final
-            setActiveView('reports');
-            return;
-        }
-
-        // Somente depois de estar fechado final todas as linhas é que o sistema libera a tela para prosseguir com o fechamento
+        // Libera a tela diretamente para prosseguir com o fechamento
         setIsClosingModalOpen(true);
     };
 
     if (isClosingModalOpen) {
+        const periodLabel = selectionMode === 'month'
+            ? `${monthsList.find(m => m.val === selectedMonth)?.name || String(selectedMonth).padStart(2, '0')}/${selectedYear}`
+            : `${customStartDate} até ${customEndDate}`;
+
+        const effectiveEndDate = selectionMode === 'dates' && customEndDate
+            ? customEndDate
+            : (selectedYear && selectedMonth
+                ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(new Date(selectedYear, selectedMonth, 0).getDate()).padStart(2, '0')}`
+                : new Date().toISOString().split('T')[0]);
+
         return (
             <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full min-h-full flex flex-col animate-fade-in pb-8 md:pb-4">
                 <ChurchClosingModal
                     isOpen={true}
                     onClose={() => setIsClosingModalOpen(false)}
-                    currentChurchId={selectedChurchIds.length === 1 ? selectedChurchIds[0] : null}
+                    currentChurchId={selectedChurchIds.length === 1 ? selectedChurchIds[0] : (churches.length === 1 ? churches[0].id : null)}
                     currentBankId={selectedBankIds.length === 1 ? selectedBankIds[0] : null}
                     initialMonth={selectedMonth}
                     initialYear={selectedYear}
                     asView={true}
+                    periodLabel={periodLabel}
+                    initialClosingDate={effectiveEndDate}
+                    finalBalance={summaryBreakdown.saldoFinal}
+                    totalIncome={summaryBreakdown.totalEntradasPlusTransf}
+                    totalExpenses={summaryBreakdown.totalSaidasPlusTransf}
                 />
             </div>
         );
