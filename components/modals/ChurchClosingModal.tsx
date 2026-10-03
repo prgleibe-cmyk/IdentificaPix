@@ -19,6 +19,7 @@ const formatDateBRL = (dateStr: string) => {
 interface ChurchClosingModalProps {
     isOpen: boolean;
     onClose: () => void;
+    onClosingComplete?: (record: MonthClosingRecord) => void;
     currentChurchId: string | null;
     currentBankId?: string | null;
     initialMonth?: number;
@@ -34,6 +35,7 @@ interface ChurchClosingModalProps {
 export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
     isOpen,
     onClose,
+    onClosingComplete,
     currentChurchId,
     currentBankId,
     initialMonth,
@@ -427,7 +429,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                     ? `[REPASSE/FECHAMENTO] ${memoText} - REPASSE DE COBERTURA PARA ${originChurch.name.toUpperCase()}`
                     : `[RECEBIMENTO] ${memoText} - SALDO RECEBIDO DE ${originChurch.name.toUpperCase()}`;
 
-                const originMatch: MatchResult = {
+                originMatch = {
                     transaction: {
                         id: originTxId,
                         date: dateStr,
@@ -452,7 +454,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                     updatedAt: new Date().toISOString()
                 };
 
-                const destMatch: MatchResult = {
+                destMatch = {
                     transaction: {
                         id: destTxId,
                         date: dateStr,
@@ -475,7 +477,6 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                     contributionType: isNegative ? 'SAÍDA / TRANSFERÊNCIA' : 'ENTRADA / TRANSFERÊNCIA',
                     updatedAt: new Date().toISOString()
                 };
-
             }
 
             // Confirma automaticamente todas as transações da congregação no período contábil
@@ -537,6 +538,9 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
 
             await saveMonthClosingRecord(closingRecord);
             setExistingRecord(closingRecord);
+            if (onClosingComplete) {
+                onClosingComplete(closingRecord);
+            }
             window.dispatchEvent(new CustomEvent('month_closing_updated', { detail: closingRecord }));
 
             let successText = `Fechamento do mês ${String(closingMonth).padStart(2, '0')}/${closingYear} registrado com sucesso para a igreja "${originChurch.name}".`;
@@ -600,7 +604,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                 if (!Array.isArray(prev)) return prev;
                 const next = prev.filter((r: MatchResult) => {
                     const txId = r.transaction?.id || (r as any).id || '';
-                    const isClosingTx = txId.startsWith('closing-outflow-') || txId.startsWith('closing-inflow-');
+                    const isClosingTx = txId.startsWith('closing-');
                     const txDate = r.transaction?.date || (r as any).date || '';
                     if (isClosingTx && txDate.startsWith(targetMonthStr)) {
                         hasRemovedTxs = true;

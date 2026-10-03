@@ -346,9 +346,9 @@ export const useReportsController = () => {
         } else {
             const targetChurchId = (isSecondary && subscription.congregationIds && subscription.congregationIds.length > 0)
                 ? (selectedReportId && subscription.congregationIds.includes(selectedReportId) ? selectedReportId : subscription.congregationIds[0])
-                : ((selectedReportId && selectedReportId !== 'general_all' && selectedReportId !== 'unidentified' && selectedReportId !== 'all_expenses_group' && churchListComputed.some(c => c.id === selectedReportId))
+                : ((selectedReportId && selectedReportId !== 'general_all' && selectedReportId !== 'unidentified' && selectedReportId !== 'all_expenses_group')
                     ? selectedReportId 
-                    : (churchListComputed.length > 0 ? churchListComputed[0].id : null));
+                    : null);
 
             if (targetChurchId) {
                 filteredData = periodResults.filter(r => {
@@ -469,24 +469,14 @@ export const useReportsController = () => {
             } else {
                 const targetChurchId = (isSecondary && subscription.congregationIds && subscription.congregationIds.length > 0)
                     ? (selectedReportId && subscription.congregationIds.includes(selectedReportId) ? selectedReportId : subscription.congregationIds[0])
-                    : ((selectedReportId && selectedReportId !== 'general_all' && selectedReportId !== 'unidentified' && selectedReportId !== 'all_expenses_group' && cacheRef.current.churchList.some(c => c.id === selectedReportId))
+                    : ((selectedReportId && selectedReportId !== 'general_all' && selectedReportId !== 'unidentified' && selectedReportId !== 'all_expenses_group')
                         ? selectedReportId 
-                        : (cacheRef.current.churchList.length > 0 ? cacheRef.current.churchList[0].id : null));
+                        : null);
                 const churchId = (item.church?.id && item.church.id !== 'unidentified') 
                     ? item.church.id 
                     : (item._churchId && item._churchId !== 'unidentified' ? item._churchId : (item.transaction as any)?.church_id);
                 
-                const itemSplits = (Array.isArray(item.splits) && item.splits.length > 0)
-                    ? item.splits
-                    : (Array.isArray((item.transaction as any)?.splits) && (item.transaction as any).splits.length > 0)
-                        ? (item.transaction as any).splits
-                        : null;
-
-                if (itemSplits && itemSplits.length > 0) {
-                    matchesCat = churchId === targetChurchId || itemSplits.some((s: any) => s.churchId === targetChurchId);
-                } else {
-                    matchesCat = churchId === targetChurchId;
-                }
+                matchesCat = churchId === targetChurchId;
             }
 
             if (!matchesCat) return false;
@@ -671,7 +661,7 @@ export const useReportsController = () => {
         } else if (activeCategory === 'churches') {
             const currentChurchIds = (cacheRef.current.churchList || []).map(c => c.id);
             if (currentChurchIds.length > 0) {
-                if (!selectedReportId || !currentChurchIds.includes(selectedReportId) || selectedReportId === 'general_all' || selectedReportId === 'unidentified' || selectedReportId === 'all_expenses_group') {
+                if (!selectedReportId || selectedReportId === 'general_all' || selectedReportId === 'unidentified' || selectedReportId === 'all_expenses_group') {
                     setSelectedReportId(currentChurchIds[0]);
                 }
             }

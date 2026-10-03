@@ -194,11 +194,17 @@ export const matchTransactions = (
         const txCleanStrict = strictNormalize(cleanBankDescription(tx.description || ''));
         const txCleanRawStrict = tx.rawDescription ? strictNormalize(cleanBankDescription(tx.rawDescription)) : '';
         
+        const txChurchId = (tx as any).church_id || (tx as any).churchId || existingMatch?.church?.id || existingMatch?._churchId;
+        const txChurch = (txChurchId && txChurchId !== 'unidentified') 
+            ? (churches.find(c => c.id === txChurchId) || existingMatch?.church || PLACEHOLDER_CHURCH)
+            : PLACEHOLDER_CHURCH;
+
         let matchResult: MatchResult = {
             transaction: tx,
             contributor: null,
             status: ReconciliationStatus.UNIDENTIFIED,
-            church: PLACEHOLDER_CHURCH,
+            church: txChurch,
+            _churchId: txChurch.id !== PLACEHOLDER_CHURCH.id ? txChurch.id : undefined,
             similarity: 0,
             contributionType: tx.contributionType,
             paymentMethod: tx.paymentMethod
@@ -227,10 +233,12 @@ export const matchTransactions = (
                 return cNorm === targetNorm || (c.id && c.id === (learned as any).contributorId);
             }) : null;
 
-            // Prioriza SEMPRE a igreja de cadastro original do contribuinte
-            const effectiveChurch = (registeredContrib && registeredContrib.church)
-                ? registeredContrib.church
-                : (churches.find(c => c.id === learned.churchId) || PLACEHOLDER_CHURCH);
+            // Prioriza congregação da transação se já existir; caso contrário congregação de cadastro do contribuinte
+            const effectiveChurch = (txChurch && txChurch.id !== PLACEHOLDER_CHURCH.id)
+                ? txChurch
+                : ((registeredContrib && registeredContrib.church)
+                    ? registeredContrib.church
+                    : (churches.find(c => c.id === learned.churchId) || PLACEHOLDER_CHURCH));
 
             if (effectiveChurch && effectiveChurch.id !== PLACEHOLDER_CHURCH.id) {
                 matchResult = {
@@ -287,7 +295,11 @@ export const matchTransactions = (
 
             // Fallback para similaridade de nome se não achou por CPF
             if (!bestMatch) {
-                allContributorsFlat.forEach((contrib: any) => {
+                const candidates = (txChurchId && txChurchId !== 'unidentified' && contributorsByChurch.has(txChurchId))
+                    ? contributorsByChurch.get(txChurchId)!
+                    : allContributorsFlat;
+
+                candidates.forEach((contrib: any) => {
                     const score = calculateNameSimilarity(tx.description, contrib);
                     if (score > highestScore) {
                         highestScore = score;
@@ -297,13 +309,17 @@ export const matchTransactions = (
             }
 
             if (bestMatch && highestScore >= (options.similarityThreshold || 55)) {
+                const effectiveChurch = (txChurch && txChurch.id !== PLACEHOLDER_CHURCH.id)
+                    ? txChurch
+                    : bestMatch.church;
+
                 usedContributors.add(bestMatch._internalId);
                 matchResult = {
                     ...matchResult,
                     status: ReconciliationStatus.IDENTIFIED,
                     contributor: bestMatch,
-                    church: bestMatch.church,
-                    _churchId: bestMatch.church.id,
+                    church: effectiveChurch,
+                    _churchId: effectiveChurch.id !== PLACEHOLDER_CHURCH.id ? effectiveChurch.id : undefined,
                     matchMethod: MatchMethod.AI,
                     similarity: highestScore,
                     contributorAmount: bestMatch.amount,

@@ -41,7 +41,8 @@ import {
     Plus,
     Receipt,
     FileSignature,
-    Pencil
+    Pencil,
+    ShieldCheck
 } from 'lucide-react';
 
 export const LivroCaixaView: React.FC = memo(() => {
@@ -148,26 +149,41 @@ export const LivroCaixaView: React.FC = memo(() => {
     // Carrega registro de fechamento homologado e assinado digitalmente para a congregação e período ativo
     useEffect(() => {
         let isMounted = true;
-        const churchId = selectedChurchIds.length === 1 ? selectedChurchIds[0] : (churches.length === 1 ? churches[0].id : null);
-        if (!churchId) {
-            setMonthClosingRecord(null);
-            return;
-        }
+        const churchId = selectedChurchIds.length === 1 
+            ? selectedChurchIds[0] 
+            : (churches.length === 1 ? churches[0].id : (churches[0]?.id || null));
 
         const m = selectionMode === 'month' ? selectedMonth : (customStartDate ? parseInt(customStartDate.split('-')[1], 10) : selectedMonth);
         const y = selectionMode === 'month' ? selectedYear : (customStartDate ? parseInt(customStartDate.split('-')[0], 10) : selectedYear);
 
-        if (m && y) {
-            getMonthClosingRecord(churchId, y, m).then(record => {
-                if (isMounted) setMonthClosingRecord(record?.status === 'reopened' ? null : record);
+        if (m && y && churchId) {
+            getMonthClosingRecord(churchId, y, m).then(async (record) => {
+                if (!isMounted) return;
+                if (record && record.status !== 'reopened') {
+                    setMonthClosingRecord(record);
+                } else if (selectedChurchIds.length === 0 && churches.length > 1) {
+                    for (const ch of churches) {
+                        if (ch.id === churchId) continue;
+                        const otherRec = await getMonthClosingRecord(ch.id, y, m);
+                        if (otherRec && otherRec.status !== 'reopened' && isMounted) {
+                            setMonthClosingRecord(otherRec);
+                            return;
+                        }
+                    }
+                    setMonthClosingRecord(null);
+                } else {
+                    setMonthClosingRecord(null);
+                }
             });
+        } else {
+            setMonthClosingRecord(null);
         }
 
         const handleClosingUpdate = (e: any) => {
             const updated = e?.detail as MonthClosingRecord | undefined;
-            if (updated && updated.churchId === churchId && updated.year === y && updated.month === m) {
+            if (updated && updated.year === y && updated.month === m) {
                 if (isMounted) setMonthClosingRecord(updated.status === 'reopened' ? null : updated);
-            } else if (m && y) {
+            } else if (m && y && churchId) {
                 getMonthClosingRecord(churchId, y, m).then(record => {
                     if (isMounted) setMonthClosingRecord(record?.status === 'reopened' ? null : record);
                 });
@@ -994,7 +1010,15 @@ export const LivroCaixaView: React.FC = memo(() => {
             <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full min-h-full flex flex-col animate-fade-in pb-8 md:pb-4">
                 <ChurchClosingModal
                     isOpen={true}
-                    onClose={() => setIsClosingModalOpen(false)}
+                    onClose={async () => {
+                        setIsClosingModalOpen(false);
+                        if (typeof context?.hydrate === 'function') {
+                            try { await context.hydrate(); } catch (_) {}
+                        }
+                    }}
+                    onClosingComplete={(record) => {
+                        setMonthClosingRecord(record);
+                    }}
                     currentChurchId={selectedChurchIds.length === 1 ? selectedChurchIds[0] : (churches.length === 1 ? churches[0].id : null)}
                     currentBankId={selectedBankIds.length === 1 ? selectedBankIds[0] : null}
                     initialMonth={selectedMonth}
@@ -1052,12 +1076,20 @@ export const LivroCaixaView: React.FC = memo(() => {
                         <button
                             type="button"
                             onClick={handleOpenClosing}
-                            className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 rounded-xl shadow-xs hover:opacity-95 transition-all tracking-wider uppercase cursor-pointer border border-orange-400/30 active:scale-95 shrink-0"
-                            title="Realizar Fechamento & Assinaturas Digitais"
+                            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold text-white rounded-xl shadow-xs hover:opacity-95 transition-all tracking-wider uppercase cursor-pointer border active:scale-95 shrink-0 ${
+                                monthClosingRecord && monthClosingRecord.status !== 'reopened'
+                                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 border-emerald-400/30'
+                                    : 'bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 border-orange-400/30'
+                            }`}
+                            title={monthClosingRecord && monthClosingRecord.status !== 'reopened' ? "Fechamento Homologado - Visualizar e Gerenciar" : "Realizar Fechamento & Assinaturas Digitais"}
                             id="btn-fechamento-livro-caixa"
                         >
-                            <Building2 className="w-4 h-4 text-white shrink-0" />
-                            <span>FECHAMENTO</span>
+                            {monthClosingRecord && monthClosingRecord.status !== 'reopened' ? (
+                                <ShieldCheck className="w-4 h-4 text-white shrink-0" />
+                            ) : (
+                                <Building2 className="w-4 h-4 text-white shrink-0" />
+                            )}
+                            <span>{monthClosingRecord && monthClosingRecord.status !== 'reopened' ? 'FECHAMENTO HOMOLOGADO' : 'FECHAMENTO'}</span>
                         </button>
                     </div>
                 </div>
@@ -1432,6 +1464,94 @@ export const LivroCaixaView: React.FC = memo(() => {
                         <span className="font-bold text-slate-700 dark:text-slate-200 text-xs md:text-sm">{financialTotals.totalTransactions}</span>
                     </div>
                 </div>
+
+                {/* Demonstrativo Oficial de Fechamento e Transporte de Saldo */}
+                {monthClosingRecord && monthClosingRecord.status !== 'reopened' && (
+                    <div className="p-4 md:p-5 rounded-2xl bg-gradient-to-r from-emerald-50/90 via-teal-50/50 to-slate-50 dark:from-emerald-950/40 dark:via-teal-950/20 dark:to-slate-900 border border-emerald-200/80 dark:border-emerald-800/60 shadow-xs space-y-3.5">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200/60 dark:border-emerald-800/40 pb-3">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                                    <ShieldCheck className="w-5 h-5 stroke-[2.2]" />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h4 className="text-xs md:text-sm font-black uppercase tracking-wider text-emerald-950 dark:text-emerald-200">
+                                            Fechamento do Livro Caixa Homologado
+                                        </h4>
+                                        <span className="text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 px-2 py-0.5 rounded-md">
+                                            Status: Fechado
+                                        </span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
+                                        {monthClosingRecord.targetChurchName 
+                                            ? `Transporte de saldo realizado para o caixa "${monthClosingRecord.targetChurchName}".`
+                                            : 'Fechamento contábil e assinaturas digitais registradas para este período.'}
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={handleOpenClosing}
+                                className="self-start sm:self-auto px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-750 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                            >
+                                <span>Ver Fechamento</span>
+                                <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+
+                        {/* Rastreabilidade solicitada: Saldo anterior -> Transporte realizado -> Saldo resultante */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            {/* SALDO ANTES DO FECHAMENTO */}
+                            <div className="p-3.5 bg-white dark:bg-slate-900/90 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-2xs flex flex-col justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                                    SALDO ANTES DO FECHAMENTO:
+                                </span>
+                                <span className={`text-base md:text-lg font-black font-mono block ${
+                                    monthClosingRecord.finalBalance >= 0 ? 'text-slate-800 dark:text-slate-100' : 'text-rose-600 dark:text-rose-400'
+                                }`}>
+                                    {formatBRL(monthClosingRecord.finalBalance)}
+                                </span>
+                                <span className="text-[10px] text-slate-400 mt-1">
+                                    Valor que existia antes do transporte
+                                </span>
+                            </div>
+
+                            {/* VALOR TRANSPORTADO */}
+                            <div className="p-3.5 bg-white dark:bg-slate-900/90 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-2xs flex flex-col justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                                    VALOR TRANSPORTADO:
+                                </span>
+                                <span className={`text-base md:text-lg font-black font-mono block ${
+                                    (monthClosingRecord.transferredBalance || 0) < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                                }`}>
+                                    {formatBRL(Math.abs(monthClosingRecord.transferredBalance || 0))}
+                                </span>
+                                <span className="text-[10px] text-slate-400 mt-1">
+                                    {monthClosingRecord.targetChurchName 
+                                        ? ((monthClosingRecord.transferredBalance || 0) < 0 ? `Aporte do ${monthClosingRecord.targetChurchName}` : `Transportado para ${monthClosingRecord.targetChurchName}`)
+                                        : 'Valor efetivamente transportado'}
+                                </span>
+                            </div>
+
+                            {/* SALDO ATUAL */}
+                            <div className="p-3.5 bg-emerald-50/70 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800/80 shadow-2xs flex flex-col justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 block mb-1">
+                                    SALDO ATUAL:
+                                </span>
+                                <span className={`text-base md:text-lg font-black font-mono block ${
+                                    (monthClosingRecord.finalBalance - (monthClosingRecord.transferredBalance || 0)) >= 0
+                                        ? 'text-emerald-700 dark:text-emerald-300'
+                                        : 'text-rose-600 dark:text-rose-400'
+                                }`}>
+                                    {formatBRL(monthClosingRecord.finalBalance - (monthClosingRecord.transferredBalance || 0))}
+                                </span>
+                                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold mt-1">
+                                    Valor resultante após o transporte
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Livro Caixa Table (Extrato Analítico) */}
                 <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
@@ -1954,11 +2074,37 @@ export const LivroCaixaView: React.FC = memo(() => {
                                     <span className="font-bold">Saldo Anterior:</span>
                                     <strong className="font-mono ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.saldoAnterior)}</strong>
                                 </div>
+                                {monthClosingRecord && monthClosingRecord.status !== 'reopened' && monthClosingRecord.transferredBalance !== undefined && (
+                                    <>
+                                        <div className="flex justify-between items-center text-slate-700 dark:text-slate-300 py-0.5 border-t border-amber-200/40 pt-1 text-[11px]">
+                                            <span className="font-bold text-slate-600 dark:text-slate-400">Saldo antes do fechamento:</span>
+                                            <strong className="font-mono ml-2 whitespace-nowrap text-slate-800 dark:text-slate-200">
+                                                {formatBRL(monthClosingRecord.finalBalance)}
+                                            </strong>
+                                        </div>
+                                        <div className="flex justify-between items-center text-slate-700 dark:text-slate-300 py-0.5 text-[11px]">
+                                            <span className="font-bold text-slate-600 dark:text-slate-400">Valor transportado:</span>
+                                            <strong className="font-mono ml-2 whitespace-nowrap text-rose-600 dark:text-rose-400">
+                                                {formatBRL(Math.abs(monthClosingRecord.transferredBalance))}
+                                            </strong>
+                                        </div>
+                                    </>
+                                )}
                             </div>
                             <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-amber-300/80 dark:border-amber-800 shadow-xs flex justify-between items-center gap-2">
-                                <span className="font-black text-slate-900 dark:text-white uppercase text-[11px] tracking-tight">Saldo final:</span>
-                                <span className={`text-base font-black font-mono whitespace-nowrap ${summaryBreakdown.saldoFinal >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                                    {formatBRL(summaryBreakdown.saldoFinal)}
+                                <span className="font-black text-slate-900 dark:text-white uppercase text-[11px] tracking-tight">
+                                    {monthClosingRecord && monthClosingRecord.status !== 'reopened' ? 'Saldo atual:' : 'Saldo final:'}
+                                </span>
+                                <span className={`text-base font-black font-mono whitespace-nowrap ${
+                                    (monthClosingRecord && monthClosingRecord.status !== 'reopened'
+                                        ? (monthClosingRecord.finalBalance - (monthClosingRecord.transferredBalance || 0))
+                                        : summaryBreakdown.saldoFinal) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                                }`}>
+                                    {formatBRL(
+                                        monthClosingRecord && monthClosingRecord.status !== 'reopened'
+                                            ? (monthClosingRecord.finalBalance - (monthClosingRecord.transferredBalance || 0))
+                                            : summaryBreakdown.saldoFinal
+                                    )}
                                 </span>
                             </div>
                         </div>
