@@ -25,6 +25,11 @@ export const StatsStrip: React.FC<StatsStripProps> = ({
     const stats = {
         count: summary.count || 0,
         total: summary.total || 0,
+        totalEntradas: summary.totalEntradas !== undefined ? summary.totalEntradas : (category !== 'expenses' ? (summary.total || 0) : 0),
+        countEntradas: summary.countEntradas || 0,
+        totalSaidas: summary.totalSaidas !== undefined ? summary.totalSaidas : (category === 'expenses' ? (summary.total || 0) : 0),
+        countSaidas: summary.countSaidas || 0,
+        saldo: summary.saldo !== undefined ? summary.saldo : ((summary.totalEntradas || summary.total || 0) - (summary.totalSaidas || 0)),
         auto: summary.auto || 0,
         autoValue: summary.autoValue || 0,
         manual: summary.manual || 0,
@@ -34,17 +39,51 @@ export const StatsStrip: React.FC<StatsStripProps> = ({
     };
 
     return (
-        <div className="px-4 py-2 bg-slate-50/80 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-2 shrink-0 backdrop-blur-sm">
-            <div className="flex items-center gap-3">
-                <div className={`p-1.5 rounded-lg ${category === 'unidentified' ? 'bg-amber-100 text-amber-600' : category === 'expenses' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+        <div className="px-4 py-2.5 bg-slate-50/80 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 shrink-0 backdrop-blur-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
+                <div className={`p-1.5 rounded-lg shrink-0 self-start sm:self-auto ${category === 'unidentified' ? 'bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400' : category === 'expenses' ? 'bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400' : 'bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400'}`}>
                     {category === 'unidentified' ? <ExclamationTriangleIcon className="w-4 h-4"/> : category === 'expenses' ? <BanknotesIcon className="w-4 h-4"/> : <BuildingOfficeIcon className="w-4 h-4"/>}
                 </div>
                 <div>
-                    <h3 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wide truncate max-w-[200px] md:max-w-none">{reportName || 'Carregando...'}</h3>
-                    <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 mt-0.5">
-                        <span>Total: {stats.count}</span>
-                        <span className="w-px h-2 bg-slate-300"></span>
-                        <span className={`${category === 'expenses' ? 'text-red-600' : 'text-emerald-600'}`}>{formatCurrency(stats.total, language)}</span>
+                    <div className="flex items-center gap-2">
+                        <h3 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wide truncate max-w-[200px] md:max-w-none">{reportName || 'Carregando...'}</h3>
+                        <span className="text-[10px] font-bold text-slate-400 bg-slate-200/60 dark:bg-slate-800 px-1.5 py-0.2 rounded">
+                            {stats.count} {stats.count === 1 ? 'registro' : 'registros'}
+                        </span>
+                    </div>
+
+                    {/* Destaque Financeiro: Total Entradas, Total Saídas e Saldo Apurado */}
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        {/* Entradas */}
+                        <div 
+                            className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold"
+                            title="Total de todas as entradas do relatório (lançamentos manuais, arquivos e SMS)"
+                        >
+                            <span className="text-[9px] font-black uppercase tracking-wider text-emerald-600/90 dark:text-emerald-400/90 font-sans">Entradas:</span>
+                            <span className="font-mono font-black tabular-nums">{formatCurrency(stats.totalEntradas, language)}</span>
+                        </div>
+
+                        {/* Saídas */}
+                        <div 
+                            className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-950/40 border border-rose-200/80 dark:border-rose-800/60 text-rose-700 dark:text-rose-300 text-[11px] font-bold"
+                            title="Total de todas as saídas e despesas do relatório"
+                        >
+                            <span className="text-[9px] font-black uppercase tracking-wider text-rose-600/90 dark:text-rose-400/90 font-sans">Saídas:</span>
+                            <span className="font-mono font-black tabular-nums">{formatCurrency(stats.totalSaidas, language)}</span>
+                        </div>
+
+                        {/* Saldo */}
+                        <div 
+                            className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[11px] font-bold ${
+                                stats.saldo >= 0 
+                                    ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-200/80 dark:border-blue-800/60 text-blue-700 dark:text-blue-300' 
+                                    : 'bg-amber-50 dark:bg-amber-950/40 border-amber-200/80 dark:border-amber-800/60 text-amber-700 dark:text-amber-300'
+                            }`}
+                            title="Saldo apurado do relatório (Entradas - Saídas)"
+                        >
+                            <span className="text-[9px] font-black uppercase tracking-wider opacity-80 font-sans">Saldo:</span>
+                            <span className="font-mono font-black tabular-nums">{formatCurrency(stats.saldo, language)}</span>
+                        </div>
                     </div>
                 </div>
             </div>

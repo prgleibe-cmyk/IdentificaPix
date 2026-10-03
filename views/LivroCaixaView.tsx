@@ -478,6 +478,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                     item.desc, item.description, item.historico,
                     item.payer, item.contribuinte, item.nome,
                     item.category, item.categoria,
+                    item.contributionType, item.tipo,
                     getChurchName(item.churchId)
                 ].filter(Boolean).join(' ').toLowerCase();
 
@@ -502,13 +503,39 @@ export const LivroCaixaView: React.FC = memo(() => {
         let expenses = 0;
 
         filteredReportData.forEach((tx: any) => {
-            const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
-            const isExp = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
+            const isBaseExp = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && (String(tx.category).toLowerCase().includes('saida') || String(tx.category).toLowerCase().includes('saída')));
+            const txSplits = (Array.isArray(tx.splits) && tx.splits.length > 0)
+                ? tx.splits
+                : (Array.isArray(tx.raw?.splits) && tx.raw.splits.length > 0)
+                    ? tx.raw.splits
+                    : null;
 
-            if (isExp) {
-                expenses += amt;
+            if (txSplits && txSplits.length > 0 && selectedChurchIds.length > 0) {
+                txSplits.forEach((s: any) => {
+                    const sChurchId = s.churchId || tx.churchId;
+                    const sChurchName = s.churchName || tx.church;
+                    const matchChurch = selectedChurchIds.some(cId => {
+                        if (sChurchId && sChurchId === cId) return true;
+                        const chObj = churches.find((c: any) => c.id === cId);
+                        return chObj && (sChurchName === chObj.name || sChurchId === chObj.id);
+                    });
+                    if (!matchChurch) return;
+
+                    const splitAmt = Math.abs(Number(s.amount) || 0);
+                    const isSplitExp = s.amount < 0 || isBaseExp;
+                    if (isSplitExp) {
+                        expenses += splitAmt;
+                    } else {
+                        income += splitAmt;
+                    }
+                });
             } else {
-                income += amt;
+                const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
+                if (isBaseExp) {
+                    expenses += amt;
+                } else {
+                    income += amt;
+                }
             }
         });
 
@@ -518,7 +545,7 @@ export const LivroCaixaView: React.FC = memo(() => {
             balance: income - expenses,
             totalTransactions: filteredReportData.length
         };
-    }, [filteredReportData]);
+    }, [filteredReportData, selectedChurchIds, churches]);
 
     const totalPages = Math.ceil(filteredReportData.length / ITEMS_PER_PAGE) || 1;
 
@@ -707,10 +734,12 @@ export const LivroCaixaView: React.FC = memo(() => {
             saldoAnterior,
             entradasDinheiro,
             entradasPix,
+            entradasOutras,
             totalEntradas,
             saidasDinheiro,
             saidasPix,
             saidasBoletoFaturas,
+            saidasOutras,
             totalSaidas,
             transfRecebidas,
             transfEnviadas,
@@ -1487,16 +1516,15 @@ export const LivroCaixaView: React.FC = memo(() => {
                                     <th className="px-4 py-3">Data</th>
                                     <th className="px-4 py-3">Contribuinte / Favorecido</th>
                                     <th className="px-4 py-3">Igreja</th>
-                                    <th className="px-4 py-3">Descrição</th>
+                                    <th className="px-4 py-3">Descrição / Categoria</th>
                                     <th className="px-4 py-3">Forma</th>
-                                    <th className="px-4 py-3">Categoria</th>
                                     <th className="px-4 py-3 text-right">Valor</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                                 {paginatedReportData.length === 0 ? (
                                     <tr>
-                                        <td colSpan={7} className="text-center py-12">
+                                        <td colSpan={6} className="text-center py-12">
                                             <div className="flex flex-col items-center justify-center gap-3 max-w-lg mx-auto px-4">
                                                 <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl text-slate-400">
                                                     <Calendar className="w-6 h-6 text-orange-500" />
@@ -1534,12 +1562,24 @@ export const LivroCaixaView: React.FC = memo(() => {
                                     </tr>
                                 ) : (
                                     paginatedReportData.map((tx: any, idx: number) => {
-                                        const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
+                                        const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && (tx.category.toLowerCase().includes('saida') || tx.category.toLowerCase().includes('saída')));
                                         const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
-                                        const tipoLabel = tx.contributionType || tx.tipo || (tx.type === 'expense' ? 'Despesa' : tx.type === 'income' ? 'Receita' : isExpense ? 'Despesa' : 'Entrada');
                                         const formaLabel = tx.paymentMethod || tx.forma || tx.formaPagamento || tx.payment_method || tx.raw?.payment_method || 'Pix';
                                         const payerName = cleanDisplayDescription(tx.payer || tx.contribuinte || tx.nome || tx.title || 'Lançamento de Caixa');
                                         const descText = cleanDisplayDescription(tx.desc || tx.description || tx.historico || '');
+                                        const descCatLabel = (() => {
+                                            const cat = (tx.category || tx.categoria || '').toString().trim();
+                                            const type = (tx.contributionType || tx.tipo || '').toString().trim();
+                                            const isGeneric = (str: string) => {
+                                                const s = str.toLowerCase();
+                                                return !s || s === 'geral' || s === 'diversos' || s === 'entrada' || s === 'saida' || s === 'saída' || s === 'despesa' || s === 'receita';
+                                            };
+                                            if (cat && !isGeneric(cat)) return cat;
+                                            if (type && !isGeneric(type)) return type;
+                                            if (cat) return cat;
+                                            if (type) return type;
+                                            return isExpense ? 'Despesa Geral' : 'Entrada';
+                                        })();
                                         const txSplits = (Array.isArray(tx.splits) && tx.splits.length > 0)
                                             ? tx.splits
                                             : (Array.isArray(tx.raw?.splits) && tx.raw.splits.length > 0)
@@ -1739,7 +1779,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                                 ? 'bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border border-rose-200/50 dark:border-rose-900/30' 
                                                                 : 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-900/30'
                                                         }`}>
-                                                            {tipoLabel}
+                                                            {descCatLabel}
                                                         </span>
                                                     )}
                                                 </td>
@@ -1747,17 +1787,6 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                     <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200/60 dark:border-slate-700/50 uppercase whitespace-nowrap">
                                                         {formaLabel}
                                                     </span>
-                                                </td>
-                                                <td className="px-4 py-2.5">
-                                                    {txSplits && txSplits.length > 0 ? (
-                                                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50/70 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300">
-                                                            Diversas ({txSplits.length})
-                                                        </span>
-                                                    ) : (
-                                                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                                                            {tx.category || tx.categoria || 'Geral'}
-                                                        </span>
-                                                    )}
                                                 </td>
                                                 <td className={`px-4 py-2.5 text-right font-mono font-bold whitespace-nowrap ${isExpense ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
                                                     {txSplits && txSplits.length > 0 ? (
@@ -1783,6 +1812,28 @@ export const LivroCaixaView: React.FC = memo(() => {
                                     })
                                 )}
                             </tbody>
+                            {filteredReportData.length > 0 && (
+                                <tfoot className="bg-slate-50 dark:bg-slate-800/60 font-bold text-xs border-t-2 border-slate-200 dark:border-slate-700">
+                                    <tr>
+                                        <td colSpan={3} className="px-4 py-3 text-slate-500 uppercase text-[10px] tracking-wider">
+                                            Totais ({filteredReportData.length} registros no período)
+                                        </td>
+                                        <td className="px-4 py-3 text-[10px] uppercase text-slate-500 whitespace-nowrap">
+                                            <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">Entradas: {formatBRL(financialTotals.income)}</span>
+                                            <span className="mx-1.5 text-slate-300 dark:text-slate-600">|</span>
+                                            <span className="text-rose-600 dark:text-rose-400 font-extrabold">Saídas: {formatBRL(financialTotals.expenses)}</span>
+                                        </td>
+                                        <td className="px-4 py-3 text-slate-500 text-[10px] uppercase font-bold whitespace-nowrap">
+                                            Saldo Operacional:
+                                        </td>
+                                        <td className={`px-4 py-3 text-right font-mono font-black text-sm whitespace-nowrap ${
+                                            financialTotals.balance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                                        }`}>
+                                            {financialTotals.balance >= 0 ? `+ ${formatBRL(financialTotals.balance)}` : `- ${formatBRL(Math.abs(financialTotals.balance))}`}
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            )}
                         </table>
                     </div>
 
@@ -1853,6 +1904,12 @@ export const LivroCaixaView: React.FC = memo(() => {
                                 <span>Total de entradas em Pix:</span>
                                 <strong className="font-mono text-emerald-600 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.entradasPix)}</strong>
                             </div>
+                            {summaryBreakdown.entradasOutras > 0 && (
+                                <div className="flex justify-between items-center text-slate-600 dark:text-slate-300">
+                                    <span>Outras entradas:</span>
+                                    <strong className="font-mono text-emerald-600 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.entradasOutras)}</strong>
+                                </div>
+                            )}
                             <div className="flex justify-between items-center font-bold text-slate-800 dark:text-slate-100 pt-1 border-t border-emerald-200/40">
                                 <span>Total de entradas:</span>
                                 <strong className="font-mono text-emerald-700 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.totalEntradas)}</strong>
@@ -1882,6 +1939,12 @@ export const LivroCaixaView: React.FC = memo(() => {
                                 <span>Saídas boleto, faturas:</span>
                                 <strong className="font-mono text-rose-600 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.saidasBoletoFaturas)}</strong>
                             </div>
+                            {summaryBreakdown.saidasOutras > 0 && (
+                                <div className="flex justify-between items-center text-slate-600 dark:text-slate-300">
+                                    <span>Outras saídas / diversos:</span>
+                                    <strong className="font-mono text-rose-600 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.saidasOutras)}</strong>
+                                </div>
+                            )}
                             <div className="flex justify-between items-center font-bold text-slate-800 dark:text-slate-100 pt-1 border-t border-rose-200/40">
                                 <span>Total de saídas:</span>
                                 <strong className="font-mono text-rose-700 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.totalSaidas)}</strong>

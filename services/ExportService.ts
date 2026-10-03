@@ -566,9 +566,19 @@ export const ExportService = {
                             <span class="summary-value">${summary.count}</span>
                         </div>
                         <div class="summary-item">
-                            <span class="summary-label">Montante Total</span>
-                            <span class="summary-value" style="color: ${summary.total < 0 ? '#dc2626' : '#059669'};">${formatCurrency(summary.total, language)}</span>
+                            <span class="summary-label">Total Entradas</span>
+                            <span class="summary-value" style="color: #059669;">${formatCurrency(summary.totalEntradas !== undefined ? summary.totalEntradas : summary.total, language)}</span>
                         </div>
+                        ${summary.totalSaidas !== undefined && summary.totalSaidas > 0 ? `
+                        <div class="summary-item">
+                            <span class="summary-label">Total Saídas</span>
+                            <span class="summary-value" style="color: #dc2626;">${formatCurrency(summary.totalSaidas, language)}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Saldo Líquido</span>
+                            <span class="summary-value" style="color: ${(summary.saldo ?? 0) < 0 ? '#dc2626' : '#2563eb'}; font-weight: 900;">${formatCurrency(summary.saldo ?? (summary.totalEntradas - summary.totalSaidas), language)}</span>
+                        </div>
+                        ` : ''}
                     </div>
 
                     <table>
@@ -1275,24 +1285,26 @@ ${itemsOfx}
                     excelRows.push({
                         "Data": dateStr,
                         "Data do Banco": bankDateStr,
-                        "Descrição / Histórico": `${baseDesc} (RATEIO ${idx + 1}/${txSplits.length})`,
                         "Contribuinte / Favorecido": s.contributorName || payer,
-                        "Categoria": cat,
                         "Igreja": church,
-                        "Descrição": isSplitExpense ? 'Saída' : 'Entrada',
+                        "Descrição / Categoria": `${cat} (RATEIO ${idx + 1}/${txSplits.length})`,
+                        "Forma": s.paymentMethod || tx.paymentMethod || tx.forma || 'Pix',
+                        "Tipo": isSplitExpense ? 'Saída' : 'Entrada',
                         "Valor (R$)": isSplitExpense ? -splitAmt : splitAmt
                     });
                 });
             } else {
                 const amount = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
+                const cat = (tx.category || tx.categoria || tx.contributionType || tx.tipo || (isBaseExpense ? 'Despesa Geral' : 'Entrada')).toString().trim();
+                const forma = tx.paymentMethod || tx.forma || 'Pix';
                 excelRows.push({
                     "Data": dateStr,
                     "Data do Banco": bankDateStr,
-                    "Descrição / Histórico": baseDesc,
                     "Contribuinte / Favorecido": payer,
-                    "Categoria": tx.category || tx.categoria || 'Geral',
                     "Igreja": getChurchName(tx),
-                    "Descrição": isBaseExpense ? 'Saída' : 'Entrada',
+                    "Descrição / Categoria": cat,
+                    "Forma": forma,
+                    "Tipo": isBaseExpense ? 'Saída' : 'Entrada',
                     "Valor (R$)": isBaseExpense ? -amount : amount
                 });
             }
@@ -1611,20 +1623,19 @@ ${itemsOfx}
         doc.setTextColor(15, 23, 42);
         doc.text(`${transactions.length}`, 200, 38.5);
 
-        const headers = [["Data", "Descrição / Histórico", "Contribuinte / Favorecido", "Categoria", "Igreja", "Descrição", "Valor (R$)"]];
+        const headers = [["Data", "Contribuinte / Favorecido", "Igreja", "Descrição / Categoria", "Forma", "Valor (R$)"]];
         
         const rows = transactions.map(tx => {
-            const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
+            const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && (tx.category.toLowerCase().includes('saida') || tx.category.toLowerCase().includes('saída')));
             const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
-            const dateStr = tx.date || '---';
-            const desc = (tx.desc || tx.description || tx.historico || 'Lançamento').toUpperCase();
-            const payer = tx.payer || tx.contribuinte || tx.nome || '---';
-            const cat = tx.category || tx.categoria || 'Geral';
+            const dateStr = tx.date ? (tx.date.includes('T') ? tx.date.split('T')[0].split('-').reverse().join('/') : tx.date) : '---';
+            const payer = (tx.payer || tx.contribuinte || tx.nome || tx.title || '---').toUpperCase();
             const church = getChurchName(tx);
-            const typeStr = isExpense ? 'Saída' : 'Entrada';
+            const cat = (tx.category || tx.categoria || tx.contributionType || tx.tipo || (isExpense ? 'Despesa Geral' : 'Entrada')).toString().trim();
+            const forma = tx.paymentMethod || tx.forma || 'Pix';
             const formattedVal = `${isExpense ? '-' : '+'} R$ ${amt.toFixed(2)}`;
 
-            return [dateStr, desc, payer, cat, church, typeStr, formattedVal];
+            return [dateStr, payer, church, cat, forma, formattedVal];
         });
 
         autoTable(doc, {
@@ -1816,21 +1827,20 @@ ${itemsOfx}
                     docBadge = ' ' + badges.join(' ');
                 }
             }
-            const payer = tx.payer || tx.contribuinte || tx.nome || '---';
-            const cat = tx.category || tx.categoria || 'Geral';
+            const payer = tx.payer || tx.contribuinte || tx.nome || tx.title || '---';
+            const cat = (tx.category || tx.categoria || tx.contributionType || tx.tipo || (isExpense ? 'Despesa Geral' : 'Entrada')).toString().trim();
             const church = tx.church || churches.find(c => c.id === tx.churchId)?.name || churchName;
-            const typeStr = isExpense ? 'Saída' : 'Entrada';
+            const forma = tx.paymentMethod || tx.forma || 'Pix';
             const valColor = isExpense ? '#dc2626' : '#059669';
             const formattedVal = `${isExpense ? '-' : '+'} ${formatBRL(amt)}`;
 
             return `
                 <tr>
                     <td style="padding: 4px 6px; font-family: monospace; font-size: 9px; line-height: 1.25;">${displayDateHtml}</td>
-                    <td style="padding: 4px 6px; font-weight: 500; font-size: 9px; line-height: 1.25;">${desc}${docBadge}</td>
-                    <td style="padding: 4px 6px; font-size: 9px; line-height: 1.25;">${payer}</td>
-                    <td style="padding: 4px 6px; font-size: 9px; line-height: 1.25;">${cat}</td>
+                    <td style="padding: 4px 6px; font-size: 9px; line-height: 1.25;"><strong>${payer}</strong>${desc && desc !== 'LANÇAMENTO' && desc !== payer.toUpperCase() ? `<br/><span style="color: #64748b; font-size: 8px;">${desc}</span>` : ''}</td>
                     <td style="padding: 4px 6px; font-size: 9px; line-height: 1.25;">${church}</td>
-                    <td style="padding: 4px 6px; font-size: 9px; line-height: 1.25;">${typeStr}</td>
+                    <td style="padding: 4px 6px; font-size: 9px; line-height: 1.25;"><strong>${cat}</strong>${docBadge}</td>
+                    <td style="padding: 4px 6px; font-size: 9px; line-height: 1.25;">${forma}</td>
                     <td style="padding: 4px 6px; text-align: right; font-family: monospace; font-weight: bold; font-size: 9px; line-height: 1.25; color: ${valColor};">${formattedVal}</td>
                 </tr>
             `;
@@ -1915,11 +1925,10 @@ ${itemsOfx}
                         <thead>
                             <tr>
                                 <th>Data</th>
-                                <th>Descrição / Histórico</th>
                                 <th>Contribuinte / Favorecido</th>
-                                <th>Categoria</th>
                                 <th>Igreja</th>
-                                <th>Descrição</th>
+                                <th>Descrição / Categoria</th>
+                                <th>Forma</th>
                                 <th style="text-align: right;">Valor (R$)</th>
                             </tr>
                         </thead>
@@ -2098,20 +2107,20 @@ ${itemsOfx}
      */
     downloadLivroCaixaCsv: (transactions: any[], churches: any[], filename: string = 'livro_caixa.csv') => {
         const getChurchName = (item: any) => item.church || churches.find(c => c.id === item.churchId)?.name || 'Igreja Sede';
-        const headers = ["Data", "Descrição / Histórico", "Contribuinte / Favorecido", "Categoria", "Igreja", "Tipo", "Valor (R$)"];
+        const headers = ["Data", "Contribuinte / Favorecido", "Igreja", "Descrição / Categoria", "Forma", "Tipo", "Valor (R$)"];
 
         const csvRows = transactions.map(tx => {
-            const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
+            const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && (tx.category.toLowerCase().includes('saida') || tx.category.toLowerCase().includes('saída')));
             const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
             const dateStr = tx.date || '---';
-            const desc = (tx.desc || tx.description || tx.historico || 'Lançamento').replace(/;/g, ' ');
-            const payer = (tx.payer || tx.contribuinte || tx.nome || '---').replace(/;/g, ' ');
-            const cat = (tx.category || tx.categoria || 'Geral').replace(/;/g, ' ');
+            const payer = (tx.payer || tx.contribuinte || tx.nome || tx.title || '---').replace(/;/g, ' ');
             const church = String(getChurchName(tx)).replace(/;/g, ' ');
+            const cat = (tx.category || tx.categoria || tx.contributionType || tx.tipo || (isExpense ? 'Despesa Geral' : 'Entrada')).replace(/;/g, ' ');
+            const forma = (tx.paymentMethod || tx.forma || 'Pix').replace(/;/g, ' ');
             const typeStr = isExpense ? 'Saída' : 'Entrada';
             const valStr = (isExpense ? -amt : amt).toFixed(2).replace('.', ',');
 
-            return [`"${dateStr}"`, `"${desc}"`, `"${payer}"`, `"${cat}"`, `"${church}"`, `"${typeStr}"`, `"${valStr}"`].join(';');
+            return [`"${dateStr}"`, `"${payer}"`, `"${church}"`, `"${cat}"`, `"${forma}"`, `"${typeStr}"`, `"${valStr}"`].join(';');
         });
 
         const csvContent = ['\uFEFF' + headers.join(';'), ...csvRows].join('\n');

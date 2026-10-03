@@ -114,9 +114,9 @@ export const useReportsController = () => {
     }, []);
 
     const isExpenseTx = useCallback((r: MatchResult) => {
-        const amount = r.status === 'PENDENTE' ? r.contributorAmount : r.transaction?.amount;
-        const displayAmount = amount !== undefined ? amount : (r.transaction?.amount || 0);
-        const desc = (r.transaction?.description || r.transaction?.rawDescription || '').toLowerCase();
+        const rawAmount = r.transaction?.amount ?? r.contributorAmount ?? r.contributor?.amount ?? (r as any).amount ?? 0;
+        const displayAmount = Number(rawAmount) || 0;
+        const desc = (r.transaction?.description || r.transaction?.rawDescription || r.contributor?.name || '').toLowerCase();
         const cat = (r.contributionType || (r.transaction as any)?.contributionType || r.contributor?.contributionType || '').toLowerCase();
         const txType = (r.transaction?.type || '').toLowerCase();
 
@@ -286,7 +286,7 @@ export const useReportsController = () => {
                     const churchName = realChurch?.name || r.church?.name || 'Igreja';
                     
                     const isExp = isExpenseTx(r);
-                    const rawAmount = r.status === 'PENDENTE' ? r.contributorAmount : r.transaction?.amount;
+                    const rawAmount = r.transaction?.amount ?? r.contributorAmount ?? r.contributor?.amount ?? (r as any).amount ?? 0;
                     const amount = Math.abs(Number(rawAmount) || 0);
                     const effectiveAmount = isExp ? -amount : amount;
 
@@ -420,7 +420,7 @@ export const useReportsController = () => {
                 const realChurch = churchesMap.get(churchId) || item.church;
                 const churchName = realChurch?.name || item.church?.name || 'Igreja';
                 const isExp = isExpenseTx(item);
-                const rawAmount = item.status === 'PENDENTE' ? item.contributorAmount : item.transaction?.amount;
+                const rawAmount = item.transaction?.amount ?? item.contributorAmount ?? item.contributor?.amount ?? (item as any).amount ?? 0;
                 const amount = Math.abs(Number(rawAmount) || 0);
                 const effectiveAmount = isExp ? -amount : amount;
 
@@ -729,7 +729,21 @@ export const useReportsController = () => {
 
     const activeSummary = useMemo(() => {
         if (!Array.isArray(activeData) || activeData.length === 0) {
-            return { count: 0, total: 0, auto: 0, autoValue: 0, manual: 0, manualValue: 0, pending: 0, pendingValue: 0 };
+            return { 
+                count: 0, 
+                total: 0, 
+                totalEntradas: 0, 
+                countEntradas: 0, 
+                totalSaidas: 0, 
+                countSaidas: 0, 
+                saldo: 0, 
+                auto: 0, 
+                autoValue: 0, 
+                manual: 0, 
+                manualValue: 0, 
+                pending: 0, 
+                pendingValue: 0 
+            };
         }
 
         const parseNumeric = (val: any): number => {
@@ -762,8 +776,10 @@ export const useReportsController = () => {
                     : (cacheRef.current.churchList.length > 0 ? cacheRef.current.churchList[0].id : null)))
             : null;
 
-        let total = 0;
-        let count = 0;
+        let totalEntradas = 0;
+        let countEntradas = 0;
+        let totalSaidas = 0;
+        let countSaidas = 0;
         let auto = 0;
         let autoValue = 0;
         let manual = 0;
@@ -779,65 +795,75 @@ export const useReportsController = () => {
                     ? (r.transaction as any).splits
                     : null;
 
+            // Extrai o montante da transação com fallbacks seguros para manual, arquivo e SMS
+            const rawAmount = r.transaction?.amount ?? r.contributorAmount ?? r.contributor?.amount ?? (r as any).amount ?? 0;
+
             let amount = 0;
             if (isChurchesCat && targetChurchId && rSplits && rSplits.length > 0) {
                 const churchSplits = rSplits.filter((s: any) => s.churchId === targetChurchId || (!s.churchId && r.church?.id === targetChurchId));
                 if (churchSplits.length > 0) {
                     amount = churchSplits.reduce((acc: number, s: any) => acc + parseNumeric(s.amount), 0);
                 } else {
-                    amount = parseNumeric(r.status === 'PENDENTE' ? r.contributorAmount : r.transaction?.amount);
+                    amount = parseNumeric(rawAmount);
                 }
             } else {
-                const rawAmount = r.status === 'PENDENTE' ? r.contributorAmount : r.transaction?.amount;
                 amount = parseNumeric(rawAmount);
             }
 
-            const cat = (r.contributionType || (r.transaction as any)?.contributionType || r.contributor?.contributionType || '').toLowerCase();
-            const isRegisteredSaida = (contributionTypes || []).some((ct: any) => 
-                ct.type === 'saida' && ct.name && ct.name.toLowerCase() === cat
-            );
-            const isExp = amount < 0 || 
-                          r.transaction?.type?.toLowerCase() === 'expense' || 
-                          r.transaction?.type?.toLowerCase() === 'saida' || 
-                          cat.includes('saída') || 
-                          cat.includes('saida') || 
-                          cat.includes('despesa') ||
-                          isRegisteredSaida;
-            const finalAmt = isExp ? -Math.abs(amount) : amount;
-            const isIdentified = r.status === 'IDENTIFICADO';
-            const isPending = r.status === 'PENDENTE' || r.status === 'NÃO IDENTIFICADO';
+            const isExp = isExpenseTx(r) || amount < 0;
+            const absAmt = Math.abs(amount);
 
-            if (isChurchesCat) {
-                if (isIdentified) {
-                    total += finalAmt;
-                    count++;
-                }
+            if (isExp) {
+                totalSaidas += absAmt;
+                countSaidas++;
             } else {
-                total += finalAmt;
-                count++;
+                totalEntradas += absAmt;
+                countEntradas++;
             }
 
-            if (isIdentified) {
-                if (r.matchMethod === 'AUTOMATIC' || r.matchMethod === 'LEARNED' || !r.matchMethod || r.matchMethod === 'TEMPLATE') {
-                    auto++;
-                    autoValue += finalAmt;
-                } else if (r.matchMethod === 'MANUAL' || r.matchMethod === 'AI') {
-                    manual++;
-                    manualValue += finalAmt;
-                }
-            } else if (isPending) {
+            const isIdentified = r.status === ReconciliationStatus.IDENTIFIED || 
+                                 (r.status as string) === 'IDENTIFICADO' || 
+                                 (r.status as string) === 'identified' || 
+                                 r.status === ReconciliationStatus.RESOLVED || 
+                                 (r.status as string) === 'RESOLVIDO';
+
+            const isManualSource = !!r.transaction?.isManual || 
+                                   r.transaction?.source === 'manual' || 
+                                   r.matchMethod === 'MANUAL' || 
+                                   r.matchMethod === 'AI' ||
+                                   (typeof r.transaction?.id === 'string' && (r.transaction.id.startsWith('ghost-manual-') || r.transaction.id.startsWith('manual-')));
+
+            if (isManualSource) {
+                manual++;
+                manualValue += absAmt;
+            } else if (isIdentified) {
+                auto++;
+                autoValue += absAmt;
+            } else {
                 pending++;
-                pendingValue += finalAmt;
+                pendingValue += absAmt;
             }
         }
 
+        const saldo = totalEntradas - totalSaidas;
+        const total = activeCategory === 'expenses' ? totalSaidas : totalEntradas;
+
         return { 
-            count, total, 
-            auto, autoValue,
-            manual, manualValue,
-            pending, pendingValue
+            count: activeData.length,
+            total, 
+            totalEntradas,
+            countEntradas,
+            totalSaidas,
+            countSaidas,
+            saldo,
+            auto, 
+            autoValue,
+            manual, 
+            manualValue,
+            pending, 
+            pendingValue
         };
-    }, [activeData, activeCategory]);
+    }, [activeData, activeCategory, isExpenseTx]);
 
     const handleDownload = () => ExportService.downloadCsv(sortedData, `relatorio_${new Date().toISOString().slice(0,10)}.csv`);
 
