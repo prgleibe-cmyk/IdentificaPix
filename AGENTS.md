@@ -37,31 +37,81 @@ The architecture of IdentificaPix is currently **STABILIZED and FROZEN**. It uti
 
 ---
 
-# PROTOCOLO DE AJUSTES CIRÚRGICOS E BLINDAGEM DEFINITIVA (IGGESTOR)
+# PROTOCOLO DE AJUSTES CIRÚRGICOS E REGRA PERMANENTE DE DESENVOLVIMENTO — I G G E S T O R
 
-Este protocolo é permanente, prioritário e obrigatório para toda e qualquer intervenção no sistema.
+Esta regra é **OBRIGATÓRIA E PERMANENTE** para toda e qualquer alteração no IgGestor.
 
-## 1. Princípio Fundamental: Uma Alteração por Vez
-- Tratar cada solicitação como uma intervenção individual, isolada e cirúrgica.
-- **UM PROBLEMA → UM DIAGNÓSTICO → UMA INTERVENÇÃO → UMA VALIDAÇÃO → UM RESULTADO**
-- Proibido agrupar ajustes, refatorar por conveniência, ou alterar código vizinho sem necessidade direta.
+### 1. PRINCÍPIO: UMA ALTERAÇÃO POR VEZ
+* Execute somente o ajuste solicitado.
+* Não aproveite a tarefa para refatorar, reorganizar, modernizar, limpar ou alterar outros códigos.
+* Não altere arquivos que não sejam indispensáveis para o ajuste.
+* Não crie lógica paralela, duplicada, provisória ou alternativa.
+* Quanto menor a alteração necessária, melhor.
 
-## 2. Princípio da Cirurgia Mínima
-- Alterar somente o mínimo necessário para produzir exatamente o resultado solicitado.
-- Diagnosticar o comportamento atual, desejado, causa-raiz exata e o menor ponto possível de intervenção antes de tocar no código.
+### 2. PROTEÇÃO ABSOLUTA DO QUE JÁ FUNCIONA
+Antes de alterar qualquer código, identifique quais funcionalidades existentes dependem daquele trecho.
+**Tudo que já funciona deve ser considerado PROTEGIDO.**
+Um novo ajuste **NÃO pode modificar, degradar ou substituir** comportamentos anteriormente corrigidos, mesmo que estejam em arquivos relacionados.
+Correção nova ≠ autorização para modificar correções antigas.
 
-## 3. Proibição de Efeitos Colaterais & Preservação da Estrutura
-- Tudo o que já está funcionando corretamente deve permanecer intocado.
-- Preservar integralmente: arquitetura, autenticação, autorização, segurança, contratos, banco de dados, APIs, serviços, hooks, filas, monitoramento e integridade do frontend/backend.
+### 3. ALTERAÇÃO CIRÚRGICA
+Sempre escolher a solução de **menor impacto possível**:
+* menor número de arquivos;
+* menor número de linhas;
+* menor alteração de lógica;
+* menor superfície de risco.
+Se for possível corrigir em 1 arquivo, não alterar 2.
+Se for possível corrigir em 5 linhas, não reescrever o arquivo inteiro.
 
-## 4. Proibição de "Melhorias Aproveitadas"
-- Proibido usar solicitações para modernizar, limpar ou refatorar código fora do escopo estrito solicitado.
+### 4. NÃO FAZER EFEITO DOMINÓ
+É PROIBIDO alterar outros comportamentos apenas porque estão próximos, relacionados ou podem ser "melhorados".
+Não modificar funcionalidades já resolvidas para acomodar uma nova correção sem autorização explícita.
+Se a solução exigir impacto maior que o estritamente necessário, **PARE e apresente o diagnóstico antes de alterar.**
 
-## 5. Validação Obrigatória
-- Confirmar que o comportamento solicitado foi atendido sem erros de compilação, tipagem ou regressão em fluxos existentes.
+### 5. DIAGNÓSTICO ANTES DO CÓDIGO
+Antes de editar:
+1. localizar a causa exata;
+2. identificar o arquivo/trecho responsável;
+3. confirmar que a alteração proposta resolve o problema;
+4. verificar o que precisa permanecer intacto.
+**Não alterar código por hipótese.**
+Se a causa não estiver comprovada, não inventar correção. Informar a evidência encontrada.
 
-## 6. Blindagem Definitiva
-- Uma funcionalidade validada e concluída é consolidada e blindada contra alterações futuras sem autorização explícita do usuário.
+### 6. PRESERVAÇÃO PERMANENTE
+Toda correção concluída deve ser tratada como **REGRA PROTEGIDA**.
+Alterações futuras devem preservar essas correções automaticamente.
+Uma nova tarefa não revoga uma correção anterior.
+Somente alterar uma funcionalidade já protegida se o usuário autorizar **explicitamente** essa alteração.
+
+### 7. ECONOMIA DE TOKENS
+Trabalhar de forma objetiva e cirúrgica:
+* pesquisar somente o necessário;
+* analisar somente os arquivos/trechos envolvidos;
+* evitar auditorias amplas sem necessidade;
+* evitar reescrever arquivos inteiros;
+* não gerar explicações extensas quando uma confirmação objetiva for suficiente.
+
+### 8. TESTE E GATE
+Após a alteração:
+* verificar a funcionalidade corrigida;
+* verificar que as funcionalidades diretamente protegidas não foram afetadas;
+* informar exatamente quais arquivos foram alterados;
+* informar resumidamente o que foi alterado;
+* informar se houve algum impacto adicional.
+
+Classificar o resultado como:
+* **APROVADO** — correção concluída sem regressão identificada.
+* **APROVADO COM RESSALVAS** — correção concluída, mas existe alguma limitação ou risco identificado.
+* **NÃO APROVADO** — não realizar deploy/considerar concluído se houver regressão ou causa não comprovada.
+
+### REGRA FINAL
+**O IgGestor deve evoluir por alterações pequenas, isoladas, comprovadas e permanentes — nunca por efeito dominó.**
+Se uma alteração puder ser feita de duas formas, escolher a que **mexe menos no sistema e preserva mais código existente**.
+
+* **NÃO EXPANDA O ESCOPO DA TAREFA.**
+* **NÃO REABRA PROBLEMAS JÁ RESOLVIDOS.**
+* **NÃO ALTERE FUNCIONALIDADES PROTEGIDAS SEM AUTORIZAÇÃO EXPLÍCITA.**
+* **UMA SOLICITAÇÃO = UMA ALTERAÇÃO CIRÚRGICA.**
 
 ---
 

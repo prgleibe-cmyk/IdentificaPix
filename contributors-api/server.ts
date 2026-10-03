@@ -671,6 +671,38 @@ class LocalSqliteEngine {
           AND (name IS NULL OR trim(name) = '');
       `);
     } catch (_) {}
+
+    // 🛡️ Sincronização e Resgate de Dados entre Bancos Locais:
+    try {
+      const subDbPath = path.resolve(process.cwd(), 'contributors-api', 'data', 'contributors_local.sqlite');
+      const canonicalPath = path.resolve(process.cwd(), 'data', 'contributors_local.sqlite');
+      if (fs.existsSync(subDbPath) && subDbPath !== canonicalPath) {
+        const { DatabaseSync: SubDbSync } = requireFallback('node:sqlite');
+        const subDb = new SubDbSync(subDbPath);
+        const subTxs = subDb.prepare('SELECT * FROM consolidated_transactions').all();
+        if (subTxs && subTxs.length > 0) {
+          for (const tx of subTxs) {
+            const exists = this.db.prepare('SELECT id FROM consolidated_transactions WHERE id = ?').get(tx.id);
+            if (!exists) {
+              const cols = Object.keys(tx);
+              const placeholders = cols.map(() => '?').join(', ');
+              this.db.prepare(`INSERT INTO consolidated_transactions (${cols.join(', ')}) VALUES (${placeholders})`).run(...Object.values(tx));
+            }
+          }
+        }
+        const subReports = subDb.prepare('SELECT * FROM saved_reports').all();
+        if (subReports && subReports.length > 0) {
+          for (const rep of subReports) {
+            const exists = this.db.prepare('SELECT id FROM saved_reports WHERE id = ?').get(rep.id);
+            if (!exists) {
+              const cols = Object.keys(rep);
+              const placeholders = cols.map(() => '?').join(', ');
+              this.db.prepare(`INSERT INTO saved_reports (${cols.join(', ')}) VALUES (${placeholders})`).run(...Object.values(rep));
+            }
+          }
+        }
+      }
+    } catch (_) {}
   }
 
   public query(sql: string, params: any[] = []): { rows: any[]; rowCount: number; command: string; oid: number; fields: any[] } {

@@ -288,20 +288,18 @@ export const useCloudSync = ({
                     });
                 }
 
-                if (!activeReportId && (!txs || txs.length === 0)) {
-                    setMatchResults([] as any);
-                    setHasActiveSession(false);
-                    const liveReport = (savedReports || []).find((r: any) => r.name === '[SESSÃO_ATIVA]');
-                    if (liveReport && overwriteSavedReport) {
-                        overwriteSavedReport(liveReport.id, []);
+                if ((!txs || txs.length === 0) && reportsMap.size === 0) {
+                    setMatchResults(prev => {
+                        const localManuals = (prev || []).filter(r => (r as any).isManual || r.transaction?.isManual || r.transaction?.source === 'manual');
+                        if (localManuals.length > 0) {
+                            console.log('[CloudSync:PROTECT] Preservando lançamentos locais existentes:', localManuals.length);
+                            return localManuals;
+                        }
+                        return [];
+                    });
+                    if (!activeReportId) {
+                        setHasActiveSession(false);
                     }
-                    isHydratingFromCloud.current = false;
-                    setIsHydrating(false);
-                    if (setIsLoading) setIsLoading(false);
-                    return;
-                }
-
-                if (activeReportId && (!txs || txs.length === 0) && reportsMap.size === 0) {
                     isHydratingFromCloud.current = false;
                     setIsHydrating(false);
                     if (setIsLoading) setIsLoading(false);

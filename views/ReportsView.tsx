@@ -321,6 +321,19 @@ export const ReportsView: React.FC = () => {
                                             <option key={y} value={y}>{y}</option>
                                         ))}
                                     </select>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const now = new Date();
+                                            const prevM = now.getMonth() === 0 ? 12 : now.getMonth();
+                                            const prevY = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+                                            handleMonthYearSelect(prevM, prevY);
+                                        }}
+                                        className="px-2.5 py-1 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 rounded-xl text-xs font-bold hover:bg-amber-100 transition-colors cursor-pointer shrink-0"
+                                        title="Ver lançamentos do mês anterior"
+                                    >
+                                        Mês Anterior
+                                    </button>
                                 </div>
                             ) : (
                                 <div className="flex items-center gap-1">

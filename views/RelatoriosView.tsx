@@ -1132,6 +1132,31 @@ export const RelatoriosView: React.FC = memo(() => {
 
                         <button
                             type="button"
+                            onClick={() => setDateRange('last-month')}
+                            className={`px-4 py-2.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 cursor-pointer ${
+                                dateRange === 'last-month'
+                                    ? 'bg-orange-500 text-white border-orange-500 shadow-xs'
+                                    : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                            }`}
+                        >
+                            <Calendar className="w-4 h-4" />
+                            <span>Mês Anterior</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setDateRange('all')}
+                            className={`px-4 py-2.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 cursor-pointer ${
+                                dateRange === 'all'
+                                    ? 'bg-orange-500 text-white border-orange-500 shadow-xs'
+                                    : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                            }`}
+                        >
+                            <span>Todos os Lançamentos</span>
+                        </button>
+
+                        <button
+                            type="button"
                             onClick={() => setDateRange('custom')}
                             className={`px-4 py-2.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 cursor-pointer ${
                                 dateRange === 'custom'

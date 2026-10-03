@@ -52,7 +52,7 @@ export const LivroCaixaView: React.FC = memo(() => {
     const now = useMemo(() => new Date(), []);
     // Filters
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectionMode, setSelectionMode] = useState<'month' | 'dates'>('month');
+    const [selectionMode, setSelectionMode] = useState<'month' | 'dates' | 'all'>('month');
     const [selectedMonth, setSelectedMonth] = useState<number>(now.getMonth() + 1);
     const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
     const [customStartDate, setCustomStartDate] = useState<string>('');
@@ -219,6 +219,29 @@ export const LivroCaixaView: React.FC = memo(() => {
 
         return { totalExpenses, withAttachments, pendingAttachments };
     }, [reportData, attachmentsMap]);
+
+    const previousMonthStats = useMemo(() => {
+        const curM = selectedMonth;
+        const curY = selectedYear;
+        const prevM = curM === 1 ? 12 : curM - 1;
+        const prevY = curM === 1 ? curY - 1 : curY;
+        let prevMonthCount = 0;
+        let totalCount = reportData.length;
+
+        reportData.forEach((item: any) => {
+            if (item.date) {
+                const itemDateIso = item.date.includes('T') ? item.date.split('T')[0] : item.date;
+                const parts = itemDateIso.split('-');
+                if (parts.length === 3) {
+                    if (Number(parts[0]) === prevY && Number(parts[1]) === prevM) {
+                        prevMonthCount++;
+                    }
+                }
+            }
+        });
+
+        return { prevM, prevY, prevMonthCount, totalCount };
+    }, [reportData, selectedMonth, selectedYear]);
     const isHydratingFromCloud = typeof context?.isHydrating === 'boolean'
         ? context.isHydrating
         : Boolean(context?.isHydratingFromCloud?.current || context?.isHydrating?.current);
@@ -434,7 +457,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                 if (!matchesAny) return false;
             }
 
-            if (item.date) {
+            if (item.date && selectionMode !== 'all') {
                 const itemDateIso = item.date.includes('T') ? item.date.split('T')[0] : item.date;
                 if (selectionMode === 'month') {
                     const parts = itemDateIso.split('-');
@@ -1068,7 +1091,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                                 />
                             </div>
 
-                            {/* Toggle MÊS | PERÍODO */}
+                            {/* Toggle MÊS | PERÍODO | TODOS */}
                             <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200/80 dark:border-slate-700 shadow-2xs shrink-0">
                                 <button
                                     type="button"
@@ -1091,6 +1114,18 @@ export const LivroCaixaView: React.FC = memo(() => {
                                     }`}
                                 >
                                     Período
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectionMode('all')}
+                                    className={`px-3 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                        selectionMode === 'all'
+                                            ? 'bg-orange-500 text-white shadow-xs'
+                                            : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                                    }`}
+                                    title="Exibir todos os lançamentos sem filtro de data"
+                                >
+                                    Todos
                                 </button>
                             </div>
 
@@ -1122,8 +1157,28 @@ export const LivroCaixaView: React.FC = memo(() => {
                                         </select>
                                         <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
                                     </div>
+
+                                    {/* Botão rápido: Mês Anterior */}
+                                    <button
+                                        type="button"
+                                        onClick={() => handleMonthYearSelect(previousMonthStats.prevM, previousMonthStats.prevY)}
+                                        className={`px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border cursor-pointer flex items-center gap-1 ${
+                                            selectedMonth === previousMonthStats.prevM && selectedYear === previousMonthStats.prevY
+                                                ? 'bg-amber-500/10 border-amber-500/40 text-amber-600 dark:text-amber-400'
+                                                : 'bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 shadow-2xs'
+                                        }`}
+                                        title={`Ver lançamentos de ${monthsList.find(m => m.val === previousMonthStats.prevM)?.name}/${previousMonthStats.prevY}`}
+                                    >
+                                        <Calendar className="w-3 h-3 text-amber-500" />
+                                        <span>Mês Anterior</span>
+                                        {previousMonthStats.prevMonthCount > 0 && (
+                                            <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-amber-500 text-white text-[9px] font-mono">
+                                                {previousMonthStats.prevMonthCount}
+                                            </span>
+                                        )}
+                                    </button>
                                 </div>
-                            ) : (
+                            ) : selectionMode === 'dates' ? (
                                 <div className="flex items-center gap-1.5 shrink-0">
                                     <input
                                         type="date"
@@ -1139,7 +1194,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                                         className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-semibold text-slate-800 dark:text-white px-2.5 py-1.5 rounded-xl text-xs focus:outline-none focus:border-orange-500 shadow-2xs"
                                     />
                                 </div>
-                            )}
+                            ) : null}
 
                             {/* Filtro Igrejas */}
                             <div className="relative" ref={churchDropdownRef}>
@@ -1441,8 +1496,40 @@ export const LivroCaixaView: React.FC = memo(() => {
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                                 {paginatedReportData.length === 0 ? (
                                     <tr>
-                                        <td colSpan={7} className="text-center py-12 text-slate-400 italic">
-                                            Nenhum lançamento encontrado no Livro Caixa para os filtros selecionados.
+                                        <td colSpan={7} className="text-center py-12">
+                                            <div className="flex flex-col items-center justify-center gap-3 max-w-lg mx-auto px-4">
+                                                <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl text-slate-400">
+                                                    <Calendar className="w-6 h-6 text-orange-500" />
+                                                </div>
+                                                <p className="text-slate-600 dark:text-slate-300 font-bold text-sm">
+                                                    Nenhum lançamento encontrado em {selectionMode === 'month' ? `${monthsList.find(m => m.val === selectedMonth)?.name}/${selectedYear}` : 'este período'}.
+                                                </p>
+                                                {previousMonthStats.prevMonthCount > 0 && selectionMode === 'month' && (
+                                                    <div className="w-full bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 p-3.5 rounded-2xl text-amber-800 dark:text-amber-200 text-xs flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs">
+                                                        <div className="flex items-center gap-2 text-left">
+                                                            <Calendar className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                                                            <span>Existem <strong>{previousMonthStats.prevMonthCount} lançamentos</strong> no mês anterior ({monthsList.find(m => m.val === previousMonthStats.prevM)?.name}/{previousMonthStats.prevY}).</span>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleMonthYearSelect(previousMonthStats.prevM, previousMonthStats.prevY)}
+                                                            className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-black uppercase text-[10px] tracking-wider rounded-xl transition-all cursor-pointer shrink-0 shadow-xs active:scale-95"
+                                                        >
+                                                            Ver Mês Anterior
+                                                        </button>
+                                                    </div>
+                                                )}
+                                                {previousMonthStats.totalCount > 0 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSelectionMode('all')}
+                                                        className="text-xs font-bold text-orange-600 dark:text-orange-400 hover:underline cursor-pointer flex items-center gap-1"
+                                                    >
+                                                        <span>Exibir todos os {previousMonthStats.totalCount} lançamentos sem filtro de data</span>
+                                                        <span>→</span>
+                                                    </button>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ) : (
