@@ -26,12 +26,28 @@ const UIContext = createContext<UIContextType>(null!);
 
 export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [theme, setTheme] = usePersistentState<Theme>('identificapix-theme', 'light');
-    const [activeView, setActiveView] = useState<ViewType>('dashboard');
+    const [activeView, setActiveViewState] = useState<ViewType>('dashboard');
     const [isLoading, setIsLoadingState] = useState<boolean>(false);
     const [parsingProgress, setParsingProgress] = useState<ParsingProgress | null>(null);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     
     const loadingTimeoutRef = useRef<any>(null);
+
+    // 🛡️ CORREÇÃO CIRÚRGICA GARGALO 4 (Navegação entre Abas):
+    // Transição concorrente e não-bloqueante via React.startTransition ao alternar abas,
+    // liberando a thread principal e eliminando congelamentos de tela e atrasos táteis,
+    // com resete instantâneo do container de rolagem para o topo.
+    const setActiveView = useCallback((viewOrUpdater: React.SetStateAction<ViewType>) => {
+        React.startTransition(() => {
+            setActiveViewState(viewOrUpdater);
+        });
+        if (typeof window !== 'undefined') {
+            const container = document.getElementById('main-scroll-container');
+            if (container) {
+                container.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
+            }
+        }
+    }, []);
 
     useEffect(() => {
         if (theme === 'dark') {

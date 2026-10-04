@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { MatchResult, Church, ReconciliationStatus, MatchMethod, Contributor } from '../types';
 import { groupResultsByChurch } from '../services/processingService';
 import { consolidationService } from '../services/ConsolidationService';
@@ -337,21 +337,18 @@ export const useReconciliationActions = ({
 
         // Substitui o ghost-manual pelo MatchResult com ID real no estado da UI, preservando todos os itens existentes
         batchState.isAtomicUpdate = true;
+        let finalManualList: MatchResult[] = [];
         reconciliation.setMatchResults((prev: MatchResult[]) => {
           const withoutGhostsAndReal = prev.filter(r => !txIds.includes(r.transaction.id) && r.transaction.id !== realId);
-          const final = [...withoutGhostsAndReal, updatedMatchResult];
-          if (onAfterAction) onAfterAction(final);
-          return final;
+          finalManualList = [...withoutGhostsAndReal, updatedMatchResult];
+          return finalManualList;
         });
 
-        // Mantém [SESSÃO_ATIVA] sincronizada com a lista completa combinada
-        if (reportManager?.savedReports && reportManager?.overwriteSavedReport) {
-          const liveReport = reportManager.savedReports.find((r: any) => r.name === '[SESSÃO_ATIVA]');
-          if (liveReport) {
-            const currentList = reconciliation.matchResults || [];
-            const withoutGhostsAndReal = currentList.filter((r: MatchResult) => !txIds.includes(r.transaction.id) && r.transaction.id !== realId);
-            reportManager.overwriteSavedReport(liveReport.id, [...withoutGhostsAndReal, updatedMatchResult]);
-          }
+        // 🛡️ CORREÇÃO CIRÚRGICA DE DUPLO SALVAMENTO:
+        // A persistência unificada (onAfterAction -> persistActiveReport) já sincroniza o relatório ativo ou a nuvem.
+        // O bloco redundante que chamava reportManager.overwriteSavedReport diretamente uma segunda vez foi eliminado.
+        if (onAfterAction && finalManualList.length > 0) {
+          onAfterAction(finalManualList);
         }
 
         affectedCount = 1;
@@ -459,6 +456,7 @@ export const useReconciliationActions = ({
 
       // 2. Atualização Atômica de Estado (Padrão idêntico ao toggleConfirmation com consistência total)
       batchState.isAtomicUpdate = true;
+      let finalIdentifiedResults: MatchResult[] = [];
       reconciliation.setMatchResults((prev: MatchResult[]) => {
         const finalResults = prev.map(r => {
           if (!txIds.includes(r.transaction.id) || r.isConfirmed) return r;
@@ -566,9 +564,14 @@ export const useReconciliationActions = ({
           return updated;
         });
 
-        if (onAfterAction) onAfterAction(finalResults);
+        finalIdentifiedResults = finalResults;
         return finalResults;
       });
+
+      // 🛡️ PERSISTÊNCIA ÚNICA: Disparo fora do reducer de estado para garantir execução única e sem efeitos colaterais impuros
+      if (onAfterAction && finalIdentifiedResults.length > 0) {
+        onAfterAction(finalIdentifiedResults);
+      }
 
     } finally {
       batchState.isBatchUpdating = false;
@@ -734,9 +737,9 @@ export const useReconciliationActions = ({
   }, [reconciliation, showToast, onAfterAction]);
 
 
-  return {
+  return useMemo(() => ({
     confirmBulkManualIdentification,
     undoIdentification,
     toggleConfirmation
-  };
+  }), [confirmBulkManualIdentification, undoIdentification, toggleConfirmation]);
 };

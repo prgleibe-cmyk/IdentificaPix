@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../contexts/I18nContext';
-import { X, ArrowRight, Building2, Calendar, DollarSign, ArrowUpRight, ArrowDownRight, Check, MessageCircle, PenTool, ShieldCheck, Lock, ArrowLeft } from 'lucide-react';
+import { X, ArrowRight, Building2, Calendar, DollarSign, ArrowUpRight, ArrowDownRight, Check, MessageCircle, PenTool, ShieldCheck, Lock, ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
 import { MatchResult, Church, ReconciliationStatus } from '../../types';
 import { DigitalSignature, MonthClosingRecord } from '../../types/domain';
@@ -15,6 +15,24 @@ const formatDateBRL = (dateStr: string) => {
     if (parts.length !== 3) return dateStr;
     return `${parts[2]}/${parts[1]}/${parts[0]}`;
 };
+
+const formatAmountBRL = (val: number) => {
+    return Math.abs(val).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+const parseAmount = (val: string | number): number => {
+    if (typeof val === 'number') return isNaN(val) ? 0 : val;
+    if (!val) return 0;
+    const clean = String(val).replace(/\./g, '').replace(',', '.').replace(/[^0-9.-]/g, '');
+    const num = parseFloat(clean);
+    return isNaN(num) ? 0 : num;
+};
+
+interface DestinationAllocation {
+    id: string;
+    churchId: string;
+    amount: string;
+}
 
 interface ChurchClosingModalProps {
     isOpen: boolean;
@@ -66,15 +84,8 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
 
     const [originChurchId, setOriginChurchId] = useState<string>('');
     const [originBankId, setOriginBankId] = useState<string>(currentBankId || 'all');
-    const [destChurchId, setDestChurchId] = useState<string>('');
+    const [destinations, setDestinations] = useState<DestinationAllocation[]>([]);
     const [isAmountManuallyEdited, setIsAmountManuallyEdited] = useState<boolean>(false);
-    const [transferAmount, setTransferAmount] = useState<string>(() => {
-        if (finalBalance !== undefined) {
-            const abs = Math.abs(finalBalance);
-            return abs > 0 ? abs.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00';
-        }
-        return '';
-    });
     const [closingDate, setClosingDate] = useState<string>(() => initialClosingDate || new Date().toISOString().split('T')[0]);
     const [customMemo, setCustomMemo] = useState<string>('');
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -88,65 +99,9 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
     const [activeTab, setActiveTab] = useState<'transfer' | 'signatures'>('transfer');
     const [calculatedHash, setCalculatedHash] = useState<string>('');
 
-    // Helpers de chave de persistência por Igreja e Conta Bancária
-    const getBankKey = (bId?: string | null) => (!bId || bId === 'all') ? 'all' : bId;
-    const getStorageKey = (cId: string, bId?: string | null) => `iggestor_cg_${cId}_${getBankKey(bId)}`;
-
-    // Identifica o ID efetivo do Caixa Geral para a igreja e conta bancária atuais
-    const effectiveGeneralCashId = useMemo(() => {
-        if (!originChurchId) return '';
-        try {
-            // 1. Definição específica para esta Igreja + Conta Bancária
-            const specific = localStorage.getItem(getStorageKey(originChurchId, originBankId));
-            if (specific && churches?.some((c: any) => c.id === specific && c.id !== originChurchId)) {
-                return specific;
-            }
-
-            // 2. Definição geral para esta Igreja (todas as contas)
-            const churchOnly = localStorage.getItem(getStorageKey(originChurchId, 'all'));
-            if (churchOnly && churches?.some((c: any) => c.id === churchOnly && c.id !== originChurchId)) {
-                return churchOnly;
-            }
-
-            // 3. Definição global anterior do Caixa Geral
-            const globalSaved = localStorage.getItem('iggestor_general_cash_church_id');
-            if (globalSaved && churches?.some((c: any) => c.id === globalSaved && c.id !== originChurchId)) {
-                return globalSaved;
-            }
-        } catch (e) {}
-
-        const markedChurch = churches?.find((c: any) => c.is_general_cash && c.id !== originChurchId);
-        if (markedChurch) return markedChurch.id;
-
-        const namedChurch = churches?.find((c: any) => c.name?.toLowerCase().includes('caixa geral') && c.id !== originChurchId);
-        if (namedChurch) return namedChurch.id;
-
-        return '';
-    }, [originChurchId, originBankId, churches]);
-
-    // Define e ativa o Caixa Geral Oficial para a Igreja e Conta Bancária ativas
-    const handleSetAsGeneralCash = (targetId: string) => {
-        if (!targetId || !originChurchId) return;
-        try {
-            // Salva na chave específica da congregação e conta bancária
-            localStorage.setItem(getStorageKey(originChurchId, originBankId), targetId);
-            // Salva também como padrão geral desta congregação
-            localStorage.setItem(getStorageKey(originChurchId, 'all'), targetId);
-            // Mantém como fallback global
-            localStorage.setItem('iggestor_general_cash_church_id', targetId);
-        } catch (e) {}
-
-        setDestChurchId(targetId);
-        const targetName = churches?.find((c: any) => c.id === targetId)?.name || 'Caixa Geral';
-        const originName = churches?.find((c: any) => c.id === originChurchId)?.name || 'Igreja';
-        const bankName = originBankId && originBankId !== 'all' 
-            ? (banks?.find((b: any) => b.id === originBankId)?.name || 'Conta Selecionada') 
-            : 'Todas as Contas';
-        setSuccessMessage(`"${targetName}" definido como Caixa Geral Oficial para "${originName}" (${bankName}).`);
-        setTimeout(() => setSuccessMessage(null), 4000);
-    };
-
-    const isOriginGeneralCash = !!(originChurchId && effectiveGeneralCashId && originChurchId === effectiveGeneralCashId);
+    // Helper de chave de histórico inteligente de destino por Igreja e Conta Bancária
+    const getHistoryKey = (cId: string, bId?: string | null) => 
+        `iggestor_closing_dest_${cId}_${(!bId || bId === 'all') ? 'all' : bId}`;
 
     // List of active churches from the report data (churches with active transactions)
     const activeChurches = useMemo(() => {
@@ -318,52 +273,150 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
         return () => { isMounted = false; };
     }, [originChurchId, closingMonth, closingYear, effectiveIncome, effectiveExpenses, effectiveBalance, closingDate]);
 
-    // 🛡️ Preenche automaticamente com o saldo do Livro Caixa (respeitando se o usuário editou manualmente)
-    useEffect(() => {
-        if (!isAmountManuallyEdited && effectiveBalance !== undefined) {
-            const absVal = Math.abs(effectiveBalance || 0);
-            if (absVal > 0) {
-                setTransferAmount(absVal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-            } else {
-                setTransferAmount('0,00');
-            }
-        }
-    }, [effectiveBalance, isAmountManuallyEdited]);
-
     // Filter destination churches: list of all registered churches except origin
     const destinationChurches = useMemo(() => {
         return (churches || []).filter(c => c.id !== originChurchId);
     }, [churches, originChurchId]);
 
-    // Selecionar o caixa de destino padrão (prioriza o Caixa Geral oficial da Igreja/Conta)
+    // Saldo absoluto a ser transportado
+    const targetTotal = useMemo(() => Math.abs(effectiveBalance || 0), [effectiveBalance]);
+
+    // Carregamento do histórico inteligente de destino(s) por Igreja + Conta
     useEffect(() => {
-        if (destinationChurches.length > 0) {
-            setDestChurchId(prev => {
-                if (effectiveGeneralCashId && destinationChurches.some(c => c.id === effectiveGeneralCashId)) {
-                    return effectiveGeneralCashId;
-                }
-                if (prev && destinationChurches.some(c => c.id === prev)) {
-                    return prev;
-                }
-                const namedGeneral = destinationChurches.find(c => c.name.toLowerCase().includes('caixa geral'));
-                if (namedGeneral) return namedGeneral.id;
+        if (!originChurchId || !isOpen) return;
 
-                const matrix = destinationChurches.find(c => c.name.toLowerCase().includes('matriz') || c.name.toLowerCase().includes('sede'));
-                return matrix ? matrix.id : destinationChurches[0].id;
+        try {
+            const raw = localStorage.getItem(getHistoryKey(originChurchId, originBankId));
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    // Filtra destinos que continuam existindo e não são a própria congregação de origem
+                    const valid = parsed.filter((p: any) => p.churchId && destinationChurches.some(c => c.id === p.churchId));
+                    if (valid.length > 0) {
+                        if (valid.length === 1) {
+                            setDestinations([
+                                {
+                                    id: `dest-${Date.now()}-0`,
+                                    churchId: valid[0].churchId,
+                                    amount: targetTotal > 0 ? formatAmountBRL(targetTotal) : '0,00'
+                                }
+                            ]);
+                            setIsAmountManuallyEdited(false);
+                            return;
+                        } else {
+                            let allocatedSum = 0;
+                            const items: DestinationAllocation[] = valid.map((v: any, idx: number) => {
+                                let amt = 0;
+                                if (idx === valid.length - 1) {
+                                    amt = Math.max(0, Math.round((targetTotal - allocatedSum) * 100) / 100);
+                                } else {
+                                    const ratio = typeof v.ratio === 'number' && v.ratio > 0 ? v.ratio : (1 / valid.length);
+                                    amt = Math.round(targetTotal * ratio * 100) / 100;
+                                    allocatedSum += amt;
+                                }
+                                return {
+                                    id: `dest-${Date.now()}-${idx}`,
+                                    churchId: v.churchId,
+                                    amount: formatAmountBRL(amt)
+                                };
+                            });
+                            setDestinations(items);
+                            setIsAmountManuallyEdited(false);
+                            return;
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('[ChurchClosingModal] Erro ao carregar histórico de destino:', e);
+        }
+
+        // Se não existir histórico, não sugerir nenhum destino artificialmente.
+        setDestinations([
+            {
+                id: `dest-${Date.now()}-0`,
+                churchId: '',
+                amount: targetTotal > 0 ? formatAmountBRL(targetTotal) : '0,00'
+            }
+        ]);
+        setIsAmountManuallyEdited(false);
+    }, [originChurchId, originBankId, isOpen, destinationChurches.length]);
+
+    // Mantém o valor do destino sincronizado com o saldo total se houver apenas 1 destino e não foi editado manualmente
+    useEffect(() => {
+        if (!isAmountManuallyEdited && destinations.length === 1 && targetTotal !== undefined) {
+            setDestinations(prev => {
+                if (prev.length === 1 && prev[0]) {
+                    const currentAmt = parseAmount(prev[0].amount);
+                    if (currentAmt !== targetTotal) {
+                        return [{ ...prev[0], amount: formatAmountBRL(targetTotal) }];
+                    }
+                }
+                return prev;
             });
-        } else {
-            setDestChurchId('');
         }
-    }, [destinationChurches, effectiveGeneralCashId, originChurchId, originBankId]);
+    }, [targetTotal, isAmountManuallyEdited, destinations.length]);
 
-    const parsedAmount = useMemo(() => {
-        if (!transferAmount) return 0;
-        if (transferAmount.includes(',')) {
-            const clean = transferAmount.replace(/\./g, '').replace(',', '.');
-            return parseFloat(clean) || 0;
-        }
-        return parseFloat(transferAmount) || 0;
-    }, [transferAmount]);
+    // Cálculos de soma, diferença e balanceamento
+    const totalAllocated = useMemo(() => {
+        return destinations.reduce((acc, d) => acc + parseAmount(d.amount), 0);
+    }, [destinations]);
+
+    const diffAmount = useMemo(() => {
+        return Math.round((totalAllocated - targetTotal) * 100) / 100;
+    }, [totalAllocated, targetTotal]);
+
+    const isBalanced = useMemo(() => {
+        return Math.abs(diffAmount) < 0.01;
+    }, [diffAmount]);
+
+    const hasValidDestinations = useMemo(() => {
+        return destinations.length > 0 && destinations.every(d => !!d.churchId && parseAmount(d.amount) > 0);
+    }, [destinations]);
+
+    const handleUpdateChurch = (id: string, newChurchId: string) => {
+        setDestinations(prev => prev.map(d => d.id === id ? { ...d, churchId: newChurchId } : d));
+    };
+
+    const handleUpdateAmount = (id: string, newAmount: string) => {
+        setIsAmountManuallyEdited(true);
+        setDestinations(prev => prev.map(d => d.id === id ? { ...d, amount: newAmount.replace(/[^0-9,.]/g, '') } : d));
+    };
+
+    const handleAddDestination = () => {
+        setIsAmountManuallyEdited(true);
+        // Calcula quanto resta para atingir o saldo
+        const remaining = Math.max(0, Math.round((targetTotal - totalAllocated) * 100) / 100);
+        // Sugere o próximo caixa não selecionado (se houver)
+        const selectedIds = new Set(destinations.map(d => d.churchId));
+        const nextAvailable = destinationChurches.find(c => !selectedIds.has(c.id));
+        setDestinations(prev => [
+            ...prev,
+            {
+                id: `dest-${Date.now()}-${Math.random()}`,
+                churchId: nextAvailable ? nextAvailable.id : '',
+                amount: formatAmountBRL(remaining)
+            }
+        ]);
+    };
+
+    const handleRemoveDestination = (id: string) => {
+        if (destinations.length <= 1) return;
+        setIsAmountManuallyEdited(true);
+        setDestinations(prev => prev.filter(d => d.id !== id));
+    };
+
+    const handleFillRemaining = (id: string) => {
+        setIsAmountManuallyEdited(true);
+        setDestinations(prev => prev.map(d => {
+            if (d.id === id) {
+                const currentVal = parseAmount(d.amount);
+                const nextVal = Math.max(0, Math.round((currentVal - diffAmount) * 100) / 100);
+                return { ...d, amount: formatAmountBRL(nextVal) };
+            }
+            return d;
+        }));
+    };
 
     if (!isOpen) return null;
 
@@ -383,20 +436,22 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
             return;
         }
 
-        // Validação se transporte para Caixa Geral estiver ativado
-        let destChurch: Church | undefined;
-        if (isTransferEnabled && destinationChurches.length > 0 && parsedAmount > 0) {
-            if (!destChurchId) {
-                setErrorMessage('Selecione um caixa de destino para transportar o saldo.');
+        // Validação se transporte de saldo estiver ativado e houver saldo
+        if (isTransferEnabled && destinationChurches.length > 0 && targetTotal > 0) {
+            if (destinations.length === 0) {
+                setErrorMessage('Defina ao menos um caixa de destino para transportar o saldo.');
                 return;
             }
-            if (parsedAmount < 0) {
-                setErrorMessage('O valor a ser transportado não pode ser negativo.');
+            if (destinations.some(d => !d.churchId)) {
+                setErrorMessage('Selecione o caixa de destino para todas as parcelas.');
                 return;
             }
-            destChurch = churches.find(c => c.id === destChurchId);
-            if (!destChurch) {
-                setErrorMessage('Caixa de destino não encontrado.');
+            if (destinations.some(d => parseAmount(d.amount) <= 0)) {
+                setErrorMessage('O valor destinado para cada caixa deve ser maior que zero.');
+                return;
+            }
+            if (!isBalanced) {
+                setErrorMessage(`O total destinado (${formatCurrency(totalAllocated, language)}) deve ser exatamente igual ao saldo a transportar (${formatCurrency(targetTotal, language)}).`);
                 return;
             }
         }
@@ -407,76 +462,81 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
             const dateStr = closingDate;
             const memoText = customMemo.trim() || `FECHAMENTO DE CAIXA PERÍODO ${periodLabel || `${String(closingMonth).padStart(2, '0')}/${closingYear}`}`;
 
-            // 1. Processar transferência de saldo se habilitada e valor > 0
-            let originMatch: MatchResult | null = null;
-            let destMatch: MatchResult | null = null;
+            // 1. Processar transferência de saldo para todos os caixas de destino se habilitada e valor > 0
+            const isNegative = effectiveBalance < 0;
+            const generatedTxs: MatchResult[] = [];
 
-            if (isTransferEnabled && destChurch && parsedAmount > 0) {
-                const isNegative = effectiveBalance < 0;
-                const originTxId = `closing-${isNegative ? 'deficit-cover' : 'outflow'}-${timestamp}`;
-                const destTxId = `closing-${isNegative ? 'deficit-transfer' : 'inflow'}-${timestamp}`;
+            if (isTransferEnabled && targetTotal > 0 && destinations.length > 0) {
+                destinations.forEach((d, idx) => {
+                    const amt = parseAmount(d.amount);
+                    const destChurch = churches.find(c => c.id === d.churchId);
+                    if (!destChurch || amt <= 0) return;
 
-                // Se negativo: Caixa Geral envia aporte para a igreja atual (Entrada na igreja, Saída no Caixa Geral) -> Caixa fecha em ZERO
-                // Se positivo: Igreja atual envia saldo para o Caixa Geral (Saída na igreja, Entrada no Caixa Geral) -> Caixa fecha em ZERO
-                const originAmount = isNegative ? parsedAmount : -parsedAmount;
-                const destAmount = isNegative ? -parsedAmount : parsedAmount;
+                    const originTxId = `closing-${isNegative ? 'deficit-cover' : 'outflow'}-${d.churchId}-${timestamp}-${idx}`;
+                    const destTxId = `closing-${isNegative ? 'deficit-transfer' : 'inflow'}-${d.churchId}-${timestamp}-${idx}`;
 
-                const originDescription = isNegative
-                    ? `[APORTE/FECHAMENTO] ${memoText} - COBERTURA DE SALDO PELO ${destChurch.name.toUpperCase()}`
-                    : `[FECHAMENTO] ${memoText} - TRANSP. SALDO PARA ${destChurch.name.toUpperCase()}`;
+                    const originAmount = isNegative ? amt : -amt;
+                    const destAmount = isNegative ? -amt : amt;
 
-                const destDescription = isNegative
-                    ? `[REPASSE/FECHAMENTO] ${memoText} - REPASSE DE COBERTURA PARA ${originChurch.name.toUpperCase()}`
-                    : `[RECEBIMENTO] ${memoText} - SALDO RECEBIDO DE ${originChurch.name.toUpperCase()}`;
+                    const originDescription = isNegative
+                        ? `[APORTE/FECHAMENTO] ${memoText} - COBERTURA DE SALDO PELO ${destChurch.name.toUpperCase()}`
+                        : `[FECHAMENTO] ${memoText} - TRANSP. SALDO PARA ${destChurch.name.toUpperCase()}`;
 
-                originMatch = {
-                    transaction: {
-                        id: originTxId,
-                        date: dateStr,
-                        description: originDescription,
-                        rawDescription: originDescription,
-                        amount: originAmount,
+                    const destDescription = isNegative
+                        ? `[REPASSE/FECHAMENTO] ${memoText} - REPASSE DE COBERTURA PARA ${originChurch.name.toUpperCase()}`
+                        : `[RECEBIMENTO] ${memoText} - SALDO RECEBIDO DE ${originChurch.name.toUpperCase()}`;
+
+                    const originMatch: MatchResult = {
+                        transaction: {
+                            id: originTxId,
+                            date: dateStr,
+                            description: originDescription,
+                            rawDescription: originDescription,
+                            amount: originAmount,
+                            isConfirmed: true,
+                            bank_id: originBankId && originBankId !== 'all' ? originBankId : undefined
+                        },
+                        contributor: null,
+                        status: ReconciliationStatus.IDENTIFIED,
+                        church: {
+                            id: originChurch.id,
+                            name: originChurch.name,
+                            address: originChurch.address || '',
+                            logoUrl: originChurch.logoUrl || '',
+                            pastor: originChurch.pastor || ''
+                        },
+                        _churchId: originChurch.id,
                         isConfirmed: true,
-                        bank_id: originBankId && originBankId !== 'all' ? originBankId : undefined
-                    },
-                    contributor: null,
-                    status: ReconciliationStatus.IDENTIFIED,
-                    church: {
-                        id: originChurch.id,
-                        name: originChurch.name,
-                        address: originChurch.address || '',
-                        logoUrl: originChurch.logoUrl || '',
-                        pastor: originChurch.pastor || ''
-                    },
-                    _churchId: originChurch.id,
-                    isConfirmed: true,
-                    contributionType: isNegative ? 'ENTRADA / TRANSFERÊNCIA' : 'SAÍDA / TRANSFERÊNCIA',
-                    updatedAt: new Date().toISOString()
-                };
+                        contributionType: isNegative ? 'ENTRADA / TRANSFERÊNCIA' : 'SAÍDA / TRANSFERÊNCIA',
+                        updatedAt: new Date().toISOString()
+                    };
 
-                destMatch = {
-                    transaction: {
-                        id: destTxId,
-                        date: dateStr,
-                        description: destDescription,
-                        rawDescription: destDescription,
-                        amount: destAmount,
-                        isConfirmed: true
-                    },
-                    contributor: null,
-                    status: ReconciliationStatus.IDENTIFIED,
-                    church: {
-                        id: destChurch.id,
-                        name: destChurch.name,
-                        address: destChurch.address || '',
-                        logoUrl: destChurch.logoUrl || '',
-                        pastor: destChurch.pastor || ''
-                    },
-                    _churchId: destChurch.id,
-                    isConfirmed: true,
-                    contributionType: isNegative ? 'SAÍDA / TRANSFERÊNCIA' : 'ENTRADA / TRANSFERÊNCIA',
-                    updatedAt: new Date().toISOString()
-                };
+                    const destMatch: MatchResult = {
+                        transaction: {
+                            id: destTxId,
+                            date: dateStr,
+                            description: destDescription,
+                            rawDescription: destDescription,
+                            amount: destAmount,
+                            isConfirmed: true
+                        },
+                        contributor: null,
+                        status: ReconciliationStatus.IDENTIFIED,
+                        church: {
+                            id: destChurch.id,
+                            name: destChurch.name,
+                            address: destChurch.address || '',
+                            logoUrl: destChurch.logoUrl || '',
+                            pastor: destChurch.pastor || ''
+                        },
+                        _churchId: destChurch.id,
+                        isConfirmed: true,
+                        contributionType: isNegative ? 'SAÍDA / TRANSFERÊNCIA' : 'ENTRADA / TRANSFERÊNCIA',
+                        updatedAt: new Date().toISOString()
+                    };
+
+                    generatedTxs.push(originMatch, destMatch);
+                });
             }
 
             // Confirma automaticamente todas as transações da congregação no período contábil
@@ -504,8 +564,8 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                     return r;
                 });
 
-                const next = (originMatch && destMatch)
-                    ? [...confirmedList, originMatch, destMatch]
+                const next = generatedTxs.length > 0
+                    ? [...confirmedList, ...generatedTxs]
                     : confirmedList;
                 updatedResults = next;
                 return next;
@@ -515,7 +575,20 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                 await saveCurrentReportChanges(updatedResults);
             }
 
-            // 2. Salvar Registro de Fechamento Contábil com Assinaturas Digitais e Hash SHA-256
+            // 2. Salva histórico inteligente de destino(s) para esta Igreja + Conta
+            if (isTransferEnabled && targetTotal > 0 && destinations.length > 0) {
+                try {
+                    const historyData = destinations.map(d => ({
+                        churchId: d.churchId,
+                        ratio: targetTotal > 0 ? (parseAmount(d.amount) / targetTotal) : 1
+                    }));
+                    localStorage.setItem(getHistoryKey(originChurchId, originBankId), JSON.stringify(historyData));
+                } catch (e) {
+                    console.error('[ChurchClosingModal] Erro ao salvar preferência de destino:', e);
+                }
+            }
+
+            // 3. Salvar Registro de Fechamento Contábil com Assinaturas Digitais e Hash SHA-256
             const closingRecord: MonthClosingRecord = {
                 id: `closing_${originChurch.id}_${closingYear}_${closingMonth}`,
                 churchId: originChurch.id,
@@ -527,9 +600,12 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                 totalExpenses: effectiveExpenses,
                 previousBalance: 0,
                 finalBalance: effectiveBalance,
-                transferredBalance: isTransferEnabled ? (effectiveBalance < 0 ? -parsedAmount : parsedAmount) : undefined,
-                targetChurchId: isTransferEnabled && destChurch ? destChurch.id : null,
-                targetChurchName: isTransferEnabled && destChurch ? destChurch.name : undefined,
+                transferredBalance: isTransferEnabled ? (effectiveBalance < 0 ? -targetTotal : targetTotal) : undefined,
+                targetChurchId: destinations.length === 1 ? destinations[0].churchId : destinations.map(d => d.churchId).join(','),
+                targetChurchName: destinations.map(d => {
+                    const ch = churches?.find(c => c.id === d.churchId);
+                    return ch ? `${ch.name} (${formatCurrency(parseAmount(d.amount), language)})` : '';
+                }).filter(Boolean).join(', ') || undefined,
                 signatures: signatures,
                 integrityHash: calculatedHash || 'HASH-AUTENTICADO',
                 status: signatures.length > 0 ? 'signed' : 'draft',
@@ -547,11 +623,15 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
             if (signatures.length > 0) {
                 successText += ` ${signatures.length} assinatura(s) digital(is) homologada(s) com Hash SHA-256 inviolável.`;
             }
-            if (isTransferEnabled && destChurch) {
-                if (metrics.balance < 0) {
-                    successText += ` Aporte de ${formatCurrency(parsedAmount, language)} transferido do caixa "${destChurch.name}" para cobrir o déficit e fechar com saldo zero.`;
+            if (isTransferEnabled && targetTotal > 0 && destinations.length > 0) {
+                const destNames = destinations.map(d => {
+                    const ch = churches?.find(c => c.id === d.churchId);
+                    return `"${ch?.name || 'Caixa'}" (${formatCurrency(parseAmount(d.amount), language)})`;
+                }).join(', ');
+                if (effectiveBalance < 0) {
+                    successText += ` Aporte transferido dos caixas ${destNames} para cobrir o déficit e fechar com saldo zero.`;
                 } else {
-                    successText += ` Saldo de ${formatCurrency(parsedAmount, language)} transportado para o caixa "${destChurch.name}".`;
+                    successText += ` Saldo transportado para os caixas ${destNames}.`;
                 }
             }
             setSuccessMessage(successText);
@@ -671,7 +751,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                                     const originChurch = churches?.find(c => c.id === originChurchId);
                                     openWhatsAppReceiptModal({
                                         contributorName: 'Contribuintes & Dízimistas',
-                                        amount: isTransferEnabled ? (parseFloat(transferAmount) || 0) : metrics.income,
+                                        amount: isTransferEnabled ? targetTotal : metrics.income,
                                         contributionType: 'Fechamento Mensal',
                                         churchName: originChurch?.name || 'Igreja Sede',
                                         date: closingDate
@@ -774,7 +854,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                                 </div>
                             </div>
 
-                            {/* Destaque: Saldo a Transportar & Campo Editável */}
+                            {/* Destaque: Saldo a Transportar do Livro Caixa */}
                             <div className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
                                 effectiveBalance >= 0 
                                     ? 'bg-emerald-50/70 dark:bg-emerald-950/25 border-emerald-200/80 dark:border-emerald-800/50' 
@@ -793,66 +873,142 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                                     </span>
                                     <p className="text-[10px] text-slate-500 dark:text-slate-400">
                                         {effectiveBalance >= 0
-                                            ? 'Ao confirmar, este saldo será enviado ao Caixa de destino, zerando este caixa para o próximo mês.'
-                                            : 'Ao confirmar, o Caixa de destino enviará um repasse para cobrir este déficit e fechar com saldo zero.'}
+                                            ? 'Ao confirmar, este saldo será enviado ao(s) Caixa(s) de destino, zerando este caixa para o próximo período.'
+                                            : 'Ao confirmar, o(s) Caixa(s) de destino enviará(ão) um repasse para cobrir este déficit e fechar com saldo zero.'}
                                     </p>
                                 </div>
 
-                                <div className="w-full sm:w-56 space-y-1 bg-white/80 dark:bg-slate-900/80 p-3 rounded-xl border border-slate-200/70 dark:border-slate-800 shrink-0">
-                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                                        Saldo a Transportar (R$)
-                                    </label>
-                                    <div className="relative">
-                                        <DollarSign className="w-4 h-4 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                                        <input
-                                            type="text"
-                                            value={transferAmount}
-                                            onChange={e => {
-                                                setIsAmountManuallyEdited(true);
-                                                setTransferAmount(e.target.value.replace(/[^0-9,.]/g, ''));
-                                            }}
-                                            placeholder="0,00"
-                                            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500 py-1.5 pl-8 pr-2.5 outline-none text-sm font-black font-mono"
-                                        />
-                                    </div>
-                                    <span className="text-[9px] text-slate-400 block text-right">Preenchido auto • Editável se desejar</span>
+                                <div className="px-3.5 py-2 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 shrink-0 text-right">
+                                    <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">
+                                        Total a Distribuir
+                                    </span>
+                                    <span className="text-sm font-black font-mono text-slate-900 dark:text-white">
+                                        {formatCurrency(targetTotal, language)}
+                                    </span>
                                 </div>
                             </div>
 
-                            {/* Caixa de Destino */}
-                            <div className="space-y-1.5 pt-1">
+                            {/* Seção: Caixa(s) de Destino */}
+                            <div className="space-y-3 pt-1">
                                 <div className="flex items-center justify-between">
-                                    <label className="block text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider ml-0.5">
-                                        Caixa de Destino
-                                    </label>
-                                    {destChurchId === effectiveGeneralCashId && (
-                                        <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100/70 dark:bg-amber-950/60 px-2 py-0.5 rounded-md flex items-center gap-1">
-                                            ⭐ Caixa Geral Oficial
-                                        </span>
+                                    <div>
+                                        <label className="block text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider ml-0.5">
+                                            {destinations.length > 1 ? 'Caixas de Destino' : 'Caixa de Destino'}
+                                        </label>
+                                        <p className="text-[10px] text-slate-400 ml-0.5">
+                                            {destinations.length > 1 
+                                                ? 'Distribua o saldo entre os caixas. A soma deve ser exatamente igual ao saldo a transportar.' 
+                                                : 'Escolha para qual caixa cadastrado o saldo apurado será transportado.'}
+                                        </p>
+                                    </div>
+                                    {destinationChurches.length > destinations.length && (
+                                        <button
+                                            type="button"
+                                            onClick={handleAddDestination}
+                                            className="px-2.5 py-1 text-[11px] font-bold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/40 hover:bg-orange-100 dark:hover:bg-orange-900/50 border border-orange-200 dark:border-orange-800/60 rounded-lg flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                                            title="Transportar saldo para mais de um Caixa"
+                                        >
+                                            <Plus className="w-3.5 h-3.5" />
+                                            <span>Adicionar outro Caixa</span>
+                                        </button>
                                     )}
                                 </div>
-                                <select
-                                    value={destChurchId}
-                                    onChange={e => setDestChurchId(e.target.value)}
-                                    disabled={destinationChurches.length === 0}
-                                    className="w-full rounded-xl border-2 border-orange-400/80 dark:border-orange-500/80 bg-white dark:bg-slate-900 p-3 text-sm font-black text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500 transition-all shadow-xs cursor-pointer"
-                                >
-                                    {destinationChurches.length === 0 ? (
-                                        <option value="">Nenhum outro caixa registrado</option>
-                                    ) : (
-                                        <>
-                                            <option value="" disabled>Selecione o Caixa de Destino...</option>
-                                            {destinationChurches.map(c => {
-                                                const isCG = c.id === effectiveGeneralCashId;
-                                                return (
-                                                    <option key={c.id} value={c.id}>
-                                                        {c.name} {isCG ? '⭐ (Caixa Geral Oficial)' : ''}
-                                                    </option>
-                                                );
-                                            })}
-                                        </>
-                                    )}
-                                </select>
+
+                                {destinationChurches.length === 0 ? (
+                                    <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl text-xs text-amber-800 dark:text-amber-300">
+                                        Nenhum outro caixa cadastrado no sistema.
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {destinations.map((d) => {
+                                            // Constrói lista de congregações disponíveis (excluindo congregações já selecionadas em outros itens)
+                                            const otherSelectedIds = new Set(destinations.filter(other => other.id !== d.id).map(other => other.churchId));
+                                            const availableChurches = destinationChurches.filter(c => !otherSelectedIds.has(c.id));
+
+                                            return (
+                                                <div 
+                                                    key={d.id} 
+                                                    className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs"
+                                                >
+                                                    {/* Select do Caixa de Destino */}
+                                                    <div className="flex-1 min-w-0">
+                                                        <select
+                                                            value={d.churchId}
+                                                            onChange={e => handleUpdateChurch(d.id, e.target.value)}
+                                                            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-2 text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer"
+                                                        >
+                                                            <option value="" disabled>Selecione o Caixa de destino...</option>
+                                                            {availableChurches.map(c => (
+                                                                <option key={c.id} value={c.id}>
+                                                                    {c.name}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+
+                                                    {/* Input do Valor Destinado */}
+                                                    <div className="w-full sm:w-44 relative shrink-0">
+                                                        <DollarSign className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                                        <input
+                                                            type="text"
+                                                            value={d.amount}
+                                                            onChange={e => handleUpdateAmount(d.id, e.target.value)}
+                                                            placeholder="0,00"
+                                                            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500 py-1.5 pl-7 pr-2 outline-none text-xs font-black font-mono text-right"
+                                                        />
+                                                    </div>
+
+                                                    {/* Botão Remover (se houver mais de 1 destino) */}
+                                                    {destinations.length > 1 && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRemoveDestination(d.id)}
+                                                            className="p-2 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-all cursor-pointer self-center"
+                                                            title="Remover este caixa de destino"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+
+                                {/* Barra de validação de soma e diferença */}
+                                {destinationChurches.length > 0 && targetTotal > 0 && (
+                                    <div className="pt-1">
+                                        {isBalanced ? (
+                                            <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 flex items-center justify-between text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                                                <div className="flex items-center gap-1.5">
+                                                    <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                                                    <span>Total destinado: {formatCurrency(totalAllocated, language)} (100% alocado)</span>
+                                                </div>
+                                            </div>
+                                        ) : diffAmount < 0 ? (
+                                            <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-bold text-amber-800 dark:text-amber-300">
+                                                <span>
+                                                    ⚠️ Falta destinar {formatCurrency(Math.abs(diffAmount), language)} (Distribuído: {formatCurrency(totalAllocated, language)} de {formatCurrency(targetTotal, language)})
+                                                </span>
+                                                {destinations.length > 0 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleFillRemaining(destinations[destinations.length - 1].id)}
+                                                        className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[11px] font-black uppercase tracking-wider cursor-pointer active:scale-95 shrink-0"
+                                                    >
+                                                        Completar restante
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 flex items-center justify-between text-xs font-bold text-rose-800 dark:text-rose-300">
+                                                <span>
+                                                    ⚠️ A soma dos destinos excede o saldo em {formatCurrency(diffAmount, language)} (Distribuído: {formatCurrency(totalAllocated, language)} de {formatCurrency(targetTotal, language)})
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Data do Fechamento */}
@@ -899,7 +1055,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                                         church={fullChurch}
                                         defaultPastorName={selectedOriginChurch?.pastor || ''}
                                         defaultTreasurerName={fullChurch?.treasurer || ''}
-                                        targetChurch={churches?.find(c => c.id === destChurchId) || null}
+                                        targetChurch={destinations.length === 1 ? (churches?.find(c => c.id === destinations[0]?.churchId) || null) : null}
                                         defaultTargetTreasurerName=""
                                     />
                                 </div>
@@ -918,7 +1074,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
 
                             <button
                                 type="button"
-                                disabled={isSubmitting || !originChurchId || (destinationChurches.length > 0 && !destChurchId)}
+                                disabled={isSubmitting || !originChurchId || (destinationChurches.length > 0 && targetTotal > 0 && (!isBalanced || !hasValidDestinations))}
                                 onClick={handleConfirm}
                                 className="w-full sm:w-auto px-8 py-3 text-xs font-black text-white bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 rounded-xl shadow-lg shadow-orange-500/25 transition-all uppercase tracking-wider cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-95"
                             >

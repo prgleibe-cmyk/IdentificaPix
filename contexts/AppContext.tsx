@@ -519,7 +519,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 raw: r
             };
         });
-    }, [reconciliation.fullMatchResults, reconciliation.matchResults, reportManager.savedReports, referenceData.churches, referenceData.banks, referenceData.contributionTypes, referenceData.contributionKeywords]);
+    }, [reconciliation.matchResults, referenceData.churches, referenceData.banks, referenceData.contributionTypes, referenceData.contributionKeywords]);
 
     const value = useMemo(() => ({
         ...referenceData,

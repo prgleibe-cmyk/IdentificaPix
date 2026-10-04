@@ -1,5 +1,5 @@
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { MatchResult, DeletingItem } from '../types';
 
 export const useModalController = () => {
@@ -35,7 +35,7 @@ export const useModalController = () => {
         setWhatsAppReceiptData(null);
     }, []);
 
-    return {
+    return useMemo(() => ({
         isPaymentModalOpen,
         openPaymentModal,
         closePaymentModal,
@@ -55,5 +55,25 @@ export const useModalController = () => {
         whatsAppReceiptData,
         openWhatsAppReceiptModal,
         closeWhatsAppReceiptModal
-    };
+    }), [
+        isPaymentModalOpen,
+        openPaymentModal,
+        closePaymentModal,
+        isUpdateFilesModalOpen,
+        openUpdateFilesModal,
+        closeUpdateFilesModal,
+        deletingItem,
+        openDeleteConfirmation,
+        closeDeleteConfirmation,
+        isSearchFiltersOpen,
+        openSearchFilters,
+        closeSearchFilters,
+        modelRequiredData,
+        openModelRequired,
+        closeModelRequired,
+        isWhatsAppReceiptModalOpen,
+        whatsAppReceiptData,
+        openWhatsAppReceiptModal,
+        closeWhatsAppReceiptModal
+    ]);
 };

@@ -8,7 +8,7 @@ import { EditManualTransactionModal } from '../components/modals/EditManualTrans
 import { AttachmentPreviewModal } from '../components/financial/AttachmentPreviewModal';
 import { QuickAttachModal } from '../components/modals/QuickAttachModal';
 import { ServiceReceiptModal } from '../components/modals/ServiceReceiptModal';
-import { preloadAllAttachmentsMap } from '../services/expenseAttachmentService';
+import { preloadAllAttachmentsMap, getCachedAttachmentsMap, getAttachmentsForTransaction } from '../services/expenseAttachmentService';
 import { getMonthClosingRecord } from '../services/monthClosingService';
 import { cleanDisplayDescription } from '../services/utils/parsingUtils';
 import { ExpenseAttachment, MonthClosingRecord } from '../types/domain';
@@ -100,19 +100,40 @@ export const LivroCaixaView: React.FC = memo(() => {
     const [quickAttachTx, setQuickAttachTx] = useState<any | null>(null);
     const [serviceReceiptTx, setServiceReceiptTx] = useState<any | null>(null);
     const [attachmentFilter, setAttachmentFilter] = useState<'all' | 'with_attachments' | 'without_attachments'>('all');
-    const [attachmentsMap, setAttachmentsMap] = useState<Map<string, ExpenseAttachment[]>>(new Map());
+    const [attachmentsMap, setAttachmentsMap] = useState<Map<string, ExpenseAttachment[]>>(() => {
+        return getCachedAttachmentsMap() || new Map();
+    });
     const [monthClosingRecord, setMonthClosingRecord] = useState<MonthClosingRecord | null>(null);
 
     useEffect(() => {
         let isMounted = true;
+        
+        // Carrega do cache em memória instantaneamente se já hidratado, ou do IndexedDB na 1ª vez
         preloadAllAttachmentsMap().then(map => {
             if (isMounted) setAttachmentsMap(map);
         });
 
-        const handleAttUpdate = () => {
-            preloadAllAttachmentsMap().then(map => {
-                if (isMounted) setAttachmentsMap(map);
-            });
+        const handleAttUpdate = (e: any) => {
+            const txId = e?.detail?.txId;
+            if (txId) {
+                // 🛡️ ATUALIZAÇÃO ATÔMICA: Atualiza apenas a transação modificada sem varrer todo o IndexedDB
+                getAttachmentsForTransaction(txId).then(atts => {
+                    if (!isMounted) return;
+                    setAttachmentsMap(prev => {
+                        const next = new Map(prev);
+                        if (atts && atts.length > 0) {
+                            next.set(txId, atts);
+                        } else {
+                            next.delete(txId);
+                        }
+                        return next;
+                    });
+                });
+            } else {
+                preloadAllAttachmentsMap(true).then(map => {
+                    if (isMounted) setAttachmentsMap(map);
+                });
+            }
         };
 
         window.addEventListener('expense_attachments_updated', handleAttUpdate);

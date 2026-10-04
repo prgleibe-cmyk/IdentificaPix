@@ -819,16 +819,6 @@ export const useCloudSync = ({
         }
 
         // Se o conteúdo mudou, resetamos o timer de estabilidade
-        const stableSignature = JSON.stringify(
-            (matchResults || [])
-                .map(r => ({
-                    id: r.transaction.id,
-                    status: r.status,
-                    is_confirmed: r.isConfirmed
-                }))
-                .sort((a, b) => a.id.localeCompare(b.id))
-        );
-
         const currentSignature = matchResults.map(item => `${item.transaction.id}-${item.status}-${item.isConfirmed}-${item.updatedAt}`).join('|');
 
         if (currentSignature !== postProcessingSignatureRef.current) {
@@ -856,6 +846,14 @@ export const useCloudSync = ({
                 lastProcessedLength.current = matchResults.length;
                 
                 if (typeof handleCompareRef.current === 'function') {
+                    // 🛡️ CORREÇÃO CIRÚRGICA GARGALO 2: Assinatura calculada sob demanda (lazy)
+                    // apenas quando o auto-process vai de fato executar, eliminando JSON.stringify,
+                    // alocação de objetos e localeCompare síncronos na thread principal a cada edição.
+                    const stableSignature = (matchResults || [])
+                        .map(r => `${r.transaction.id}:${r.status}:${r.isConfirmed ? 1 : 0}`)
+                        .sort()
+                        .join(';');
+
                     if (lastAutoProcessSignatureRef.current === stableSignature) {
                         return;
                     }
