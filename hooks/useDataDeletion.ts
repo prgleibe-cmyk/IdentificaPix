@@ -3,6 +3,7 @@ import { useCallback } from 'react';
 import { DeletingItem } from '../types';
 import { consolidationService } from '../services/ConsolidationService';
 import { useAuth } from '../contexts/AuthContext';
+import { batchState, lastRealtimeUpdate } from './reconciliation/useCloudSync';
 
 interface UseDataDeletionProps {
     user: any;
@@ -86,13 +87,21 @@ export const useDataDeletion = ({
                         }
                     }
                     
+                    // Bloqueio atômico para evitar que o sync passivo restaure a linha durante a persistência
+                    batchState.isAtomicUpdate = true;
+                    lastRealtimeUpdate.txId = id;
+                    lastRealtimeUpdate.timestamp = Date.now();
+
                     // Remove do estado da reconciliação (UI do relatório)
                     reconciliation.removeTransaction?.(id);
 
                     // Persiste a mudança no relatório salvo ou na nuvem
                     const activeReportId = reconciliation.activeReportId;
                     const currentResults = reconciliation.fullMatchResults || reconciliation.matchResults || [];
-                    const nextResults = currentResults.filter((r: any) => r?.transaction?.id && r.transaction.id !== id);
+                    const nextResults = currentResults.filter((r: any) => {
+                        const rId = r?.transaction?.id || (r as any)?.id;
+                        return rId && rId !== id;
+                    });
                     if (activeReportId && reportManager?.overwriteSavedReport) {
                         await reportManager.overwriteSavedReport(activeReportId, nextResults);
                     } else {
@@ -105,6 +114,7 @@ export const useDataDeletion = ({
                         }
                     }
                     
+                    setTimeout(() => { batchState.isAtomicUpdate = false; }, 500);
                     showToast("Linha removida permanentemente.", "success");
                     break;
                 }
@@ -120,13 +130,21 @@ export const useDataDeletion = ({
                             }
                         }
                         
+                        // Bloqueio atômico para evitar que o sync passivo restaure o lote durante a persistência
+                        batchState.isAtomicUpdate = true;
+                        lastRealtimeUpdate.txId = ids[0] || null;
+                        lastRealtimeUpdate.timestamp = Date.now();
+
                         // Remove do estado da reconciliação (UI do relatório)
                         reconciliation.removeTransactions?.(ids);
 
                         // Persiste a mudança no relatório salvo ou na nuvem
                         const activeReportId = reconciliation.activeReportId;
                         const currentResults = reconciliation.fullMatchResults || reconciliation.matchResults || [];
-                        const nextResults = currentResults.filter((r: any) => r?.transaction?.id && !ids.includes(r.transaction.id));
+                        const nextResults = currentResults.filter((r: any) => {
+                            const rId = r?.transaction?.id || (r as any)?.id;
+                            return rId && !ids.includes(rId);
+                        });
                         if (activeReportId && reportManager?.overwriteSavedReport) {
                             await reportManager.overwriteSavedReport(activeReportId, nextResults);
                         } else {
@@ -139,6 +157,7 @@ export const useDataDeletion = ({
                             }
                         }
                         
+                        setTimeout(() => { batchState.isAtomicUpdate = false; }, 500);
                         showToast(`${ids.length} linhas removidas permanentemente.`, "success");
                     }
                     break;

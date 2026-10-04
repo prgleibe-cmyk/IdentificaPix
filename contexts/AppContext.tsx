@@ -14,6 +14,7 @@ import { getAuthToken, getAuthSession } from '../services/auth/authAdapter';
 import { PLACEHOLDER_CHURCH } from '../services/processingService';
 import { resolveContributionType } from '../utils/formatters';
 import { cleanDisplayDescription } from '../services/utils/parsingUtils';
+import { batchState, lastRealtimeUpdate } from '../hooks/reconciliation/useCloudSync';
 const ENABLE_HEAVY_LOGS = false;
 
 export const AppContext = createContext<any>(null!);
@@ -336,9 +337,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     useEffect(() => {
         const activeId = reconciliation.activeReportId;
         
-        // 🛡️ BLOQUEIO ABSOLUTO: Se existe sessão realtime ativa, o Sync Passivo do AppContext é desativado
-        // para evitar rollback visual e loops reativos. O useCloudSync assume o controle.
-        if (!activeId || isSyncing || isLoading || reconciliation.hasActiveSession) {
+        // 🛡️ BLOQUEIO ABSOLUTO: Se existe sessão realtime ativa ou atualização atômica local em curso,
+        // o Sync Passivo do AppContext é desativado para evitar rollback visual e loops reativos. O useCloudSync assume o controle.
+        if (!activeId || isSyncing || isLoading || reconciliation.hasActiveSession || batchState.isAtomicUpdate || lastRealtimeUpdate.txId) {
             return;
         }
 

@@ -608,7 +608,7 @@ export const useReportsController = () => {
                 churches: cacheRef.current.churchList.length
             };
 
-            cacheRef.current.activeData = cacheRef.current.activeData.filter(r => r.transaction.id !== txId);
+            cacheRef.current.activeData = cacheRef.current.activeData.filter(r => (r?.transaction?.id !== txId && (r as any)?.id !== txId));
 
             const oldMetrics = getStableKeyMetrics(oldItem);
             let stableKeyDelta = { identified: 0, confirmed: 0, withChurch: 0 };
@@ -624,6 +624,10 @@ export const useReportsController = () => {
                 const newWithChurch = Math.max(0, parseInt(prevStableKeyParts[3]) + stableKeyDelta.withChurch);
                 cacheRef.current.stableKey = `${newTotal}-${newIdentified}-${newConfirmed}-${newWithChurch}`;
             }
+        } else {
+            // 🛡️ Fallback cirúrgico: limpa a transação do resultsMap e activeData mesmo se oldItem não estava indexado
+            cacheRef.current.resultsMap.delete(txId);
+            cacheRef.current.activeData = cacheRef.current.activeData.filter(r => (r?.transaction?.id !== txId && (r as any)?.id !== txId));
         }
 
         // 🛡️ Consome o evento realtime para que futuras renderizações não usem txId obsoleto
