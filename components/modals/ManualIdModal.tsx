@@ -525,6 +525,13 @@ export const ManualIdModal: React.FC = () => {
         const pool = allContributors && allContributors.length > 0 ? allContributors : contributorFiles;
         if (bulkIdentificationTxs && bulkIdentificationTxs.length > 0 && pool && pool.length > 0) {
             const firstTx = bulkIdentificationTxs[0];
+            const isManual = firstTx.id?.startsWith('ghost-manual-');
+            if (isManual) {
+                setSimilarMatches([]);
+                setSelectedAssociationType('create_new');
+                setSelectedUnifiedField('');
+                return;
+            }
             const { name: name1, cpf: cpf1 } = extractNameAndCpf(firstTx.description || '');
             const { name: name2, cpf: cpf2 } = extractNameAndCpf(firstTx.rawDescription || '');
             const targetCpf = cpf1 || cpf2;
@@ -921,6 +928,16 @@ export const ManualIdModal: React.FC = () => {
                     (contributionTypes || []).some((ct: any) => ct.name?.toUpperCase() === selectedType.toUpperCase() && ct.type === 'saida');
                 const effectiveManualType = manualType || (isSelectedSaidaCat ? 'saida' : undefined);
 
+                let effectiveUnifiedId: string | undefined = undefined;
+                if (selectedAssociationType === 'unify' && selectedUnifiedField) {
+                    const unifiedContrib = allContributors.find(c => c.id === selectedUnifiedField);
+                    const unifiedName = (unifiedContrib?.name || unifiedContrib?.canonical_name || unifiedContrib?.cleanedName || '').trim().toLowerCase();
+                    const currentName = (manualDescription || '').trim().toLowerCase();
+                    if (unifiedContrib && (!currentName || currentName === unifiedName)) {
+                        effectiveUnifiedId = selectedUnifiedField;
+                    }
+                }
+
                 await confirmBulkManualIdentification(
                     ids, 
                     selectedChurchId, 
@@ -929,7 +946,7 @@ export const ManualIdModal: React.FC = () => {
                     selectedDate,
                     manualDescription,
                     manualAmount,
-                    selectedAssociationType === 'unify' ? selectedUnifiedField : undefined,
+                    effectiveUnifiedId,
                     effectiveManualType,
                     selectedBankId || undefined,
                     attachments.length > 0 ? attachments : undefined
@@ -1220,34 +1237,29 @@ export const ManualIdModal: React.FC = () => {
                                     setManualDescription(val);
                                     setShowSuggestions(true);
                                     
-                                    // Se o texto digitado corresponder exatamente a um cadastro existente, auto-preenche a igreja
+                                    // Se o texto digitado corresponder exatamente a um cadastro existente, unifica e auto-preenche a igreja
                                     const valNorm = val.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                                    if (valNorm.length >= 3) {
-                                        const exactMatch = allContributors.find(c => {
-                                            const cName = (c.name || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                                            const cTrade = (c.trade_name || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                                            return cName === valNorm || cTrade === valNorm;
-                                        });
-                                        if (exactMatch) {
-                                            setSelectedAssociationType('unify');
-                                            setSelectedUnifiedField(exactMatch.id);
-                                            if (exactMatch._churchId && churches.some(ch => ch.id === exactMatch._churchId)) {
-                                                setSelectedChurchId(exactMatch._churchId);
-                                            }
+                                    const exactMatch = valNorm.length >= 3 ? allContributors.find(c => {
+                                        const cName = (c.name || c.canonical_name || c.cleanedName || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                                        const cTrade = (c.trade_name || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                                        return cName === valNorm || cTrade === valNorm;
+                                    }) : null;
+
+                                    if (exactMatch) {
+                                        setSelectedAssociationType('unify');
+                                        setSelectedUnifiedField(exactMatch.id);
+                                        if (exactMatch._churchId && churches.some(ch => ch.id === exactMatch._churchId)) {
+                                            setSelectedChurchId(exactMatch._churchId);
                                         }
-                                    } else if (selectedAssociationType === 'unify') {
-                                        const matchedCol = allContributors.find(c => c.id === selectedUnifiedField);
-                                        if (matchedCol && matchedCol.name !== val) {
-                                            setSelectedAssociationType('create_new');
-                                            setSelectedUnifiedField('');
-                                        }
+                                    } else {
+                                        // Nome digitado manualmente não corresponde a cadastro existente: preserva como novo/manual
+                                        setSelectedAssociationType('create_new');
+                                        setSelectedUnifiedField('');
                                     }
                                 }}
                                 onKeyDown={e => {
-                                    if (e.key === 'Enter' && showSuggestions && filteredContributors.length > 0) {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        handleChooseContributor(filteredContributors[0]);
+                                    if (e.key === 'Enter') {
+                                        setShowSuggestions(false);
                                     }
                                 }}
                                 onFocus={() => setShowSuggestions(true)}
@@ -1845,34 +1857,29 @@ export const ManualIdModal: React.FC = () => {
                                             setManualDescription(val);
                                             setShowSuggestions(true);
 
-                                            // Se o texto digitado corresponder exatamente a um cadastro existente, auto-preenche a igreja
+                                            // Se o texto digitado corresponder exatamente a um cadastro existente, unifica e auto-preenche a igreja
                                             const valNorm = val.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                                            if (valNorm.length >= 3) {
-                                                const exactMatch = allContributors.find(c => {
-                                                    const cName = (c.name || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                                                    const cTrade = (c.trade_name || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                                                    return cName === valNorm || cTrade === valNorm;
-                                                });
-                                                if (exactMatch) {
-                                                    setSelectedAssociationType('unify');
-                                                    setSelectedUnifiedField(exactMatch.id);
-                                                    if (exactMatch._churchId && churches.some(ch => ch.id === exactMatch._churchId)) {
-                                                        setSelectedChurchId(exactMatch._churchId);
-                                                    }
+                                            const exactMatch = valNorm.length >= 3 ? allContributors.find(c => {
+                                                const cName = (c.name || c.canonical_name || c.cleanedName || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                                                const cTrade = (c.trade_name || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                                                return cName === valNorm || cTrade === valNorm;
+                                            }) : null;
+
+                                            if (exactMatch) {
+                                                setSelectedAssociationType('unify');
+                                                setSelectedUnifiedField(exactMatch.id);
+                                                if (exactMatch._churchId && churches.some(ch => ch.id === exactMatch._churchId)) {
+                                                    setSelectedChurchId(exactMatch._churchId);
                                                 }
-                                            } else if (selectedAssociationType === 'unify') {
-                                                const matchedCol = allContributors.find(c => c.id === selectedUnifiedField);
-                                                if (matchedCol && matchedCol.name !== val) {
-                                                    setSelectedAssociationType('create_new');
-                                                    setSelectedUnifiedField('');
-                                                }
+                                            } else {
+                                                // Nome digitado manualmente não corresponde a cadastro existente: preserva como novo/manual
+                                                setSelectedAssociationType('create_new');
+                                                setSelectedUnifiedField('');
                                             }
                                         }}
                                         onKeyDown={e => {
-                                            if (e.key === 'Enter' && showSuggestions && filteredContributors.length > 0) {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                handleChooseContributor(filteredContributors[0]);
+                                            if (e.key === 'Enter') {
+                                                setShowSuggestions(false);
                                             }
                                         }}
                                         onFocus={() => setShowSuggestions(true)}

@@ -192,12 +192,6 @@ export const useReconciliationActions = ({
         const contributor = buildSafeContributor(tempPreOriginal, contributionType, paymentMethod);
 
         let finalContributorId = unifiedContributorId;
-        if (!finalContributorId && finalDescription) {
-          const { name, cpf } = extractNameAndCpf(finalDescription);
-          if (name) {
-            finalContributorId = await ensureRegisteredContributor(name, churchId, cpf) || undefined;
-          }
-        }
 
         let registeredName = '';
         let originalContributorChurchId = '';
@@ -215,8 +209,13 @@ export const useReconciliationActions = ({
               registeredName = name.trim().replace(/\s+/g, ' ').toUpperCase();
             }
           }
-        } else if (contributor.id && contributor.id.startsWith('temp-')) {
-          delete contributor.id;
+        } else {
+          // Sem contribuinte cadastrado unificado/selecionado: preserva exatamente o nome digitado pelo usuário
+          if (contributor.id && contributor.id.startsWith('temp-')) {
+            delete contributor.id;
+          }
+          contributor.name = finalDescription;
+          contributor.cleanedName = finalDescription;
         }
 
         if (registeredName) {
@@ -374,19 +373,16 @@ export const useReconciliationActions = ({
         const original = reconciliation.fullMatchResults.find((r: MatchResult) => r.transaction.id === id);
         if (!original || original.isConfirmed) continue;
 
+        const isSingleManualDesc = txIds.length === 1 && Boolean(manualDescription && manualDescription.trim().length > 0);
+        const manualDescClean = isSingleManualDesc ? manualDescription!.trim() : null;
+
         let finalContributorId = unifiedContributorId;
 
-        // Se nenhum unificado foi passado de forma explícita, cadastra de forma automática
-        if (!finalContributorId && !id.includes('ghost') && !id.startsWith('sim')) {
-          const nameToUse = (txIds.length === 1 && manualDescription && manualDescription.trim().length > 0) 
-            ? manualDescription.trim() 
-            : extractNameAndCpf(original.transaction.description).name;
-          
-          const cpfToUse = (txIds.length === 1 && manualDescription && manualDescription.trim().length > 0) 
-            ? undefined 
-            : extractNameAndCpf(original.transaction.description).cpf;
-
-          if (nameToUse) {
+        // Se nenhum unificado foi passado de forma explícita e NÃO há nome digitado manualmente,
+        // só então tenta cadastrar de forma automática se houver dados de extrato com CPF
+        if (!finalContributorId && !manualDescClean && !id.includes('ghost') && !id.startsWith('sim')) {
+          const { name: nameToUse, cpf: cpfToUse } = extractNameAndCpf(original.transaction.description);
+          if (nameToUse && cpfToUse) {
             finalContributorId = await ensureRegisteredContributor(nameToUse, churchId, cpfToUse) || undefined;
           }
         }
@@ -395,7 +391,8 @@ export const useReconciliationActions = ({
           txToContributorIdMap.set(id, finalContributorId);
         }
 
-        const contributorIdToUse = finalContributorId || original.contributor?.id;
+        // Se há nome manual digitado sem unificação, não herda o ID de contribuinte anterior
+        const contributorIdToUse = finalContributorId || (manualDescClean ? null : original.contributor?.id);
 
         if (!id.includes('ghost') && !id.startsWith('sim')) {
           const isSelectedCategorySaida = 
@@ -496,6 +493,9 @@ export const useReconciliationActions = ({
             reference_date: selectedDate || r.reference_date || r.transaction.reference_date || null
           };
 
+          const isSingleManualDesc = txIds.length === 1 && Boolean(manualDescription && manualDescription.trim().length > 0);
+          const manualDescClean = isSingleManualDesc ? manualDescription!.trim() : null;
+
           let registeredName = '';
           let originalContributorChurchId = '';
           if (matchingContributorId) {
@@ -507,13 +507,15 @@ export const useReconciliationActions = ({
               originalContributorChurchId = foundContrib._churchId || foundContrib.church_id || foundContrib.church?.id || '';
             } else {
               // Fallback se acabou de ser criado e ainda não refletiu na lista
-              const nameToUse = (txIds.length === 1 && manualDescription && manualDescription.trim().length > 0)
-                ? manualDescription.trim()
-                : extractNameAndCpf(r.transaction.description).name;
+              const nameToUse = manualDescClean || extractNameAndCpf(r.transaction.description).name;
               if (nameToUse) {
                 registeredName = nameToUse.trim().replace(/\s+/g, ' ').toUpperCase();
               }
             }
+          } else if (manualDescClean) {
+            // Contribuinte não cadastrado com nome digitado manualmente: preserva exatamente o nome digitado!
+            registeredName = manualDescClean;
+            delete (contributor as any).id;
           }
 
           if (registeredName) {

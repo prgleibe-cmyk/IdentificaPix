@@ -1555,11 +1555,13 @@ async function initializeDatabase() {
     // 🛡️ Regra de Identificação e Sincronização de Igrejas para Cadastros do Portal (PostgreSQL):
     try {
       await client.query(`
-        UPDATE contributors c
-        SET congregation = ch.name
-        FROM churches ch
-        WHERE c.church_id = ch.id
-          AND (c.congregation IS NULL OR trim(c.congregation) = '' OR c.congregation = 'Igreja' OR c.congregation = 'Igreja não identificada');
+        UPDATE contributors
+        SET congregation = (
+          SELECT name FROM churches WHERE churches.id = contributors.church_id LIMIT 1
+        )
+        WHERE (congregation IS NULL OR trim(congregation) = '' OR congregation = 'Igreja' OR congregation = 'Igreja não identificada')
+          AND church_id IS NOT NULL 
+          AND EXISTS (SELECT 1 FROM churches WHERE churches.id = contributors.church_id AND name IS NOT NULL AND trim(name) != '');
       `);
       await client.query(`
         UPDATE contributors
