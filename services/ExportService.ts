@@ -1568,7 +1568,9 @@ ${itemsOfx}
         allReportData: any[] = [], 
         customStartDate?: string, 
         selectionMode?: string,
-        closingRecord?: MonthClosingRecord | null
+        closingRecord?: MonthClosingRecord | null,
+        screenBreakdown?: any,
+        screenDescBreakdown?: any
     ) => {
         const doc = new jsPDF();
         const targetChurch = resolveChurch(churches, selectedChurchId, transactions);
@@ -1653,7 +1655,8 @@ ${itemsOfx}
         let finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY : 100;
 
         // Calcular o resumo detalhado de caixa
-        const breakdown = ExportService.calculateLivroCaixaBreakdown(transactions, allReportData, customStartDate, selectionMode);
+        const breakdown = screenBreakdown || ExportService.calculateLivroCaixaBreakdown(transactions, allReportData, customStartDate, selectionMode);
+        const descBreakdown = screenDescBreakdown || ExportService.calculateLivroCaixaDescriptionBreakdown(transactions);
 
         // Se o espaço na página atual for insuficiente para o quadro de resumo (~50mm), cria nova página
         if (finalY + 52 > pageHeight - 18) {
@@ -1687,7 +1690,7 @@ ${itemsOfx}
                     `• Saldo em Dinheiro: R$ ${fmtVal(breakdown.saldoDinheiro)}\n` +
                     `• Saldo em Pix: R$ ${fmtVal(breakdown.saldoPix)}\n` +
                     `• Saldo Anterior: R$ ${fmtVal(breakdown.saldoAnterior)}\n\n` +
-                    `SALDO FINAL DO CAIXA: R$ ${fmtVal(breakdown.saldoFinal)}`
+                    `${closingRecord && closingRecord.status !== 'reopened' ? 'SALDO ATUAL' : 'SALDO FINAL DO CAIXA'}: R$ ${fmtVal(closingRecord && closingRecord.status !== 'reopened' ? (closingRecord.finalBalance - (closingRecord.transferredBalance || 0)) : breakdown.saldoFinal)}`
                 ]
             ],
             theme: 'grid',
@@ -1704,7 +1707,6 @@ ${itemsOfx}
         let currentY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY : finalY + 40;
 
         // Tabela de Resumo por Destino / Finalidade (Descrição)
-        const descBreakdown = ExportService.calculateLivroCaixaDescriptionBreakdown(transactions);
         if (descBreakdown.incomes.length > 0 || descBreakdown.expenses.length > 0) {
             if (currentY + 45 > pageHeight - 20) {
                 doc.addPage();
@@ -1766,7 +1768,10 @@ ${itemsOfx}
         customStartDate?: string, 
         selectionMode?: string, 
         selectedChurchId?: string,
-        closingRecord?: MonthClosingRecord | null
+        closingRecord?: MonthClosingRecord | null,
+        screenBreakdown?: any,
+        screenDescBreakdown?: any,
+        screenFinancialTotals?: any
     ) => {
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
@@ -1779,18 +1784,27 @@ ${itemsOfx}
         const email = targetChurch?.email ? `Email: ${targetChurch.email}` : '';
         const logo = targetChurch?.logo || targetChurch?.logoUrl || '';
 
-        const breakdown = ExportService.calculateLivroCaixaBreakdown(transactions, allReportData, customStartDate, selectionMode);
-        const descBreakdown = ExportService.calculateLivroCaixaDescriptionBreakdown(transactions);
+        const breakdown = screenBreakdown || ExportService.calculateLivroCaixaBreakdown(transactions, allReportData, customStartDate, selectionMode);
+        const descBreakdown = screenDescBreakdown || ExportService.calculateLivroCaixaDescriptionBreakdown(transactions);
 
         let totalIncome = 0;
         let totalExpense = 0;
-        transactions.forEach(tx => {
-            const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
-            const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
-            if (isExpense) totalExpense += amt;
-            else totalIncome += amt;
-        });
-        const netBalance = totalIncome - totalExpense;
+        if (screenFinancialTotals) {
+            totalIncome = Number(screenFinancialTotals.income) || 0;
+            totalExpense = Number(screenFinancialTotals.expenses) || 0;
+        } else if (screenBreakdown) {
+            totalIncome = Number(screenBreakdown.totalEntradas) || 0;
+            totalExpense = Number(screenBreakdown.totalSaidas) || 0;
+        } else {
+            transactions.forEach(tx => {
+                const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
+                const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
+                if (isExpense) totalExpense += amt;
+                else totalIncome += amt;
+            });
+        }
+        const netBalance = screenFinancialTotals ? Number(screenFinancialTotals.balance) || 0 : (totalIncome - totalExpense);
+        const totalRegistros = screenFinancialTotals?.totalTransactions ?? transactions.length;
 
         const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -1918,7 +1932,7 @@ ${itemsOfx}
                         <div class="discrete-summary-item">ENTRADAS: <span style="color: #059669;">${formatBRL(totalIncome)}</span></div>
                         <div class="discrete-summary-item">SAÍDAS: <span style="color: #dc2626;">${formatBRL(totalExpense)}</span></div>
                         <div class="discrete-summary-item">SALDO OPERACIONAL: <span style="color: ${netBalance >= 0 ? '#059669' : '#dc2626'};">${formatBRL(netBalance)}</span></div>
-                        <div class="discrete-summary-item">REGISTROS: <span>${transactions.length}</span></div>
+                        <div class="discrete-summary-item">REGISTROS: <span>${totalRegistros}</span></div>
                     </div>
 
                     <table class="data-table">
@@ -1947,6 +1961,7 @@ ${itemsOfx}
                                 <div class="resumo-col-title" style="color: #047857;">Entradas e Créditos</div>
                                 <div class="resumo-row"><span>Entradas em dinheiro:</span><strong>${formatBRL(breakdown.entradasDinheiro)}</strong></div>
                                 <div class="resumo-row"><span>Entradas em Pix:</span><strong>${formatBRL(breakdown.entradasPix)}</strong></div>
+                                ${breakdown.entradasOutras > 0 ? `<div class="resumo-row"><span>Outras entradas:</span><strong>${formatBRL(breakdown.entradasOutras)}</strong></div>` : ''}
                                 <div class="resumo-row total"><span>Total de entradas:</span><strong style="color: #047857;">${formatBRL(breakdown.totalEntradas)}</strong></div>
                                 <div class="resumo-row"><span>Transf. recebidas:</span><strong>${formatBRL(breakdown.transfRecebidas)}</strong></div>
                                 <div class="resumo-row total" style="color: #047857; font-size: 10px;"><span>Total Entradas + Transf.:</span><strong>${formatBRL(breakdown.totalEntradasPlusTransf)}</strong></div>
@@ -1957,6 +1972,7 @@ ${itemsOfx}
                                 <div class="resumo-row"><span>Saídas em dinheiro:</span><strong>${formatBRL(breakdown.saidasDinheiro)}</strong></div>
                                 <div class="resumo-row"><span>Saídas em Pix:</span><strong>${formatBRL(breakdown.saidasPix)}</strong></div>
                                 <div class="resumo-row"><span>Saídas boletos/faturas:</span><strong>${formatBRL(breakdown.saidasBoletoFaturas)}</strong></div>
+                                ${breakdown.saidasOutras > 0 ? `<div class="resumo-row"><span>Outras saídas / diversos:</span><strong>${formatBRL(breakdown.saidasOutras)}</strong></div>` : ''}
                                 <div class="resumo-row total"><span>Total de saídas:</span><strong style="color: #b91c1c;">${formatBRL(breakdown.totalSaidas)}</strong></div>
                                 <div class="resumo-row"><span>Transf. enviadas:</span><strong>${formatBRL(breakdown.transfEnviadas)}</strong></div>
                                 <div class="resumo-row total" style="color: #b91c1c; font-size: 10px;"><span>Total Saídas + Transf.:</span><strong>${formatBRL(breakdown.totalSaidasPlusTransf)}</strong></div>
@@ -1967,9 +1983,19 @@ ${itemsOfx}
                                 <div class="resumo-row"><span>Saldo em Dinheiro:</span><strong style="color: ${breakdown.saldoDinheiro >= 0 ? '#047857' : '#b91c1c'};">${formatBRL(breakdown.saldoDinheiro)}</strong></div>
                                 <div class="resumo-row"><span>Saldo em Pix:</span><strong style="color: ${breakdown.saldoPix >= 0 ? '#047857' : '#b91c1c'};">${formatBRL(breakdown.saldoPix)}</strong></div>
                                 <div class="resumo-row" style="border-top: 1px solid #fde68a; padding-top: 4px; margin-top: 4px;"><span>Saldo Anterior:</span><strong>${formatBRL(breakdown.saldoAnterior)}</strong></div>
+                                ${closingRecord && closingRecord.status !== 'reopened' && closingRecord.transferredBalance !== undefined ? `
+                                <div class="resumo-row" style="font-size: 8.5px; border-top: 1px dashed #fde68a; padding-top: 2px;">
+                                    <span>Saldo antes do fechamento:</span>
+                                    <strong>${formatBRL(closingRecord.finalBalance)}</strong>
+                                </div>
+                                <div class="resumo-row" style="font-size: 8.5px; color: #b91c1c;">
+                                    <span>Valor transportado:</span>
+                                    <strong>${formatBRL(Math.abs(closingRecord.transferredBalance))}</strong>
+                                </div>
+                                ` : ''}
                                 <div style="margin-top: 8px; padding: 6px; background: #ffffff; border: 1px solid #fcd34d; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
-                                    <span style="font-weight: 800; font-size: 9.5px;">SALDO FINAL:</span>
-                                    <span style="font-weight: 900; font-size: 11px; color: ${breakdown.saldoFinal >= 0 ? '#047857' : '#b91c1c'};">${formatBRL(breakdown.saldoFinal)}</span>
+                                    <span style="font-weight: 800; font-size: 9.5px;">${closingRecord && closingRecord.status !== 'reopened' ? 'SALDO ATUAL:' : 'SALDO FINAL:'}</span>
+                                    <span style="font-weight: 900; font-size: 11px; color: ${(closingRecord && closingRecord.status !== 'reopened' ? (closingRecord.finalBalance - (closingRecord.transferredBalance || 0)) : breakdown.saldoFinal) >= 0 ? '#047857' : '#b91c1c'};">${formatBRL(closingRecord && closingRecord.status !== 'reopened' ? (closingRecord.finalBalance - (closingRecord.transferredBalance || 0)) : breakdown.saldoFinal)}</span>
                                 </div>
                             </div>
                         </div>

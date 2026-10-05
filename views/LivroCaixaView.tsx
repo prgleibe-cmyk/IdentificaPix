@@ -1091,7 +1091,9 @@ export const LivroCaixaView: React.FC = memo(() => {
                 scopedAllReportData, 
                 effectiveStartDate, 
                 selectionMode,
-                monthClosingRecord
+                monthClosingRecord,
+                summaryBreakdown,
+                descriptionBreakdown
             );
         } else if (format === 'excel') {
             ExportService.downloadLivroCaixaExcel(filteredReportData, churches, `livro_caixa_${dateStr}.xlsx`);
@@ -1118,7 +1120,10 @@ export const LivroCaixaView: React.FC = memo(() => {
             effectiveStartDate, 
             selectionMode, 
             selectedChurchIds[0],
-            monthClosingRecord
+            monthClosingRecord,
+            summaryBreakdown,
+            descriptionBreakdown,
+            financialTotals
         );
     };
 
