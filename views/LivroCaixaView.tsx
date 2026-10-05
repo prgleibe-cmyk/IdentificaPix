@@ -9,7 +9,7 @@ import { AttachmentPreviewModal } from '../components/financial/AttachmentPrevie
 import { QuickAttachModal } from '../components/modals/QuickAttachModal';
 import { ServiceReceiptModal } from '../components/modals/ServiceReceiptModal';
 import { preloadAllAttachmentsMap, getCachedAttachmentsMap, getAttachmentsForTransaction } from '../services/expenseAttachmentService';
-import { getMonthClosingRecord } from '../services/monthClosingService';
+import { getMonthClosingRecord, getAllChurchClosings } from '../services/monthClosingService';
 import { cleanDisplayDescription } from '../services/utils/parsingUtils';
 import { ExpenseAttachment, MonthClosingRecord } from '../types/domain';
 import { 
@@ -104,6 +104,7 @@ export const LivroCaixaView: React.FC = memo(() => {
         return getCachedAttachmentsMap() || new Map();
     });
     const [monthClosingRecord, setMonthClosingRecord] = useState<MonthClosingRecord | null>(null);
+    const [pastClosings, setPastClosings] = useState<MonthClosingRecord[]>([]);
 
     useEffect(() => {
         let isMounted = true;
@@ -179,6 +180,11 @@ export const LivroCaixaView: React.FC = memo(() => {
         const m = selectionMode === 'month' ? selectedMonth : (customStartDate ? parseInt(customStartDate.split('-')[1], 10) : selectedMonth);
         const y = selectionMode === 'month' ? selectedYear : (customStartDate ? parseInt(customStartDate.split('-')[0], 10) : selectedYear);
 
+        // Carrega todos os fechamentos para conciliação de saldos transferidos entre períodos
+        getAllChurchClosings().then(records => {
+            if (isMounted) setPastClosings(records || []);
+        });
+
         if (m && y && churchId) {
             getMonthClosingRecord(churchId, y, m, activeBankId).then(async (record) => {
                 if (!isMounted) return;
@@ -203,6 +209,11 @@ export const LivroCaixaView: React.FC = memo(() => {
         }
 
         const handleClosingUpdate = (e: any) => {
+            // Recarrega todos os fechamentos para manter o saldo anterior sempre fidedigno
+            getAllChurchClosings().then(records => {
+                if (isMounted) setPastClosings(records || []);
+            });
+
             const updated = e?.detail as (MonthClosingRecord & { bankId?: string | null }) | undefined;
             const matchesBank = !activeBankId 
                 ? (!updated?.bankId || updated.bankId === 'all')
@@ -629,6 +640,9 @@ export const LivroCaixaView: React.FC = memo(() => {
         // Cálculo do Saldo Anterior (respeitando rigorosamente os filtros de igreja e banco ativos)
         if (effectiveStartDate) {
             reportData.forEach((item: any) => {
+                const itemId = String(item.id || item.raw?.transaction?.id || '');
+                if (itemId.startsWith('closing-')) return;
+
                 if (isSecondaryUser && allowedChurchIds && allowedChurchIds.length > 0) {
                     const itemChurchId = item.churchId || item.church;
                     if (itemChurchId && !allowedChurchIds.includes(itemChurchId)) return;
@@ -670,6 +684,110 @@ export const LivroCaixaView: React.FC = memo(() => {
                     }
                 }
             });
+
+            // 🛡️ CORREÇÃO CIRÚRGICA — SALDO JÁ TRANSFERIDO NO FECHAMENTO DE PERÍODOS ANTERIORES
+            // Se houve fechamento com transferência em período anterior, o valor transferido pertence
+            // à conta de destino e não pode continuar compondo o saldo anterior da conta de origem.
+            if (pastClosings && pastClosings.length > 0) {
+                const currentPeriodKey = selectionMode === 'month' && selectedYear && selectedMonth
+                    ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`
+                    : (customStartDate ? customStartDate.slice(0, 7) : '');
+
+                pastClosings.forEach((closing: MonthClosingRecord) => {
+                    if (!closing || closing.status === 'reopened') return;
+                    const transferred = Number(closing.transferredBalance) || 0;
+                    if (transferred === 0) return;
+
+                    // O fechamento deve ser de um período estritamente anterior ao período visualizado
+                    const closingPeriodKey = `${closing.year}-${String(closing.month).padStart(2, '0')}`;
+                    if (currentPeriodKey && closingPeriodKey >= currentPeriodKey) return;
+                    if (!currentPeriodKey && effectiveStartDate) {
+                        const closingEndDay = new Date(closing.year, closing.month, 0).getDate();
+                        const closingEndDate = `${closing.year}-${String(closing.month).padStart(2, '0')}-${String(closingEndDay).padStart(2, '0')}`;
+                        if (closingEndDate >= effectiveStartDate) return;
+                    }
+
+                    // Checa pertinência da congregação e conta de origem
+                    let matchesOrigin = false;
+                    if (selectedChurchIds.length > 0) {
+                        matchesOrigin = selectedChurchIds.some(cId => {
+                            if (closing.churchId && closing.churchId === cId) return true;
+                            const chObj = churches.find((c: any) => c.id === cId);
+                            return chObj && (closing.churchName === chObj.name || closing.churchId === chObj.id);
+                        });
+                    } else {
+                        matchesOrigin = true; // Visão consolidada
+                    }
+
+                    if (matchesOrigin && selectedBankIds.length > 0) {
+                        if (closing.bankId && closing.bankId !== 'all') {
+                            matchesOrigin = selectedBankIds.includes(closing.bankId);
+                        }
+                    }
+
+                    // Checa pertinência da congregação de destino
+                    const destIds = (closing.targetChurchId || '').split(',').map((s: string) => s.trim()).filter(Boolean);
+                    let matchesDest = false;
+                    if (selectedChurchIds.length > 0) {
+                        matchesDest = selectedChurchIds.some(cId => {
+                            return destIds.some((dId: string) => {
+                                if (dId === cId) return true;
+                                const chObj = churches.find((c: any) => c.id === cId);
+                                return chObj && (dId === chObj.id || dId === chObj.name);
+                            });
+                        });
+                    } else {
+                        // Na visão consolidada, o destino é interno se pertencer a qualquer igreja cadastrada
+                        matchesDest = destIds.length > 0 && destIds.some((dId: string) => {
+                            return churches.some((c: any) => c.id === dId || c.name === dId);
+                        });
+                    }
+
+                    // Se a conta atual era origem e não era destino, subtrai o saldo transferido
+                    if (matchesOrigin && !matchesDest) {
+                        saldoAnterior -= transferred;
+                    }
+                    // Se a conta atual era destino e não era origem, soma o saldo transferido recebido
+                    else if (!matchesOrigin && matchesDest) {
+                        let destAmount = 0;
+                        if (destIds.length <= 1) {
+                            destAmount = transferred;
+                        } else {
+                            destIds.forEach(dId => {
+                                const isThisDest = selectedChurchIds.some(cId => {
+                                    if (dId === cId) return true;
+                                    const ch = churches.find((c: any) => c.id === cId);
+                                    return ch && (dId === ch.id || dId === ch.name);
+                                });
+                                if (isThisDest) {
+                                    let parsedAmt = 0;
+                                    if (closing.targetChurchName) {
+                                        const ch = churches.find((c: any) => c.id === dId);
+                                        const nameToFind = ch ? ch.name : dId;
+                                        const parts = closing.targetChurchName.split(',');
+                                        for (const p of parts) {
+                                            if (p.toLowerCase().includes(nameToFind.toLowerCase())) {
+                                                const match = p.match(/R\$\s*([\d.,]+)/);
+                                                if (match && match[1]) {
+                                                    const clean = match[1].replace(/\./g, '').replace(',', '.');
+                                                    const val = parseFloat(clean);
+                                                    if (!isNaN(val) && val > 0) {
+                                                        parsedAmt = val;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    destAmount += parsedAmt > 0 ? parsedAmt : (transferred / destIds.length);
+                                }
+                            });
+                        }
+                        saldoAnterior += destAmount;
+                    }
+                    // Se for consolidado (ambas no escopo da visão), o débito e o crédito se anulam internamente
+                });
+            }
         }
 
         filteredReportData.forEach((item: any) => {
@@ -792,7 +910,7 @@ export const LivroCaixaView: React.FC = memo(() => {
             saldoPix,
             saldoFinal
         };
-    }, [reportData, filteredReportData, selectionMode, customStartDate, selectedYear, selectedMonth, selectedChurchIds, selectedBankIds, isSecondaryUser, allowedChurchIds, churches, banks]);
+    }, [reportData, filteredReportData, selectionMode, customStartDate, selectedYear, selectedMonth, selectedChurchIds, selectedBankIds, isSecondaryUser, allowedChurchIds, churches, banks, pastClosings]);
 
     // Resumo analítico agrupado por Destino / Finalidade / Categoria / Descrição / Rateio
     const descriptionBreakdown = useMemo(() => {

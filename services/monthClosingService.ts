@@ -6,6 +6,9 @@ const CLOSING_PREFIX = 'idpix_month_closing_';
 // Cache em memória de períodos fechados: chave = `${churchId}_${year}_${month}` -> boolean
 const memoryClosedCache = new Map<string, boolean>();
 
+// Cache em memória com todos os registros de fechamentos carregados
+let allClosingsCache: MonthClosingRecord[] = [];
+
 /**
  * Retorna o cabeçalho de autorização se disponível
  */
@@ -79,6 +82,13 @@ export async function saveMonthClosingRecord(record: MonthClosingRecord): Promis
         const bankPart = record.bankId && record.bankId !== 'all' ? `_${record.bankId}` : '';
         const cacheKey = `${record.churchId}${bankPart}_${record.year}_${record.month}`;
         memoryClosedCache.set(cacheKey, record.status !== 'reopened');
+
+        const existingIdx = allClosingsCache.findIndex(c => c.id === record.id || (c.churchId === record.churchId && c.year === record.year && c.month === record.month && (c.bankId || null) === (record.bankId || null)));
+        if (existingIdx >= 0) {
+            allClosingsCache[existingIdx] = { ...record };
+        } else {
+            allClosingsCache.push({ ...record });
+        }
 
         // Persistência no Backend Central
         try {
@@ -218,6 +228,15 @@ export async function reopenMonthClosingRecord(
             console.warn('[MonthClosingService] Erro ao comunicar reabertura ao backend:', apiErr);
         }
 
+        // Atualiza cache em memória de fechamentos
+        const closingId = (bankId && bankId !== 'all')
+            ? `closing_${churchId}_${bankId}_${year}_${month}`
+            : `closing_${churchId}_${year}_${month}`;
+        const item = allClosingsCache.find(c => c.id === closingId || (c.churchId === churchId && c.year === year && c.month === month && (c.bankId || null) === (bankId || null)));
+        if (item) {
+            item.status = 'reopened';
+        }
+
         // 4. Notificação em tempo real para toda a aplicação
         if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('month_closing_updated', { 
@@ -230,6 +249,48 @@ export async function reopenMonthClosingRecord(
         console.error('[MonthClosingService] Erro ao reabrir fechamento:', err);
         return false;
     }
+}
+
+/**
+ * Retorna todos os registros de fechamentos homologados ou rascunhos da organização
+ */
+export async function getAllChurchClosings(churchId?: string): Promise<MonthClosingRecord[]> {
+    try {
+        let url = '/api/v1/church-closings';
+        if (churchId && churchId !== 'geral') {
+            url += `?church_id=${encodeURIComponent(churchId)}`;
+        }
+        const res = await fetch(url, { headers: getAuthHeaders() });
+        if (res.ok) {
+            const list = await res.json();
+            if (Array.isArray(list)) {
+                allClosingsCache = list.map((item: any) => ({
+                    id: item.id,
+                    churchId: item.church_id,
+                    churchName: item.church_name || '',
+                    bankId: item.bank_id || null,
+                    month: Number(item.month),
+                    year: Number(item.year),
+                    closedAt: item.closed_at,
+                    totalIncome: Number(item.total_income || 0),
+                    totalExpenses: Number(item.total_expenses || 0),
+                    previousBalance: 0,
+                    finalBalance: Number(item.final_balance || 0),
+                    transferredBalance: (item.transferred_balance !== undefined && item.transferred_balance !== null) ? Number(item.transferred_balance) : undefined,
+                    targetChurchId: item.target_church_id || null,
+                    targetChurchName: item.target_church_name || undefined,
+                    integrityHash: item.integrity_hash || '',
+                    status: item.status || 'closed',
+                    signatures: typeof item.signatures === 'string' ? JSON.parse(item.signatures) : (item.signatures || []),
+                    notes: item.notes || undefined
+                }));
+                return allClosingsCache;
+            }
+        }
+    } catch (err) {
+        console.warn('[MonthClosingService] Falha ao carregar lista completa de fechamentos:', err);
+    }
+    return allClosingsCache;
 }
 
 /**
