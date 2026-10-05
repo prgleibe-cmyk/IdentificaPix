@@ -426,6 +426,7 @@ export interface MonthClosingRecord {
   id: string;
   churchId: string;
   churchName?: string;
+  bankId?: string | null;
   month: number;
   year: number;
   closedAt: string;

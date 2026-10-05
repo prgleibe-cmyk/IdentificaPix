@@ -167,25 +167,27 @@ export const LivroCaixaView: React.FC = memo(() => {
         return raw.filter((c: any) => allowedChurchIds.includes(c.id));
     }, [context?.churches, isSecondaryUser, allowedChurchIds]);
 
-    // Carrega registro de fechamento homologado e assinado digitalmente para a congregação e período ativo
+    // Carrega registro de fechamento homologado e assinado digitalmente para a congregação, conta e período ativo
     useEffect(() => {
         let isMounted = true;
         const churchId = selectedChurchIds.length === 1 
             ? selectedChurchIds[0] 
             : (churches.length === 1 ? churches[0].id : (churches[0]?.id || null));
 
+        const activeBankId = selectedBankIds.length === 1 ? selectedBankIds[0] : null;
+
         const m = selectionMode === 'month' ? selectedMonth : (customStartDate ? parseInt(customStartDate.split('-')[1], 10) : selectedMonth);
         const y = selectionMode === 'month' ? selectedYear : (customStartDate ? parseInt(customStartDate.split('-')[0], 10) : selectedYear);
 
         if (m && y && churchId) {
-            getMonthClosingRecord(churchId, y, m).then(async (record) => {
+            getMonthClosingRecord(churchId, y, m, activeBankId).then(async (record) => {
                 if (!isMounted) return;
                 if (record && record.status !== 'reopened') {
                     setMonthClosingRecord(record);
                 } else if (selectedChurchIds.length === 0 && churches.length > 1) {
                     for (const ch of churches) {
                         if (ch.id === churchId) continue;
-                        const otherRec = await getMonthClosingRecord(ch.id, y, m);
+                        const otherRec = await getMonthClosingRecord(ch.id, y, m, activeBankId);
                         if (otherRec && otherRec.status !== 'reopened' && isMounted) {
                             setMonthClosingRecord(otherRec);
                             return;
@@ -201,11 +203,15 @@ export const LivroCaixaView: React.FC = memo(() => {
         }
 
         const handleClosingUpdate = (e: any) => {
-            const updated = e?.detail as MonthClosingRecord | undefined;
-            if (updated && updated.year === y && updated.month === m) {
+            const updated = e?.detail as (MonthClosingRecord & { bankId?: string | null }) | undefined;
+            const matchesBank = !activeBankId 
+                ? (!updated?.bankId || updated.bankId === 'all')
+                : (updated?.bankId === activeBankId);
+
+            if (updated && updated.year === y && updated.month === m && matchesBank) {
                 if (isMounted) setMonthClosingRecord(updated.status === 'reopened' ? null : updated);
             } else if (m && y && churchId) {
-                getMonthClosingRecord(churchId, y, m).then(record => {
+                getMonthClosingRecord(churchId, y, m, activeBankId).then(record => {
                     if (isMounted) setMonthClosingRecord(record?.status === 'reopened' ? null : record);
                 });
             }
@@ -216,7 +222,7 @@ export const LivroCaixaView: React.FC = memo(() => {
             isMounted = false;
             window.removeEventListener('month_closing_updated', handleClosingUpdate);
         };
-    }, [selectedChurchIds, churches, selectionMode, selectedMonth, selectedYear, customStartDate]);
+    }, [selectedChurchIds, selectedBankIds, churches, selectionMode, selectedMonth, selectedYear, customStartDate]);
 
     const banks = useMemo(() => {
         const raw = context?.banks || [];
@@ -1038,7 +1044,13 @@ export const LivroCaixaView: React.FC = memo(() => {
                         }
                     }}
                     onClosingComplete={(record) => {
-                        setMonthClosingRecord(record);
+                        const activeBankId = selectedBankIds.length === 1 ? selectedBankIds[0] : null;
+                        const matchesBank = !activeBankId 
+                            ? (!record.bankId || record.bankId === 'all')
+                            : (record.bankId === activeBankId);
+                        if (matchesBank) {
+                            setMonthClosingRecord(record);
+                        }
                     }}
                     currentChurchId={selectedChurchIds.length === 1 ? selectedChurchIds[0] : (churches.length === 1 ? churches[0].id : null)}
                     currentBankId={selectedBankIds.length === 1 ? selectedBankIds[0] : null}

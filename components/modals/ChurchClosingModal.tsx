@@ -92,6 +92,12 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
+    useEffect(() => {
+        if (currentBankId !== undefined) {
+            setOriginBankId(currentBankId || 'all');
+        }
+    }, [currentBankId]);
+
     // Gestão de Assinaturas Digitais e Fechamento Sem Papel
     const [signatures, setSignatures] = useState<DigitalSignature[]>([]);
     const [isTransferEnabled, setIsTransferEnabled] = useState<boolean>(true);
@@ -231,7 +237,8 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
         async function loadExistingClosing() {
             if (!originChurchId || !isOpen) return;
             try {
-                const rec = await getMonthClosingRecord(originChurchId, closingYear, closingMonth);
+                const bankParam = originBankId && originBankId !== 'all' ? originBankId : null;
+                const rec = await getMonthClosingRecord(originChurchId, closingYear, closingMonth, bankParam);
                 if (isMounted) {
                     setExistingRecord(rec);
                     if (rec && rec.signatures && rec.signatures.length > 0) {
@@ -248,7 +255,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
         }
         loadExistingClosing();
         return () => { isMounted = false; };
-    }, [originChurchId, closingYear, closingMonth, isOpen]);
+    }, [originChurchId, originBankId, closingYear, closingMonth, isOpen]);
 
     // Recalcula o Hash SHA-256 de integridade contábil
     useEffect(() => {
@@ -589,10 +596,14 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
             }
 
             // 3. Salvar Registro de Fechamento Contábil com Assinaturas Digitais e Hash SHA-256
+            const isIndividualBank = originBankId && originBankId !== 'all';
             const closingRecord: MonthClosingRecord = {
-                id: `closing_${originChurch.id}_${closingYear}_${closingMonth}`,
+                id: isIndividualBank 
+                    ? `closing_${originChurch.id}_${originBankId}_${closingYear}_${closingMonth}`
+                    : `closing_${originChurch.id}_${closingYear}_${closingMonth}`,
                 churchId: originChurch.id,
                 churchName: originChurch.name,
+                bankId: isIndividualBank ? originBankId : null,
                 month: closingMonth,
                 year: closingYear,
                 closedAt: new Date().toISOString(),
@@ -670,7 +681,8 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
         setIsReopening(true);
         setErrorMessage(null);
         try {
-            const success = await reopenMonthClosingRecord(originChurchId, closingYear, closingMonth);
+            const bankParam = originBankId && originBankId !== 'all' ? originBankId : null;
+            const success = await reopenMonthClosingRecord(originChurchId, closingYear, closingMonth, bankParam);
             if (!success) {
                 throw new Error('Falha ao registrar a reabertura no servidor.');
             }

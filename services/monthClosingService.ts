@@ -58,10 +58,11 @@ export async function generateClosingIntegrityHash(data: {
 }
 
 /**
- * Monta a chave única do fechamento: idpix_month_closing_{churchId}_{year}_{month}
+ * Monta a chave única do fechamento: idpix_month_closing_{churchId}_{bankId}_{year}_{month}
  */
-function buildKey(churchId: string, year: number, month: number): string {
-    return `${CLOSING_PREFIX}${churchId || 'geral'}_${year}_${month}`;
+function buildKey(churchId: string, year: number, month: number, bankId?: string | null): string {
+    const bankPart = bankId && bankId !== 'all' ? `_${bankId}` : '';
+    return `${CLOSING_PREFIX}${churchId || 'geral'}${bankPart}_${year}_${month}`;
 }
 
 /**
@@ -71,11 +72,12 @@ function buildKey(churchId: string, year: number, month: number): string {
 export async function saveMonthClosingRecord(record: MonthClosingRecord): Promise<void> {
     if (!record || !record.churchId || !record.year || !record.month) return;
     try {
-        const key = buildKey(record.churchId, record.year, record.month);
+        const key = buildKey(record.churchId, record.year, record.month, record.bankId);
         await set(key, record);
 
         // Atualiza cache em memória
-        const cacheKey = `${record.churchId}_${record.year}_${record.month}`;
+        const bankPart = record.bankId && record.bankId !== 'all' ? `_${record.bankId}` : '';
+        const cacheKey = `${record.churchId}${bankPart}_${record.year}_${record.month}`;
         memoryClosedCache.set(cacheKey, record.status !== 'reopened');
 
         // Persistência no Backend Central
@@ -94,7 +96,7 @@ export async function saveMonthClosingRecord(record: MonthClosingRecord): Promis
 
         if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('month_closing_updated', { 
-                detail: { churchId: record.churchId, year: record.year, month: record.month, status: record.status } 
+                detail: { churchId: record.churchId, bankId: record.bankId || null, year: record.year, month: record.month, status: record.status } 
             }));
         }
     } catch (err) {
@@ -103,21 +105,23 @@ export async function saveMonthClosingRecord(record: MonthClosingRecord): Promis
 }
 
 /**
- * Obtém o registro de fechamento do mês para uma igreja
+ * Obtém o registro de fechamento do mês para uma igreja e conta
  */
 export async function getMonthClosingRecord(
     churchId: string, 
     year: number, 
-    month: number
+    month: number,
+    bankId?: string | null
 ): Promise<MonthClosingRecord | null> {
     try {
-        const key = buildKey(churchId, year, month);
+        const key = buildKey(churchId, year, month, bankId);
         let record = await get<MonthClosingRecord>(key);
 
         if (!record && churchId && churchId !== 'geral') {
             // Tenta consultar no backend se não estiver no IndexedDB
             try {
-                const res = await fetch(`/api/v1/church-closings/${encodeURIComponent(churchId)}/${year}/${month}`, {
+                const queryParam = bankId && bankId !== 'all' ? `?bank_id=${encodeURIComponent(bankId)}` : '';
+                const res = await fetch(`/api/v1/church-closings/${encodeURIComponent(churchId)}/${year}/${month}${queryParam}`, {
                     headers: getAuthHeaders()
                 });
                 if (res.ok) {
@@ -127,6 +131,7 @@ export async function getMonthClosingRecord(
                             id: backendData.id,
                             churchId: backendData.church_id,
                             churchName: backendData.church_name || '',
+                            bankId: backendData.bank_id || null,
                             month: Number(backendData.month),
                             year: Number(backendData.year),
                             closedAt: backendData.closed_at,
@@ -150,7 +155,8 @@ export async function getMonthClosingRecord(
         }
 
         if (record) {
-            const cacheKey = `${churchId}_${year}_${month}`;
+            const bankPart = record.bankId && record.bankId !== 'all' ? `_${record.bankId}` : '';
+            const cacheKey = `${churchId}${bankPart}_${year}_${month}`;
             memoryClosedCache.set(cacheKey, record.status !== 'reopened');
         }
 
@@ -167,9 +173,10 @@ export async function getMonthClosingRecord(
 export async function deleteMonthClosingRecord(
     churchId: string, 
     year: number, 
-    month: number
+    month: number,
+    bankId?: string | null
 ): Promise<void> {
-    await reopenMonthClosingRecord(churchId, year, month);
+    await reopenMonthClosingRecord(churchId, year, month, bankId);
 }
 
 /**
@@ -179,15 +186,17 @@ export async function deleteMonthClosingRecord(
 export async function reopenMonthClosingRecord(
     churchId: string, 
     year: number, 
-    month: number
+    month: number,
+    bankId?: string | null
 ): Promise<boolean> {
     try {
-        const cacheKey = `${churchId}_${year}_${month}`;
+        const bankPart = bankId && bankId !== 'all' ? `_${bankId}` : '';
+        const cacheKey = `${churchId}${bankPart}_${year}_${month}`;
         // 1. Liberação IMEDIATA da memória
         memoryClosedCache.set(cacheKey, false);
 
         // 2. Atualização no IndexedDB para evitar ressurreição por cache local
-        const key = buildKey(churchId, year, month);
+        const key = buildKey(churchId, year, month, bankId);
         const existing = await get<MonthClosingRecord>(key);
         if (existing) {
             await set(key, { ...existing, status: 'reopened' });
@@ -200,7 +209,7 @@ export async function reopenMonthClosingRecord(
             const res = await fetch('/api/v1/church-closings/reopen', {
                 method: 'POST',
                 headers: getAuthHeaders(),
-                body: JSON.stringify({ churchId, year, month })
+                body: JSON.stringify({ churchId, year, month, bankId: bankId || null })
             });
             if (!res.ok) {
                 console.warn('[MonthClosingService] Resposta do backend ao reabrir:', res.status);
@@ -212,7 +221,7 @@ export async function reopenMonthClosingRecord(
         // 4. Notificação em tempo real para toda a aplicação
         if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('month_closing_updated', { 
-                detail: { churchId, year, month, status: 'reopened' } 
+                detail: { churchId, bankId: bankId || null, year, month, status: 'reopened' } 
             }));
         }
 
@@ -278,9 +287,9 @@ export async function syncAllChurchClosings(churchId?: string): Promise<void> {
 }
 
 /**
- * 🛡️ Verifica de forma síncrona se um período para determinada igreja está fechado
+ * 🛡️ Verifica de forma síncrona se um período para determinada igreja (e opcionalmente conta) está fechado
  */
-export function isChurchPeriodClosedSync(churchId: string | null | undefined, dateStr: string | null | undefined): boolean {
+export function isChurchPeriodClosedSync(churchId: string | null | undefined, dateStr: string | null | undefined, bankId?: string | null | undefined): boolean {
     if (!churchId || !dateStr || churchId === 'unidentified' || churchId === 'geral') return false;
     const cleanDate = dateStr.split(/[T ]/)[0];
     const parts = cleanDate.split('-');
@@ -289,8 +298,13 @@ export function isChurchPeriodClosedSync(churchId: string | null | undefined, da
     const month = parseInt(parts[1], 10);
     if (isNaN(year) || isNaN(month)) return false;
 
-    const cacheKey = `${churchId}_${year}_${month}`;
-    return memoryClosedCache.get(cacheKey) === true;
+    if (bankId && bankId !== 'all') {
+        const specificKey = `${churchId}_${bankId}_${year}_${month}`;
+        if (memoryClosedCache.get(specificKey) === true) return true;
+    }
+
+    const consolidatedKey = `${churchId}_${year}_${month}`;
+    return memoryClosedCache.get(consolidatedKey) === true;
 }
 
 /**
@@ -335,9 +349,9 @@ export function getClosedPeriodsSetFromCache(churchId?: string): Set<string> {
 }
 
 /**
- * 🛡️ Verifica de forma assíncrona se um período para determinada igreja está fechado
+ * 🛡️ Verifica de forma assíncrona se um período para determinada igreja (e opcionalmente conta) está fechado
  */
-export async function isChurchPeriodClosedAsync(churchId: string | null | undefined, dateStr: string | null | undefined): Promise<boolean> {
+export async function isChurchPeriodClosedAsync(churchId: string | null | undefined, dateStr: string | null | undefined, bankId?: string | null | undefined): Promise<boolean> {
     if (!churchId || !dateStr || churchId === 'unidentified' || churchId === 'geral') return false;
     const cleanDate = dateStr.split(/[T ]/)[0];
     const parts = cleanDate.split('-');
@@ -347,19 +361,33 @@ export async function isChurchPeriodClosedAsync(churchId: string | null | undefi
     if (isNaN(year) || isNaN(month)) return false;
 
     // 1. Checa memória
-    const cacheKey = `${churchId}_${year}_${month}`;
-    if (memoryClosedCache.has(cacheKey)) {
-        return memoryClosedCache.get(cacheKey) === true;
+    if (bankId && bankId !== 'all') {
+        const specificKey = `${churchId}_${bankId}_${year}_${month}`;
+        if (memoryClosedCache.has(specificKey)) {
+            if (memoryClosedCache.get(specificKey) === true) return true;
+        }
+    }
+    const consolidatedKey = `${churchId}_${year}_${month}`;
+    if (memoryClosedCache.has(consolidatedKey)) {
+        if (memoryClosedCache.get(consolidatedKey) === true) return true;
     }
 
-    // 2. Checa IndexedDB
-    const record = await getMonthClosingRecord(churchId, year, month);
+    // 2. Checa fechamento individual
+    if (bankId && bankId !== 'all') {
+        const record = await getMonthClosingRecord(churchId, year, month, bankId);
+        if (record && record.status !== 'reopened') {
+            memoryClosedCache.set(`${churchId}_${bankId}_${year}_${month}`, true);
+            return true;
+        }
+    }
+
+    // 3. Checa fechamento consolidado
+    const record = await getMonthClosingRecord(churchId, year, month, null);
     if (record && record.status !== 'reopened') {
-        memoryClosedCache.set(cacheKey, true);
+        memoryClosedCache.set(consolidatedKey, true);
         return true;
     }
 
-    memoryClosedCache.set(cacheKey, false);
     return false;
 }
 
@@ -369,7 +397,8 @@ if (typeof window !== 'undefined') {
         const detail = e.detail;
         if (detail && detail.churchId && detail.year && detail.month) {
             const isClosed = detail.status !== 'reopened';
-            memoryClosedCache.set(`${detail.churchId}_${detail.year}_${detail.month}`, isClosed);
+            const bankPart = detail.bankId && detail.bankId !== 'all' ? `_${detail.bankId}` : '';
+            memoryClosedCache.set(`${detail.churchId}${bankPart}_${detail.year}_${detail.month}`, isClosed);
         }
     });
 

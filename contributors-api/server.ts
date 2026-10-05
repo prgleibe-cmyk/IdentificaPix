@@ -245,6 +245,7 @@ class LocalSqliteEngine {
       CREATE TABLE IF NOT EXISTS church_closings (
         id TEXT PRIMARY KEY,
         church_id TEXT NOT NULL,
+        bank_id TEXT,
         year INTEGER NOT NULL,
         month INTEGER NOT NULL,
         status TEXT NOT NULL DEFAULT 'closed',
@@ -260,10 +261,8 @@ class LocalSqliteEngine {
         signatures TEXT,
         notes TEXT,
         created_at TEXT DEFAULT (now()),
-        updated_at TEXT DEFAULT (now()),
-        UNIQUE(church_id, year, month)
+        updated_at TEXT DEFAULT (now())
       );
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_church_closings_unique ON church_closings(church_id, year, month);
       CREATE INDEX IF NOT EXISTS idx_church_closings_lookup ON church_closings(church_id, year, month, status);
 
       CREATE TABLE IF NOT EXISTS audit_logs (
@@ -574,9 +573,9 @@ class LocalSqliteEngine {
     safeAdd('contribution_requests', 'bank_id TEXT');
     safeAdd('contribution_requests', 'splits TEXT');
     safeAdd('contribution_requests', 'updated_at TEXT DEFAULT CURRENT_TIMESTAMP');
-
+    safeAdd('church_closings', 'bank_id TEXT');
     try {
-      this.db?.exec("UPDATE consolidated_transactions SET description = 'ALOISIO DA SILVA UCHOA' WHERE (UPPER(description) = 'PAGAMENTO S' OR UPPER(description) = 'PAGAMENTO S.') AND amount = 1.80;");
+      this.db?.exec("DROP INDEX IF EXISTS idx_church_closings_unique;");
     } catch (_) {}
 
     safeAdd('learned_associations', 'normalized_description TEXT');
@@ -902,6 +901,9 @@ class SmartPool {
   private lastErrorLogTime: number = 0;
   private isOffline: boolean = false;
   private localEngine: LocalSqliteEngine;
+  private isSyncing: boolean = false;
+  private checkOfflineRecoveryInterval: NodeJS.Timeout | null = null;
+  private lastRecoveryProbeTime: number = 0;
 
   constructor(config: pg.PoolConfig) {
     this.localEngine = new LocalSqliteEngine();
@@ -909,6 +911,13 @@ class SmartPool {
     this.pgPool.on('error', (err: any) => {
       this.handlePoolError('Pool client error', err);
     });
+
+    // 🛡️ Auto-Cura e Reconexão Resiliente: Verifica periodicamente a volta do PostgreSQL quando em fallback offline
+    this.checkOfflineRecoveryInterval = setInterval(() => {
+      if (this.isOffline) {
+        this.probeAndRecover();
+      }
+    }, 30000);
   }
 
   private handlePoolError(context: string, err: any) {
@@ -924,7 +933,46 @@ class SmartPool {
     }
   }
 
+  public async probeAndRecover(): Promise<boolean> {
+    const now = Date.now();
+    if (now - this.lastRecoveryProbeTime < 10000 || this.isSyncing) {
+      return !this.isOffline;
+    }
+    this.lastRecoveryProbeTime = now;
+
+    try {
+      const client = await this.pgPool.connect();
+      try {
+        await client.query('SELECT 1');
+      } finally {
+        client.release();
+      }
+
+      if (this.isOffline) {
+        this.isOffline = false;
+        console.log('[Contributors API] 🛡️ PostgreSQL restabelecido com sucesso! Retornando ao modo primário online.');
+        // Dispara sincronização de resgate assíncrona
+        this.syncPendingLocalToPostgres().catch(err => {
+          console.warn('[Contributors API] Aviso na sincronização de resgate para o PostgreSQL:', err?.message || err);
+        });
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   async connect(): Promise<pg.PoolClient> {
+    if (this.isOffline) {
+      const recovered = await this.probeAndRecover();
+      if (recovered) {
+        try {
+          const client = await this.pgPool.connect();
+          return client;
+        } catch (_) {}
+      }
+    }
+
     try {
       if (!this.isOffline) {
         const client = await this.pgPool.connect();
@@ -949,6 +997,10 @@ class SmartPool {
   }
 
   async query(sql: string, params?: any[]): Promise<pg.QueryResult<any>> {
+    if (this.isOffline) {
+      await this.probeAndRecover();
+    }
+
     if (!this.isOffline) {
       try {
         const res = await this.pgPool.query(sql, params);
@@ -975,7 +1027,221 @@ class SmartPool {
     return this.localEngine.query(sql, params) as any;
   }
 
+  /**
+   * 🛡️ Sincronização de Resgate SQLite ➔ PostgreSQL:
+   * Promove automaticamente registros armazenados no SQLite local durante quedas de rede ou inicializações prévias
+   * para o PostgreSQL com segurança, prevenindo regressão ou perda de dados em deploys.
+   */
+  public async syncPendingLocalToPostgres(): Promise<void> {
+    if (this.isSyncing) return;
+    this.isSyncing = true;
+
+    try {
+      const client = await this.pgPool.connect();
+      try {
+        const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+        // 1. Transações consolidadas
+        const txRows = this.localEngine.query('SELECT * FROM consolidated_transactions').rows || [];
+        if (txRows.length > 0) {
+          for (const row of txRows) {
+            if (!row.id) continue;
+            const validId = uuidRegex.test(row.id) ? row.id : null;
+            if (!validId) continue;
+            const validUserId = row.user_id && uuidRegex.test(row.user_id) ? row.user_id : null;
+            if (!validUserId) continue;
+            const validChurchId = row.church_id && uuidRegex.test(row.church_id) ? row.church_id : null;
+            const validBankId = row.bank_id && uuidRegex.test(row.bank_id) ? row.bank_id : null;
+            const validContributorId = row.contributor_id && uuidRegex.test(row.contributor_id) ? row.contributor_id : null;
+            const validContribReqId = row.contribution_request_id && uuidRegex.test(row.contribution_request_id) ? row.contribution_request_id : null;
+            const splitsJson = row.splits ? (typeof row.splits === 'string' ? row.splits : JSON.stringify(row.splits)) : null;
+
+            await client.query(`
+              INSERT INTO consolidated_transactions (
+                id, amount, description, type, pix_key, source, user_id, status,
+                bank_id, row_hash, is_confirmed, transaction_date, reference_date,
+                church_id, contributor_id, report_id, payment_method, contribution_type,
+                contribution_request_id, splits, created_at, updated_at
+              ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8,
+                $9, $10, $11, $12, $13,
+                $14, $15, $16, $17, $18,
+                $19, $20, $21, $22
+              ) ON CONFLICT (id) DO NOTHING;
+            `, [
+              validId,
+              Number(row.amount || 0),
+              row.description || '',
+              row.type || 'income',
+              row.pix_key || null,
+              row.source || 'file',
+              validUserId,
+              row.status || 'pending',
+              validBankId,
+              row.row_hash || null,
+              Boolean(row.is_confirmed),
+              row.transaction_date ? new Date(row.transaction_date) : new Date(),
+              row.reference_date || null,
+              validChurchId,
+              validContributorId,
+              row.report_id || null,
+              row.payment_method || null,
+              row.contribution_type || null,
+              validContribReqId,
+              splitsJson,
+              row.created_at ? new Date(row.created_at) : new Date(),
+              row.updated_at ? new Date(row.updated_at) : new Date()
+            ]);
+          }
+        }
+
+        // 2. Fechamentos contábeis (church_closings)
+        const closingRows = this.localEngine.query('SELECT * FROM church_closings').rows || [];
+        if (closingRows.length > 0) {
+          for (const row of closingRows) {
+            if (!row.id || !row.church_id) continue;
+            const sigJson = row.signatures ? (typeof row.signatures === 'string' ? row.signatures : JSON.stringify(row.signatures)) : null;
+            await client.query(`
+              INSERT INTO church_closings (
+                id, church_id, bank_id, year, month, status, closed_at, closed_by, 
+                total_income, total_expenses, final_balance, transferred_balance, 
+                target_church_id, target_church_name, integrity_hash, signatures, notes, updated_at
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW())
+              ON CONFLICT (id) DO UPDATE SET
+                status = EXCLUDED.status,
+                bank_id = EXCLUDED.bank_id,
+                closed_at = EXCLUDED.closed_at,
+                closed_by = EXCLUDED.closed_by,
+                total_income = EXCLUDED.total_income,
+                total_expenses = EXCLUDED.total_expenses,
+                final_balance = EXCLUDED.final_balance,
+                transferred_balance = EXCLUDED.transferred_balance,
+                target_church_id = EXCLUDED.target_church_id,
+                target_church_name = EXCLUDED.target_church_name,
+                integrity_hash = EXCLUDED.integrity_hash,
+                signatures = EXCLUDED.signatures,
+                notes = EXCLUDED.notes,
+                updated_at = NOW();
+            `, [
+              row.id,
+              row.church_id,
+              row.bank_id || null,
+              Number(row.year),
+              Number(row.month),
+              row.status || 'closed',
+              row.closed_at ? new Date(row.closed_at) : new Date(),
+              row.closed_by || null,
+              Number(row.total_income || 0),
+              Number(row.total_expenses || 0),
+              Number(row.final_balance || 0),
+              row.transferred_balance !== undefined && row.transferred_balance !== null ? Number(row.transferred_balance) : null,
+              row.target_church_id || null,
+              row.target_church_name || null,
+              row.integrity_hash || null,
+              sigJson,
+              row.notes || null
+            ]);
+          }
+        }
+
+        // 3. Contribuintes (contributors)
+        const contributorRows = this.localEngine.query('SELECT * FROM contributors').rows || [];
+        if (contributorRows.length > 0) {
+          for (const row of contributorRows) {
+            if (!row.id || !uuidRegex.test(row.id)) continue;
+            const validChurchId = row.church_id && uuidRegex.test(row.church_id) ? row.church_id : '00000000-0000-0000-0000-000000000001';
+            await client.query(`
+              INSERT INTO contributors (
+                id, church_id, canonical_name, name, cpf, email, phone, whatsapp,
+                status, person_type, category, pix_key, bank_name, bank_agency,
+                bank_account, notes, congregation, created_at, updated_at
+              ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8,
+                $9, $10, $11, $12, $13, $14,
+                $15, $16, $17, $18, $19
+              ) ON CONFLICT (id) DO NOTHING;
+            `, [
+              row.id,
+              validChurchId,
+              row.canonical_name || row.name || 'CONTRIBUINTE',
+              row.name || row.canonical_name || '',
+              row.cpf || null,
+              row.email || null,
+              row.phone || null,
+              row.whatsapp || null,
+              row.status || 'active',
+              row.person_type || 'PF',
+              row.category || null,
+              row.pix_key || null,
+              row.bank_name || null,
+              row.bank_agency || null,
+              row.bank_account || null,
+              row.notes || null,
+              row.congregation || null,
+              row.created_at ? new Date(row.created_at) : new Date(),
+              row.updated_at ? new Date(row.updated_at) : new Date()
+            ]);
+          }
+        }
+
+        // 4. Registros financeiros (financial_records)
+        const finRows = this.localEngine.query('SELECT * FROM financial_records').rows || [];
+        if (finRows.length > 0) {
+          for (const row of finRows) {
+            if (!row.id || !uuidRegex.test(row.id)) continue;
+            const validUserId = row.user_id && uuidRegex.test(row.user_id) ? row.user_id : null;
+            if (!validUserId) continue;
+            const validChurchId = row.church_id && uuidRegex.test(row.church_id) ? row.church_id : null;
+            const attachJson = row.attachments ? (typeof row.attachments === 'string' ? row.attachments : JSON.stringify(row.attachments)) : '[]';
+            await client.query(`
+              INSERT INTO financial_records (
+                id, user_id, church_id, title, description, amount, type, status,
+                recipient_name, recipient_type, due_date, payment_date, recurrence,
+                attachments, validation_status, validation_notes, created_at, updated_at
+              ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8,
+                $9, $10, $11, $12, $13,
+                $14, $15, $16, $17, $18
+              ) ON CONFLICT (id) DO NOTHING;
+            `, [
+              row.id,
+              validUserId,
+              validChurchId,
+              row.title || 'Registro',
+              row.description || null,
+              Number(row.amount || 0),
+              row.type || 'expense',
+              row.status || 'pending',
+              row.recipient_name || null,
+              row.recipient_type || null,
+              row.due_date ? new Date(row.due_date) : null,
+              row.payment_date ? new Date(row.payment_date) : null,
+              row.recurrence || 'none',
+              attachJson,
+              row.validation_status || 'pending_attachment',
+              row.validation_notes || null,
+              row.created_at ? new Date(row.created_at) : new Date(),
+              row.updated_at ? new Date(row.updated_at) : new Date()
+            ]);
+          }
+        }
+
+        console.log('[Contributors API] 🛡️ Sincronização de resgate SQLite ➔ PostgreSQL concluída com sucesso.');
+      } finally {
+        client.release();
+      }
+    } catch (syncErr: any) {
+      console.warn('[Contributors API] Aviso ao sincronizar registros locais com PostgreSQL:', syncErr?.message || syncErr);
+    } finally {
+      this.isSyncing = false;
+    }
+  }
+
   async end() {
+    if (this.checkOfflineRecoveryInterval) {
+      clearInterval(this.checkOfflineRecoveryInterval);
+      this.checkOfflineRecoveryInterval = null;
+    }
     await this.pgPool.end();
   }
 }
@@ -1580,10 +1846,12 @@ async function initializeDatabase() {
         signatures JSONB,
         notes TEXT,
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        UNIQUE(church_id, year, month)
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
     `);
+    await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS bank_id VARCHAR(255);');
+    try { await client.query('ALTER TABLE church_closings DROP CONSTRAINT IF EXISTS church_closings_church_id_year_month_key;'); } catch (_) {}
+    try { await client.query('DROP INDEX IF EXISTS idx_church_closings_unique;'); } catch (_) {}
     await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS church_id VARCHAR(255);');
     await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS year INT;');
     await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS month INT;');
@@ -1601,12 +1869,17 @@ async function initializeDatabase() {
     await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS notes TEXT;');
     await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();');
     await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();');
-    await client.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_church_closings_unique ON church_closings(church_id, year, month);');
     await client.query('CREATE INDEX IF NOT EXISTS idx_church_closings_lookup ON church_closings(church_id, year, month, status);');
     console.log('[Contributors API] Table "church_closings" verified or successfully created.');
 
     // Initialize Audit Logs Database
     await initAuditDatabase(pool);
+
+    // 🛡️ Sincronização de Resgate e Resiliência SQLite ➔ PostgreSQL:
+    // Promove automaticamente dados que possam ter sido registrados localmente durante indisponibilidades prévias
+    if (typeof (pool as any).syncPendingLocalToPostgres === 'function') {
+      await (pool as any).syncPendingLocalToPostgres();
+    }
 
   } catch (err: any) {
     const isNetworkOrDns = err?.code === 'EAI_AGAIN' || err?.code === 'ENOTFOUND' || err?.code === 'ECONNREFUSED' || err?.code === 'ETIMEDOUT';
@@ -6078,7 +6351,8 @@ async function matchAndLinkContributionRequest(clientOrPool: any, tx: {
 async function isChurchPeriodClosed(
   clientOrPool: any,
   churchId: string | null | undefined,
-  dateInput: string | Date | null | undefined
+  dateInput: string | Date | null | undefined,
+  bankId?: string | null | undefined
 ): Promise<{ isClosed: boolean; churchId?: string; year?: number; month?: number; message?: string }> {
   if (!churchId || !dateInput || churchId === 'unidentified' || churchId === 'geral') {
     return { isClosed: false };
@@ -6098,13 +6372,19 @@ async function isChurchPeriodClosed(
   }
 
   try {
-    const res = await clientOrPool.query(
-      `SELECT id, church_id, year, month, status, closed_at 
+    let query = `SELECT id, church_id, bank_id, year, month, status, closed_at 
        FROM church_closings 
-       WHERE church_id::text = $1 AND year = $2 AND month = $3 AND status != 'reopened'
-       LIMIT 1`,
-      [String(churchId), year, month]
-    );
+       WHERE church_id::text = $1 AND year = $2 AND month = $3 AND status != 'reopened'`;
+    const params: any[] = [String(churchId), year, month];
+
+    if (bankId && bankId !== 'all') {
+      query += ` AND (bank_id IS NULL OR bank_id = '' OR bank_id = 'all' OR bank_id::text = $${params.length + 1})`;
+      params.push(String(bankId));
+    }
+
+    query += ' LIMIT 1';
+
+    const res = await clientOrPool.query(query, params);
 
     if (res.rows && res.rows.length > 0) {
       const mStr = String(month).padStart(2, '0');
@@ -6156,12 +6436,24 @@ app.get('/api/v1/church-closings', async (req: Request, res: Response) => {
 app.get('/api/v1/church-closings/:churchId/:year/:month', async (req: Request, res: Response) => {
   try {
     const { churchId, year, month } = req.params;
-    const result = await pool.query(
-      `SELECT * FROM church_closings 
-       WHERE church_id::text = $1 AND year = $2 AND month = $3 
-       LIMIT 1`,
-      [String(churchId), parseInt(year, 10), parseInt(month, 10)]
-    );
+    const { bank_id } = req.query;
+
+    let query: string;
+    let params: any[];
+
+    if (bank_id && bank_id !== 'all') {
+      query = `SELECT * FROM church_closings 
+       WHERE church_id::text = $1 AND year = $2 AND month = $3 AND bank_id::text = $4 
+       LIMIT 1`;
+      params = [String(churchId), parseInt(year, 10), parseInt(month, 10), String(bank_id)];
+    } else {
+      query = `SELECT * FROM church_closings 
+       WHERE church_id::text = $1 AND year = $2 AND month = $3 AND (bank_id IS NULL OR bank_id = '' OR bank_id = 'all') 
+       LIMIT 1`;
+      params = [String(churchId), parseInt(year, 10), parseInt(month, 10)];
+    }
+
+    const result = await pool.query(query, params);
 
     if (result.rows && result.rows.length > 0) {
       return res.json(result.rows[0]);
@@ -6182,6 +6474,8 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
       id,
       churchId,
       church_id,
+      bankId,
+      bank_id,
       year,
       month,
       status,
@@ -6208,6 +6502,7 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
     } = body;
 
     const effChurchId = String(churchId || church_id || '');
+    const effBankId = (bankId && bankId !== 'all') ? String(bankId) : ((bank_id && bank_id !== 'all') ? String(bank_id) : null);
     const effYear = parseInt(String(year), 10);
     const effMonth = parseInt(String(month), 10);
 
@@ -6215,7 +6510,9 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'churchId, year e month são obrigatórios.' });
     }
 
-    const effId = id || `closing_${effChurchId}_${effYear}_${effMonth}`;
+    const effId = id || (effBankId
+      ? `closing_${effChurchId}_${effBankId}_${effYear}_${effMonth}`
+      : `closing_${effChurchId}_${effYear}_${effMonth}`);
     const effStatus = status || 'closed';
     const effClosedAt = closedAt || closed_at || new Date().toISOString();
     const effClosedBy = closedBy || closed_by || (ctx.userId ? String(ctx.userId) : null);
@@ -6231,12 +6528,13 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
 
     const query = `
       INSERT INTO church_closings (
-        id, church_id, year, month, status, closed_at, closed_by, 
+        id, church_id, bank_id, year, month, status, closed_at, closed_by, 
         total_income, total_expenses, final_balance, transferred_balance, 
         target_church_id, target_church_name, integrity_hash, signatures, notes, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW())
-      ON CONFLICT (church_id, year, month) DO UPDATE SET
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW())
+      ON CONFLICT (id) DO UPDATE SET
         status = EXCLUDED.status,
+        bank_id = EXCLUDED.bank_id,
         closed_at = EXCLUDED.closed_at,
         closed_by = EXCLUDED.closed_by,
         total_income = EXCLUDED.total_income,
@@ -6253,7 +6551,7 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
     `;
 
     const params = [
-      effId, effChurchId, effYear, effMonth, effStatus, effClosedAt, effClosedBy,
+      effId, effChurchId, effBankId, effYear, effMonth, effStatus, effClosedAt, effClosedBy,
       effIncome, effExpenses, effBalance, effTransferred, effTargetChurchId,
       effTargetChurchName, effHash, effSignatures, effNotes
     ];
@@ -6287,8 +6585,9 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
 app.post('/api/v1/church-closings/reopen', async (req: Request, res: Response) => {
   try {
     const ctx = getTenantContext(req);
-    const { churchId, church_id, year, month } = req.body || {};
+    const { churchId, church_id, year, month, bankId, bank_id } = req.body || {};
     const effChurchId = String(churchId || church_id || '');
+    const effBankId = (bankId && bankId !== 'all') ? String(bankId) : ((bank_id && bank_id !== 'all') ? String(bank_id) : null);
     const effYear = parseInt(String(year), 10);
     const effMonth = parseInt(String(month), 10);
 
@@ -6302,32 +6601,53 @@ app.post('/api/v1/church-closings/reopen', async (req: Request, res: Response) =
     }
 
     // 1. Atualiza status para 'reopened' no banco central (libera imediatamente a checagem isChurchPeriodClosed)
-    const result = await pool.query(
-      `UPDATE church_closings 
+    let updateQuery: string;
+    let updateParams: any[];
+
+    if (effBankId) {
+      updateQuery = `UPDATE church_closings 
        SET status = 'reopened', updated_at = NOW() 
-       WHERE church_id::text = $1 AND year = $2 AND month = $3 
-       RETURNING *`,
-      [effChurchId, effYear, effMonth]
-    );
+       WHERE church_id::text = $1 AND year = $2 AND month = $3 AND bank_id::text = $4 
+       RETURNING *`;
+      updateParams = [effChurchId, effYear, effMonth, effBankId];
+    } else {
+      updateQuery = `UPDATE church_closings 
+       SET status = 'reopened', updated_at = NOW() 
+       WHERE church_id::text = $1 AND year = $2 AND month = $3 AND (bank_id IS NULL OR bank_id = '' OR bank_id = 'all') 
+       RETURNING *`;
+      updateParams = [effChurchId, effYear, effMonth];
+    }
+
+    const result = await pool.query(updateQuery, updateParams);
 
     // Se não encontrou registro com UPDATE, tenta remover por garantia
     if (!result.rows || result.rows.length === 0) {
-      await pool.query(
-        `DELETE FROM church_closings WHERE church_id::text = $1 AND year = $2 AND month = $3`,
-        [effChurchId, effYear, effMonth]
-      );
+      if (effBankId) {
+        await pool.query(
+          `DELETE FROM church_closings WHERE church_id::text = $1 AND year = $2 AND month = $3 AND bank_id::text = $4`,
+          [effChurchId, effYear, effMonth, effBankId]
+        );
+      } else {
+        await pool.query(
+          `DELETE FROM church_closings WHERE church_id::text = $1 AND year = $2 AND month = $3 AND (bank_id IS NULL OR bank_id = '' OR bank_id = 'all')`,
+          [effChurchId, effYear, effMonth]
+        );
+      }
     }
 
     // 2. Remove eventuais transações automáticas de transferência geradas pelo fechamento anterior
     try {
       const monthPrefix = `${effYear}-${String(effMonth).padStart(2, '0')}`;
-      await pool.query(
-        `DELETE FROM consolidated_transactions 
+      let delTxQuery = `DELETE FROM consolidated_transactions 
          WHERE (church_id::text = $1 OR user_id = $2) 
            AND (id LIKE 'closing-outflow-%' OR id LIKE 'closing-inflow-%')
-           AND (transaction_date::text LIKE $3 OR reference_date::text LIKE $3)`,
-        [effChurchId, ctx.userId || '', `${monthPrefix}%`]
-      );
+           AND (transaction_date::text LIKE $3 OR reference_date::text LIKE $3)`;
+      const delTxParams: any[] = [effChurchId, ctx.userId || '', `${monthPrefix}%`];
+      if (effBankId) {
+        delTxQuery += ` AND bank_id::text = $4`;
+        delTxParams.push(effBankId);
+      }
+      await pool.query(delTxQuery, delTxParams);
     } catch (cleanupErr) {
       console.warn('[ChurchClosings] Aviso ao limpar transações de fechamento automático:', cleanupErr);
     }
@@ -6336,7 +6656,7 @@ app.post('/api/v1/church-closings/reopen', async (req: Request, res: Response) =
       await logAudit(pool, {
         action: 'UPDATE',
         entity: 'church_closings',
-        entityId: `closing_${effChurchId}_${effYear}_${effMonth}`,
+        entityId: effBankId ? `closing_${effChurchId}_${effBankId}_${effYear}_${effMonth}` : `closing_${effChurchId}_${effYear}_${effMonth}`,
         churchId: effChurchId,
         userId: ctx.userId || null,
         newValues: { status: 'reopened', reopened_at: new Date().toISOString() },
@@ -6346,11 +6666,12 @@ app.post('/api/v1/church-closings/reopen', async (req: Request, res: Response) =
       console.warn('[Audit] Erro ao gravar audit log de reabertura de fechamento:', auditErr);
     }
 
-    console.log(`[ChurchClosings] 🔓 Fechamento Final DESFEITO / REABERTO no banco: Igreja ${effChurchId}, Período ${effMonth}/${effYear}`);
+    console.log(`[ChurchClosings] 🔓 Fechamento Final DESFEITO / REABERTO no banco: Igreja ${effChurchId}, Conta ${effBankId || 'Consolidado'}, Período ${effMonth}/${effYear}`);
     return res.json({ 
       success: true, 
       status: 'reopened', 
       churchId: effChurchId, 
+      bankId: effBankId,
       year: effYear, 
       month: effMonth,
       message: `Período ${String(effMonth).padStart(2, '0')}/${effYear} reaberto com sucesso. Lançamentos liberados.` 
@@ -6366,7 +6687,9 @@ app.delete('/api/v1/church-closings/:churchId/:year/:month', async (req: Request
   try {
     const ctx = getTenantContext(req);
     const { churchId, year, month } = req.params;
+    const { bank_id } = req.query;
     const effChurchId = String(churchId || '');
+    const effBankId = (bank_id && bank_id !== 'all') ? String(bank_id) : null;
     const effYear = parseInt(String(year), 10);
     const effMonth = parseInt(String(month), 10);
 
@@ -6374,14 +6697,23 @@ app.delete('/api/v1/church-closings/:churchId/:year/:month', async (req: Request
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Apenas o usuário principal tem autorização para reabrir períodos contábeis.' });
     }
 
-    await pool.query(
-      `UPDATE church_closings 
-       SET status = 'reopened', updated_at = NOW() 
-       WHERE church_id::text = $1 AND year = $2 AND month = $3`,
-      [effChurchId, effYear, effMonth]
-    );
+    if (effBankId) {
+      await pool.query(
+        `UPDATE church_closings 
+         SET status = 'reopened', updated_at = NOW() 
+         WHERE church_id::text = $1 AND year = $2 AND month = $3 AND bank_id::text = $4`,
+        [effChurchId, effYear, effMonth, effBankId]
+      );
+    } else {
+      await pool.query(
+        `UPDATE church_closings 
+         SET status = 'reopened', updated_at = NOW() 
+         WHERE church_id::text = $1 AND year = $2 AND month = $3 AND (bank_id IS NULL OR bank_id = '' OR bank_id = 'all')`,
+        [effChurchId, effYear, effMonth]
+      );
+    }
 
-    return res.json({ success: true, status: 'reopened', churchId: effChurchId, year: effYear, month: effMonth });
+    return res.json({ success: true, status: 'reopened', churchId: effChurchId, year: effYear, month: effMonth, bankId: effBankId });
   } catch (err) {
     console.error('[ChurchClosings] Erro ao deletar fechamento:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
