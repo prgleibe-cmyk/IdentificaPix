@@ -234,10 +234,15 @@ export const RelatoriosView: React.FC = memo(() => {
             // Secondary user church restriction
             if (isSecondaryUser && allowedChurchIds && allowedChurchIds.length > 0) {
                 const itemChurchId = item.churchId || item.church;
+                const txSplits = (Array.isArray(item.splits) && item.splits.length > 0) ? item.splits : null;
                 const matchesAllowed = allowedChurchIds.some(cId => {
                     if (itemChurchId === cId) return true;
                     const chName = churchNameMap.get(cId);
-                    return chName && (item.church === chName || item.churchId === cId);
+                    if (chName && (item.church === chName || item.churchId === cId)) return true;
+                    if (txSplits && txSplits.length > 0) {
+                        return txSplits.some((s: any) => s.churchId === cId || (chName && s.churchName === chName));
+                    }
+                    return false;
                 });
                 if (!matchesAllowed) return false;
             }
@@ -245,10 +250,15 @@ export const RelatoriosView: React.FC = memo(() => {
             // Multi-church filter
             if (selectedChurchIds.length > 0) {
                 const itemChurchId = item.churchId || item.church;
+                const txSplits = (Array.isArray(item.splits) && item.splits.length > 0) ? item.splits : null;
                 const matchesAny = selectedChurchIds.some(cId => {
                     if (itemChurchId === cId) return true;
                     const chName = churchNameMap.get(cId);
-                    return chName && (item.church === chName || item.churchId === cId);
+                    if (chName && (item.church === chName || item.churchId === cId)) return true;
+                    if (txSplits && txSplits.length > 0) {
+                        return txSplits.some((s: any) => s.churchId === cId || (chName && s.churchName === chName));
+                    }
+                    return false;
                 });
                 if (!matchesAny) return false;
             }

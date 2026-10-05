@@ -355,7 +355,16 @@ export const useReportsController = () => {
                     const cid = (r.church?.id && r.church.id !== 'unidentified')
                         ? r.church.id
                         : (r._churchId && r._churchId !== 'unidentified' ? r._churchId : (r.transaction as any)?.church_id);
-                    return cid === targetChurchId;
+                    if (cid === targetChurchId) return true;
+                    const rSplits = (Array.isArray(r.splits) && r.splits.length > 0)
+                        ? r.splits
+                        : (Array.isArray((r.transaction as any)?.splits) && (r.transaction as any).splits.length > 0)
+                            ? (r.transaction as any).splits
+                            : null;
+                    if (rSplits && rSplits.length > 0) {
+                        return rSplits.some((s: any) => s.churchId === targetChurchId);
+                    }
+                    return false;
                 });
             } else {
                 filteredData = [];
@@ -368,7 +377,16 @@ export const useReportsController = () => {
                 const churchId = (r.church?.id && r.church.id !== 'unidentified')
                     ? r.church.id
                     : (r._churchId && r._churchId !== 'unidentified' ? r._churchId : (r.transaction as any)?.church_id || 'unidentified');
-                return churchId === 'unidentified' || subscription.congregationIds.includes(churchId);
+                if (churchId === 'unidentified' || subscription.congregationIds.includes(churchId)) return true;
+                const rSplits = (Array.isArray(r.splits) && r.splits.length > 0)
+                    ? r.splits
+                    : (Array.isArray((r.transaction as any)?.splits) && (r.transaction as any).splits.length > 0)
+                        ? (r.transaction as any).splits
+                        : null;
+                if (rSplits && rSplits.length > 0) {
+                    return rSplits.some((s: any) => s.churchId && subscription.congregationIds.includes(s.churchId));
+                }
+                return false;
             });
         }
 

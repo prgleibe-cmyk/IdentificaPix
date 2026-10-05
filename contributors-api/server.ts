@@ -643,6 +643,10 @@ class LocalSqliteEngine {
         UPDATE contributors 
         SET church_id = '00000000-0000-0000-0000-000000000001' 
         WHERE church_id IS NULL OR trim(church_id) = '' OR church_id = 'church-1';
+
+        UPDATE consolidated_transactions 
+        SET church_id = '00000000-0000-0000-0000-000000000001' 
+        WHERE church_id IS NULL OR trim(church_id) = '' OR church_id = 'church-1';
       `);
       // 🛡️ Regra de Identificação e Sincronização de Igrejas para Cadastros do Portal:
       this.db.exec(`
@@ -1399,6 +1403,11 @@ async function initializeDatabase() {
     try {
       await pool.query(`
         UPDATE contributors 
+        SET church_id = '00000000-0000-0000-0000-000000000001' 
+        WHERE church_id IS NULL OR trim(church_id::text) = '' OR church_id::text = 'church-1';
+      `);
+      await pool.query(`
+        UPDATE consolidated_transactions 
         SET church_id = '00000000-0000-0000-0000-000000000001' 
         WHERE church_id IS NULL OR trim(church_id::text) = '' OR church_id::text = 'church-1';
       `);
@@ -6757,18 +6766,18 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
         if (!ctx.allowedChurchIds.includes(church_id)) {
           return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para esta congregação.' });
         }
-        query += ` AND church_id = $${counter}`;
-        params.push(church_id);
-        counter++;
+        query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND splits LIKE $${counter + 1}))`;
+        params.push(church_id, `%"churchId":"${church_id}"%`);
+        counter += 2;
       } else {
         query += ` AND church_id = ANY($${counter})`;
         params.push(ctx.allowedChurchIds);
         counter++;
       }
     } else if (church_id && church_id !== 'all' && typeof church_id === 'string') {
-      query += ` AND church_id = $${counter}`;
-      params.push(church_id);
-      counter++;
+      query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND splits LIKE $${counter + 1}))`;
+      params.push(church_id, `%"churchId":"${church_id}"%`);
+      counter += 2;
     }
 
     if (req.query.contributor_id) {
@@ -6850,7 +6859,8 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
     const { id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits } = req.body;
 
     const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
-    const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : (church_id || null);
+    const defaultChurchId = (ctx.allowedChurchIds && ctx.allowedChurchIds.length > 0) ? ctx.allowedChurchIds[0] : '00000000-0000-0000-0000-000000000001';
+    const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : (church_id || defaultChurchId);
 
     if (amount === undefined || amount === null || !description || !type || !effectiveUserId || !transaction_date) {
       return res.status(400).json({ error: 'VALIDATION_ERROR' });

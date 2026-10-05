@@ -472,8 +472,24 @@ export const LivroCaixaView: React.FC = memo(() => {
     const filteredReportData = useMemo(() => {
         return reportData.filter((item: any) => {
             if (isSecondaryUser && allowedChurchIds && allowedChurchIds.length > 0) {
-                const itemChurchId = item.churchId || item.church;
-                if (itemChurchId && !allowedChurchIds.includes(itemChurchId)) return false;
+                const itemChurchId = item.churchId;
+                const itemChurchName = item.church;
+                const itemSplits = (Array.isArray(item.splits) && item.splits.length > 0)
+                    ? item.splits
+                    : (Array.isArray(item.raw?.splits) && item.raw.splits.length > 0)
+                        ? item.raw.splits
+                        : null;
+
+                const matchesAllowed = allowedChurchIds.some(cId => {
+                    if (itemChurchId && itemChurchId === cId) return true;
+                    const chObj = (context?.churches || churches).find((c: any) => c.id === cId);
+                    if (chObj && (itemChurchName === chObj.name || itemChurchId === chObj.id)) return true;
+                    if (itemSplits && itemSplits.length > 0) {
+                        return itemSplits.some((s: any) => s.churchId === cId || (chObj && s.churchName === chObj.name));
+                    }
+                    return false;
+                });
+                if (!matchesAllowed) return false;
             }
 
             if (selectedChurchIds.length > 0) {
@@ -644,8 +660,24 @@ export const LivroCaixaView: React.FC = memo(() => {
                 if (itemId.startsWith('closing-')) return;
 
                 if (isSecondaryUser && allowedChurchIds && allowedChurchIds.length > 0) {
-                    const itemChurchId = item.churchId || item.church;
-                    if (itemChurchId && !allowedChurchIds.includes(itemChurchId)) return;
+                    const itemChurchId = item.churchId;
+                    const itemChurchName = item.church;
+                    const itemSplits = (Array.isArray(item.splits) && item.splits.length > 0)
+                        ? item.splits
+                        : (Array.isArray(item.raw?.splits) && item.raw.splits.length > 0)
+                            ? item.raw.splits
+                            : null;
+
+                    const matchesAllowed = allowedChurchIds.some(cId => {
+                        if (itemChurchId && itemChurchId === cId) return true;
+                        const chObj = (context?.churches || churches).find((c: any) => c.id === cId);
+                        if (chObj && (itemChurchName === chObj.name || itemChurchId === chObj.id)) return true;
+                        if (itemSplits && itemSplits.length > 0) {
+                            return itemSplits.some((s: any) => s.churchId === cId || (chObj && s.churchName === chObj.name));
+                        }
+                        return false;
+                    });
+                    if (!matchesAllowed) return;
                 }
 
                 if (selectedChurchIds.length > 0) {
@@ -1027,8 +1059,24 @@ export const LivroCaixaView: React.FC = memo(() => {
     const scopedAllReportData = useMemo(() => {
         return reportData.filter((item: any) => {
             if (isSecondaryUser && allowedChurchIds && allowedChurchIds.length > 0) {
-                const itemChurchId = item.churchId || item.church;
-                if (itemChurchId && !allowedChurchIds.includes(itemChurchId)) return false;
+                const itemChurchId = item.churchId;
+                const itemChurchName = item.church;
+                const itemSplits = (Array.isArray(item.splits) && item.splits.length > 0)
+                    ? item.splits
+                    : (Array.isArray(item.raw?.splits) && item.raw.splits.length > 0)
+                        ? item.raw.splits
+                        : null;
+
+                const matchesAllowed = allowedChurchIds.some(cId => {
+                    if (itemChurchId && itemChurchId === cId) return true;
+                    const chObj = (context?.churches || churches).find((c: any) => c.id === cId);
+                    if (chObj && (itemChurchName === chObj.name || itemChurchId === chObj.id)) return true;
+                    if (itemSplits && itemSplits.length > 0) {
+                        return itemSplits.some((s: any) => s.churchId === cId || (chObj && s.churchName === chObj.name));
+                    }
+                    return false;
+                });
+                if (!matchesAllowed) return false;
             }
 
             if (selectedChurchIds.length > 0) {

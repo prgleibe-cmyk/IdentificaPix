@@ -213,14 +213,25 @@ export const useReconciliation = (props: any) => {
             filtered = filtered.filter(r => {
                 if (!r) return false;
                 const churchId = r.church?.id || r._churchId || (r.transaction as any)?.church_id;
-                return Boolean(churchId && subscription.congregationIds.includes(churchId));
+                if (!churchId || churchId === 'unidentified') return true;
+                if (subscription.congregationIds.includes(churchId)) return true;
+
+                const splits = (Array.isArray(r.splits) && r.splits.length > 0)
+                    ? r.splits
+                    : (Array.isArray((r.transaction as any)?.splits) ? (r.transaction as any).splits : null);
+                if (splits && splits.length > 0) {
+                    return splits.some((s: any) => s.churchId && subscription.congregationIds.includes(s.churchId));
+                }
+                return false;
             });
         }
 
         if (subscription?.bankIds && subscription.bankIds.length > 0) {
-            filtered = filtered.filter(r =>
-                r?.transaction?.bank_id ? subscription.bankIds.includes(String(r.transaction.bank_id)) : false
-            );
+            filtered = filtered.filter(r => {
+                const isManual = (r as any).isManual || r.transaction?.isManual || r.transaction?.source === 'manual';
+                if (isManual && !r.transaction?.bank_id) return true;
+                return r?.transaction?.bank_id ? subscription.bankIds.includes(String(r.transaction.bank_id)) : true;
+            });
         }
 
         return filtered;
