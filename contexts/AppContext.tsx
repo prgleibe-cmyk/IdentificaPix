@@ -15,6 +15,7 @@ import { PLACEHOLDER_CHURCH } from '../services/processingService';
 import { resolveContributionType } from '../utils/formatters';
 import { cleanDisplayDescription } from '../services/utils/parsingUtils';
 import { batchState, lastRealtimeUpdate } from '../hooks/reconciliation/useCloudSync';
+import { syncAllChurchClosings } from '../services/monthClosingService';
 const ENABLE_HEAVY_LOGS = false;
 
 export const AppContext = createContext<any>(null!);
@@ -48,6 +49,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             lastTriggerTime = now;
             
             console.log("[AppContext:RealtimeRefresh] Sincronização em tempo real acionada.");
+            syncAllChurchClosings().catch(() => {});
             setRealtimeRefreshKey(prev => prev + 1);
         };
 
@@ -74,7 +76,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             try {
                 bc = new BroadcastChannel('identificapix_realtime_sync');
                 bc.onmessage = (event) => {
-                    if (event.data?.type === 'TRANSACTION_UPDATED') {
+                    if (event.data?.type === 'TRANSACTION_UPDATED' || event.data?.type === 'MONTH_CLOSING_UPDATED') {
+                        syncAllChurchClosings().catch(() => {});
                         triggerRefresh();
                     }
                 };

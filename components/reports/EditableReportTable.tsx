@@ -1420,7 +1420,9 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                     </thead>
                     <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                         {paginatedData.map(result => {
-                            const isClosedPeriod = isSecondaryUser && isDateInClosedPeriods(result.transaction?.date || result.contributor?.date, closedPeriodsSet);
+                            const rowChurchId = result.church?.id || (result.transaction as any)?.church_id || (result as any).church_id;
+                            const rowDate = result.transaction?.date || result.contributor?.date;
+                            const isClosedPeriod = isSecondaryUser && Boolean(rowChurchId && isPeriodClosed(rowDate, undefined, rowChurchId));
                             return (
                                 <IncomeRow 
                                     key={result.transaction.id}
@@ -1466,7 +1468,9 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{data.length} registros</span>
                 </div>
                 {paginatedData.map(result => {
-                    const isClosedPeriod = isSecondaryUser && isDateInClosedPeriods(result.transaction?.date || result.contributor?.date, closedPeriodsSet);
+                    const rowChurchId = result.church?.id || (result.transaction as any)?.church_id || (result as any).church_id;
+                    const rowDate = result.transaction?.date || result.contributor?.date;
+                    const isClosedPeriod = isSecondaryUser && Boolean(rowChurchId && isPeriodClosed(rowDate, undefined, rowChurchId));
                     return (
                         <MobileCard 
                             key={result.transaction.id}

@@ -48,6 +48,9 @@ export const CategoryPills: React.FC<CategoryPillsProps> = ({
         if (activeCategory !== 'churches') {
             onCategoryChange('churches');
         }
+        if (!selectedReportId && selectedChurch?.id) {
+            onSelectChurch?.(selectedChurch.id);
+        }
         if (churchButtonRef.current) {
             const rect = churchButtonRef.current.getBoundingClientRect();
             const menuWidth = 280;
