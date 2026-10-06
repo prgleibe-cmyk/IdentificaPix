@@ -62,15 +62,10 @@ export const isDateInClosedPeriods = (dateStr: string, closedPeriodsSet: Set<str
  * Quando o Usuário Principal desfaz o fechamento, o período é imediatamente liberado sem ressurreição.
  */
 export const isPeriodClosed = (dateStr: string, matchResults?: any[], churchId?: string): boolean => {
-    if (!dateStr) return false;
+    if (!dateStr || !churchId || churchId === 'unidentified' || churchId === 'geral') return false;
 
-    // 1. Verificação autoritativa por Congregação + Período (Mês/Ano)
-    if (churchId && churchId !== 'unidentified' && churchId !== 'geral') {
-        return isChurchPeriodClosedSync(churchId, dateStr);
-    }
-
-    // 2. Se nenhuma congregação específica foi informada, checa se qualquer congregação possui fechamento ativo
-    return isAnyChurchPeriodClosedSync(dateStr);
+    // 🛡️ O Fechamento Final deve ser identificado e aplicado pela combinação IGREJA + PERÍODO, nunca apenas pelo período.
+    return isChurchPeriodClosedSync(churchId, dateStr);
 };
 
 /**

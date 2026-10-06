@@ -67,6 +67,9 @@ export const useReportsController = () => {
         if (isSecondary && subscription?.congregationIds && subscription.congregationIds.length > 0) {
             return subscription.congregationIds[0];
         }
+        if (churches && churches.length > 0 && churches[0].id) {
+            return churches[0].id;
+        }
         return null;
     });
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
@@ -200,7 +203,7 @@ export const useReportsController = () => {
                 if (isManual && r.transaction?.bank_id && String(r.transaction?.bank_id) !== selectedBankId) return false;
             } else if (isSecondary && subscription?.bankIds && subscription.bankIds.length > 0) {
                 const isManual = r.transaction?.isManual || r.transaction?.source === 'manual';
-                if (!isManual && !subscription.bankIds.includes(String(r.transaction?.bank_id))) return false;
+                if (!isManual && r.transaction?.bank_id && !subscription.bankIds.includes(String(r.transaction?.bank_id))) return false;
             }
             return true;
         });
@@ -319,7 +322,16 @@ export const useReportsController = () => {
                 const churchId = (r.church?.id && r.church.id !== 'unidentified')
                     ? r.church.id
                     : (r._churchId && r._churchId !== 'unidentified' ? r._churchId : (r.transaction as any)?.church_id || 'unidentified');
-                return churchId === 'unidentified' || subscription.congregationIds.includes(churchId);
+                if (churchId === 'unidentified' || subscription.congregationIds.includes(churchId)) return true;
+                const rSplits = (Array.isArray(r.splits) && r.splits.length > 0)
+                    ? r.splits
+                    : (Array.isArray((r.transaction as any)?.splits) && (r.transaction as any).splits.length > 0)
+                        ? (r.transaction as any).splits
+                        : null;
+                if (rSplits && rSplits.length > 0) {
+                    return rSplits.some((s: any) => s.churchId && subscription.congregationIds.includes(s.churchId));
+                }
+                return false;
               })
             : periodResults;
 
@@ -348,7 +360,7 @@ export const useReportsController = () => {
                 ? (selectedReportId && subscription.congregationIds.includes(selectedReportId) ? selectedReportId : subscription.congregationIds[0])
                 : ((selectedReportId && selectedReportId !== 'general_all' && selectedReportId !== 'unidentified' && selectedReportId !== 'all_expenses_group')
                     ? selectedReportId 
-                    : null);
+                    : (cacheRef.current.churchList.length > 0 ? cacheRef.current.churchList[0].id : (churches && churches.length > 0 ? churches[0].id : null)));
 
             if (targetChurchId) {
                 filteredData = periodResults.filter(r => {
