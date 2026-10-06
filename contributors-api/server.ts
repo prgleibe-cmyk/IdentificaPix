@@ -6770,17 +6770,9 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
         params.push(church_id, `%"churchId":"${church_id}"%`);
         counter += 2;
       } else {
-        if (ctx.allowedChurchIds.length === 1) {
-          query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND splits LIKE $${counter + 1}))`;
-          params.push(ctx.allowedChurchIds[0], `%"churchId":"${ctx.allowedChurchIds[0]}"%`);
-          counter += 2;
-        } else {
-          const splitClauses = ctx.allowedChurchIds.map((_, i) => `splits LIKE $${counter + 1 + i}`).join(' OR ');
-          query += ` AND (church_id = ANY($${counter}) OR (splits IS NOT NULL AND (${splitClauses})))`;
-          params.push(ctx.allowedChurchIds);
-          ctx.allowedChurchIds.forEach(cId => params.push(`%"churchId":"${cId}"%`));
-          counter += 1 + ctx.allowedChurchIds.length;
-        }
+        query += ` AND church_id = ANY($${counter})`;
+        params.push(ctx.allowedChurchIds);
+        counter++;
       }
     } else if (church_id && church_id !== 'all' && typeof church_id === 'string') {
       query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND splits LIKE $${counter + 1}))`;
@@ -6868,7 +6860,7 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
 
     const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
     const defaultChurchId = (ctx.allowedChurchIds && ctx.allowedChurchIds.length > 0) ? ctx.allowedChurchIds[0] : '00000000-0000-0000-0000-000000000001';
-    const effectiveChurchId = (church_id && church_id !== 'unidentified') ? String(church_id) : ((ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : defaultChurchId);
+    const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : (church_id || defaultChurchId);
 
     if (amount === undefined || amount === null || !description || !type || !effectiveUserId || !transaction_date) {
       return res.status(400).json({ error: 'VALIDATION_ERROR' });
@@ -7557,7 +7549,7 @@ app.post('/api/v1/financial_records', async (req: Request, res: Response) => {
     } = req.body;
 
     const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
-    const effectiveChurchId = (church_id && church_id !== 'unidentified') ? String(church_id) : ((ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : null);
+    const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : (church_id || null);
 
     if (!effectiveUserId || !title || amount === undefined || !type) {
       return res.status(400).json({ error: 'VALIDATION_ERROR: user_id, title, amount, and type are required' });
