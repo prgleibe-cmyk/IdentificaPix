@@ -903,6 +903,9 @@ export const ManualIdModal: React.FC = () => {
         if (selectedChurchId && isPeriodClosed(targetDate, matchResults, selectedChurchId)) {
             alert("PERÍODO CONGELADO: Este período contábil já teve seu Fechamento Final homologado para a congregação selecionada. Novos lançamentos ou identificações estão expressamente bloqueados.");
             return;
+        } else if (isSecondaryUser && isPeriodClosed(targetDate, matchResults)) {
+            alert("Este período já foi fechado de forma definitiva pelo usuário principal. Não é permitido realizar novos lançamentos.");
+            return;
         }
 
         if (isSavingRef.current || isSaving) return;
