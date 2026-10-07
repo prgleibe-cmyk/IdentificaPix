@@ -1277,26 +1277,28 @@ export const LivroCaixaView: React.FC = memo(() => {
                         </div>
                     </div>
 
-                    <div>
-                        <button
-                            type="button"
-                            onClick={handleOpenClosing}
-                            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold text-white rounded-xl shadow-xs hover:opacity-95 transition-all tracking-wider uppercase cursor-pointer border active:scale-95 shrink-0 ${
-                                monthClosingRecord && monthClosingRecord.status !== 'reopened'
-                                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 border-emerald-400/30'
-                                    : 'bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 border-orange-400/30'
-                            }`}
-                            title={monthClosingRecord && monthClosingRecord.status !== 'reopened' ? "Fechamento Homologado - Visualizar e Gerenciar" : "Realizar Fechamento & Assinaturas Digitais"}
-                            id="btn-fechamento-livro-caixa"
-                        >
-                            {monthClosingRecord && monthClosingRecord.status !== 'reopened' ? (
-                                <ShieldCheck className="w-4 h-4 text-white shrink-0" />
-                            ) : (
-                                <Building2 className="w-4 h-4 text-white shrink-0" />
-                            )}
-                            <span>{monthClosingRecord && monthClosingRecord.status !== 'reopened' ? 'FECHAMENTO HOMOLOGADO' : 'FECHAMENTO'}</span>
-                        </button>
-                    </div>
+                    {!isSecondaryUser && (
+                        <div>
+                            <button
+                                type="button"
+                                onClick={handleOpenClosing}
+                                className={`flex items-center gap-2 px-4 py-2 text-xs font-bold text-white rounded-xl shadow-xs hover:opacity-95 transition-all tracking-wider uppercase cursor-pointer border active:scale-95 shrink-0 ${
+                                    monthClosingRecord && monthClosingRecord.status !== 'reopened'
+                                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 border-emerald-400/30'
+                                        : 'bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 border-orange-400/30'
+                                }`}
+                                title={monthClosingRecord && monthClosingRecord.status !== 'reopened' ? "Fechamento Homologado - Visualizar e Gerenciar" : "Realizar Fechamento & Assinaturas Digitais"}
+                                id="btn-fechamento-livro-caixa"
+                            >
+                                {monthClosingRecord && monthClosingRecord.status !== 'reopened' ? (
+                                    <ShieldCheck className="w-4 h-4 text-white shrink-0" />
+                                ) : (
+                                    <Building2 className="w-4 h-4 text-white shrink-0" />
+                                )}
+                                <span>{monthClosingRecord && monthClosingRecord.status !== 'reopened' ? 'FECHAMENTO HOMOLOGADO' : 'FECHAMENTO'}</span>
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
 
