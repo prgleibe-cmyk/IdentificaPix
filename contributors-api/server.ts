@@ -7381,10 +7381,11 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
     }
 
     // 🛡️ Validação de Período Fechado (Congelamento)
-    // 1. Não permite alterar transação pertencente a um período já fechado
+    // 1. Não permite alterar transação pertencente a um período já fechado (exceto se for item pendente de arquivo/SMS sendo identificado pela primeira vez)
+    const isUnconfirmedBankTx = (oldTx.source !== 'manual') && (!oldTx.is_confirmed || oldTx.status !== 'confirmed');
     const oldEffectiveDate = oldTx.reference_date || oldTx.transaction_date;
     const oldCheck = await isChurchPeriodClosed(pool, oldTx.church_id, oldEffectiveDate);
-    if (oldCheck.isClosed) {
+    if (oldCheck.isClosed && !isUnconfirmedBankTx) {
       return res.status(422).json({
         error: 'PERIOD_CLOSED',
         message: `PERÍODO CONGELADO: Esta transação pertence ao período ${String(oldCheck.month).padStart(2, '0')}/${oldCheck.year}, que já teve seu Fechamento Final homologado. Alterações estão expressamente bloqueadas.`

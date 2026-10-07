@@ -899,20 +899,11 @@ export const ManualIdModal: React.FC = () => {
             return;
         }
 
-        const effectiveDateToCheck = isManualLaunch 
-            ? (selectedDate || new Date().toISOString().split('T')[0])
-            : (selectedDate || bulkIdentificationTxs?.[0]?.date || new Date().toISOString().split('T')[0]);
+        const effectiveDateToCheck = selectedDate || bulkIdentificationTxs?.[0]?.date || new Date().toISOString().split('T')[0];
 
         if (selectedChurchId && isPeriodClosed(effectiveDateToCheck, matchResults, selectedChurchId)) {
-            // Em identificações de extrato/arquivo/SMS, a trava só impede se a transação pertencer à igreja fechada
-            const isRestricted = isManualLaunch || bulkIdentificationTxs?.some(tx => {
-                const txChurchId = (tx as any).church_id || (tx as any)._churchId;
-                return !txChurchId || txChurchId === selectedChurchId;
-            });
-            if (isRestricted) {
-                alert("PERÍODO CONGELADO: Este período contábil já teve seu Fechamento Final homologado para a congregação selecionada. Novos lançamentos ou identificações nesta congregação estão expressamente bloqueados.");
-                return;
-            }
+            alert("PERÍODO CONGELADO: Este período contábil já teve seu Fechamento Final homologado para a congregação selecionada. Novos lançamentos ou alterações nesta congregação estão bloqueados.");
+            return;
         }
 
         if (isSavingRef.current || isSaving) return;
