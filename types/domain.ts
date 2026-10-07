@@ -442,4 +442,5 @@ export interface MonthClosingRecord {
   integrityHash: string;
   status: 'draft' | 'signed' | 'locked' | 'reopened';
   notes?: string;
+  transferTransactions?: any[];
 }

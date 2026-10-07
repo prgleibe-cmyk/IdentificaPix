@@ -466,7 +466,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const bankDateClean = bankDateRaw ? String(bankDateRaw).split('T')[0] : '';
             const refDateClean = refDateRaw ? String(refDateRaw).split('T')[0] : '';
 
-            const isManual = r.isManual || tx.isManual || tx.source === 'manual';
+            const isManual = r.isManual || tx.isManual || tx.source === 'manual' || tx.source === 'closing' || r.source === 'closing';
             const rawDesc = tx.description || tx.rawDescription || contrib.name || 'Lançamento de Caixa';
             const rawPayer = isManual
                 ? (tx.description || contrib.name || 'Lançamento de Caixa')

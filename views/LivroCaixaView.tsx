@@ -657,7 +657,8 @@ export const LivroCaixaView: React.FC = memo(() => {
         if (effectiveStartDate) {
             reportData.forEach((item: any) => {
                 const itemId = String(item.id || item.raw?.transaction?.id || '');
-                if (itemId.startsWith('closing-')) return;
+                const isClosingTx = itemId.startsWith('closing-') || item.source === 'closing' || item.raw?.transaction?.source === 'closing' || String(item.row_hash || item.raw?.transaction?.row_hash || '').startsWith('closing-');
+                if (isClosingTx) return;
 
                 if (isSecondaryUser && allowedChurchIds && allowedChurchIds.length > 0) {
                     const itemChurchId = item.churchId;

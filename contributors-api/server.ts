@@ -6363,8 +6363,12 @@ async function isChurchPeriodClosed(
   clientOrPool: any,
   churchId: string | null | undefined,
   dateInput: string | Date | null | undefined,
-  bankId?: string | null | undefined
+  bankId?: string | null | undefined,
+  isClosingTx?: boolean
 ): Promise<{ isClosed: boolean; churchId?: string; year?: number; month?: number; message?: string }> {
+  if (isClosingTx) {
+    return { isClosed: false };
+  }
   if (!churchId || !dateInput || churchId === 'unidentified' || churchId === 'geral') {
     return { isClosed: false };
   }
@@ -6509,6 +6513,8 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
       integrityHash,
       integrity_hash,
       signatures,
+      transferTransactions,
+      transfer_transactions,
       notes
     } = body;
 
@@ -6569,6 +6575,126 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
 
     const result = await pool.query(query, params);
     const saved = result.rows[0];
+
+    // 🛡️ Gravação definitiva das transações financeiras reais de transporte de saldo
+    if (effStatus !== 'reopened' && effTransferred !== null && effTransferred !== 0) {
+      const monthPrefix = `${effYear}-${String(effMonth).padStart(2, '0')}`;
+      try {
+        // Limpa transações anteriores deste mesmo fechamento para evitar duplicidade
+        await pool.query(
+          `DELETE FROM consolidated_transactions 
+           WHERE (church_id::text = $1 OR row_hash LIKE $2 OR (user_id = $3 AND (id LIKE 'closing-%' OR row_hash LIKE 'closing-%' OR source = 'closing')))
+             AND (id LIKE 'closing-%' OR row_hash LIKE 'closing-%' OR source = 'closing')
+             AND (transaction_date::text LIKE $4 OR reference_date::text LIKE $4)`,
+          [effChurchId, `closing-%-${effChurchId}-%`, ctx.userId || '', `${monthPrefix}%`]
+        );
+
+        const providedTxs = Array.isArray(transferTransactions || transfer_transactions) 
+          ? (transferTransactions || transfer_transactions) 
+          : [];
+
+        let txsToInsert: any[] = [];
+
+        if (providedTxs.length > 0) {
+          txsToInsert = providedTxs;
+        } else if (effTargetChurchId) {
+          const isNegative = effTransferred < 0;
+          const absAmt = Math.abs(effTransferred);
+          const targetIds = String(effTargetChurchId).split(',').map((s: string) => s.trim()).filter(Boolean);
+          const eachAmt = targetIds.length > 0 ? (absAmt / targetIds.length) : absAmt;
+          const memoPrefix = effNotes ? String(effNotes).trim() : `FECHAMENTO DE CAIXA PERÍODO ${String(effMonth).padStart(2, '0')}/${effYear}`;
+          const originDate = effClosedAt ? String(effClosedAt).split('T')[0] : `${effYear}-${String(effMonth).padStart(2, '0')}-01`;
+
+          // Origem: Saída do saldo transportado (ou Aporte se negativo)
+          txsToInsert.push({
+            id: crypto.randomUUID(),
+            user_id: ctx.userId || null,
+            church_id: effChurchId,
+            bank_id: effBankId,
+            amount: isNegative ? absAmt : -absAmt,
+            type: isNegative ? 'income' : 'expense',
+            description: isNegative 
+              ? `[APORTE/FECHAMENTO] ${memoPrefix} - COBERTURA DE SALDO PELO ${effTargetChurchName || 'DESTINO'}` 
+              : `[FECHAMENTO] ${memoPrefix} - TRANSP. SALDO PARA ${effTargetChurchName || 'DESTINO'}`,
+            transaction_date: originDate,
+            reference_date: originDate,
+            row_hash: `closing-${isNegative ? 'deficit-cover' : 'outflow'}-${effChurchId}-${targetIds[0] || 'dest'}-${effYear}-${effMonth}-0`,
+            source: 'closing',
+            status: 'identified',
+            is_confirmed: true,
+            contribution_type: isNegative ? 'ENTRADA / TRANSFERÊNCIA' : 'SAÍDA / TRANSFERÊNCIA',
+            payment_method: 'TRANSFERÊNCIA'
+          });
+
+          // Destino(s): Entrada do saldo transportado (ou Repasse se negativo)
+          targetIds.forEach((destId: string, idx: number) => {
+            txsToInsert.push({
+              id: crypto.randomUUID(),
+              user_id: ctx.userId || null,
+              church_id: destId,
+              bank_id: null,
+              amount: isNegative ? -eachAmt : eachAmt,
+              type: isNegative ? 'expense' : 'income',
+              description: isNegative 
+                ? `[REPASSE/FECHAMENTO] ${memoPrefix} - REPASSE DE COBERTURA PARA IGREJA ORIGEM` 
+                : `[RECEBIMENTO] ${memoPrefix} - SALDO RECEBIDO DE IGREJA ORIGEM`,
+              transaction_date: originDate,
+              reference_date: originDate,
+              row_hash: `closing-${isNegative ? 'deficit-transfer' : 'inflow'}-${effChurchId}-${destId}-${effYear}-${effMonth}-${idx}`,
+              source: 'closing',
+              status: 'identified',
+              is_confirmed: true,
+              contribution_type: isNegative ? 'SAÍDA / TRANSFERÊNCIA' : 'ENTRADA / TRANSFERÊNCIA',
+              payment_method: 'TRANSFERÊNCIA'
+            });
+          });
+        }
+
+        for (const tx of txsToInsert) {
+          const finalTxId = (tx.id && /^[0-9a-fA-F-]{36}$/.test(tx.id)) ? tx.id : crypto.randomUUID();
+          const finalUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : (tx.user_id || ctx.userId || null);
+          const finalChurchId = String(tx.church_id || tx.churchId || effChurchId);
+          const finalBankId = (tx.bank_id && tx.bank_id !== 'all') ? String(tx.bank_id) : null;
+          const finalAmount = Number(tx.amount || 0);
+          const finalType = tx.type || (finalAmount >= 0 ? 'income' : 'expense');
+          const finalDesc = String(tx.description || tx.desc || 'Transporte de Fechamento');
+          const finalDate = tx.transaction_date || tx.date || (effClosedAt ? String(effClosedAt).split('T')[0] : `${effYear}-${String(effMonth).padStart(2, '0')}-01`);
+          const finalRefDate = tx.reference_date || finalDate;
+          const finalRowHash = tx.row_hash || `closing-${finalTxId}`;
+          const finalContribType = tx.contribution_type || (finalType === 'expense' ? 'SAÍDA / TRANSFERÊNCIA' : 'ENTRADA / TRANSFERÊNCIA');
+          const finalPaymentMethod = tx.payment_method || 'TRANSFERÊNCIA';
+
+          await pool.query(
+            `INSERT INTO consolidated_transactions (
+              id, user_id, church_id, bank_id, amount, type, description, 
+              transaction_date, reference_date, row_hash, source, status, 
+              is_confirmed, contribution_type, payment_method, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'closing', 'identified', 1, $11, $12, NOW())
+            ON CONFLICT (id) DO UPDATE SET
+              amount = EXCLUDED.amount,
+              type = EXCLUDED.type,
+              description = EXCLUDED.description,
+              transaction_date = EXCLUDED.transaction_date,
+              reference_date = EXCLUDED.reference_date,
+              row_hash = EXCLUDED.row_hash,
+              source = 'closing',
+              status = 'identified',
+              is_confirmed = 1,
+              contribution_type = EXCLUDED.contribution_type,
+              payment_method = EXCLUDED.payment_method,
+              updated_at = NOW()`,
+            [
+              finalTxId, finalUserId, finalChurchId, finalBankId, finalAmount,
+              finalType, finalDesc, finalDate, finalRefDate, finalRowHash,
+              finalContribType, finalPaymentMethod
+            ]
+          );
+        }
+        console.log(`[ChurchClosings] 💸 ${txsToInsert.length} transações financeiras reais de transporte gravadas em consolidated_transactions.`);
+      } catch (txErr) {
+        console.error('[ChurchClosings] Erro ao gravar transações de transporte no banco:', txErr);
+      }
+    }
 
     try {
       await logAudit(pool, {
@@ -6650,12 +6776,12 @@ app.post('/api/v1/church-closings/reopen', async (req: Request, res: Response) =
     try {
       const monthPrefix = `${effYear}-${String(effMonth).padStart(2, '0')}`;
       let delTxQuery = `DELETE FROM consolidated_transactions 
-         WHERE (church_id::text = $1 OR user_id = $2) 
-           AND (id LIKE 'closing-outflow-%' OR id LIKE 'closing-inflow-%')
-           AND (transaction_date::text LIKE $3 OR reference_date::text LIKE $3)`;
-      const delTxParams: any[] = [effChurchId, ctx.userId || '', `${monthPrefix}%`];
+         WHERE (church_id::text = $1 OR row_hash LIKE $2 OR (user_id = $3 AND (id LIKE 'closing-%' OR row_hash LIKE 'closing-%' OR source = 'closing')))
+           AND (id LIKE 'closing-%' OR row_hash LIKE 'closing-%' OR source = 'closing')
+           AND (transaction_date::text LIKE $4 OR reference_date::text LIKE $4)`;
+      const delTxParams: any[] = [effChurchId, `closing-%-${effChurchId}-%`, ctx.userId || '', `${monthPrefix}%`];
       if (effBankId) {
-        delTxQuery += ` AND bank_id::text = $4`;
+        delTxQuery += ` AND (bank_id::text = $5 OR bank_id IS NULL)`;
         delTxParams.push(effBankId);
       }
       await pool.query(delTxQuery, delTxParams);
@@ -6722,6 +6848,23 @@ app.delete('/api/v1/church-closings/:churchId/:year/:month', async (req: Request
          WHERE church_id::text = $1 AND year = $2 AND month = $3 AND (bank_id IS NULL OR bank_id = '' OR bank_id = 'all')`,
         [effChurchId, effYear, effMonth]
       );
+    }
+
+    // Remove eventuais transações automáticas de transferência geradas pelo fechamento
+    try {
+      const monthPrefix = `${effYear}-${String(effMonth).padStart(2, '0')}`;
+      let delTxQuery = `DELETE FROM consolidated_transactions 
+         WHERE (church_id::text = $1 OR row_hash LIKE $2 OR (user_id = $3 AND (id LIKE 'closing-%' OR row_hash LIKE 'closing-%' OR source = 'closing')))
+           AND (id LIKE 'closing-%' OR row_hash LIKE 'closing-%' OR source = 'closing')
+           AND (transaction_date::text LIKE $4 OR reference_date::text LIKE $4)`;
+      const delTxParams: any[] = [effChurchId, `closing-%-${effChurchId}-%`, ctx.userId || '', `${monthPrefix}%`];
+      if (effBankId) {
+        delTxQuery += ` AND (bank_id::text = $5 OR bank_id IS NULL)`;
+        delTxParams.push(effBankId);
+      }
+      await pool.query(delTxQuery, delTxParams);
+    } catch (cleanupErr) {
+      console.warn('[ChurchClosings] Aviso ao limpar transações de fechamento na deleção:', cleanupErr);
     }
 
     return res.json({ success: true, status: 'reopened', churchId: effChurchId, year: effYear, month: effMonth, bankId: effBankId });
@@ -6886,7 +7029,8 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
     }
 
     // 🛡️ Validação de Período Fechado (Congelamento)
-    const closedCheck = await isChurchPeriodClosed(pool, effectiveChurchId, transaction_date || reference_date);
+    const isClosingTx = source === 'closing' || (id && String(id).startsWith('closing-')) || (row_hash && String(row_hash).startsWith('closing-'));
+    const closedCheck = await isChurchPeriodClosed(pool, effectiveChurchId, transaction_date || reference_date, bank_id, isClosingTx);
     if (closedCheck.isClosed) {
       return res.status(422).json({
         error: 'PERIOD_CLOSED',
@@ -7028,7 +7172,8 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
       }
 
       // 🛡️ Validação de Período Fechado (Congelamento)
-      const closedCheck = await isChurchPeriodClosed(client, effectiveChurchId, transaction_date || reference_date);
+      const isClosingTx = source === 'closing' || (tx.id && String(tx.id).startsWith('closing-')) || (row_hash && String(row_hash).startsWith('closing-'));
+      const closedCheck = await isChurchPeriodClosed(client, effectiveChurchId, transaction_date || reference_date, bank_id, isClosingTx);
       if (closedCheck.isClosed) {
         await client.query('ROLLBACK');
         return res.status(422).json({

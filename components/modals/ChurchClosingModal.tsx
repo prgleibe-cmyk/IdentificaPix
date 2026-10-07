@@ -479,8 +479,11 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                     const destChurch = churches.find(c => c.id === d.churchId);
                     if (!destChurch || amt <= 0) return;
 
-                    const originTxId = `closing-${isNegative ? 'deficit-cover' : 'outflow'}-${d.churchId}-${timestamp}-${idx}`;
-                    const destTxId = `closing-${isNegative ? 'deficit-transfer' : 'inflow'}-${d.churchId}-${timestamp}-${idx}`;
+                    const originTxUuid = crypto.randomUUID();
+                    const destTxUuid = crypto.randomUUID();
+
+                    const originRowHash = `closing-${isNegative ? 'deficit-cover' : 'outflow'}-${originChurch.id}-${d.churchId}-${closingYear}-${closingMonth}-${idx}`;
+                    const destRowHash = `closing-${isNegative ? 'deficit-transfer' : 'inflow'}-${originChurch.id}-${d.churchId}-${closingYear}-${closingMonth}-${idx}`;
 
                     const originAmount = isNegative ? amt : -amt;
                     const destAmount = isNegative ? -amt : amt;
@@ -495,13 +498,19 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
 
                     const originMatch: MatchResult = {
                         transaction: {
-                            id: originTxId,
+                            id: originTxUuid,
                             date: dateStr,
+                            reference_date: dateStr,
                             description: originDescription,
                             rawDescription: originDescription,
                             amount: originAmount,
+                            type: isNegative ? 'income' : 'expense',
                             isConfirmed: true,
-                            bank_id: originBankId && originBankId !== 'all' ? originBankId : undefined
+                            bank_id: originBankId && originBankId !== 'all' ? originBankId : undefined,
+                            source: 'closing',
+                            row_hash: originRowHash,
+                            contributionType: isNegative ? 'ENTRADA / TRANSFERÊNCIA' : 'SAÍDA / TRANSFERÊNCIA',
+                            paymentMethod: 'TRANSFERÊNCIA'
                         },
                         contributor: null,
                         status: ReconciliationStatus.IDENTIFIED,
@@ -515,17 +524,24 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                         _churchId: originChurch.id,
                         isConfirmed: true,
                         contributionType: isNegative ? 'ENTRADA / TRANSFERÊNCIA' : 'SAÍDA / TRANSFERÊNCIA',
+                        paymentMethod: 'TRANSFERÊNCIA',
                         updatedAt: new Date().toISOString()
                     };
 
                     const destMatch: MatchResult = {
                         transaction: {
-                            id: destTxId,
+                            id: destTxUuid,
                             date: dateStr,
+                            reference_date: dateStr,
                             description: destDescription,
                             rawDescription: destDescription,
                             amount: destAmount,
-                            isConfirmed: true
+                            type: isNegative ? 'expense' : 'income',
+                            isConfirmed: true,
+                            source: 'closing',
+                            row_hash: destRowHash,
+                            contributionType: isNegative ? 'SAÍDA / TRANSFERÊNCIA' : 'ENTRADA / TRANSFERÊNCIA',
+                            paymentMethod: 'TRANSFERÊNCIA'
                         },
                         contributor: null,
                         status: ReconciliationStatus.IDENTIFIED,
@@ -539,6 +555,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                         _churchId: destChurch.id,
                         isConfirmed: true,
                         contributionType: isNegative ? 'SAÍDA / TRANSFERÊNCIA' : 'ENTRADA / TRANSFERÊNCIA',
+                        paymentMethod: 'TRANSFERÊNCIA',
                         updatedAt: new Date().toISOString()
                     };
 
@@ -620,7 +637,24 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                 signatures: signatures,
                 integrityHash: calculatedHash || 'HASH-AUTENTICADO',
                 status: signatures.length > 0 ? 'signed' : 'draft',
-                notes: customMemo.trim() || undefined
+                notes: customMemo.trim() || undefined,
+                transferTransactions: generatedTxs.length > 0 ? generatedTxs.map(m => ({
+                    id: m.transaction?.id,
+                    user_id: user?.id,
+                    church_id: m._churchId,
+                    bank_id: m.transaction?.bank_id || null,
+                    amount: m.transaction?.amount,
+                    type: m.transaction?.type,
+                    description: m.transaction?.description,
+                    transaction_date: m.transaction?.date,
+                    reference_date: m.transaction?.reference_date || m.transaction?.date,
+                    row_hash: m.transaction?.row_hash,
+                    source: 'closing',
+                    status: 'identified',
+                    is_confirmed: true,
+                    contribution_type: m.contributionType,
+                    payment_method: 'TRANSFERÊNCIA'
+                })) : undefined
             };
 
             await saveMonthClosingRecord(closingRecord);
