@@ -116,9 +116,10 @@ export const Sidebar: React.FC = memo(() => {
         const canManagePledges = !isSecondaryUser || (perms.carnes_propositos !== false && perms.managePledges !== false);
         const canManagePatrimony = !isSecondaryUser && (perms.patrimonio !== false && perms.managePatrimony !== false);
 
-        // Relatórios apenas para o usuário principal
+        // Relatórios para todos os perfis (as permissões de download e congregações são tratadas internamente)
+        items.push({ view: 'relatorios', labelKey: 'nav.relatorios', icon: <FileText className="w-5 h-5"/> });
+
         if (!isSecondaryUser) {
-            items.push({ view: 'relatorios', labelKey: 'nav.relatorios', icon: <FileText className="w-5 h-5"/> });
             items.push(
                 { view: 'savedReports', labelKey: 'nav.savedReports', icon: <ChartBarIcon className="w-5 h-5"/> },
                 { view: 'smart_analysis', labelKey: 'nav.smart_analysis', icon: <PresentationChartLineIcon className="w-5 h-5"/> }

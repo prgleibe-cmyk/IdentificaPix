@@ -111,9 +111,9 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
             if (isSecondaryUser) {
                 if (allowedChurchIds.length > 0) {
-                    hydrated = hydrated.filter(r => Boolean(r.church_id && allowedChurchIds.includes(r.church_id)));
+                    hydrated = hydrated.filter(r => Boolean((r.church_id && allowedChurchIds.includes(r.church_id)) || r.name === '[SESSÃO_ATIVA]'));
                 } else {
-                    hydrated = [];
+                    hydrated = hydrated.filter(r => r.name === '[SESSÃO_ATIVA]');
                 }
             }
 
@@ -158,9 +158,9 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
                     if (isSecondaryUser) {
                         if (allowedChurchIds.length > 0) {
-                            hydrated = hydrated.filter(r => Boolean(r.church_id && allowedChurchIds.includes(r.church_id)));
+                            hydrated = hydrated.filter(r => Boolean((r.church_id && allowedChurchIds.includes(r.church_id)) || r.name === '[SESSÃO_ATIVA]'));
                         } else {
-                            hydrated = [];
+                            hydrated = hydrated.filter(r => r.name === '[SESSÃO_ATIVA]');
                         }
                     }
 

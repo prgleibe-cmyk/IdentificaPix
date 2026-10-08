@@ -572,6 +572,10 @@ export const LivroCaixaView: React.FC = memo(() => {
         let income = 0;
         let expenses = 0;
 
+        const activeChurchIds = selectedChurchIds.length > 0
+            ? selectedChurchIds
+            : (isSecondaryUser && allowedChurchIds && allowedChurchIds.length > 0 ? allowedChurchIds : []);
+
         filteredReportData.forEach((tx: any) => {
             const isBaseExp = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && (String(tx.category).toLowerCase().includes('saida') || String(tx.category).toLowerCase().includes('saída')));
             const txSplits = (Array.isArray(tx.splits) && tx.splits.length > 0)
@@ -580,16 +584,18 @@ export const LivroCaixaView: React.FC = memo(() => {
                     ? tx.raw.splits
                     : null;
 
-            if (txSplits && txSplits.length > 0 && selectedChurchIds.length > 0) {
+            if (txSplits && txSplits.length > 0) {
                 txSplits.forEach((s: any) => {
-                    const sChurchId = s.churchId || tx.churchId;
-                    const sChurchName = s.churchName || tx.church;
-                    const matchChurch = selectedChurchIds.some(cId => {
-                        if (sChurchId && sChurchId === cId) return true;
-                        const chObj = churches.find((c: any) => c.id === cId);
-                        return chObj && (sChurchName === chObj.name || sChurchId === chObj.id);
-                    });
-                    if (!matchChurch) return;
+                    if (activeChurchIds.length > 0) {
+                        const sChurchId = s.churchId || tx.churchId;
+                        const sChurchName = s.churchName || tx.church;
+                        const matchChurch = activeChurchIds.some(cId => {
+                            if (sChurchId && sChurchId === cId) return true;
+                            const chObj = churches.find((c: any) => c.id === cId);
+                            return chObj && (sChurchName === chObj.name || sChurchId === chObj.id);
+                        });
+                        if (!matchChurch) return;
+                    }
 
                     const splitAmt = Math.abs(Number(s.amount) || 0);
                     const isSplitExp = s.amount < 0 || isBaseExp;
@@ -615,7 +621,7 @@ export const LivroCaixaView: React.FC = memo(() => {
             balance: income - expenses,
             totalTransactions: filteredReportData.length
         };
-    }, [filteredReportData, selectedChurchIds, churches]);
+    }, [filteredReportData, selectedChurchIds, churches, isSecondaryUser, allowedChurchIds]);
 
     const totalPages = Math.ceil(filteredReportData.length / ITEMS_PER_PAGE) || 1;
 
@@ -823,6 +829,10 @@ export const LivroCaixaView: React.FC = memo(() => {
             }
         }
 
+        const activeChurchIds = selectedChurchIds.length > 0
+            ? selectedChurchIds
+            : (isSecondaryUser && allowedChurchIds && allowedChurchIds.length > 0 ? allowedChurchIds : []);
+
         filteredReportData.forEach((item: any) => {
             const itemSplits = (Array.isArray(item.splits) && item.splits.length > 0)
                 ? item.splits
@@ -834,10 +844,10 @@ export const LivroCaixaView: React.FC = memo(() => {
 
             if (itemSplits && itemSplits.length > 0) {
                 itemSplits.forEach((s: any) => {
-                    if (selectedChurchIds.length > 0) {
+                    if (activeChurchIds.length > 0) {
                         const sChurchId = s.churchId || item.churchId;
                         const sChurchName = s.churchName || item.church;
-                        const matchChurch = selectedChurchIds.some(cId => {
+                        const matchChurch = activeChurchIds.some(cId => {
                             if (sChurchId && sChurchId === cId) return true;
                             const chObj = churches.find((c: any) => c.id === cId);
                             return chObj && (sChurchName === chObj.name || sChurchId === chObj.id);

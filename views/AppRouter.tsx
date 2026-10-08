@@ -147,7 +147,7 @@ export const AppRouter: React.FC = memo(() => {
             case 'upload': return !isSecondaryUser ? <UploadView /> : <DashboardView />;
             case 'cadastro': return <RegisterView />;
             case 'reports': return <ReportsView />;
-            case 'relatorios': return !isSecondaryUser ? <RelatoriosView /> : <DashboardView />;
+            case 'relatorios': return <RelatoriosView />;
             case 'livro_caixa': return <LivroCaixaView />;
             case 'search': return <SearchView />;
             case 'savedReports': return !isSecondaryUser ? <SavedReportsView /> : <DashboardView />;

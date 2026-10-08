@@ -213,7 +213,7 @@ export const useReconciliation = (props: any) => {
             filtered = filtered.filter(r => {
                 if (!r) return false;
                 const churchId = r.church?.id || r._churchId || (r.transaction as any)?.church_id;
-                if (!churchId || churchId === 'unidentified') return true;
+                if (!churchId || churchId === 'unidentified') return false;
                 if (subscription.congregationIds.includes(churchId)) return true;
 
                 const splits = (Array.isArray(r.splits) && r.splits.length > 0)
