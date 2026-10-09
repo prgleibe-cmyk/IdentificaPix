@@ -322,7 +322,7 @@ export const useReportsController = () => {
                 const churchId = (r.church?.id && r.church.id !== 'unidentified')
                     ? r.church.id
                     : (r._churchId && r._churchId !== 'unidentified' ? r._churchId : (r.transaction as any)?.church_id || 'unidentified');
-                if (churchId !== 'unidentified' && subscription.congregationIds.includes(churchId)) return true;
+                if (churchId === 'unidentified' || subscription.congregationIds.includes(churchId)) return true;
                 const rSplits = (Array.isArray(r.splits) && r.splits.length > 0)
                     ? r.splits
                     : (Array.isArray((r.transaction as any)?.splits) && (r.transaction as any).splits.length > 0)
@@ -389,7 +389,7 @@ export const useReportsController = () => {
                 const churchId = (r.church?.id && r.church.id !== 'unidentified')
                     ? r.church.id
                     : (r._churchId && r._churchId !== 'unidentified' ? r._churchId : (r.transaction as any)?.church_id || 'unidentified');
-                if (churchId !== 'unidentified' && subscription.congregationIds.includes(churchId)) return true;
+                if (churchId === 'unidentified' || subscription.congregationIds.includes(churchId)) return true;
                 const rSplits = (Array.isArray(r.splits) && r.splits.length > 0)
                     ? r.splits
                     : (Array.isArray((r.transaction as any)?.splits) && (r.transaction as any).splits.length > 0)
@@ -485,14 +485,7 @@ export const useReportsController = () => {
             const churchId = (item.church?.id && item.church.id !== 'unidentified') 
                 ? item.church.id 
                 : (item._churchId && item._churchId !== 'unidentified' ? item._churchId : (item.transaction as any)?.church_id || 'unidentified');
-            if (churchId === 'unidentified' || (subscription.congregationIds || []).includes(churchId)) return true;
-            const itemSplits = (Array.isArray(item.splits) && item.splits.length > 0)
-                ? item.splits
-                : (Array.isArray((item.transaction as any)?.splits) ? (item.transaction as any).splits : null);
-            if (itemSplits && itemSplits.length > 0) {
-                return itemSplits.some((s: any) => s.churchId && (subscription.congregationIds || []).includes(s.churchId));
-            }
-            return false;
+            return churchId === 'unidentified' || (subscription.congregationIds || []).includes(churchId);
         };
 
         const matchesFilters = (item: MatchResult) => {
@@ -513,10 +506,7 @@ export const useReportsController = () => {
                     ? item.church.id 
                     : (item._churchId && item._churchId !== 'unidentified' ? item._churchId : (item.transaction as any)?.church_id);
                 
-                const itemSplits = (Array.isArray(item.splits) && item.splits.length > 0)
-                    ? item.splits
-                    : (Array.isArray((item.transaction as any)?.splits) ? (item.transaction as any).splits : null);
-                matchesCat = churchId === targetChurchId || (itemSplits && itemSplits.some((s: any) => s.churchId === targetChurchId));
+                matchesCat = churchId === targetChurchId;
             }
 
             if (!matchesCat) return false;
@@ -527,7 +517,7 @@ export const useReportsController = () => {
                 if (isManual && item.transaction?.bank_id && String(item.transaction?.bank_id) !== selectedBankId) return false;
             } else if (isSecondary && subscription?.bankIds && subscription.bankIds.length > 0) {
                 const isManual = item.transaction?.isManual || item.transaction?.source === 'manual';
-                if (!isManual && item.transaction?.bank_id && !subscription.bankIds.includes(String(item.transaction?.bank_id))) return false;
+                if (!isManual && !subscription.bankIds.includes(String(item.transaction?.bank_id))) return false;
             }
 
             if (searchFilters.dateRange && (searchFilters.dateRange.start || searchFilters.dateRange.end)) {

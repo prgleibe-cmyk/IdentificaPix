@@ -205,6 +205,8 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                         
                         if (allowedBankIds.length > 0) {
                             filteredBanks = filteredBanks.filter((b: any) => allowedBankIds.includes(b.id));
+                        } else {
+                            filteredBanks = [];
                         }
 
                         if (allowedChurchIds.length > 0) {

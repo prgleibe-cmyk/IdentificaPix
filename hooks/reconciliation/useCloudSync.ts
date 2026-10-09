@@ -535,11 +535,10 @@ export const useCloudSync = ({
 
                         // Se current já existia e está IDENTIFIED ou RESOLVED no estado local (ex: identificado via lista viva ou lançamento manual),
                         // mas o registro vindo da reconstrução veio UNIDENTIFIED (ex: tx pendente sem associação gravada ainda no banco),
-                        // DEVEMOS PRESERVAR o status IDENTIFIED apenas se o estado local for mais recente que o banco
+                        // DEVEMOS PRESERVAR o status IDENTIFIED, contribuinte e congregação do estado local (prev)
                         if (current && 
                             (current.status === ReconciliationStatus.IDENTIFIED || current.status === ReconciliationStatus.RESOLVED) && 
-                            r.status === ReconciliationStatus.UNIDENTIFIED &&
-                            currentUpdatedAt >= incomingUpdatedAt
+                            r.status === ReconciliationStatus.UNIDENTIFIED
                         ) {
                             const preservedRefDate = current.reference_date || r.reference_date || current.transaction?.reference_date || r.transaction?.reference_date || current.contributor?.reference_date || r.contributor?.reference_date || null;
                             map.set(r.transaction.id, {
@@ -578,11 +577,13 @@ export const useCloudSync = ({
                         hasChanges = true;
                     });
 
-                    // Preserva estritamente lançamentos manuais locais temporários em voo (ghost-manual/temp) ainda não persistidos
+                    // Preserva estritamente lançamentos manuais locais (persistidos ou temporários) que ainda não vieram na fatia atual do banco
                     prev.forEach(p => {
-                        const isTemporaryManual = p.transaction?.id && typeof p.transaction.id === 'string' &&
-                            (p.transaction.id.startsWith('ghost-manual-') || p.transaction.id.startsWith('temp-'));
-                        if (!map.has(p.transaction.id) && isTemporaryManual) {
+                        const isManual = p.transaction?.isManual || 
+                            p.transaction?.source === 'manual' || 
+                            p.matchMethod === MatchMethod.MANUAL ||
+                            (p.transaction?.id && typeof p.transaction.id === 'string' && (p.transaction.id.startsWith('ghost-manual-') || p.transaction.id.startsWith('manual-')));
+                        if (!map.has(p.transaction.id) && isManual) {
                             map.set(p.transaction.id, p);
                             hasChanges = true;
                         }

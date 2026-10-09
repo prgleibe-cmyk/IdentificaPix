@@ -4632,7 +4632,7 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
       }
       if (ctx.isSecondaryUser) {
         reportsParams.push(ctx.allowedChurchIds);
-        reportsQuery += ` AND (church_id = ANY($${reportsParams.length}) OR church_id IS NULL OR name = '[SESSÃO_ATIVA]')`;
+        reportsQuery += ` AND church_id = ANY($${reportsParams.length})`;
       }
       reportsQuery += ' ORDER BY created_at DESC';
     }
@@ -6130,7 +6130,7 @@ app.get('/api/v1/saved_reports', async (req: Request, res: Response) => {
         query += ` AND church_id = $${params.length + 1}`;
         params.push(church_id);
       } else {
-        query += ` AND (church_id = ANY($${params.length + 1}) OR church_id IS NULL OR name = '[SESSÃO_ATIVA]')`;
+        query += ` AND church_id = ANY($${params.length + 1})`;
         params.push(ctx.allowedChurchIds);
       }
     } else if (church_id && church_id !== 'all' && typeof church_id === 'string') {
@@ -6909,27 +6909,26 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
         if (!ctx.allowedChurchIds.includes(church_id)) {
           return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para esta congregação.' });
         }
-        query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND (splits LIKE $${counter + 1} OR splits LIKE $${counter + 2})))`;
-        params.push(church_id, `%"churchId":"${church_id}"%`, `%"${church_id}"%`);
-        counter += 3;
+        query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND splits LIKE $${counter + 1}))`;
+        params.push(church_id, `%"churchId":"${church_id}"%`);
+        counter += 2;
       } else {
         if (ctx.allowedChurchIds.length === 1) {
-          const cId = ctx.allowedChurchIds[0];
-          query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND (splits LIKE $${counter + 1} OR splits LIKE $${counter + 2})))`;
-          params.push(cId, `%"churchId":"${cId}"%`, `%"${cId}"%`);
-          counter += 3;
+          query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND splits LIKE $${counter + 1}))`;
+          params.push(ctx.allowedChurchIds[0], `%"churchId":"${ctx.allowedChurchIds[0]}"%`);
+          counter += 2;
         } else {
-          const splitClauses = ctx.allowedChurchIds.map((_, i) => `splits LIKE $${counter + 1 + (i * 2)} OR splits LIKE $${counter + 2 + (i * 2)}`).join(' OR ');
+          const splitClauses = ctx.allowedChurchIds.map((_, i) => `splits LIKE $${counter + 1 + i}`).join(' OR ');
           query += ` AND (church_id = ANY($${counter}) OR (splits IS NOT NULL AND (${splitClauses})))`;
           params.push(ctx.allowedChurchIds);
-          ctx.allowedChurchIds.forEach(cId => params.push(`%"churchId":"${cId}"%`, `%"${cId}"%`));
-          counter += 1 + (ctx.allowedChurchIds.length * 2);
+          ctx.allowedChurchIds.forEach(cId => params.push(`%"churchId":"${cId}"%`));
+          counter += 1 + ctx.allowedChurchIds.length;
         }
       }
     } else if (church_id && church_id !== 'all' && typeof church_id === 'string') {
-      query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND (splits LIKE $${counter + 1} OR splits LIKE $${counter + 2})))`;
-      params.push(church_id, `%"churchId":"${church_id}"%`, `%"${church_id}"%`);
-      counter += 3;
+      query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND splits LIKE $${counter + 1}))`;
+      params.push(church_id, `%"churchId":"${church_id}"%`);
+      counter += 2;
     }
 
     if (req.query.contributor_id) {
@@ -7275,24 +7274,16 @@ async function isAuthorizedForTransaction(pool: any, ctx: TenantContext, oldTx: 
   const currentUserId = ctx.userId;
   const currentOwnerId = ctx.ownerId || ctx.userId;
 
-  // 1. Se for usuário secundário: restringe às igrejas permitidas (incluindo rateios)
+  // 1. Vínculo direto por ID de usuário ou dono
+  if (oldTx.user_id && (oldTx.user_id === currentUserId || oldTx.user_id === currentOwnerId)) {
+    return true;
+  }
+
+  // 2. Se for usuário secundário: restringe às igrejas permitidas
   if (ctx.isSecondaryUser) {
     if (ctx.allowedChurchIds.length === 0) return false;
     if (oldTx.church_id && ctx.allowedChurchIds.includes(oldTx.church_id)) return true;
-    if (oldTx.splits) {
-      try {
-        const parsedSplits = typeof oldTx.splits === 'string' ? JSON.parse(oldTx.splits) : oldTx.splits;
-        if (Array.isArray(parsedSplits) && parsedSplits.some((s: any) => s.churchId && ctx.allowedChurchIds.includes(s.churchId))) {
-          return true;
-        }
-      } catch (_) {}
-    }
     return false;
-  }
-
-  // 2. Vínculo direto por ID de usuário ou dono
-  if (oldTx.user_id && (oldTx.user_id === currentUserId || oldTx.user_id === currentOwnerId)) {
-    return true;
   }
 
   // 3. Se for Proprietário / Administrador da conta (Owner):

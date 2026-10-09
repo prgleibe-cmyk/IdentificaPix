@@ -86,7 +86,9 @@ export const Navigation: React.FC = memo(() => {
         { view: 'cadastro', labelKey: 'nav.register', icon: <PlusCircleIcon className="w-4 h-4"/> }
     );
 
-    navItems.push({ view: 'relatorios', labelKey: 'nav.relatorios', icon: <FileText className="w-4 h-4"/> });
+    if (!isSecondaryUser) {
+        navItems.push({ view: 'relatorios', labelKey: 'nav.relatorios', icon: <FileText className="w-4 h-4"/> });
+    }
 
     if (!isSecondaryUser) {
         navItems.push({ view: 'savedReports', labelKey: 'nav.savedReports', icon: <ChartBarIcon className="w-4 h-4"/> });

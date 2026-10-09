@@ -322,10 +322,6 @@ export const RelatoriosView: React.FC = memo(() => {
         let pending = 0;
         let pendingCount = 0;
 
-        const activeChurchIds = selectedChurchIds.length > 0
-            ? selectedChurchIds
-            : (isSecondaryUser && allowedChurchIds && allowedChurchIds.length > 0 ? allowedChurchIds : []);
-
         filteredReportData.forEach((tx: any) => {
             const txSplits = (Array.isArray(tx.splits) && tx.splits.length > 0)
                 ? tx.splits
@@ -337,17 +333,6 @@ export const RelatoriosView: React.FC = memo(() => {
 
             if (txSplits && txSplits.length > 0) {
                 txSplits.forEach((s: any) => {
-                    if (activeChurchIds.length > 0) {
-                        const sChurchId = s.churchId || tx.churchId;
-                        const sChurchName = s.churchName || tx.church;
-                        const matchChurch = activeChurchIds.some(cId => {
-                            if (sChurchId && sChurchId === cId) return true;
-                            const chName = churchNameMap.get(cId);
-                            return chName && (sChurchName === chName || sChurchId === cId);
-                        });
-                        if (!matchChurch) return;
-                    }
-
                     const splitAmt = Math.abs(Number(s.amount) || 0);
                     const isSplitExpense = s.amount < 0 || isBaseExpense;
                     if (isPending) {
@@ -384,7 +369,7 @@ export const RelatoriosView: React.FC = memo(() => {
             pendingCount,
             totalTransactions: filteredReportData.length
         };
-    }, [filteredReportData, selectedChurchIds, isSecondaryUser, allowedChurchIds, churchNameMap]);
+    }, [filteredReportData]);
 
     // Church summaries - single-pass aggregation
     const churchSummaries = useMemo(() => {
@@ -392,7 +377,7 @@ export const RelatoriosView: React.FC = memo(() => {
         
         const churchDataMap = new Map<string, { txCount: number; totalIncome: number; totalExpenses: number }>();
         
-        (filteredReportData || []).forEach((tx: any) => {
+        (reportData || []).forEach((tx: any) => {
             const txSplits = (Array.isArray(tx.splits) && tx.splits.length > 0)
                 ? tx.splits
                 : (Array.isArray(tx.raw?.splits) && tx.raw.splits.length > 0)
@@ -469,10 +454,6 @@ export const RelatoriosView: React.FC = memo(() => {
     const expenseCategories = useMemo(() => {
         const map: { [key: string]: { category: string; amount: number; count: number } } = {};
         
-        const activeChurchIds = selectedChurchIds.length > 0
-            ? selectedChurchIds
-            : (isSecondaryUser && allowedChurchIds && allowedChurchIds.length > 0 ? allowedChurchIds : []);
-
         filteredReportData.forEach((tx: any) => {
             const isBaseExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
             const txSplits = (Array.isArray(tx.splits) && tx.splits.length > 0)
@@ -483,17 +464,6 @@ export const RelatoriosView: React.FC = memo(() => {
 
             if (txSplits && txSplits.length > 0) {
                 txSplits.forEach((s: any) => {
-                    if (activeChurchIds.length > 0) {
-                        const sChurchId = s.churchId || tx.churchId;
-                        const sChurchName = s.churchName || tx.church;
-                        const matchChurch = activeChurchIds.some(cId => {
-                            if (sChurchId && sChurchId === cId) return true;
-                            const chName = churchNameMap.get(cId);
-                            return chName && (sChurchName === chName || sChurchId === cId);
-                        });
-                        if (!matchChurch) return;
-                    }
-
                     const splitAmt = Math.abs(Number(s.amount) || 0);
                     if (splitAmt <= 0) return;
                     const isSplitExpense = s.amount < 0 || isBaseExpense;
@@ -518,16 +488,12 @@ export const RelatoriosView: React.FC = memo(() => {
         });
 
         return Object.values(map).sort((a, b) => b.amount - a.amount);
-    }, [filteredReportData, selectedChurchIds, isSecondaryUser, allowedChurchIds, churchNameMap]);
+    }, [filteredReportData]);
 
     // Group income by category
     const incomeCategories = useMemo(() => {
         const map: { [key: string]: { category: string; amount: number; count: number } } = {};
         
-        const activeChurchIds = selectedChurchIds.length > 0
-            ? selectedChurchIds
-            : (isSecondaryUser && allowedChurchIds && allowedChurchIds.length > 0 ? allowedChurchIds : []);
-
         filteredReportData.forEach((tx: any) => {
             const isBaseExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
             const txSplits = (Array.isArray(tx.splits) && tx.splits.length > 0)
@@ -538,17 +504,6 @@ export const RelatoriosView: React.FC = memo(() => {
 
             if (txSplits && txSplits.length > 0) {
                 txSplits.forEach((s: any) => {
-                    if (activeChurchIds.length > 0) {
-                        const sChurchId = s.churchId || tx.churchId;
-                        const sChurchName = s.churchName || tx.church;
-                        const matchChurch = activeChurchIds.some(cId => {
-                            if (sChurchId && sChurchId === cId) return true;
-                            const chName = churchNameMap.get(cId);
-                            return chName && (sChurchName === chName || sChurchId === cId);
-                        });
-                        if (!matchChurch) return;
-                    }
-
                     const splitAmt = Math.abs(Number(s.amount) || 0);
                     if (splitAmt <= 0) return;
                     const isSplitExpense = s.amount < 0 || isBaseExpense;
@@ -573,7 +528,7 @@ export const RelatoriosView: React.FC = memo(() => {
         });
 
         return Object.values(map).sort((a, b) => b.amount - a.amount);
-    }, [filteredReportData, selectedChurchIds, isSecondaryUser, allowedChurchIds, churchNameMap]);
+    }, [filteredReportData]);
 
     // Helper to resolve transaction category name
     const getTxCategory = useCallback((tx: any) => {
