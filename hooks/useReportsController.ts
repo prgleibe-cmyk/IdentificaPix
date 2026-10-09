@@ -485,7 +485,14 @@ export const useReportsController = () => {
             const churchId = (item.church?.id && item.church.id !== 'unidentified') 
                 ? item.church.id 
                 : (item._churchId && item._churchId !== 'unidentified' ? item._churchId : (item.transaction as any)?.church_id || 'unidentified');
-            return churchId === 'unidentified' || (subscription.congregationIds || []).includes(churchId);
+            if (churchId === 'unidentified' || (subscription.congregationIds || []).includes(churchId)) return true;
+            const itemSplits = (Array.isArray(item.splits) && item.splits.length > 0)
+                ? item.splits
+                : (Array.isArray((item.transaction as any)?.splits) ? (item.transaction as any).splits : null);
+            if (itemSplits && itemSplits.length > 0) {
+                return itemSplits.some((s: any) => s.churchId && (subscription.congregationIds || []).includes(s.churchId));
+            }
+            return false;
         };
 
         const matchesFilters = (item: MatchResult) => {

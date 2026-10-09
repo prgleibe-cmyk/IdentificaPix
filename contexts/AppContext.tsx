@@ -202,8 +202,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                         subscription.role !== 'principal';
                     if (isSecondary && (subscription.congregationIds || []).length > 0) {
                         hydrated = (hydrated || []).filter((r: any) => {
-                            const churchId = r.church?.id || r._churchId || 'unidentified';
-                            return churchId === 'unidentified' || (subscription.congregationIds || []).includes(churchId);
+                            const churchId = (r.church?.id && r.church.id !== 'unidentified')
+                                ? r.church.id
+                                : (r._churchId && r._churchId !== 'unidentified' ? r._churchId : (r.transaction as any)?.church_id);
+                            if (!churchId || churchId === 'unidentified' || (subscription.congregationIds || []).includes(churchId)) return true;
+                            const splits = (Array.isArray(r.splits) && r.splits.length > 0)
+                                ? r.splits
+                                : (Array.isArray((r.transaction as any)?.splits) ? (r.transaction as any).splits : null);
+                            if (splits && splits.length > 0) {
+                                return splits.some((s: any) => s.churchId && (subscription.congregationIds || []).includes(s.churchId));
+                            }
+                            return false;
                         });
                     }
 
@@ -272,8 +281,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                         subscription.role !== 'principal';
                     if (isSecondary && subscription.congregationIds?.length > 0) {
                         hydrated = hydrated.filter((r: any) => {
-                            const churchId = r.church?.id || r._churchId || 'unidentified';
-                            return churchId === 'unidentified' || subscription.congregationIds.includes(churchId);
+                            const churchId = (r.church?.id && r.church.id !== 'unidentified')
+                                ? r.church.id
+                                : (r._churchId && r._churchId !== 'unidentified' ? r._churchId : (r.transaction as any)?.church_id);
+                            if (!churchId || churchId === 'unidentified' || subscription.congregationIds.includes(churchId)) return true;
+                            const splits = (Array.isArray(r.splits) && r.splits.length > 0)
+                                ? r.splits
+                                : (Array.isArray((r.transaction as any)?.splits) ? (r.transaction as any).splits : null);
+                            if (splits && splits.length > 0) {
+                                return splits.some((s: any) => s.churchId && subscription.congregationIds.includes(s.churchId));
+                            }
+                            return false;
                         });
                     }
 

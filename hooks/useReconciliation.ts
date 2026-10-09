@@ -212,9 +212,10 @@ export const useReconciliation = (props: any) => {
         if (subscription?.congregationIds && subscription.congregationIds.length > 0) {
             filtered = filtered.filter(r => {
                 if (!r) return false;
-                const churchId = r.church?.id || r._churchId || (r.transaction as any)?.church_id;
-                if (!churchId || churchId === 'unidentified') return false;
-                if (subscription.congregationIds.includes(churchId)) return true;
+                const churchId = (r.church?.id && r.church.id !== 'unidentified')
+                    ? r.church.id
+                    : (r._churchId && r._churchId !== 'unidentified' ? r._churchId : (r.transaction as any)?.church_id);
+                if (churchId && churchId !== 'unidentified' && subscription.congregationIds.includes(churchId)) return true;
 
                 const splits = (Array.isArray(r.splits) && r.splits.length > 0)
                     ? r.splits

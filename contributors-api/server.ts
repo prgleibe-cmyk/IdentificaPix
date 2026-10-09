@@ -4632,7 +4632,7 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
       }
       if (ctx.isSecondaryUser) {
         reportsParams.push(ctx.allowedChurchIds);
-        reportsQuery += ` AND church_id = ANY($${reportsParams.length})`;
+        reportsQuery += ` AND (church_id = ANY($${reportsParams.length}) OR church_id IS NULL OR name = '[SESSÃO_ATIVA]')`;
       }
       reportsQuery += ' ORDER BY created_at DESC';
     }
