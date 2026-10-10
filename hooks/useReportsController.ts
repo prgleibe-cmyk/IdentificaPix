@@ -197,16 +197,13 @@ export const useReportsController = () => {
                     if (endStr && itemIso > endStr) return false;
                 }
             }
-            const rawBankId = r.transaction?.bank_id || (r.transaction as any)?.bankId || (r as any).bank_id || (r as any).bankId || (r as any).bank?.id;
-            const bankIdStr = rawBankId ? String(rawBankId) : null;
-
             if (selectedBankId && selectedBankId !== 'all') {
                 const isManual = r.transaction?.isManual || r.transaction?.source === 'manual';
-                if (!isManual && bankIdStr !== selectedBankId) return false;
-                if (isManual && bankIdStr && bankIdStr !== selectedBankId) return false;
+                if (!isManual && String(r.transaction?.bank_id) !== selectedBankId) return false;
+                if (isManual && r.transaction?.bank_id && String(r.transaction?.bank_id) !== selectedBankId) return false;
             } else if (isSecondary && subscription?.bankIds && subscription.bankIds.length > 0) {
                 const isManual = r.transaction?.isManual || r.transaction?.source === 'manual';
-                if (!isManual && bankIdStr && !subscription.bankIds.includes(bankIdStr)) return false;
+                if (!isManual && r.transaction?.bank_id && !subscription.bankIds.includes(String(r.transaction?.bank_id))) return false;
             }
             return true;
         });
@@ -386,13 +383,13 @@ export const useReportsController = () => {
             }
         }
 
-        // Secondary user church isolation guard for general, unidentified, expenses (não descarta na aba churches já filtrada)
-        if (isSecondary && subscription?.congregationIds && subscription.congregationIds.length > 0 && activeCategory !== 'churches') {
+        // Secondary user church isolation guard for general, unidentified, expenses
+        if (isSecondary && subscription?.congregationIds && subscription.congregationIds.length > 0) {
             filteredData = filteredData.filter(r => {
                 const churchId = (r.church?.id && r.church.id !== 'unidentified')
                     ? r.church.id
                     : (r._churchId && r._churchId !== 'unidentified' ? r._churchId : (r.transaction as any)?.church_id || 'unidentified');
-                if (churchId && churchId !== 'unidentified' && subscription.congregationIds.includes(churchId)) return true;
+                if (churchId === 'unidentified' || subscription.congregationIds.includes(churchId)) return true;
                 const rSplits = (Array.isArray(r.splits) && r.splits.length > 0)
                     ? r.splits
                     : (Array.isArray((r.transaction as any)?.splits) && (r.transaction as any).splits.length > 0)
@@ -488,16 +485,7 @@ export const useReportsController = () => {
             const churchId = (item.church?.id && item.church.id !== 'unidentified') 
                 ? item.church.id 
                 : (item._churchId && item._churchId !== 'unidentified' ? item._churchId : (item.transaction as any)?.church_id || 'unidentified');
-            if (churchId === 'unidentified' || (subscription.congregationIds || []).includes(churchId)) return true;
-            const rSplits = (Array.isArray(item.splits) && item.splits.length > 0)
-                ? item.splits
-                : (Array.isArray((item.transaction as any)?.splits) && (item.transaction as any).splits.length > 0)
-                    ? (item.transaction as any).splits
-                    : null;
-            if (rSplits && rSplits.length > 0) {
-                return rSplits.some((s: any) => s.churchId && (subscription.congregationIds || []).includes(s.churchId));
-            }
-            return false;
+            return churchId === 'unidentified' || (subscription.congregationIds || []).includes(churchId);
         };
 
         const matchesFilters = (item: MatchResult) => {
@@ -518,27 +506,18 @@ export const useReportsController = () => {
                     ? item.church.id 
                     : (item._churchId && item._churchId !== 'unidentified' ? item._churchId : (item.transaction as any)?.church_id);
                 
-                const txSplits = (Array.isArray(item.splits) && item.splits.length > 0)
-                    ? item.splits
-                    : (Array.isArray((item.transaction as any)?.splits) && (item.transaction as any).splits.length > 0)
-                        ? (item.transaction as any).splits
-                        : null;
-                
-                matchesCat = churchId === targetChurchId || Boolean(txSplits && txSplits.some((s: any) => s.churchId === targetChurchId));
+                matchesCat = churchId === targetChurchId;
             }
 
             if (!matchesCat) return false;
 
-            const rawBankId = item.transaction?.bank_id || (item.transaction as any)?.bankId || (item as any).bank_id || (item as any).bankId || (item as any).bank?.id;
-            const bankIdStr = rawBankId ? String(rawBankId) : null;
-
             if (selectedBankId && selectedBankId !== 'all') {
                 const isManual = item.transaction?.isManual || item.transaction?.source === 'manual';
-                if (!isManual && bankIdStr !== selectedBankId) return false;
-                if (isManual && bankIdStr && bankIdStr !== selectedBankId) return false;
+                if (!isManual && String(item.transaction?.bank_id) !== selectedBankId) return false;
+                if (isManual && item.transaction?.bank_id && String(item.transaction?.bank_id) !== selectedBankId) return false;
             } else if (isSecondary && subscription?.bankIds && subscription.bankIds.length > 0) {
                 const isManual = item.transaction?.isManual || item.transaction?.source === 'manual';
-                if (!isManual && bankIdStr && !subscription.bankIds.includes(bankIdStr)) return false;
+                if (!isManual && !subscription.bankIds.includes(String(item.transaction?.bank_id))) return false;
             }
 
             if (searchFilters.dateRange && (searchFilters.dateRange.start || searchFilters.dateRange.end)) {
@@ -702,17 +681,11 @@ export const useReportsController = () => {
             subscription.role !== 'admin' &&
             subscription.role !== 'principal');
 
-        // Se for usuário secundário, garante que está em categoria autorizada e com uma igreja válida
+        // Se for usuário secundário, garante que está na categoria correta e com uma igreja válida
         if (isUserSecondary && subscription.congregationIds && subscription.congregationIds.length > 0) {
-            if (activeCategory === 'general' || activeCategory === 'unidentified') {
-                setActiveCategory('churches');
-            }
-            if (activeCategory === 'churches') {
-                if (!selectedReportId || !subscription.congregationIds.includes(selectedReportId)) {
-                    setSelectedReportId(subscription.congregationIds[0]);
-                }
-            } else if (activeCategory === 'expenses') {
-                setSelectedReportId('all_expenses_group');
+            setActiveCategory('churches');
+            if (!selectedReportId || !subscription.congregationIds.includes(selectedReportId)) {
+                setSelectedReportId(subscription.congregationIds[0]);
             }
             return;
         }
@@ -822,9 +795,9 @@ export const useReportsController = () => {
         const targetChurchId = isChurchesCat
             ? ((isSecondary && subscription?.congregationIds && subscription.congregationIds.length > 0)
                 ? (selectedReportId && subscription.congregationIds.includes(selectedReportId) ? selectedReportId : subscription.congregationIds[0])
-                : ((selectedReportId && selectedReportId !== 'general_all' && selectedReportId !== 'unidentified' && selectedReportId !== 'all_expenses_group')
+                : ((selectedReportId && selectedReportId !== 'general_all' && selectedReportId !== 'unidentified' && selectedReportId !== 'all_expenses_group' && cacheRef.current.churchList.some(c => c.id === selectedReportId))
                     ? selectedReportId 
-                    : (cacheRef.current.churchList.length > 0 ? cacheRef.current.churchList[0].id : (churches && churches.length > 0 ? churches[0].id : null))))
+                    : (cacheRef.current.churchList.length > 0 ? cacheRef.current.churchList[0].id : null)))
             : null;
 
         let totalEntradas = 0;
@@ -914,7 +887,7 @@ export const useReportsController = () => {
             pending, 
             pendingValue
         };
-    }, [activeData, activeCategory, isExpenseTx, selectedReportId]);
+    }, [activeData, activeCategory, isExpenseTx]);
 
     const handleDownload = () => ExportService.downloadCsv(sortedData, `relatorio_${new Date().toISOString().slice(0,10)}.csv`);
 

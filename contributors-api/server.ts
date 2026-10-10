@@ -45,9 +45,7 @@ class LocalSqliteEngine {
       const { DatabaseSync } = requireFallback('node:sqlite');
       // Unificação absoluta: apontar sempre para o diretório raiz data/ do projeto
       let rootAppDir = process.cwd();
-      if (path.basename(rootAppDir) === 'contributors-api') {
-        rootAppDir = path.resolve(rootAppDir, '..');
-      } else if (!fs.existsSync(path.join(rootAppDir, 'data')) && fs.existsSync(path.resolve(rootAppDir, '..', 'data'))) {
+      if (!fs.existsSync(path.join(rootAppDir, 'data')) && fs.existsSync(path.resolve(rootAppDir, '..', 'data'))) {
         rootAppDir = path.resolve(rootAppDir, '..');
       } else if (fs.existsSync(path.resolve(__dirname, '..', '..', 'data'))) {
         rootAppDir = path.resolve(__dirname, '..', '..');
@@ -58,7 +56,7 @@ class LocalSqliteEngine {
       }
       const dbPath = path.join(dbDir, 'contributors_local.sqlite');
 
-      // Se houver banco em contributors-api/data, mantém sincronizado bidirecionalmente
+      // Se houver banco legado em contributors-api/data com tamanho superior, preserva seus dados
       const subDbPath = path.resolve(rootAppDir, 'contributors-api', 'data', 'contributors_local.sqlite');
       if (fs.existsSync(subDbPath) && subDbPath !== dbPath) {
         try {
@@ -66,8 +64,6 @@ class LocalSqliteEngine {
           const subSize = fs.statSync(subDbPath).size;
           if (subSize > mainSize) {
             fs.copyFileSync(subDbPath, dbPath);
-          } else if (mainSize > subSize) {
-            fs.copyFileSync(dbPath, subDbPath);
           }
         } catch (_) {}
       }
@@ -4559,29 +4555,16 @@ async function getEquivalentUserIds(userId: string): Promise<string[]> {
   const idsSet = new Set<string>([cleanId]);
   try {
     const q = `
-      WITH tenant_users AS (
-        SELECT id::text, owner_id::text FROM app_users WHERE id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
-        UNION
-        SELECT id::text, owner_id::text FROM profiles WHERE id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
-      ),
-      all_tenant_ids AS (
-        SELECT id FROM tenant_users
-        UNION
-        SELECT owner_id AS id FROM tenant_users WHERE owner_id IS NOT NULL
-        UNION
-        SELECT u.id::text FROM app_users u WHERE u.owner_id::text IN (SELECT id FROM tenant_users UNION SELECT owner_id FROM tenant_users WHERE owner_id IS NOT NULL)
-        UNION
-        SELECT p.id::text FROM profiles p WHERE p.owner_id::text IN (SELECT id FROM tenant_users UNION SELECT owner_id FROM tenant_users WHERE owner_id IS NOT NULL)
-        UNION
-        SELECT u.owner_id::text FROM app_users u WHERE u.id::text IN (SELECT id FROM tenant_users) AND u.owner_id IS NOT NULL
-        UNION
-        SELECT p.owner_id::text FROM profiles p WHERE p.id::text IN (SELECT id FROM tenant_users) AND p.owner_id IS NOT NULL
-      )
-      SELECT DISTINCT id FROM all_tenant_ids WHERE id IS NOT NULL
+      SELECT id::text FROM app_users WHERE id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
+      UNION
+      SELECT id::text FROM profiles WHERE id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
+      UNION
+      SELECT owner_id::text FROM profiles WHERE (id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)) AND owner_id IS NOT NULL
     `;
     const res = await pool.query(q, [cleanId]);
     for (const r of (res.rows || [])) {
       if (r.id) idsSet.add(String(r.id));
+      if (r.owner_id) idsSet.add(String(r.owner_id));
     }
   } catch (err) {
     console.warn('[getEquivalentUserIds] Erro ao resolver equivalência, usando ID direto:', err);
@@ -6922,36 +6905,30 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
     }
 
     if (ctx.isSecondaryUser) {
-      if (ctx.allowedChurchIds.length === 0) {
-        return res.json([]);
-      }
       if (church_id && church_id !== 'all' && typeof church_id === 'string') {
         if (!ctx.allowedChurchIds.includes(church_id)) {
           return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para esta congregação.' });
         }
-        query += ` AND (church_id::text = $${counter} OR contributor_id IN (SELECT id FROM contributors WHERE church_id::text = $${counter}) OR (splits IS NOT NULL AND (splits::text LIKE $${counter + 1} OR splits::text LIKE $${counter + 2})))`;
-        params.push(church_id, `%"churchId":"${church_id}"%`, `%"${church_id}"%`);
-        counter += 3;
+        query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND splits LIKE $${counter + 1}))`;
+        params.push(church_id, `%"churchId":"${church_id}"%`);
+        counter += 2;
       } else {
         if (ctx.allowedChurchIds.length === 1) {
-          const cId = ctx.allowedChurchIds[0];
-          query += ` AND (church_id::text = $${counter} OR contributor_id IN (SELECT id FROM contributors WHERE church_id::text = $${counter}) OR (splits IS NOT NULL AND (splits::text LIKE $${counter + 1} OR splits::text LIKE $${counter + 2})))`;
-          params.push(cId, `%"churchId":"${cId}"%`, `%"${cId}"%`);
-          counter += 3;
+          query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND splits LIKE $${counter + 1}))`;
+          params.push(ctx.allowedChurchIds[0], `%"churchId":"${ctx.allowedChurchIds[0]}"%`);
+          counter += 2;
         } else {
-          const splitClauses = ctx.allowedChurchIds.map((_, i) => `(splits::text LIKE $${counter + 1 + (i * 2)} OR splits::text LIKE $${counter + 2 + (i * 2)})`).join(' OR ');
-          query += ` AND (church_id::text = ANY($${counter}) OR contributor_id IN (SELECT id FROM contributors WHERE church_id::text = ANY($${counter})) OR (splits IS NOT NULL AND (${splitClauses})))`;
+          const splitClauses = ctx.allowedChurchIds.map((_, i) => `splits LIKE $${counter + 1 + i}`).join(' OR ');
+          query += ` AND (church_id = ANY($${counter}) OR (splits IS NOT NULL AND (${splitClauses})))`;
           params.push(ctx.allowedChurchIds);
-          ctx.allowedChurchIds.forEach(cId => {
-            params.push(`%"churchId":"${cId}"%`, `%"${cId}"%`);
-          });
-          counter += 1 + (ctx.allowedChurchIds.length * 2);
+          ctx.allowedChurchIds.forEach(cId => params.push(`%"churchId":"${cId}"%`));
+          counter += 1 + ctx.allowedChurchIds.length;
         }
       }
     } else if (church_id && church_id !== 'all' && typeof church_id === 'string') {
-      query += ` AND (church_id::text = $${counter} OR contributor_id IN (SELECT id FROM contributors WHERE church_id::text = $${counter}) OR (splits IS NOT NULL AND (splits::text LIKE $${counter + 1} OR splits::text LIKE $${counter + 2})))`;
-      params.push(church_id, `%"churchId":"${church_id}"%`, `%"${church_id}"%`);
-      counter += 3;
+      query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND splits LIKE $${counter + 1}))`;
+      params.push(church_id, `%"churchId":"${church_id}"%`);
+      counter += 2;
     }
 
     if (req.query.contributor_id) {
@@ -7297,24 +7274,16 @@ async function isAuthorizedForTransaction(pool: any, ctx: TenantContext, oldTx: 
   const currentUserId = ctx.userId;
   const currentOwnerId = ctx.ownerId || ctx.userId;
 
-  // 1. Se for usuário secundário: restringe rigorosamente às congregações permitidas (inclusive rateios)
+  // 1. Vínculo direto por ID de usuário ou dono
+  if (oldTx.user_id && (oldTx.user_id === currentUserId || oldTx.user_id === currentOwnerId)) {
+    return true;
+  }
+
+  // 2. Se for usuário secundário: restringe às igrejas permitidas
   if (ctx.isSecondaryUser) {
     if (ctx.allowedChurchIds.length === 0) return false;
     if (oldTx.church_id && ctx.allowedChurchIds.includes(oldTx.church_id)) return true;
-    if (oldTx.splits) {
-      try {
-        const splitsArr = typeof oldTx.splits === 'string' ? JSON.parse(oldTx.splits) : oldTx.splits;
-        if (Array.isArray(splitsArr) && splitsArr.some((s: any) => s.churchId && ctx.allowedChurchIds.includes(s.churchId))) {
-          return true;
-        }
-      } catch (_) {}
-    }
     return false;
-  }
-
-  // 2. Vínculo direto por ID de usuário ou dono
-  if (oldTx.user_id && (oldTx.user_id === currentUserId || oldTx.user_id === currentOwnerId)) {
-    return true;
   }
 
   // 3. Se for Proprietário / Administrador da conta (Owner):

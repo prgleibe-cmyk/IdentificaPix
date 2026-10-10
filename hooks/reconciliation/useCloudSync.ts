@@ -323,21 +323,10 @@ export const useCloudSync = ({
                     }
                 });
 
-                const contributorChurchMap = new Map<string, string>();
-                (contributorFilesData || []).forEach((f: any) => {
-                    (f.contributors || []).forEach((c: any) => {
-                        if (c.id && (c._churchId || f.churchId)) {
-                            contributorChurchMap.set(c.id, c._churchId || f.churchId);
-                        }
-                    });
-                });
-
                 const txResults: MatchResult[] = txs.map((t: any) => {
                     const normalizedDesc = strictNormalize(t.description);
                     const assoc = assocMap.get(normalizedDesc);
-                    const contribChurchId = t.contributor_id ? contributorChurchMap.get(t.contributor_id) : null;
-                    const resolvedChurchId = (t as any).church_id || (t as any).churchId || assoc?.churchId || contribChurchId;
-                    const church = churchMap.get(resolvedChurchId) || PLACEHOLDER_CHURCH;
+                    const church = churchMap.get((t as any).church_id || (t as any).churchId || assoc?.churchId) || PLACEHOLDER_CHURCH;
 
                     if (ENABLE_HEAVY_LOGS) {
                         console.log("[DIAGNOSTIC:RECONSTRUCT_ROW_MAPPING]", {
@@ -391,7 +380,6 @@ export const useCloudSync = ({
                         contributionType: savedContribType,
                         paymentMethod: savedPaymentMethod
                     };
-                    (transaction as any).church_id = resolvedChurchId || (t as any).church_id;
 
                     const regName = t.contributor_id ? getRegisteredContributorName(t.contributor_id) : null;
                     const rawNameCandidate = regName || assoc?.contributorNormalizedName;
@@ -425,12 +413,6 @@ export const useCloudSync = ({
                             churchId: church.id,
                             bankId: t.bank_id
                         });
-                    } else if (church.id && church.id !== 'unidentified' && (!t.church_id || t.church_id === 'unidentified')) {
-                        pendingPromotions.push({
-                            id: t.id,
-                            churchId: church.id,
-                            bankId: t.bank_id
-                        });
                     }
 
                     const result = {
@@ -445,7 +427,6 @@ export const useCloudSync = ({
                         contributionType: savedContribType,
                         paymentMethod: savedPaymentMethod,
                         reference_date: resolvedRefDate,
-                        _churchId: resolvedChurchId || (t as any).church_id,
                         splits: (Array.isArray(t.splits) && t.splits.length > 0)
                             ? t.splits
                             : (typeof t.splits === 'string' && t.splits.trim().startsWith('[')

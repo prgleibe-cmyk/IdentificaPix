@@ -19,14 +19,8 @@ export const getEffectiveUserId = async (currentUserId: string | undefined): Pro
     if (ownerIdCache.has(currentUserId)) {
         return ownerIdCache.get(currentUserId);
     }
-    const session = await getAuthSession();
-    const sessionOwner = session?.user?.owner_id || (session?.user as any)?.ownerId;
-    if (sessionOwner && session?.user?.id === currentUserId) {
-        ownerIdCache.set(currentUserId, sessionOwner);
-        return sessionOwner;
-    }
     const profile = await profileService.getProfile(currentUserId);
-    const ownerId = profile?.owner_id || sessionOwner || currentUserId;
+    const ownerId = profile?.owner_id || currentUserId;
     ownerIdCache.set(currentUserId, ownerId);
     return ownerId;
 };
@@ -538,7 +532,7 @@ export const consolidationService = {
     deleteTransactionById: async (id: string) => {
         try {
             console.log(`[WRITE:VPS] Excluindo transação por ID: ${id}`);
-            const token = (await getAuthToken()) || localStorage.getItem('iggestor_vps_access_token') || localStorage.getItem('auth_token') || localStorage.getItem('token');
+            const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
             const headers: Record<string, string> = {};
             if (token) {
                 headers['Authorization'] = `Bearer ${token}`;
@@ -569,7 +563,7 @@ export const consolidationService = {
     deleteTransactionsByIds: async (ids: string[]) => {
         try {
             console.log(`[WRITE:VPS] Excluindo múltiplas transações por IDs:`, ids);
-            const token = (await getAuthToken()) || localStorage.getItem('iggestor_vps_access_token') || localStorage.getItem('auth_token') || localStorage.getItem('token');
+            const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
             const headers: Record<string, string> = { 'Content-Type': 'application/json' };
             if (token) {
                 headers['Authorization'] = `Bearer ${token}`;

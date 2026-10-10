@@ -229,7 +229,7 @@ export const useReconciliation = (props: any) => {
         if (subscription?.bankIds && subscription.bankIds.length > 0) {
             filtered = filtered.filter(r => {
                 const isManual = (r as any).isManual || r.transaction?.isManual || r.transaction?.source === 'manual';
-                if (isManual) return true;
+                if (isManual && !r.transaction?.bank_id) return true;
                 return r?.transaction?.bank_id ? subscription.bankIds.includes(String(r.transaction.bank_id)) : true;
             });
         }
