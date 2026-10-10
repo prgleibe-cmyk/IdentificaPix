@@ -389,7 +389,7 @@ export const useReportsController = () => {
                 const churchId = (r.church?.id && r.church.id !== 'unidentified')
                     ? r.church.id
                     : (r._churchId && r._churchId !== 'unidentified' ? r._churchId : (r.transaction as any)?.church_id || 'unidentified');
-                if (churchId === 'unidentified' || subscription.congregationIds.includes(churchId)) return true;
+                if (churchId && churchId !== 'unidentified' && subscription.congregationIds.includes(churchId)) return true;
                 const rSplits = (Array.isArray(r.splits) && r.splits.length > 0)
                     ? r.splits
                     : (Array.isArray((r.transaction as any)?.splits) && (r.transaction as any).splits.length > 0)
@@ -506,7 +506,13 @@ export const useReportsController = () => {
                     ? item.church.id 
                     : (item._churchId && item._churchId !== 'unidentified' ? item._churchId : (item.transaction as any)?.church_id);
                 
-                matchesCat = churchId === targetChurchId;
+                const txSplits = (Array.isArray(item.splits) && item.splits.length > 0)
+                    ? item.splits
+                    : (Array.isArray((item.transaction as any)?.splits) && (item.transaction as any).splits.length > 0)
+                        ? (item.transaction as any).splits
+                        : null;
+                
+                matchesCat = churchId === targetChurchId || Boolean(txSplits && txSplits.some((s: any) => s.churchId === targetChurchId));
             }
 
             if (!matchesCat) return false;
@@ -887,7 +893,7 @@ export const useReportsController = () => {
             pending, 
             pendingValue
         };
-    }, [activeData, activeCategory, isExpenseTx]);
+    }, [activeData, activeCategory, isExpenseTx, selectedReportId]);
 
     const handleDownload = () => ExportService.downloadCsv(sortedData, `relatorio_${new Date().toISOString().slice(0,10)}.csv`);
 

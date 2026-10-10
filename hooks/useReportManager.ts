@@ -272,7 +272,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
         console.log(`[WRITE:ALREADY_CORRECT] Sobrescrevendo relatório com effectiveUserId: ${effectiveUserId} no VPS`);
         try {
-            const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+            const token = (await getAuthToken()) || localStorage.getItem('iggestor_vps_access_token') || localStorage.getItem('auth_token') || localStorage.getItem('token');
             const headers: Record<string, string> = { 'Content-Type': 'application/json' };
             if (token) {
                 headers['Authorization'] = `Bearer ${token}`;

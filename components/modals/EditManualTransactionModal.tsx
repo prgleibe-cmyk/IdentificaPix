@@ -27,6 +27,7 @@ import { resolveContributionType, resolvePaymentMethod, isPeriodClosed } from '.
 import { ExpenseDocumentUploader } from '../financial/ExpenseDocumentUploader';
 import { ExpenseAttachment } from '../../types/domain';
 import { getAttachmentsForTransaction, saveAttachmentsForTransaction } from '../../services/expenseAttachmentService';
+import { getAuthToken } from '../../services/auth/authAdapter';
 
 interface EditManualTransactionModalProps {
     isOpen: boolean;
@@ -505,7 +506,7 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
             const txId = row.transaction.id;
             if (txId && !txId.startsWith('temp-') && !txId.startsWith('ghost-')) {
                 try {
-                    const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+                    const token = (await getAuthToken()) || localStorage.getItem('iggestor_vps_access_token') || localStorage.getItem('auth_token');
                     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
                     if (token) headers['Authorization'] = `Bearer ${token}`;
 

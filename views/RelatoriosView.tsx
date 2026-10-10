@@ -322,6 +322,10 @@ export const RelatoriosView: React.FC = memo(() => {
         let pending = 0;
         let pendingCount = 0;
 
+        const effectiveChurchFilter = selectedChurchIds.length > 0
+            ? selectedChurchIds
+            : (isSecondaryUser && allowedChurchIds && allowedChurchIds.length > 0 ? allowedChurchIds : null);
+
         filteredReportData.forEach((tx: any) => {
             const txSplits = (Array.isArray(tx.splits) && tx.splits.length > 0)
                 ? tx.splits
@@ -329,10 +333,22 @@ export const RelatoriosView: React.FC = memo(() => {
                     ? tx.raw.splits
                     : null;
             const isBaseExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
-            const isPending = tx.status === 'pending' || tx.unidentified || tx.isPending;
+            const isPending = tx.status === 'pending' || tx.unidentified || tx.isPending || tx.status === 'NÃO IDENTIFICADO';
 
             if (txSplits && txSplits.length > 0) {
-                txSplits.forEach((s: any) => {
+                const relevantSplits = effectiveChurchFilter
+                    ? txSplits.filter((s: any) => {
+                        const sId = s.churchId || tx.churchId;
+                        const sName = s.churchName || tx.church;
+                        return effectiveChurchFilter.some(cId => {
+                            if (sId && sId === cId) return true;
+                            const chName = churchNameMap.get(cId);
+                            return chName && (sName === chName || sId === cId);
+                        });
+                    })
+                    : txSplits;
+
+                relevantSplits.forEach((s: any) => {
                     const splitAmt = Math.abs(Number(s.amount) || 0);
                     const isSplitExpense = s.amount < 0 || isBaseExpense;
                     if (isPending) {
@@ -344,7 +360,7 @@ export const RelatoriosView: React.FC = memo(() => {
                         income += splitAmt;
                     }
                 });
-                if (isPending) {
+                if (isPending && relevantSplits.length > 0) {
                     pendingCount++;
                 }
             } else {

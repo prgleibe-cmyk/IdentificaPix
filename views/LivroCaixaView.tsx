@@ -572,6 +572,10 @@ export const LivroCaixaView: React.FC = memo(() => {
         let income = 0;
         let expenses = 0;
 
+        const effectiveChurchFilter = selectedChurchIds.length > 0
+            ? selectedChurchIds
+            : (isSecondaryUser && allowedChurchIds && allowedChurchIds.length > 0 ? allowedChurchIds : null);
+
         filteredReportData.forEach((tx: any) => {
             const isBaseExp = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && (String(tx.category).toLowerCase().includes('saida') || String(tx.category).toLowerCase().includes('saída')));
             const txSplits = (Array.isArray(tx.splits) && tx.splits.length > 0)
@@ -580,11 +584,11 @@ export const LivroCaixaView: React.FC = memo(() => {
                     ? tx.raw.splits
                     : null;
 
-            if (txSplits && txSplits.length > 0 && selectedChurchIds.length > 0) {
+            if (txSplits && txSplits.length > 0 && effectiveChurchFilter && effectiveChurchFilter.length > 0) {
                 txSplits.forEach((s: any) => {
                     const sChurchId = s.churchId || tx.churchId;
                     const sChurchName = s.churchName || tx.church;
-                    const matchChurch = selectedChurchIds.some(cId => {
+                    const matchChurch = effectiveChurchFilter.some(cId => {
                         if (sChurchId && sChurchId === cId) return true;
                         const chObj = churches.find((c: any) => c.id === cId);
                         return chObj && (sChurchName === chObj.name || sChurchId === chObj.id);
