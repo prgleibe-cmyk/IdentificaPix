@@ -1,6 +1,7 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { AppContext } from '../../contexts/AppContext';
+import { authService } from '../../services/authService';
 import { LockClosedIcon, ArrowPathIcon, CreditCardIcon } from '../Icons';
 
 export const ExpiredBlockOverlay: React.FC = () => {
@@ -8,7 +9,37 @@ export const ExpiredBlockOverlay: React.FC = () => {
     const context = useContext(AppContext);
     const openPaymentModal = context?.openPaymentModal;
 
+    const isOwnerCandidate = user?.email?.toLowerCase().trim() === 'identificapix@gmail.com';
+    const [isBackendConfirmed, setIsBackendConfirmed] = useState<boolean | null>(isOwnerCandidate ? null : false);
+
+    useEffect(() => {
+        let mounted = true;
+        const candidateEmail = user?.email?.toLowerCase().trim();
+        if (candidateEmail !== 'identificapix@gmail.com') {
+            setIsBackendConfirmed(false);
+            return;
+        }
+
+        authService.me().then((res) => {
+            if (mounted) {
+                const confirmedEmail = res?.success ? res?.data?.user?.email?.toLowerCase().trim() : null;
+                setIsBackendConfirmed(confirmedEmail === 'identificapix@gmail.com');
+            }
+        }).catch(() => {
+            if (mounted) setIsBackendConfirmed(false);
+        });
+
+        return () => {
+            mounted = false;
+        };
+    }, [user?.email]);
+
     if (!subscription || (!subscription.isExpired && !subscription.isBlocked)) {
+        return null;
+    }
+
+    // 🛡️ Exceção cirúrgica: administrador-dono com e-mail confirmado no backend mantém acesso mesmo com assinatura vencida
+    if (subscription.isExpired && !subscription.isBlocked && (isBackendConfirmed === true || (isOwnerCandidate && isBackendConfirmed === null))) {
         return null;
     }
 
