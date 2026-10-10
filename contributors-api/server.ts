@@ -4559,16 +4559,29 @@ async function getEquivalentUserIds(userId: string): Promise<string[]> {
   const idsSet = new Set<string>([cleanId]);
   try {
     const q = `
-      SELECT id::text FROM app_users WHERE id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
-      UNION
-      SELECT id::text FROM profiles WHERE id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
-      UNION
-      SELECT owner_id::text FROM profiles WHERE (id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)) AND owner_id IS NOT NULL
+      WITH tenant_users AS (
+        SELECT id::text, owner_id::text FROM app_users WHERE id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
+        UNION
+        SELECT id::text, owner_id::text FROM profiles WHERE id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
+      ),
+      all_tenant_ids AS (
+        SELECT id FROM tenant_users
+        UNION
+        SELECT owner_id AS id FROM tenant_users WHERE owner_id IS NOT NULL
+        UNION
+        SELECT u.id::text FROM app_users u WHERE u.owner_id::text IN (SELECT id FROM tenant_users UNION SELECT owner_id FROM tenant_users WHERE owner_id IS NOT NULL)
+        UNION
+        SELECT p.id::text FROM profiles p WHERE p.owner_id::text IN (SELECT id FROM tenant_users UNION SELECT owner_id FROM tenant_users WHERE owner_id IS NOT NULL)
+        UNION
+        SELECT u.owner_id::text FROM app_users u WHERE u.id::text IN (SELECT id FROM tenant_users) AND u.owner_id IS NOT NULL
+        UNION
+        SELECT p.owner_id::text FROM profiles p WHERE p.id::text IN (SELECT id FROM tenant_users) AND p.owner_id IS NOT NULL
+      )
+      SELECT DISTINCT id FROM all_tenant_ids WHERE id IS NOT NULL
     `;
     const res = await pool.query(q, [cleanId]);
     for (const r of (res.rows || [])) {
       if (r.id) idsSet.add(String(r.id));
-      if (r.owner_id) idsSet.add(String(r.owner_id));
     }
   } catch (err) {
     console.warn('[getEquivalentUserIds] Erro ao resolver equivalência, usando ID direto:', err);

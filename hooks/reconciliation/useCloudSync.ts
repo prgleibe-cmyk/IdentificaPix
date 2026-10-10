@@ -391,6 +391,7 @@ export const useCloudSync = ({
                         contributionType: savedContribType,
                         paymentMethod: savedPaymentMethod
                     };
+                    (transaction as any).church_id = resolvedChurchId || (t as any).church_id;
 
                     const regName = t.contributor_id ? getRegisteredContributorName(t.contributor_id) : null;
                     const rawNameCandidate = regName || assoc?.contributorNormalizedName;
@@ -444,6 +445,7 @@ export const useCloudSync = ({
                         contributionType: savedContribType,
                         paymentMethod: savedPaymentMethod,
                         reference_date: resolvedRefDate,
+                        _churchId: resolvedChurchId || (t as any).church_id,
                         splits: (Array.isArray(t.splits) && t.splits.length > 0)
                             ? t.splits
                             : (typeof t.splits === 'string' && t.splits.trim().startsWith('[')

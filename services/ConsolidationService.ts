@@ -19,8 +19,14 @@ export const getEffectiveUserId = async (currentUserId: string | undefined): Pro
     if (ownerIdCache.has(currentUserId)) {
         return ownerIdCache.get(currentUserId);
     }
+    const session = await getAuthSession();
+    const sessionOwner = session?.user?.owner_id || (session?.user as any)?.ownerId;
+    if (sessionOwner && session?.user?.id === currentUserId) {
+        ownerIdCache.set(currentUserId, sessionOwner);
+        return sessionOwner;
+    }
     const profile = await profileService.getProfile(currentUserId);
-    const ownerId = profile?.owner_id || currentUserId;
+    const ownerId = profile?.owner_id || sessionOwner || currentUserId;
     ownerIdCache.set(currentUserId, ownerId);
     return ownerId;
 };
