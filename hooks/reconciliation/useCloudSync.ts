@@ -323,10 +323,21 @@ export const useCloudSync = ({
                     }
                 });
 
+                const contributorChurchMap = new Map<string, string>();
+                (contributorFilesData || []).forEach((f: any) => {
+                    (f.contributors || []).forEach((c: any) => {
+                        if (c.id && (c._churchId || f.churchId)) {
+                            contributorChurchMap.set(c.id, c._churchId || f.churchId);
+                        }
+                    });
+                });
+
                 const txResults: MatchResult[] = txs.map((t: any) => {
                     const normalizedDesc = strictNormalize(t.description);
                     const assoc = assocMap.get(normalizedDesc);
-                    const church = churchMap.get((t as any).church_id || (t as any).churchId || assoc?.churchId) || PLACEHOLDER_CHURCH;
+                    const contribChurchId = t.contributor_id ? contributorChurchMap.get(t.contributor_id) : null;
+                    const resolvedChurchId = (t as any).church_id || (t as any).churchId || assoc?.churchId || contribChurchId;
+                    const church = churchMap.get(resolvedChurchId) || PLACEHOLDER_CHURCH;
 
                     if (ENABLE_HEAVY_LOGS) {
                         console.log("[DIAGNOSTIC:RECONSTRUCT_ROW_MAPPING]", {
@@ -408,6 +419,12 @@ export const useCloudSync = ({
                     // promovemos localmente para IDENTIFIED e agendamos a atualização no banco em segundo plano (sequencialmente).
                     if (assoc && t.status === 'pending') {
                         status = ReconciliationStatus.IDENTIFIED;
+                        pendingPromotions.push({
+                            id: t.id,
+                            churchId: church.id,
+                            bankId: t.bank_id
+                        });
+                    } else if (church.id && church.id !== 'unidentified' && (!t.church_id || t.church_id === 'unidentified')) {
                         pendingPromotions.push({
                             id: t.id,
                             churchId: church.id,

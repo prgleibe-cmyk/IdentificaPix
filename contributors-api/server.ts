@@ -6916,18 +6916,18 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
         if (!ctx.allowedChurchIds.includes(church_id)) {
           return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para esta congregação.' });
         }
-        query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND (splits LIKE $${counter + 1} OR splits LIKE $${counter + 2})))`;
+        query += ` AND (church_id::text = $${counter} OR contributor_id IN (SELECT id FROM contributors WHERE church_id::text = $${counter}) OR (splits IS NOT NULL AND (splits::text LIKE $${counter + 1} OR splits::text LIKE $${counter + 2})))`;
         params.push(church_id, `%"churchId":"${church_id}"%`, `%"${church_id}"%`);
         counter += 3;
       } else {
         if (ctx.allowedChurchIds.length === 1) {
           const cId = ctx.allowedChurchIds[0];
-          query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND (splits LIKE $${counter + 1} OR splits LIKE $${counter + 2})))`;
+          query += ` AND (church_id::text = $${counter} OR contributor_id IN (SELECT id FROM contributors WHERE church_id::text = $${counter}) OR (splits IS NOT NULL AND (splits::text LIKE $${counter + 1} OR splits::text LIKE $${counter + 2})))`;
           params.push(cId, `%"churchId":"${cId}"%`, `%"${cId}"%`);
           counter += 3;
         } else {
-          const splitClauses = ctx.allowedChurchIds.map((_, i) => `(splits LIKE $${counter + 1 + (i * 2)} OR splits LIKE $${counter + 2 + (i * 2)})`).join(' OR ');
-          query += ` AND (church_id = ANY($${counter}) OR (splits IS NOT NULL AND (${splitClauses})))`;
+          const splitClauses = ctx.allowedChurchIds.map((_, i) => `(splits::text LIKE $${counter + 1 + (i * 2)} OR splits::text LIKE $${counter + 2 + (i * 2)})`).join(' OR ');
+          query += ` AND (church_id::text = ANY($${counter}) OR contributor_id IN (SELECT id FROM contributors WHERE church_id::text = ANY($${counter})) OR (splits IS NOT NULL AND (${splitClauses})))`;
           params.push(ctx.allowedChurchIds);
           ctx.allowedChurchIds.forEach(cId => {
             params.push(`%"churchId":"${cId}"%`, `%"${cId}"%`);
@@ -6936,7 +6936,7 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
         }
       }
     } else if (church_id && church_id !== 'all' && typeof church_id === 'string') {
-      query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND (splits LIKE $${counter + 1} OR splits LIKE $${counter + 2})))`;
+      query += ` AND (church_id::text = $${counter} OR contributor_id IN (SELECT id FROM contributors WHERE church_id::text = $${counter}) OR (splits IS NOT NULL AND (splits::text LIKE $${counter + 1} OR splits::text LIKE $${counter + 2})))`;
       params.push(church_id, `%"churchId":"${church_id}"%`, `%"${church_id}"%`);
       counter += 3;
     }
