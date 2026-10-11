@@ -36,11 +36,10 @@ export const consolidationService = {
         let allData: any[] = [];
         let offset = 0;
         let hasMore = true;
-        const headers = await getAuthHeaders();
 
         while (hasMore && (!maxRecords || allData.length < maxRecords)) {
             const url = urlBuilder(offset, step);
-            const res = await fetch(url, { headers });
+            const res = await fetch(url);
             if (!res.ok) {
                 throw new Error(`Erro ao buscar dados paginados da VPS: ${res.statusText}`);
             }
@@ -601,11 +600,10 @@ export const consolidationService = {
             const chunkSize = 50; // Tamanho seguro para evitar URLs gigantes
             const confirmedIds: string[] = [];
             
-            const headers = await getAuthHeaders();
             for (let i = 0; i < ids.length; i += chunkSize) {
                 const chunk = ids.slice(i, i + chunkSize);
                 
-                const response = await fetch(`/api/v1/consolidated_transactions?user_id=${userId}&ids=${chunk.join(',')}`, { headers });
+                const response = await fetch(`/api/v1/consolidated_transactions?user_id=${userId}&ids=${chunk.join(',')}`);
                 if (!response.ok) {
                     console.error("[Consolidation:CHECK_CONFIRMED_CHUNK_FAIL]", {
                         status: response.statusText,

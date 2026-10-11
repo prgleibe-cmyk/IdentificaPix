@@ -2212,24 +2212,6 @@ export function extractContextAllowedChurchIds(user: any, headerChurchId?: strin
     }
   }
 
-  // 4. Direct congregation property (string or array)
-  if (typeof user.congregation === 'string' && user.congregation.trim()) {
-    if (user.congregation.includes(',')) {
-      user.congregation.split(',').forEach((id: string) => {
-        if (id.trim()) ids.add(id.trim());
-      });
-    } else {
-      ids.add(user.congregation.trim());
-    }
-  } else if (Array.isArray(user.congregation)) {
-    user.congregation.forEach((id: any) => {
-      if (typeof id === 'string' && id.trim()) ids.add(id.trim());
-    });
-  }
-  if (typeof user.congregation_id === 'string' && user.congregation_id.trim()) {
-    ids.add(user.congregation_id.trim());
-  }
-
   return Array.from(ids);
 }
 
@@ -4572,34 +4554,17 @@ async function getEquivalentUserIds(userId: string): Promise<string[]> {
 
   const idsSet = new Set<string>([cleanId]);
   try {
-    // 1. Identifica se o usuário tem vínculo de owner (em app_users ou profiles)
-    const findOwnerQ = `
-      SELECT id::text as id, owner_id::text as owner_id FROM app_users WHERE id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
+    const q = `
+      SELECT id::text FROM app_users WHERE id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
       UNION
-      SELECT id::text as id, owner_id::text as owner_id FROM profiles WHERE id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
+      SELECT id::text FROM profiles WHERE id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
+      UNION
+      SELECT owner_id::text FROM profiles WHERE (id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)) AND owner_id IS NOT NULL
     `;
-    const ownerRes = await pool.query(findOwnerQ, [cleanId]);
-    const potentialOwners = new Set<string>([cleanId]);
-    for (const r of (ownerRes.rows || [])) {
+    const res = await pool.query(q, [cleanId]);
+    for (const r of (res.rows || [])) {
       if (r.id) idsSet.add(String(r.id));
-      if (r.owner_id && String(r.owner_id).trim()) {
-        const oId = String(r.owner_id).trim();
-        idsSet.add(oId);
-        potentialOwners.add(oId);
-      }
-    }
-
-    // 2. Para cada owner identificado, recupera todos os usuários da mesma organização (proprietário + secundários)
-    for (const ownerId of potentialOwners) {
-      const qLinked = `
-        SELECT id::text as id FROM app_users WHERE id::text = $1 OR owner_id::text = $1
-        UNION
-        SELECT id::text as id FROM profiles WHERE id = $1 OR owner_id = $1
-      `;
-      const linkedRes = await pool.query(qLinked, [ownerId]);
-      for (const r of (linkedRes.rows || [])) {
-        if (r.id) idsSet.add(String(r.id));
-      }
+      if (r.owner_id) idsSet.add(String(r.owner_id));
     }
   } catch (err) {
     console.warn('[getEquivalentUserIds] Erro ao resolver equivalência, usando ID direto:', err);
