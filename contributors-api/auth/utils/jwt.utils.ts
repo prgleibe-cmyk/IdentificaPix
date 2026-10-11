@@ -87,18 +87,10 @@ export function verify2faTempToken(token: string): { user_id: string } {
 }
 
 export function verifyAccessToken(token: string): JwtPayload {
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET, {
-      issuer: ISSUER,
-      audience: AUDIENCE
-    }) as JwtPayload;
-    return decoded;
-  } catch (err: any) {
-    try {
-      const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
-      return decoded;
-    } catch (_) {
-      throw err;
-    }
-  }
+  const decoded = jwt.verify(token, JWT_SECRET, {
+    issuer: ISSUER,
+    audience: AUDIENCE
+  }) as JwtPayload;
+
+  return decoded;
 }

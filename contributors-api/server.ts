@@ -1621,8 +1621,6 @@ async function initializeDatabase() {
     await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS contribution_request_id UUID;');
     await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS splits JSONB;');
     await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS reference_date VARCHAR(255);');
-    await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS created_by UUID;');
-    await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS updated_by UUID;');
     await client.query('CREATE INDEX IF NOT EXISTS idx_consolidated_tx_contrib_req ON consolidated_transactions(church_id, contribution_request_id);');
     await client.query('CREATE INDEX IF NOT EXISTS idx_consolidated_tx_church_user ON consolidated_transactions(church_id, user_id);');
     await client.query('CREATE INDEX IF NOT EXISTS idx_consolidated_tx_date ON consolidated_transactions(transaction_date);');
@@ -2212,6 +2210,24 @@ export function extractContextAllowedChurchIds(user: any, headerChurchId?: strin
     if (typeof user.permissions.congregation === 'string' && user.permissions.congregation.trim()) {
       ids.add(user.permissions.congregation.trim());
     }
+  }
+
+  // 4. Direct congregation property (string or array)
+  if (typeof user.congregation === 'string' && user.congregation.trim()) {
+    if (user.congregation.includes(',')) {
+      user.congregation.split(',').forEach((id: string) => {
+        if (id.trim()) ids.add(id.trim());
+      });
+    } else {
+      ids.add(user.congregation.trim());
+    }
+  } else if (Array.isArray(user.congregation)) {
+    user.congregation.forEach((id: any) => {
+      if (typeof id === 'string' && id.trim()) ids.add(id.trim());
+    });
+  }
+  if (typeof user.congregation_id === 'string' && user.congregation_id.trim()) {
+    ids.add(user.congregation_id.trim());
   }
 
   return Array.from(ids);
@@ -4541,148 +4557,9 @@ app.post('/api/v1/contributors/cleanup-invalids', async (req: Request, res: Resp
 // REFERENCE DATA ENDPOINT
 // ==========================================
 
-// 🛡️ OTIMIZAÇÃO E RESOLUÇÃO DE IDENTIDADE DO PROPRIETÁRIO (FONTE ÚNICA DA VERDADE)
-export interface CanonicalTenantInfo {
-  canonicalOwnerId: string;
-  provenUserIds: string[];
-  isSecondaryUser: boolean;
-  allowedChurchIds: string[];
-  role: string;
-}
-
-const canonicalTenantCache = new Map<string, { info: CanonicalTenantInfo; expires: number }>();
+// 🛡️ OTIMIZAÇÃO GARGALO 6 (CONSULTAS BACKEND): Cache de equivalência de IDs de usuários
+// Elimina subqueries correlacionadas em loop sobre tabelas volumosas e viabiliza busca indexada via ANY($N).
 const userEquivalenceCache = new Map<string, { ids: string[]; expires: number }>();
-
-export function clearCanonicalTenantCache(userId?: string) {
-  if (userId) {
-    const clean = String(userId).trim();
-    canonicalTenantCache.delete(clean);
-    userEquivalenceCache.delete(clean);
-  } else {
-    canonicalTenantCache.clear();
-    userEquivalenceCache.clear();
-  }
-}
-
-export async function resolveCanonicalTenant(dbPool: any, ctx: TenantContext): Promise<CanonicalTenantInfo | null> {
-  if (!ctx.isAuthenticated || !ctx.userId) {
-    return null;
-  }
-  const userId = String(ctx.userId).trim();
-  const cached = canonicalTenantCache.get(userId);
-  const now = Date.now();
-  if (cached && cached.expires > now) {
-    return cached.info;
-  }
-
-  let dbOwnerId: string | null = null;
-  let dbRole: string = ctx.role || 'user';
-  let dbChurchId: string | null = null;
-  let dbPermissions: any = null;
-
-  try {
-    const userRes = await dbPool.query(
-      `SELECT id::text, owner_id::text, role, permissions, church_id::text, email 
-       FROM app_users 
-       WHERE (id::text = $1 OR LOWER(email) = LOWER($1)) AND deleted_at IS NULL
-       UNION
-       SELECT id::text, owner_id::text, role, permissions, congregation AS church_id, email 
-       FROM profiles 
-       WHERE id::text = $1 OR LOWER(email) = LOWER($1)
-       LIMIT 2`,
-      [userId]
-    );
-
-    for (const r of (userRes.rows || [])) {
-      if (r.owner_id && String(r.owner_id).trim() !== userId && !dbOwnerId) {
-        dbOwnerId = String(r.owner_id).trim();
-      }
-      if (r.role && (!dbRole || dbRole === 'user')) {
-        dbRole = r.role;
-      }
-      if (r.church_id && !dbChurchId) {
-        dbChurchId = r.church_id;
-      }
-      if (r.permissions && !dbPermissions) {
-        dbPermissions = r.permissions;
-      }
-    }
-  } catch (err) {
-    console.warn('[resolveCanonicalTenant] Erro ao consultar tabelas de usuário:', err);
-  }
-
-  let canonicalOwnerId = userId;
-  let isSecondary = false;
-
-  const candidateOwner = dbOwnerId || (ctx.ownerId && ctx.ownerId !== userId ? ctx.ownerId : null);
-  if (candidateOwner && candidateOwner !== userId) {
-    try {
-      const ownerCheck = await dbPool.query(
-        `SELECT id::text FROM app_users WHERE id::text = $1 AND deleted_at IS NULL
-         UNION
-         SELECT id::text FROM profiles WHERE id::text = $1
-         LIMIT 1`,
-        [candidateOwner]
-      );
-      if (ownerCheck.rows.length > 0 || /^[0-9a-fA-F-]{36}$/.test(candidateOwner)) {
-        canonicalOwnerId = candidateOwner;
-        isSecondary = true;
-      }
-    } catch (_) {
-      if (/^[0-9a-fA-F-]{36}$/.test(candidateOwner)) {
-        canonicalOwnerId = candidateOwner;
-        isSecondary = true;
-      }
-    }
-  }
-
-  if (['secondary', 'member', 'operador', 'colaborador'].includes(dbRole) || ctx.isSecondaryUser) {
-    isSecondary = true;
-  }
-
-  const provenSet = new Set<string>([canonicalOwnerId]);
-  provenSet.add(userId);
-
-  try {
-    const provenRes = await dbPool.query(
-      `SELECT id::text FROM app_users WHERE (owner_id::text = $1 OR id::text = $1) AND deleted_at IS NULL
-       UNION
-       SELECT id::text FROM profiles WHERE (owner_id::text = $1 OR id::text = $1)`,
-      [canonicalOwnerId]
-    );
-    for (const r of (provenRes.rows || [])) {
-      if (r.id) provenSet.add(String(r.id).trim());
-    }
-  } catch (err) {
-    console.warn('[resolveCanonicalTenant] Erro ao buscar IDs vinculados:', err);
-  }
-
-  const provenUserIds = Array.from(provenSet);
-
-  let allowedChurchIds: string[] = (ctx.allowedChurchIds && ctx.allowedChurchIds.length > 0) ? ctx.allowedChurchIds : [];
-  if (allowedChurchIds.length === 0 && dbPermissions) {
-    try {
-      const p = typeof dbPermissions === 'string' ? JSON.parse(dbPermissions) : dbPermissions;
-      if (Array.isArray(p.congregationIds)) {
-        allowedChurchIds = p.congregationIds.filter((cid: any) => typeof cid === 'string' && cid.trim());
-      }
-    } catch (_) {}
-  }
-  if (allowedChurchIds.length === 0 && dbChurchId) {
-    allowedChurchIds = [dbChurchId];
-  }
-
-  const info: CanonicalTenantInfo = {
-    canonicalOwnerId,
-    provenUserIds,
-    isSecondaryUser: isSecondary,
-    allowedChurchIds,
-    role: dbRole
-  };
-
-  canonicalTenantCache.set(userId, { info, expires: now + 60000 });
-  return info;
-}
 
 async function getEquivalentUserIds(userId: string): Promise<string[]> {
   if (!userId) return [];
@@ -4695,27 +4572,34 @@ async function getEquivalentUserIds(userId: string): Promise<string[]> {
 
   const idsSet = new Set<string>([cleanId]);
   try {
-    let ownerId = cleanId;
-    const ownerRes = await pool.query(
-      `SELECT owner_id::text FROM app_users WHERE (id::text = $1 OR LOWER(email) = LOWER($1)) AND owner_id IS NOT NULL AND owner_id::text != id::text
-       UNION
-       SELECT owner_id::text FROM profiles WHERE (id::text = $1 OR LOWER(email) = LOWER($1)) AND owner_id IS NOT NULL AND owner_id::text != id::text
-       LIMIT 1`,
-      [cleanId]
-    );
-    if (ownerRes.rows.length > 0 && ownerRes.rows[0].owner_id) {
-      ownerId = String(ownerRes.rows[0].owner_id).trim();
-      idsSet.add(ownerId);
+    // 1. Identifica se o usuário tem vínculo de owner (em app_users ou profiles)
+    const findOwnerQ = `
+      SELECT id::text as id, owner_id::text as owner_id FROM app_users WHERE id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
+      UNION
+      SELECT id::text as id, owner_id::text as owner_id FROM profiles WHERE id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
+    `;
+    const ownerRes = await pool.query(findOwnerQ, [cleanId]);
+    const potentialOwners = new Set<string>([cleanId]);
+    for (const r of (ownerRes.rows || [])) {
+      if (r.id) idsSet.add(String(r.id));
+      if (r.owner_id && String(r.owner_id).trim()) {
+        const oId = String(r.owner_id).trim();
+        idsSet.add(oId);
+        potentialOwners.add(oId);
+      }
     }
 
-    const q = `
-      SELECT id::text FROM app_users WHERE (owner_id::text = $1 OR id::text = $1) AND deleted_at IS NULL
-      UNION
-      SELECT id::text FROM profiles WHERE (owner_id::text = $1 OR id::text = $1)
-    `;
-    const res = await pool.query(q, [ownerId]);
-    for (const r of (res.rows || [])) {
-      if (r.id) idsSet.add(String(r.id).trim());
+    // 2. Para cada owner identificado, recupera todos os usuários da mesma organização (proprietário + secundários)
+    for (const ownerId of potentialOwners) {
+      const qLinked = `
+        SELECT id::text as id FROM app_users WHERE id::text = $1 OR owner_id::text = $1
+        UNION
+        SELECT id::text as id FROM profiles WHERE id = $1 OR owner_id = $1
+      `;
+      const linkedRes = await pool.query(qLinked, [ownerId]);
+      for (const r of (linkedRes.rows || [])) {
+        if (r.id) idsSet.add(String(r.id));
+      }
     }
   } catch (err) {
     console.warn('[getEquivalentUserIds] Erro ao resolver equivalência, usando ID direto:', err);
@@ -7050,7 +6934,7 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
 
     if (effectiveUserId) {
       const userIds = await getEquivalentUserIds(String(effectiveUserId));
-      query += ` AND user_id = ANY($${counter})`;
+      query += ` AND (user_id = ANY($${counter}) OR user_id IS NULL)`;
       params.push(userIds);
       counter++;
     }
@@ -7430,11 +7314,10 @@ async function isAuthorizedForTransaction(pool: any, ctx: TenantContext, oldTx: 
     return true;
   }
 
-  // 2. Se for usuário secundário: restringe estritamente às igrejas permitidas e ao mesmo proprietário
+  // 2. Se for usuário secundário: restringe às igrejas permitidas
   if (ctx.isSecondaryUser) {
     if (ctx.allowedChurchIds.length === 0) return false;
-    const belongsToOwner = !oldTx.user_id || oldTx.user_id === currentOwnerId || oldTx.user_id === currentUserId;
-    if (belongsToOwner && oldTx.church_id && ctx.allowedChurchIds.includes(oldTx.church_id)) return true;
+    if (oldTx.church_id && ctx.allowedChurchIds.includes(oldTx.church_id)) return true;
     return false;
   }
 
@@ -7482,8 +7365,7 @@ async function isAuthorizedForFinancialRecord(pool: any, ctx: TenantContext, old
 
   if (ctx.isSecondaryUser) {
     if (ctx.allowedChurchIds.length === 0) return false;
-    const belongsToOwner = !oldRec.user_id || oldRec.user_id === currentOwnerId || oldRec.user_id === currentUserId;
-    if (belongsToOwner && oldRec.church_id && ctx.allowedChurchIds.includes(oldRec.church_id)) return true;
+    if (oldRec.church_id && ctx.allowedChurchIds.includes(oldRec.church_id)) return true;
     return false;
   }
 
