@@ -577,13 +577,16 @@ export const useCloudSync = ({
                         hasChanges = true;
                     });
 
-                    // Preserva estritamente lançamentos manuais locais (persistidos ou temporários) que ainda não vieram na fatia atual do banco
+                    // Preserva exclusivamente lançamentos manuais locais PENDENTES DE PERSISTÊNCIA (ex: temporários aguardando gravação na nuvem).
+                    // Lançamentos confirmados no banco já vêm na reconstrução oficial (reconstructed); não devem ser reinseridos arbitrariamente se ausentes.
                     prev.forEach(p => {
-                        const isManual = p.transaction?.isManual || 
-                            p.transaction?.source === 'manual' || 
-                            p.matchMethod === MatchMethod.MANUAL ||
-                            (p.transaction?.id && typeof p.transaction.id === 'string' && (p.transaction.id.startsWith('ghost-manual-') || p.transaction.id.startsWith('manual-')));
-                        if (!map.has(p.transaction.id) && isManual) {
+                        const txId = String(p.transaction?.id || '');
+                        const isPendingManual = txId.startsWith('ghost-manual-') || 
+                            txId.startsWith('temp-manual') || 
+                            (p as any).isPendingSync === true ||
+                            (p.transaction as any)?.isPendingSync === true;
+
+                        if (!map.has(p.transaction?.id) && isPendingManual) {
                             map.set(p.transaction.id, p);
                             hasChanges = true;
                         }
