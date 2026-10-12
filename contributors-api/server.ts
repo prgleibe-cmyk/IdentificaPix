@@ -45,9 +45,7 @@ class LocalSqliteEngine {
       const { DatabaseSync } = requireFallback('node:sqlite');
       // Unificação absoluta: apontar sempre para o diretório raiz data/ do projeto
       let rootAppDir = process.cwd();
-      if (path.basename(rootAppDir) === 'contributors-api') {
-        rootAppDir = path.resolve(rootAppDir, '..');
-      } else if (!fs.existsSync(path.join(rootAppDir, 'data')) && fs.existsSync(path.resolve(rootAppDir, '..', 'data'))) {
+      if (!fs.existsSync(path.join(rootAppDir, 'data')) && fs.existsSync(path.resolve(rootAppDir, '..', 'data'))) {
         rootAppDir = path.resolve(rootAppDir, '..');
       } else if (fs.existsSync(path.resolve(__dirname, '..', '..', 'data'))) {
         rootAppDir = path.resolve(__dirname, '..', '..');
@@ -679,9 +677,8 @@ class LocalSqliteEngine {
 
     // 🛡️ Sincronização e Resgate de Dados entre Bancos Locais:
     try {
-      const rootDir = path.basename(process.cwd()) === 'contributors-api' ? path.resolve(process.cwd(), '..') : process.cwd();
-      const subDbPath = path.resolve(rootDir, 'contributors-api', 'data', 'contributors_local.sqlite');
-      const canonicalPath = path.resolve(rootDir, 'data', 'contributors_local.sqlite');
+      const subDbPath = path.resolve(process.cwd(), 'contributors-api', 'data', 'contributors_local.sqlite');
+      const canonicalPath = path.resolve(process.cwd(), 'data', 'contributors_local.sqlite');
       if (fs.existsSync(subDbPath) && subDbPath !== canonicalPath) {
         const { DatabaseSync: SubDbSync } = requireFallback('node:sqlite');
         const subDb = new SubDbSync(subDbPath);
@@ -2213,29 +2210,6 @@ export function extractContextAllowedChurchIds(user: any, headerChurchId?: strin
     if (typeof user.permissions.congregation === 'string' && user.permissions.congregation.trim()) {
       ids.add(user.permissions.congregation.trim());
     }
-  }
-
-  // 4. Direct congregation property (string or array)
-  if (typeof user.congregation === 'string' && user.congregation.trim()) {
-    if (user.congregation.includes(',')) {
-      user.congregation.split(',').forEach((id: string) => {
-        if (id.trim()) ids.add(id.trim());
-      });
-    } else {
-      ids.add(user.congregation.trim());
-    }
-  } else if (Array.isArray(user.congregation)) {
-    user.congregation.forEach((id: any) => {
-      if (typeof id === 'string' && id.trim()) ids.add(id.trim());
-    });
-  }
-  if (typeof user.congregation_id === 'string' && user.congregation_id.trim()) {
-    ids.add(user.congregation_id.trim());
-  }
-
-  // 5. Header church ID fallback if provided
-  if (headerChurchId && typeof headerChurchId === 'string' && headerChurchId.trim()) {
-    ids.add(headerChurchId.trim());
   }
 
   return Array.from(ids);
@@ -4581,9 +4555,7 @@ async function getEquivalentUserIds(userId: string): Promise<string[]> {
   const idsSet = new Set<string>([cleanId]);
   try {
     const q = `
-      SELECT id::text FROM app_users WHERE id::text = $1 OR owner_id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
-      UNION
-      SELECT owner_id::text FROM app_users WHERE (id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)) AND owner_id IS NOT NULL
+      SELECT id::text FROM app_users WHERE id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
       UNION
       SELECT id::text FROM profiles WHERE id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
       UNION
