@@ -326,7 +326,8 @@ export const useCloudSync = ({
                 const txResults: MatchResult[] = txs.map((t: any) => {
                     const normalizedDesc = strictNormalize(t.description);
                     const assoc = assocMap.get(normalizedDesc);
-                    const church = churchMap.get((t as any).church_id || (t as any).churchId || assoc?.churchId) || PLACEHOLDER_CHURCH;
+                    const resolvedChurchId = (t as any).church_id || (t as any).churchId || assoc?.churchId;
+                    const church = churchMap.get(resolvedChurchId) || (resolvedChurchId && resolvedChurchId !== 'unidentified' ? { id: resolvedChurchId, name: 'Igreja' } : PLACEHOLDER_CHURCH);
 
                     if (ENABLE_HEAVY_LOGS) {
                         console.log("[DIAGNOSTIC:RECONSTRUCT_ROW_MAPPING]", {
@@ -371,6 +372,7 @@ export const useCloudSync = ({
                         rawDescription: isManualTx ? '' : t.description,
                         amount: t.amount,
                         bank_id: t.bank_id,
+                        church_id: resolvedChurchId,
                         isConfirmed: t.is_confirmed,
                         type: effectiveType,
                         source: isManualTx ? 'manual' : t.source,
@@ -419,6 +421,7 @@ export const useCloudSync = ({
                         transaction,
                         contributor,
                         church,
+                        _churchId: resolvedChurchId,
                         reportId: t.report_id,
                         status,
                         isConfirmed: t.is_confirmed,
@@ -463,9 +466,11 @@ export const useCloudSync = ({
                                 reference_date: resolvedRefDate,
                                 source: r.transaction.source || saved.transaction?.source, // Garantia da origem do banco
                                 contributionType: r.transaction.contributionType || saved.transaction?.contributionType,
-                                paymentMethod: r.transaction.paymentMethod || saved.transaction?.paymentMethod
+                                paymentMethod: r.transaction.paymentMethod || saved.transaction?.paymentMethod,
+                                church_id: (r.transaction as any)?.church_id || (saved?.transaction as any)?.church_id
                             },
                             church: useDbAsPrimary ? (r.church?.id && r.church.id !== 'unidentified' ? r.church : saved.church) : (saved.church?.id && saved.church.id !== 'unidentified' ? saved.church : r.church),
+                            _churchId: (r as any)._churchId || (saved as any)?._churchId,
                             contributor: (useDbAsPrimary ? (r.contributor || saved.contributor) : (saved.contributor || r.contributor)) ? {
                                 ...(useDbAsPrimary ? (r.contributor || saved.contributor) : (saved.contributor || r.contributor))!,
                                 reference_date: resolvedRefDate
