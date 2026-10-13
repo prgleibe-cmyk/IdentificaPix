@@ -4564,8 +4564,6 @@ async function getEquivalentUserIds(userId: string): Promise<string[]> {
       SELECT user_id::text FROM profiles WHERE (id = $1 OR user_id = $1 OR owner_id = $1) AND user_id IS NOT NULL
       UNION
       SELECT owner_id::text FROM profiles WHERE (id = $1 OR user_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)) AND owner_id IS NOT NULL
-      UNION
-      SELECT id::text FROM churches WHERE user_id = $1 OR user_id = (SELECT owner_id FROM app_users WHERE id::text = $1 LIMIT 1) OR user_id IN (SELECT id::text FROM app_users WHERE id::text = $1 OR owner_id = $1)
     `;
     const res = await pool.query(q, [cleanId]);
     for (const r of (res.rows || [])) {
@@ -6907,20 +6905,9 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
       const userIds = await getEquivalentUserIds(String(effectiveUserId));
       if (ctx.userId && !userIds.includes(String(ctx.userId))) userIds.push(String(ctx.userId));
       if (ctx.ownerId && !userIds.includes(String(ctx.ownerId))) userIds.push(String(ctx.ownerId));
-      if (ctx.churchId && !userIds.includes(String(ctx.churchId))) userIds.push(String(ctx.churchId));
-      if (ctx.allowedChurchIds && Array.isArray(ctx.allowedChurchIds)) {
-        ctx.allowedChurchIds.forEach((cId: string) => {
-          if (cId && !userIds.includes(cId)) userIds.push(cId);
-        });
-      }
-      if (church_id && typeof church_id === 'string' && church_id !== 'all' && !userIds.includes(church_id)) {
-        if (!ctx.isSecondaryUser || ctx.allowedChurchIds.includes(church_id)) {
-          userIds.push(church_id);
-        }
-      }
-      query += ` AND (user_id = ANY($${counter}) OR user_id IS NULL OR church_id = ANY($${counter + 1}))`;
-      params.push(userIds, userIds);
-      counter += 2;
+      query += ` AND (user_id = ANY($${counter}) OR user_id IS NULL)`;
+      params.push(userIds);
+      counter++;
     }
 
     if (ctx.isSecondaryUser) {
