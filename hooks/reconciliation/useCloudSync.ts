@@ -362,7 +362,7 @@ export const useCloudSync = ({
                     }
 
                     const manualRefDate = isManualTx && t.transaction_date ? String(t.transaction_date).split(/[T ]/)[0] : null;
-                    const resolvedRefDate = t.reference_date || manualRefDate || null;
+                    const resolvedRefDate = t.reference_date || manualRefDate || (t.transaction_date ? String(t.transaction_date).split(/[T ]/)[0] : null);
 
                     const transaction: Transaction = {
                         id: t.id,
@@ -401,20 +401,30 @@ export const useCloudSync = ({
                         reference_date: resolvedRefDate
                     } : null;
 
+                    const rawStatus = String(t.status || '').toLowerCase();
+                    const isConfirmed = Boolean(t.is_confirmed === true || t.is_confirmed === 1 || t.is_confirmed === '1' || t.is_confirmed === 'true');
+                    const hasValidChurch = Boolean((resolvedChurchId && resolvedChurchId !== 'unidentified') || (church?.id && church.id !== 'unidentified'));
+                    const hasSplits = Array.isArray(t.splits) ? t.splits.length > 0 : (typeof t.splits === 'string' && t.splits.trim().startsWith('['));
+
                     let status = ReconciliationStatus.UNIDENTIFIED;
-                    if (t.status === 'resolved') status = ReconciliationStatus.RESOLVED;
-                    else if (t.status === 'identified' || isManualTx) status = ReconciliationStatus.IDENTIFIED;
+                    if (isConfirmed || rawStatus === 'resolved' || rawStatus === 'resolvido') {
+                        status = ReconciliationStatus.RESOLVED;
+                    } else if (rawStatus === 'identified' || rawStatus === 'identificado' || isManualTx || hasValidChurch || hasSplits) {
+                        status = ReconciliationStatus.IDENTIFIED;
+                    }
 
                     // ⚡ AUTO-IDENTIFICAÇÃO DE VÍNCULOS SALVOS (SEM IA)
-                    // Se a transação no banco está 'pending', mas existe uma associação aprendida (assoc),
+                    // Se a transação no banco está 'pending', mas existe uma associação aprendida (assoc) ou congregação válida já atribuída,
                     // promovemos localmente para IDENTIFIED e agendamos a atualização no banco em segundo plano (sequencialmente).
-                    if (assoc && t.status === 'pending') {
+                    if ((assoc || hasValidChurch) && rawStatus === 'pending') {
                         status = ReconciliationStatus.IDENTIFIED;
-                        pendingPromotions.push({
-                            id: t.id,
-                            churchId: church.id,
-                            bankId: t.bank_id
-                        });
+                        if (assoc && church?.id && church.id !== 'unidentified') {
+                            pendingPromotions.push({
+                                id: t.id,
+                                churchId: church.id,
+                                bankId: t.bank_id
+                            });
+                        }
                     }
 
                     const result = {
@@ -499,7 +509,13 @@ export const useCloudSync = ({
                             value.matchMethod === MatchMethod.MANUAL ||
                             (value.transaction?.id && typeof value.transaction.id === 'string' && (value.transaction.id.startsWith('ghost-manual-') || value.transaction.id.startsWith('manual-')));
 
-                        if (activeReportId || isManual) {
+                        const hasValidChurch = Boolean(
+                            (value.church?.id && value.church.id !== 'unidentified') || 
+                            (value._churchId && value._churchId !== 'unidentified') || 
+                            ((value.transaction as any)?.church_id && (value.transaction as any).church_id !== 'unidentified')
+                        );
+
+                        if (activeReportId || isManual || hasValidChurch) {
                             if (activeReportId) {
                                 const txDate = value.contributor?.reference_date || value.reference_date || value.transaction?.reference_date || value.transaction?.date || (value as any).date;
                                 if (txDate && (startStr || endStr)) {
