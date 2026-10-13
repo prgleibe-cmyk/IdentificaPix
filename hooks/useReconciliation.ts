@@ -212,27 +212,16 @@ export const useReconciliation = (props: any) => {
         if (subscription?.congregationIds && subscription.congregationIds.length > 0) {
             filtered = filtered.filter(r => {
                 if (!r) return false;
-                const churchId = (r.church?.id && r.church.id !== 'unidentified')
-                    ? r.church.id
-                    : (r._churchId && r._churchId !== 'unidentified' ? r._churchId : (r.transaction as any)?.church_id);
+                const churchId = r.church?.id || r._churchId || (r.transaction as any)?.church_id;
+                if (!churchId || churchId === 'unidentified') return true;
+                if (subscription.congregationIds.includes(churchId)) return true;
 
-                // Diferenciação de rateios (splits):
                 const splits = (Array.isArray(r.splits) && r.splits.length > 0)
                     ? r.splits
                     : (Array.isArray((r.transaction as any)?.splits) ? (r.transaction as any).splits : null);
                 if (splits && splits.length > 0) {
                     return splits.some((s: any) => s.churchId && subscription.congregationIds.includes(s.churchId));
                 }
-
-                // Se possui congregação identificada autorizada:
-                if (churchId && churchId !== 'unidentified' && subscription.congregationIds.includes(churchId)) {
-                    // Relatório Pendentes é exclusivo do principal: registros pendentes sem congregação válida/concluída não são exibidos
-                    const isPending = r.status === ReconciliationStatus.UNIDENTIFIED || (r as any).status === 'pending';
-                    if (isPending) return false;
-                    return true;
-                }
-
-                // Registros pendentes sem igreja ou de outras congregações não autorizadas são bloqueados
                 return false;
             });
         }

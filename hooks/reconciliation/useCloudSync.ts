@@ -326,8 +326,7 @@ export const useCloudSync = ({
                 const txResults: MatchResult[] = txs.map((t: any) => {
                     const normalizedDesc = strictNormalize(t.description);
                     const assoc = assocMap.get(normalizedDesc);
-                    const resolvedChurchId = (t as any).church_id || (t as any).churchId || assoc?.churchId;
-                    const church = churchMap.get(resolvedChurchId) || (resolvedChurchId && resolvedChurchId !== 'unidentified' ? { id: resolvedChurchId, name: 'Igreja' } : PLACEHOLDER_CHURCH);
+                    const church = churchMap.get((t as any).church_id || (t as any).churchId || assoc?.churchId) || PLACEHOLDER_CHURCH;
 
                     if (ENABLE_HEAVY_LOGS) {
                         console.log("[DIAGNOSTIC:RECONSTRUCT_ROW_MAPPING]", {
@@ -362,7 +361,7 @@ export const useCloudSync = ({
                     }
 
                     const manualRefDate = isManualTx && t.transaction_date ? String(t.transaction_date).split(/[T ]/)[0] : null;
-                    const resolvedRefDate = t.reference_date || manualRefDate || (t.transaction_date ? String(t.transaction_date).split(/[T ]/)[0] : null);
+                    const resolvedRefDate = t.reference_date || manualRefDate || null;
 
                     const transaction: Transaction = {
                         id: t.id,
@@ -372,10 +371,9 @@ export const useCloudSync = ({
                         rawDescription: isManualTx ? '' : t.description,
                         amount: t.amount,
                         bank_id: t.bank_id,
-                        church_id: resolvedChurchId,
                         isConfirmed: t.is_confirmed,
                         type: effectiveType,
-                        source: isManualTx ? 'manual' : (t.source || 'file'),
+                        source: isManualTx ? 'manual' : t.source,
                         isManual: isManualTx,
                         pix_key: t.pix_key,
                         row_hash: t.row_hash,
@@ -401,41 +399,30 @@ export const useCloudSync = ({
                         reference_date: resolvedRefDate
                     } : null;
 
-                    const rawStatus = String(t.status || '').toLowerCase();
-                    const isConfirmed = Boolean(t.is_confirmed === true || t.is_confirmed === 1 || t.is_confirmed === '1' || t.is_confirmed === 'true');
-                    const hasValidChurch = Boolean((resolvedChurchId && resolvedChurchId !== 'unidentified') || (church?.id && church.id !== 'unidentified'));
-                    const hasSplits = Array.isArray(t.splits) ? t.splits.length > 0 : (typeof t.splits === 'string' && t.splits.trim().startsWith('['));
-
                     let status = ReconciliationStatus.UNIDENTIFIED;
-                    if (isConfirmed || rawStatus === 'resolved' || rawStatus === 'resolvido') {
-                        status = ReconciliationStatus.RESOLVED;
-                    } else if (rawStatus === 'identified' || rawStatus === 'identificado' || isManualTx || hasValidChurch || hasSplits) {
-                        status = ReconciliationStatus.IDENTIFIED;
-                    }
+                    if (t.status === 'resolved') status = ReconciliationStatus.RESOLVED;
+                    else if (t.status === 'identified' || isManualTx) status = ReconciliationStatus.IDENTIFIED;
 
                     // ⚡ AUTO-IDENTIFICAÇÃO DE VÍNCULOS SALVOS (SEM IA)
-                    // Se a transação no banco está 'pending', mas existe uma associação aprendida (assoc) ou congregação válida já atribuída,
+                    // Se a transação no banco está 'pending', mas existe uma associação aprendida (assoc),
                     // promovemos localmente para IDENTIFIED e agendamos a atualização no banco em segundo plano (sequencialmente).
-                    if ((assoc || hasValidChurch) && rawStatus === 'pending') {
+                    if (assoc && t.status === 'pending') {
                         status = ReconciliationStatus.IDENTIFIED;
-                        if (assoc && church?.id && church.id !== 'unidentified') {
-                            pendingPromotions.push({
-                                id: t.id,
-                                churchId: church.id,
-                                bankId: t.bank_id
-                            });
-                        }
+                        pendingPromotions.push({
+                            id: t.id,
+                            churchId: church.id,
+                            bankId: t.bank_id
+                        });
                     }
 
                     const result = {
                         transaction,
                         contributor,
                         church,
-                        _churchId: resolvedChurchId,
                         reportId: t.report_id,
                         status,
                         isConfirmed: t.is_confirmed,
-                        matchMethod: isManualTx ? MatchMethod.MANUAL : (assoc ? MatchMethod.LEARNED : MatchMethod.AUTOMATIC),
+                        matchMethod: assoc ? MatchMethod.LEARNED : MatchMethod.MANUAL,
                         similarity: 100,
                         contributionType: savedContribType,
                         paymentMethod: savedPaymentMethod,
@@ -476,18 +463,15 @@ export const useCloudSync = ({
                                 reference_date: resolvedRefDate,
                                 source: r.transaction.source || saved.transaction?.source, // Garantia da origem do banco
                                 contributionType: r.transaction.contributionType || saved.transaction?.contributionType,
-                                paymentMethod: r.transaction.paymentMethod || saved.transaction?.paymentMethod,
-                                church_id: (r.transaction as any)?.church_id || (saved?.transaction as any)?.church_id
+                                paymentMethod: r.transaction.paymentMethod || saved.transaction?.paymentMethod
                             },
                             church: useDbAsPrimary ? (r.church?.id && r.church.id !== 'unidentified' ? r.church : saved.church) : (saved.church?.id && saved.church.id !== 'unidentified' ? saved.church : r.church),
-                            _churchId: (r as any)._churchId || (saved as any)?._churchId,
                             contributor: (useDbAsPrimary ? (r.contributor || saved.contributor) : (saved.contributor || r.contributor)) ? {
                                 ...(useDbAsPrimary ? (r.contributor || saved.contributor) : (saved.contributor || r.contributor))!,
                                 reference_date: resolvedRefDate
                             } : null,
                             status: useDbAsPrimary ? r.status : (saved.status || r.status),
                             isConfirmed: useDbAsPrimary ? r.isConfirmed : (saved.isConfirmed ?? r.isConfirmed),
-                            matchMethod: r.transaction.isManual ? MatchMethod.MANUAL : (r.matchMethod || saved.matchMethod || MatchMethod.AUTOMATIC),
                             contributionType: r.contributionType || saved.contributionType,
                             paymentMethod: r.paymentMethod || saved.paymentMethod,
                             splits: (Array.isArray(r.splits) && r.splits.length > 0) ? r.splits : (Array.isArray(saved.splits) && saved.splits.length > 0 ? saved.splits : undefined),
@@ -510,13 +494,7 @@ export const useCloudSync = ({
                             value.matchMethod === MatchMethod.MANUAL ||
                             (value.transaction?.id && typeof value.transaction.id === 'string' && (value.transaction.id.startsWith('ghost-manual-') || value.transaction.id.startsWith('manual-')));
 
-                        const hasValidChurch = Boolean(
-                            (value.church?.id && value.church.id !== 'unidentified') || 
-                            (value._churchId && value._churchId !== 'unidentified') || 
-                            ((value.transaction as any)?.church_id && (value.transaction as any).church_id !== 'unidentified')
-                        );
-
-                        if (activeReportId || isManual || hasValidChurch) {
+                        if (activeReportId || isManual) {
                             if (activeReportId) {
                                 const txDate = value.contributor?.reference_date || value.reference_date || value.transaction?.reference_date || value.transaction?.date || (value as any).date;
                                 if (txDate && (startStr || endStr)) {
@@ -599,16 +577,13 @@ export const useCloudSync = ({
                         hasChanges = true;
                     });
 
-                    // Preserva exclusivamente lançamentos manuais locais PENDENTES DE PERSISTÊNCIA (ex: temporários aguardando gravação na nuvem).
-                    // Lançamentos confirmados no banco já vêm na reconstrução oficial (reconstructed); não devem ser reinseridos arbitrariamente se ausentes.
+                    // Preserva estritamente lançamentos manuais locais (persistidos ou temporários) que ainda não vieram na fatia atual do banco
                     prev.forEach(p => {
-                        const txId = String(p.transaction?.id || '');
-                        const isPendingManual = txId.startsWith('ghost-manual-') || 
-                            txId.startsWith('temp-manual') || 
-                            (p as any).isPendingSync === true ||
-                            (p.transaction as any)?.isPendingSync === true;
-
-                        if (!map.has(p.transaction?.id) && isPendingManual) {
+                        const isManual = p.transaction?.isManual || 
+                            p.transaction?.source === 'manual' || 
+                            p.matchMethod === MatchMethod.MANUAL ||
+                            (p.transaction?.id && typeof p.transaction.id === 'string' && (p.transaction.id.startsWith('ghost-manual-') || p.transaction.id.startsWith('manual-')));
+                        if (!map.has(p.transaction.id) && isManual) {
                             map.set(p.transaction.id, p);
                             hasChanges = true;
                         }

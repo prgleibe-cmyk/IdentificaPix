@@ -4555,20 +4555,16 @@ async function getEquivalentUserIds(userId: string): Promise<string[]> {
   const idsSet = new Set<string>([cleanId]);
   try {
     const q = `
-      SELECT id::text FROM app_users WHERE id::text = $1 OR owner_id = $1 OR owner_id = (SELECT owner_id FROM app_users WHERE id::text = $1 LIMIT 1) OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
+      SELECT id::text FROM app_users WHERE id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
       UNION
-      SELECT owner_id::text FROM app_users WHERE (id::text = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)) AND owner_id IS NOT NULL
+      SELECT id::text FROM profiles WHERE id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
       UNION
-      SELECT id::text FROM profiles WHERE id = $1 OR user_id = $1 OR owner_id = $1 OR owner_id = (SELECT owner_id FROM profiles WHERE id = $1 OR user_id = $1 LIMIT 1) OR id = (SELECT owner_id FROM app_users WHERE id::text = $1 LIMIT 1) OR user_id = (SELECT owner_id FROM app_users WHERE id::text = $1 LIMIT 1) OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
-      UNION
-      SELECT user_id::text FROM profiles WHERE (id = $1 OR user_id = $1 OR owner_id = $1) AND user_id IS NOT NULL
-      UNION
-      SELECT owner_id::text FROM profiles WHERE (id = $1 OR user_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)) AND owner_id IS NOT NULL
+      SELECT owner_id::text FROM profiles WHERE (id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)) AND owner_id IS NOT NULL
     `;
     const res = await pool.query(q, [cleanId]);
     for (const r of (res.rows || [])) {
-      const val = r.id || r.owner_id || r.user_id || (r && typeof r === 'object' ? Object.values(r)[0] : null);
-      if (val) idsSet.add(String(val));
+      if (r.id) idsSet.add(String(r.id));
+      if (r.owner_id) idsSet.add(String(r.owner_id));
     }
   } catch (err) {
     console.warn('[getEquivalentUserIds] Erro ao resolver equivalência, usando ID direto:', err);
@@ -6903,8 +6899,6 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
 
     if (effectiveUserId) {
       const userIds = await getEquivalentUserIds(String(effectiveUserId));
-      if (ctx.userId && !userIds.includes(String(ctx.userId))) userIds.push(String(ctx.userId));
-      if (ctx.ownerId && !userIds.includes(String(ctx.ownerId))) userIds.push(String(ctx.ownerId));
       query += ` AND (user_id = ANY($${counter}) OR user_id IS NULL)`;
       params.push(userIds);
       counter++;
