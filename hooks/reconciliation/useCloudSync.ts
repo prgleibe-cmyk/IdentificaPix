@@ -378,7 +378,8 @@ export const useCloudSync = ({
                         pix_key: t.pix_key,
                         row_hash: t.row_hash,
                         contributionType: savedContribType,
-                        paymentMethod: savedPaymentMethod
+                        paymentMethod: savedPaymentMethod,
+                        church_id: (t as any).church_id || (t as any).churchId || assoc?.churchId || (church?.id !== 'unidentified' ? church?.id : undefined)
                     };
 
                     const regName = t.contributor_id ? getRegisteredContributorName(t.contributor_id) : null;
@@ -419,6 +420,7 @@ export const useCloudSync = ({
                         transaction,
                         contributor,
                         church,
+                        _churchId: (t as any).church_id || (t as any).churchId || assoc?.churchId || (church?.id !== 'unidentified' ? church?.id : undefined),
                         reportId: t.report_id,
                         status,
                         isConfirmed: t.is_confirmed,
