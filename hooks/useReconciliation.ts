@@ -228,17 +228,6 @@ export const useReconciliation = (props: any) => {
 
         if (subscription?.bankIds && subscription.bankIds.length > 0) {
             filtered = filtered.filter(r => {
-                if (!r) return false;
-                const churchId = r.church?.id || r._churchId || (r.transaction as any)?.church_id;
-                const splits = (Array.isArray(r.splits) && r.splits.length > 0)
-                    ? r.splits
-                    : (Array.isArray((r.transaction as any)?.splits) ? (r.transaction as any).splits : null);
-                const isAuthorizedChurch = Boolean(
-                    (churchId && churchId !== 'unidentified' && subscription.congregationIds?.includes(churchId)) ||
-                    (splits && splits.length > 0 && splits.some((s: any) => s.churchId && subscription.congregationIds?.includes(s.churchId)))
-                );
-                if (isAuthorizedChurch) return true;
-
                 const isManual = (r as any).isManual || r.transaction?.isManual || r.transaction?.source === 'manual';
                 if (isManual && !r.transaction?.bank_id) return true;
                 return r?.transaction?.bank_id ? subscription.bankIds.includes(String(r.transaction.bank_id)) : true;
