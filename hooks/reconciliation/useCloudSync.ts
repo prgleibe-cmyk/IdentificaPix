@@ -82,8 +82,10 @@ export const useCloudSync = ({
     const [hasCompletedInitialHydration, setHasCompletedInitialHydration] = useState<boolean>(false);
     const [connectionError, setConnectionError] = useState<string | null>(null);
     const retryCountRef = useRef<number>(0);
+    const retryTimeoutRef = useRef<any>(null);
     const reconstructSessionRef = useRef<() => Promise<void>>();
-    const needsRetry = useRef<boolean>(false);
+    const matchResultsRef = useRef<MatchResult[]>(matchResults);
+    const prevActiveReportIdRef = useRef<string | null>(activeReportId);
     const lastValidatedHash = useRef<string>('');
     const isValidating = useRef<boolean>(false);
     const stableTimeoutRef = useRef<any>(null);
@@ -114,6 +116,19 @@ export const useCloudSync = ({
         contributorFilesRef.current = contributorFiles;
     }, [contributorFiles]);
 
+    useEffect(() => {
+        matchResultsRef.current = matchResults;
+    }, [matchResults]);
+
+    useEffect(() => {
+        return () => {
+            if (retryTimeoutRef.current) {
+                clearTimeout(retryTimeoutRef.current);
+                retryTimeoutRef.current = null;
+            }
+        };
+    }, []);
+
     const getRegisteredContributorName = (contributorId: string | null | undefined): string | null => {
         if (!contributorId || !contributorFilesRef.current) return null;
         const found = contributorFilesRef.current
@@ -135,12 +150,14 @@ export const useCloudSync = ({
 
     const lastDataReadyKeyRef = useRef<string>('');
 
+    // Permite reconstrução limpa caso o relatório ativo mude
     useEffect(() => {
-        if (realtimeRefreshKey && realtimeRefreshKey > 0) {
+        if (prevActiveReportIdRef.current !== activeReportId) {
+            prevActiveReportIdRef.current = activeReportId;
             lastDataReadyKeyRef.current = '';
             lastSignatureRef.current = null;
         }
-    }, [realtimeRefreshKey]);
+    }, [activeReportId]);
 
     // ☁️ SINCRONIZAÇÃO COM A NUVEM (Trabalho Vivo)
     // Desativado o "blocão" JSON para sessões ativas para favorecer a atomização
@@ -161,18 +178,17 @@ export const useCloudSync = ({
     const reconstructSession = useCallback(async () => {
         if (!effectiveUserId) return;
 
-        // Se já estamos hidratando, marcamos que precisamos de outra rodada ao terminar
+        // Se já estamos hidratando, ignoramos chamadas concorrentes
         if (isHydratingFromCloud.current) {
-            needsRetry.current = true;
+            console.log("[CloudSync:ATOM] Reconstrução já em andamento, ignorando chamada concorrente.");
             return;
         }
 
         console.log("[CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...");
-        const hasDataAlready = Array.isArray(matchResults) && matchResults.length > 0;
+        const hasDataAlready = Array.isArray(matchResultsRef.current) && matchResultsRef.current.length > 0;
         isHydratingFromCloud.current = true;
         setIsHydrating(true);
         if (setIsLoading && !hasDataAlready) setIsLoading(true);
-        needsRetry.current = false;
 
         try {
             const pendingPromotions: { id: string; churchId: string; bankId: string }[] = [];
@@ -641,9 +657,14 @@ export const useCloudSync = ({
             } catch (e: any) {
                 console.error("[CloudSync:ATOM_RECONSTRUCT_FAIL]", e);
                 retryCountRef.current += 1;
+                if (retryTimeoutRef.current) {
+                    clearTimeout(retryTimeoutRef.current);
+                    retryTimeoutRef.current = null;
+                }
                 if (retryCountRef.current < 3) {
                     console.warn(`[CloudSync] Tentativa ${retryCountRef.current}/3 falhou em conexão instável. Agendando retry em 3s...`);
-                    setTimeout(() => {
+                    retryTimeoutRef.current = setTimeout(() => {
+                        retryTimeoutRef.current = null;
                         if (!isHydratingFromCloud.current) {
                             reconstructSessionRef.current?.();
                         }
@@ -660,16 +681,9 @@ export const useCloudSync = ({
                 setTimeout(() => {
                     console.log('[Hydration:FINISHED]');
                 }, 0);
-                if (needsRetry.current && retryCountRef.current < 3) {
-                    needsRetry.current = false;
-                    setTimeout(() => {
-                        reconstructSessionRef.current?.();
-                    }, 500);
-                }
             }
         }, [
             effectiveUserId,
-            matchResults,
             setIsLoading,
             churches,
             learnedAssociations,
@@ -690,8 +704,7 @@ export const useCloudSync = ({
         useEffect(() => {
             const currentSignature = JSON.stringify({
                 activeReportId,
-                dataReadyKey,
-                realtimeRefreshKey
+                dataReadyKey
             });
 
             if (lastSignatureRef.current === currentSignature) {
@@ -716,8 +729,8 @@ export const useCloudSync = ({
             if (lastDataReadyKeyRef.current === dataReadyKey) return;
             lastDataReadyKeyRef.current = dataReadyKey;
 
-            reconstructSession();
-        }, [isReady, dataReadyKey, activeReportId, reconstructSession, realtimeRefreshKey]);
+            reconstructSessionRef.current?.();
+        }, [isReady, dataReadyKey, activeReportId]);
 
     // 🚀 AUTO-PROCESSAMENTO INICIAL (Lista Viva)
     useEffect(() => {
@@ -901,8 +914,12 @@ export const useCloudSync = ({
         setConnectionError(null);
         lastSignatureRef.current = null;
         lastDataReadyKeyRef.current = '';
-        reconstructSession();
-    }, [reconstructSession]);
+        if (retryTimeoutRef.current) {
+            clearTimeout(retryTimeoutRef.current);
+            retryTimeoutRef.current = null;
+        }
+        reconstructSessionRef.current?.();
+    }, []);
 
     return {
         syncToCloud,
