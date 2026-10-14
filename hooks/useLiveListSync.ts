@@ -132,7 +132,7 @@ export const useLiveListSync = ({
     useEffect(() => {
         // Polling ativo a cada 10s para alimentar a Lista Viva em tempo real ao receber novos SMS / Notificações do celular
         const intervalId = setInterval(() => {
-            if (!isCleaning && document.visibilityState === 'visible' && !isHydrating.current) {
+            if (!isCleaning && document.visibilityState === 'visible') {
                 hydrate(false);
             }
         }, 10000);

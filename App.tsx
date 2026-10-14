@@ -26,11 +26,10 @@ import { GlobalAnnouncementBanner } from './components/shared/GlobalAnnouncement
 import { usePinchZoom } from './hooks/usePinchZoom';
 import { useGlobalDragScroll } from './hooks/useGlobalDragScroll';
 import { PinchZoomControl } from './components/layout/PinchZoomControl';
-import { ExclamationTriangleIcon } from './components/Icons';
 
 // --- Main Application Layout ---
 const MainLayout: React.FC = () => {
-    const { isLoading, initialDataLoaded, toast, connectionError, retryInitialLoad, isConnectionSlow } = useContentController();
+    const { isLoading, initialDataLoaded, toast } = useContentController();
     const scrollContainerRef = React.useRef<HTMLDivElement>(null);
     const pinchState = usePinchZoom(scrollContainerRef);
 
@@ -40,37 +39,11 @@ const MainLayout: React.FC = () => {
 
     if (!initialDataLoaded) {
         return (
-            <div className="h-[100dvh] w-screen flex items-center justify-center bg-brand-deep px-4">
-                <div className="flex flex-col items-center max-w-sm text-center">
-                    <img src={logoImg} className="h-44 w-auto mb-6 object-contain animate-fade-in" alt="IgGestor" />
-                    
-                    {connectionError ? (
-                        <div className="bg-white/10 dark:bg-slate-800/80 backdrop-blur-md p-6 rounded-2xl border border-amber-500/30 text-center w-full animate-fade-in">
-                            <div className="mx-auto w-10 h-10 bg-amber-500/20 rounded-full flex items-center justify-center mb-3">
-                                <ExclamationTriangleIcon className="w-5 h-5 text-amber-400" />
-                            </div>
-                            <h3 className="text-white font-semibold text-base mb-1">Conexão Instável</h3>
-                            <p className="text-white/70 text-xs mb-4">
-                                A sincronização inicial demorou mais que o esperado devido à lentidão da internet. Seus dados estão preservados.
-                            </p>
-                            <button
-                                onClick={() => retryInitialLoad?.()}
-                                className="w-full py-2.5 px-4 bg-brand-blue hover:bg-blue-600 text-white text-xs font-semibold rounded-xl transition-colors cursor-pointer shadow-lg shadow-blue-500/20"
-                            >
-                                Tentar Novamente
-                            </button>
-                        </div>
-                    ) : (
-                        <>
-                            <div className="animate-spin rounded-full h-8 w-8 border-4 border-brand-blue border-t-transparent mb-4"></div>
-                            <p className="text-white/50 text-[10px] font-bold uppercase tracking-[0.3em]">Iniciando Sistema</p>
-                            {isConnectionSlow && (
-                                <p className="text-amber-400/80 text-xs font-medium animate-pulse mt-3">
-                                    Conexão lenta detectada. Sincronizando dados com o servidor...
-                                </p>
-                            )}
-                        </>
-                    )}
+            <div className="h-[100dvh] w-screen flex items-center justify-center bg-brand-deep">
+                <div className="flex flex-col items-center">
+                    <img src={logoImg} className="h-48 w-auto mb-8 object-contain animate-fade-in" alt="IgGestor" />
+                    <div className="animate-spin rounded-full h-8 w-8 border-4 border-brand-blue border-t-transparent mb-4"></div>
+                    <p className="text-white/50 text-[10px] font-bold uppercase tracking-[0.3em]">Iniciando Sistema</p>
                 </div>
             </div>
         );

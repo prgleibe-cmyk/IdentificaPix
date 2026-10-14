@@ -2,7 +2,6 @@ import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { getAuthToken } from '../services/auth/authAdapter';
 import { usePersistentState } from './usePersistentState';
-import { fetchWithTimeout } from '../services/clientDataCache';
 import { SavedReport, SearchFilters, SavingReportState, MatchResult, SpreadsheetData } from '../types';
 
 const ENABLE_HEAVY_LOGS = false;
@@ -132,11 +131,11 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             try {
                 const token = await getAuthToken();
 
-                const response = await fetchWithTimeout(`/api/v1/saved_reports?user_id=${apiOwnerId}&exclude_data=true`, {
+                const response = await fetch(`/api/v1/saved_reports?user_id=${apiOwnerId}&exclude_data=true`, {
                     method: 'GET',
                     cache: 'no-store',
                     headers: { 'Authorization': `Bearer ${token}` }
-                }, 15000);
+                });
 
                 if (response.ok) {
                     const resData = await response.json();

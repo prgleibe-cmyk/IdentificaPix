@@ -5,7 +5,7 @@ import { usePersistentState } from './usePersistentState';
 import { strictNormalize, DEFAULT_CONTRIBUTION_KEYWORDS, isInvalidOrNumericName, cleanBankDescription, normalizeString } from '../services/utils/parsingUtils';
 import { useAuth } from '../contexts/AuthContext';
 import { batchState } from './reconciliation/useCloudSync';
-import { fetchWithMemoryCache, fetchWithTimeout } from '../services/clientDataCache';
+import { fetchWithMemoryCache } from '../services/clientDataCache';
 import { getCachedContributors } from '../services/contributorsCache';
 
 const DEFAULT_PAYMENT_METHODS = ['PIX', 'DINHEIRO'];
@@ -144,22 +144,22 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                 const token = await getAuthToken();
                 const ownerId = effectiveOwnerId;
 
-                let response = await fetchWithTimeout(`/api/v1/reference/data/${ownerId}?limit=50&offset=0`, {
+                let response = await fetch(`/api/v1/reference/data/${ownerId}?limit=50&offset=0`, {
                     method: 'GET',
                     cache: 'no-store',
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
-                }, 15000);
+                });
 
                 if (!response.ok) {
-                    response = await fetchWithTimeout(`/api/reference/data/${ownerId}?limit=50&offset=0`, {
+                    response = await fetch(`/api/reference/data/${ownerId}?limit=50&offset=0`, {
                         method: 'GET',
                         cache: 'no-store',
                         headers: {
                             'Authorization': `Bearer ${token}`
                         }
-                    }, 15000);
+                    });
                 }
 
                 let data: any = null;
@@ -167,9 +167,9 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                     data = await response.json();
                 } else {
                     const [bRes, cRes, aRes] = await Promise.all([
-                        fetchWithTimeout(`/api/v1/banks?user_id=${ownerId}`, {}, 15000),
-                        fetchWithTimeout(`/api/v1/churches?user_id=${ownerId}`, {}, 15000),
-                        fetchWithTimeout(`/api/v1/learned_associations?user_id=${ownerId}`, {}, 15000)
+                        fetch(`/api/v1/banks?user_id=${ownerId}`),
+                        fetch(`/api/v1/churches?user_id=${ownerId}`),
+                        fetch(`/api/v1/learned_associations?user_id=${ownerId}`)
                     ]);
                     const bList = bRes.ok ? await bRes.json() : [];
                     const cList = cRes.ok ? await cRes.json() : [];

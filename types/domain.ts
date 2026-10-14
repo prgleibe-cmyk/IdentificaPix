@@ -168,7 +168,6 @@ export interface Transaction {
   source?: string;
   pix_key?: string;
   row_hash?: string;
-  church_id?: string;
   attachments?: ExpenseAttachment[];
 }
 

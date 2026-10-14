@@ -3,7 +3,6 @@ import { MatchResult, ReconciliationStatus, MatchMethod, Transaction, Contributo
 import { PLACEHOLDER_CHURCH, strictNormalize, isInvalidOrNumericName } from '../../services/processingService';
 import { consolidationService } from '../../services/ConsolidationService';
 import { getAuthToken } from '../../services/auth/authAdapter';
-import { fetchWithTimeout } from '../../services/clientDataCache';
 
 interface UseCloudSyncProps {
     user: any;
@@ -80,12 +79,8 @@ export const useCloudSync = ({
     const isHydratingFromCloud = useRef<boolean>(false);
     const [isHydrating, setIsHydrating] = useState<boolean>(false);
     const [hasCompletedInitialHydration, setHasCompletedInitialHydration] = useState<boolean>(false);
-    const [connectionError, setConnectionError] = useState<string | null>(null);
-    const retryCountRef = useRef<number>(0);
-    const retryTimeoutRef = useRef<any>(null);
     const reconstructSessionRef = useRef<() => Promise<void>>();
-    const matchResultsRef = useRef<MatchResult[]>(matchResults);
-    const prevActiveReportIdRef = useRef<string | null>(activeReportId);
+    const needsRetry = useRef<boolean>(false);
     const lastValidatedHash = useRef<string>('');
     const isValidating = useRef<boolean>(false);
     const stableTimeoutRef = useRef<any>(null);
@@ -116,19 +111,6 @@ export const useCloudSync = ({
         contributorFilesRef.current = contributorFiles;
     }, [contributorFiles]);
 
-    useEffect(() => {
-        matchResultsRef.current = matchResults;
-    }, [matchResults]);
-
-    useEffect(() => {
-        return () => {
-            if (retryTimeoutRef.current) {
-                clearTimeout(retryTimeoutRef.current);
-                retryTimeoutRef.current = null;
-            }
-        };
-    }, []);
-
     const getRegisteredContributorName = (contributorId: string | null | undefined): string | null => {
         if (!contributorId || !contributorFilesRef.current) return null;
         const found = contributorFilesRef.current
@@ -150,14 +132,12 @@ export const useCloudSync = ({
 
     const lastDataReadyKeyRef = useRef<string>('');
 
-    // Permite reconstrução limpa caso o relatório ativo mude
     useEffect(() => {
-        if (prevActiveReportIdRef.current !== activeReportId) {
-            prevActiveReportIdRef.current = activeReportId;
+        if (realtimeRefreshKey && realtimeRefreshKey > 0) {
             lastDataReadyKeyRef.current = '';
             lastSignatureRef.current = null;
         }
-    }, [activeReportId]);
+    }, [realtimeRefreshKey]);
 
     // ☁️ SINCRONIZAÇÃO COM A NUVEM (Trabalho Vivo)
     // Desativado o "blocão" JSON para sessões ativas para favorecer a atomização
@@ -178,17 +158,18 @@ export const useCloudSync = ({
     const reconstructSession = useCallback(async () => {
         if (!effectiveUserId) return;
 
-        // Se já estamos hidratando, ignoramos chamadas concorrentes
+        // Se já estamos hidratando, marcamos que precisamos de outra rodada ao terminar
         if (isHydratingFromCloud.current) {
-            console.log("[CloudSync:ATOM] Reconstrução já em andamento, ignorando chamada concorrente.");
+            needsRetry.current = true;
             return;
         }
 
         console.log("[CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...");
-        const hasDataAlready = Array.isArray(matchResultsRef.current) && matchResultsRef.current.length > 0;
+        const hasDataAlready = Array.isArray(matchResults) && matchResults.length > 0;
         isHydratingFromCloud.current = true;
         setIsHydrating(true);
         if (setIsLoading && !hasDataAlready) setIsLoading(true);
+        needsRetry.current = false;
 
         try {
             const pendingPromotions: { id: string; churchId: string; bankId: string }[] = [];
@@ -204,10 +185,10 @@ export const useCloudSync = ({
                 let queryParams = `user_id=${encodeURIComponent(effectiveUserId)}&limit=${pageSize}`;
 
                 while (true) {
-                    const res = await fetchWithTimeout(`/api/v1/consolidated_transactions?${queryParams}&offset=${from}`, {
+                    const res = await fetch(`/api/v1/consolidated_transactions?${queryParams}&offset=${from}`, {
                         headers,
                         cache: 'no-store'
-                    }, 20000);
+                    });
                     if (!res.ok) {
                         throw new Error(`Erro ao buscar transações consolidadas do VPS: ${res.statusText}`);
                     }
@@ -227,15 +208,15 @@ export const useCloudSync = ({
                     return contributorFilesRef.current;
                 }
 
-                // Busca todos os contribuintes com timeout de 15s
+                // Busca todos os contribuintes em uma única requisição veloz
                 let data: any[] = [];
                 try {
                     const token = await getAuthToken();
                     const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
-                    const resp = await fetchWithTimeout(`/api/v1/contributors`, {
+                    const resp = await fetch(`/api/v1/contributors`, {
                         headers,
                         cache: 'no-store'
-                    }, 15000);
+                    });
                     if (resp.ok) {
                         const list = await resp.json();
                         data = Array.isArray(list) ? list : [];
@@ -626,8 +607,6 @@ export const useCloudSync = ({
                 }
 
                 setHasActiveSession(true);
-                retryCountRef.current = 0;
-                setConnectionError(null);
 
                 if (reconstructed.length > 0 && !hasDataAlready) {
                     showToast("Sessão ativa sincronizada.", "success");
@@ -654,25 +633,10 @@ export const useCloudSync = ({
                         console.error('[Auto-promote] Erro no lote de auto-promoção:', err);
                     });
                 }
-            } catch (e: any) {
+            } catch (e) {
                 console.error("[CloudSync:ATOM_RECONSTRUCT_FAIL]", e);
-                retryCountRef.current += 1;
-                if (retryTimeoutRef.current) {
-                    clearTimeout(retryTimeoutRef.current);
-                    retryTimeoutRef.current = null;
-                }
-                if (retryCountRef.current < 3) {
-                    console.warn(`[CloudSync] Tentativa ${retryCountRef.current}/3 falhou em conexão instável. Agendando retry em 3s...`);
-                    retryTimeoutRef.current = setTimeout(() => {
-                        retryTimeoutRef.current = null;
-                        if (!isHydratingFromCloud.current) {
-                            reconstructSessionRef.current?.();
-                        }
-                    }, 3000);
-                } else {
-                    console.error("[CloudSync] Falha na sincronização após 3 tentativas.");
-                    setConnectionError("Falha na sincronização inicial devido a conexão lenta ou instável.");
-                }
+                lastSignatureRef.current = null;
+                lastDataReadyKeyRef.current = '';
             } finally {
                 isHydratingFromCloud.current = false;
                 setIsHydrating(false);
@@ -681,9 +645,16 @@ export const useCloudSync = ({
                 setTimeout(() => {
                     console.log('[Hydration:FINISHED]');
                 }, 0);
+                if (needsRetry.current) {
+                    needsRetry.current = false;
+                    setTimeout(() => {
+                        reconstructSessionRef.current?.();
+                    }, 150);
+                }
             }
         }, [
             effectiveUserId,
+            matchResults,
             setIsLoading,
             churches,
             learnedAssociations,
@@ -704,7 +675,8 @@ export const useCloudSync = ({
         useEffect(() => {
             const currentSignature = JSON.stringify({
                 activeReportId,
-                dataReadyKey
+                dataReadyKey,
+                realtimeRefreshKey
             });
 
             if (lastSignatureRef.current === currentSignature) {
@@ -729,8 +701,8 @@ export const useCloudSync = ({
             if (lastDataReadyKeyRef.current === dataReadyKey) return;
             lastDataReadyKeyRef.current = dataReadyKey;
 
-            reconstructSessionRef.current?.();
-        }, [isReady, dataReadyKey, activeReportId]);
+            reconstructSession();
+        }, [isReady, dataReadyKey, activeReportId, reconstructSession, realtimeRefreshKey]);
 
     // 🚀 AUTO-PROCESSAMENTO INICIAL (Lista Viva)
     useEffect(() => {
@@ -909,26 +881,12 @@ export const useCloudSync = ({
         };
     }, [matchResults, isLoading, isContextReady]);
 
-    const retrySessionSync = useCallback(() => {
-        retryCountRef.current = 0;
-        setConnectionError(null);
-        lastSignatureRef.current = null;
-        lastDataReadyKeyRef.current = '';
-        if (retryTimeoutRef.current) {
-            clearTimeout(retryTimeoutRef.current);
-            retryTimeoutRef.current = null;
-        }
-        reconstructSessionRef.current?.();
-    }, []);
-
     return {
         syncToCloud,
         isHydratingFromCloud,
         isHydrating,
         hasCompletedInitialHydration,
         isReady,
-        reconstructSession,
-        connectionError,
-        retrySessionSync
+        reconstructSession
     };
 };

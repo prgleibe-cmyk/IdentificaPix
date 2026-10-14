@@ -39,7 +39,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
 
     const [realtimeRefreshKey, setRealtimeRefreshKey] = useState(0);
-    const initialDataLoadedRef = useRef(false);
 
     // 📡 ESCUTA DE SINCRONIZAÇÃO EM TEMPO REAL (Multi-dispositivos, abas e reconexão)
     useEffect(() => {
@@ -65,9 +64,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         window.addEventListener('focus', handleVisibilityOrFocus);
 
         // Polling suave em segundo plano para manter dados sincronizados entre múltiplos aparelhos/usuários
-        // 🛡️ SÓ DISPARA QUANDO A CARGA INICIAL TIVER SIDO CONCLUÍDA
         const intervalId = setInterval(() => {
-            if (document.visibilityState === 'visible' && user?.id && initialDataLoadedRef.current) {
+            if (document.visibilityState === 'visible' && user?.id) {
                 triggerRefresh();
             }
         }, 15000);
@@ -127,37 +125,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const initialDataLoaded = Boolean(
         !user || (isSubscriptionReady && referenceData.isReady && reportManager.isReportsReady && (reconciliation.hasCompletedInitialHydration || !isReferenceReady))
     );
-
-    useEffect(() => {
-        initialDataLoadedRef.current = initialDataLoaded;
-    }, [initialDataLoaded]);
-
-    const [isConnectionSlow, setIsConnectionSlow] = useState(false);
-
-    useEffect(() => {
-        if (initialDataLoaded) {
-            setIsConnectionSlow(false);
-            return;
-        }
-
-        const timer = setTimeout(() => {
-            if (!initialDataLoadedRef.current) {
-                setIsConnectionSlow(true);
-            }
-        }, 7000);
-
-        return () => clearTimeout(timer);
-    }, [initialDataLoaded]);
-
-    const retryInitialLoad = useCallback(() => {
-        setIsConnectionSlow(false);
-        if (reconciliation.retrySessionSync) {
-            reconciliation.retrySessionSync();
-        } else if (reconciliation.reconstructSession) {
-            reconciliation.reconstructSession();
-        }
-        setRealtimeRefreshKey(prev => prev + 1);
-    }, [reconciliation]);
 
     const viewSavedReport = useCallback(async (reportId: string) => {
         const report = reportManager.savedReports.find(r => r.id === reportId);
@@ -566,9 +533,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ...reconciliationActions,
         ...modalController,
         initialDataLoaded,
-        connectionError: reconciliation.connectionError,
-        isConnectionSlow,
-        retryInitialLoad,
         summary,
         isSyncing,
         selectedBankId,
@@ -589,8 +553,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         reconciliationActions,
         modalController,
         initialDataLoaded,
-        isConnectionSlow,
-        retryInitialLoad,
         summary,
         isSyncing,
         persistActiveReport,
