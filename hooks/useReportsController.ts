@@ -8,6 +8,7 @@ import { ExportService } from '../services/ExportService';
 import { consolidationService } from '../services/ConsolidationService';
 import { filterByUniversalQuery, applyAdvancedFilters } from '../services/processingService';
 import { batchState, lastRealtimeUpdate } from './reconciliation/useCloudSync';
+import { resolveTransactionSource } from '../utils/formatters';
 
 const toIsoDate = (str: any): string => {
     if (!str) return '';
@@ -851,10 +852,10 @@ export const useReportsController = () => {
                                  r.status === ReconciliationStatus.RESOLVED || 
                                  (r.status as string) === 'RESOLVIDO';
 
-            const isManualSource = !!r.transaction?.isManual || 
+            const sourceInfo = resolveTransactionSource(r.transaction, r);
+            const isManualSource = sourceInfo.isManual || 
+                                   !!r.transaction?.isManual || 
                                    r.transaction?.source === 'manual' || 
-                                   r.matchMethod === 'MANUAL' || 
-                                   r.matchMethod === 'AI' ||
                                    (typeof r.transaction?.id === 'string' && (r.transaction.id.startsWith('ghost-manual-') || r.transaction.id.startsWith('manual-')));
 
             if (isManualSource) {

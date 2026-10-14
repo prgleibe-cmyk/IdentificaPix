@@ -119,6 +119,14 @@ export const useCloudSync = ({
         return found ? (found.name || found.cleanedName || found.canonical_name || null) : null;
     };
 
+    const getRegisteredContributorChurchId = (contributorId: string | null | undefined): string | null => {
+        if (!contributorId || !contributorFilesRef.current) return null;
+        const found = contributorFilesRef.current
+            .flatMap((f: any) => f.contributors || [])
+            .find((c: any) => c.id === contributorId);
+        return found ? (found._churchId || found.church_id || found.church?.id || null) : null;
+    };
+
     // 🚀 CONTROLE DE PRONTIDÃO PARA HIDRATAÇÃO
     const isReady =
         !!effectiveUserId &&
@@ -326,7 +334,7 @@ export const useCloudSync = ({
                 const txResults: MatchResult[] = txs.map((t: any) => {
                     const normalizedDesc = strictNormalize(t.description);
                     const assoc = assocMap.get(normalizedDesc);
-                    const church = churchMap.get((t as any).church_id || (t as any).churchId || assoc?.churchId) || PLACEHOLDER_CHURCH;
+                    const church = churchMap.get((t as any).church_id || (t as any).churchId || assoc?.churchId || getRegisteredContributorChurchId(t.contributor_id)) || PLACEHOLDER_CHURCH;
 
                     if (ENABLE_HEAVY_LOGS) {
                         console.log("[DIAGNOSTIC:RECONSTRUCT_ROW_MAPPING]", {
@@ -403,11 +411,17 @@ export const useCloudSync = ({
                     if (t.status === 'resolved') status = ReconciliationStatus.RESOLVED;
                     else if (t.status === 'identified' || isManualTx) status = ReconciliationStatus.IDENTIFIED;
 
-                    // ⚡ AUTO-IDENTIFICAÇÃO DE VÍNCULOS SALVOS (SEM IA)
-                    // Se a transação no banco está 'pending', mas existe uma associação aprendida (assoc),
-                    // promovemos localmente para IDENTIFIED e agendamos a atualização no banco em segundo plano (sequencialmente).
+                    // ⚡ AUTO-IDENTIFICAÇÃO DE VÍNCULOS SALVOS E PROMOÇÃO DE CHURCH_ID
                     if (assoc && t.status === 'pending') {
                         status = ReconciliationStatus.IDENTIFIED;
+                        if (church.id && church.id !== 'unidentified') {
+                            pendingPromotions.push({
+                                id: t.id,
+                                churchId: church.id,
+                                bankId: t.bank_id
+                            });
+                        }
+                    } else if (church.id && church.id !== 'unidentified' && (!t.church_id || t.church_id === 'unidentified') && (t.status === 'identified' || t.status === 'resolved')) {
                         pendingPromotions.push({
                             id: t.id,
                             churchId: church.id,
@@ -422,7 +436,7 @@ export const useCloudSync = ({
                         reportId: t.report_id,
                         status,
                         isConfirmed: t.is_confirmed,
-                        matchMethod: assoc ? MatchMethod.LEARNED : MatchMethod.MANUAL,
+                        matchMethod: assoc ? MatchMethod.LEARNED : (isManualTx ? MatchMethod.MANUAL : MatchMethod.AUTOMATIC),
                         similarity: 100,
                         contributionType: savedContribType,
                         paymentMethod: savedPaymentMethod,
