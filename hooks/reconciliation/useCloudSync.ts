@@ -3,6 +3,7 @@ import { MatchResult, ReconciliationStatus, MatchMethod, Transaction, Contributo
 import { PLACEHOLDER_CHURCH, strictNormalize, isInvalidOrNumericName } from '../../services/processingService';
 import { consolidationService } from '../../services/ConsolidationService';
 import { getAuthToken } from '../../services/auth/authAdapter';
+import { fetchWithTimeout } from '../../services/clientDataCache';
 
 interface UseCloudSyncProps {
     user: any;
@@ -79,6 +80,8 @@ export const useCloudSync = ({
     const isHydratingFromCloud = useRef<boolean>(false);
     const [isHydrating, setIsHydrating] = useState<boolean>(false);
     const [hasCompletedInitialHydration, setHasCompletedInitialHydration] = useState<boolean>(false);
+    const [connectionError, setConnectionError] = useState<string | null>(null);
+    const retryCountRef = useRef<number>(0);
     const reconstructSessionRef = useRef<() => Promise<void>>();
     const needsRetry = useRef<boolean>(false);
     const lastValidatedHash = useRef<string>('');
@@ -185,10 +188,10 @@ export const useCloudSync = ({
                 let queryParams = `user_id=${encodeURIComponent(effectiveUserId)}&limit=${pageSize}`;
 
                 while (true) {
-                    const res = await fetch(`/api/v1/consolidated_transactions?${queryParams}&offset=${from}`, {
+                    const res = await fetchWithTimeout(`/api/v1/consolidated_transactions?${queryParams}&offset=${from}`, {
                         headers,
                         cache: 'no-store'
-                    });
+                    }, 20000);
                     if (!res.ok) {
                         throw new Error(`Erro ao buscar transações consolidadas do VPS: ${res.statusText}`);
                     }
@@ -208,15 +211,15 @@ export const useCloudSync = ({
                     return contributorFilesRef.current;
                 }
 
-                // Busca todos os contribuintes em uma única requisição veloz
+                // Busca todos os contribuintes com timeout de 15s
                 let data: any[] = [];
                 try {
                     const token = await getAuthToken();
                     const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
-                    const resp = await fetch(`/api/v1/contributors`, {
+                    const resp = await fetchWithTimeout(`/api/v1/contributors`, {
                         headers,
                         cache: 'no-store'
-                    });
+                    }, 15000);
                     if (resp.ok) {
                         const list = await resp.json();
                         data = Array.isArray(list) ? list : [];
@@ -607,6 +610,8 @@ export const useCloudSync = ({
                 }
 
                 setHasActiveSession(true);
+                retryCountRef.current = 0;
+                setConnectionError(null);
 
                 if (reconstructed.length > 0 && !hasDataAlready) {
                     showToast("Sessão ativa sincronizada.", "success");
@@ -633,10 +638,20 @@ export const useCloudSync = ({
                         console.error('[Auto-promote] Erro no lote de auto-promoção:', err);
                     });
                 }
-            } catch (e) {
+            } catch (e: any) {
                 console.error("[CloudSync:ATOM_RECONSTRUCT_FAIL]", e);
-                lastSignatureRef.current = null;
-                lastDataReadyKeyRef.current = '';
+                retryCountRef.current += 1;
+                if (retryCountRef.current < 3) {
+                    console.warn(`[CloudSync] Tentativa ${retryCountRef.current}/3 falhou em conexão instável. Agendando retry em 3s...`);
+                    setTimeout(() => {
+                        if (!isHydratingFromCloud.current) {
+                            reconstructSessionRef.current?.();
+                        }
+                    }, 3000);
+                } else {
+                    console.error("[CloudSync] Falha na sincronização após 3 tentativas.");
+                    setConnectionError("Falha na sincronização inicial devido a conexão lenta ou instável.");
+                }
             } finally {
                 isHydratingFromCloud.current = false;
                 setIsHydrating(false);
@@ -645,11 +660,11 @@ export const useCloudSync = ({
                 setTimeout(() => {
                     console.log('[Hydration:FINISHED]');
                 }, 0);
-                if (needsRetry.current) {
+                if (needsRetry.current && retryCountRef.current < 3) {
                     needsRetry.current = false;
                     setTimeout(() => {
                         reconstructSessionRef.current?.();
-                    }, 150);
+                    }, 500);
                 }
             }
         }, [
@@ -881,12 +896,22 @@ export const useCloudSync = ({
         };
     }, [matchResults, isLoading, isContextReady]);
 
+    const retrySessionSync = useCallback(() => {
+        retryCountRef.current = 0;
+        setConnectionError(null);
+        lastSignatureRef.current = null;
+        lastDataReadyKeyRef.current = '';
+        reconstructSession();
+    }, [reconstructSession]);
+
     return {
         syncToCloud,
         isHydratingFromCloud,
         isHydrating,
         hasCompletedInitialHydration,
         isReady,
-        reconstructSession
+        reconstructSession,
+        connectionError,
+        retrySessionSync
     };
 };

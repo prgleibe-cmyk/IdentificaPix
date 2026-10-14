@@ -2,6 +2,7 @@ import { profileService } from './profileService';
 import { Database } from '../types/supabase';
 import { DateResolver } from '../core/processors/DateResolver';
 import { getAuthSession, getAuthToken } from './auth/authAdapter';
+import { fetchWithTimeout } from './clientDataCache';
 
 const ownerIdCache = new Map<string, string>();
 
@@ -39,7 +40,7 @@ export const consolidationService = {
 
         while (hasMore && (!maxRecords || allData.length < maxRecords)) {
             const url = urlBuilder(offset, step);
-            const res = await fetch(url);
+            const res = await fetchWithTimeout(url, {}, 15000);
             if (!res.ok) {
                 throw new Error(`Erro ao buscar dados paginados da VPS: ${res.statusText}`);
             }

@@ -16,11 +16,17 @@ export const useContentController = () => {
     // Fallback seguro se o context não estiver pronto (embora deva estar dentro do Provider)
     const initialDataLoaded = context?.initialDataLoaded ?? false;
     const savedReports = context?.savedReports ?? [];
+    const connectionError = context?.connectionError ?? null;
+    const retryInitialLoad = context?.retryInitialLoad;
+    const isConnectionSlow = context?.isConnectionSlow ?? false;
 
     return { 
         isLoading, 
         initialDataLoaded,
         toast,
-        savedReports
+        savedReports,
+        connectionError,
+        retryInitialLoad,
+        isConnectionSlow
     };
 };

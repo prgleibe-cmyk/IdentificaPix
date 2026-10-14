@@ -14,14 +14,38 @@ const memoryStore = new Map<string, CacheRecord<any>>();
 export interface CacheOptions {
     ttlMs?: number; // default: 60s
     forceRefresh?: boolean;
+    timeoutMs?: number; // default: 15s
 }
+
+export const fetchWithTimeout = async (
+    url: string,
+    options: RequestInit = {},
+    timeoutMs: number = 15000
+): Promise<Response> => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        const response = await fetch(url, {
+            ...options,
+            signal: controller.signal
+        });
+        clearTimeout(timer);
+        return response;
+    } catch (err: any) {
+        clearTimeout(timer);
+        if (err.name === 'AbortError') {
+            throw new Error(`Tempo limite de conexão esgotado (${timeoutMs / 1000}s). Verifique sua internet.`);
+        }
+        throw err;
+    }
+};
 
 export const fetchWithMemoryCache = async <T>(
     url: string,
     options: RequestInit = {},
     cacheOptions: CacheOptions = {}
 ): Promise<T> => {
-    const { ttlMs = 60000, forceRefresh = false } = cacheOptions;
+    const { ttlMs = 60000, forceRefresh = false, timeoutMs = 15000 } = cacheOptions;
     const now = Date.now();
     const cached = memoryStore.get(url) as CacheRecord<T> | undefined;
 
@@ -42,11 +66,11 @@ export const fetchWithMemoryCache = async <T>(
             headers['Pragma'] = 'no-cache';
         }
 
-        const res = await fetch(url, {
+        const res = await fetchWithTimeout(url, {
             ...options,
             cache: forceRefresh ? 'no-store' : options.cache,
             headers
-        });
+        }, timeoutMs);
 
         // 304 Not Modified
         if (res.status === 304 && cached) {
