@@ -518,7 +518,7 @@ export const useReportsController = () => {
                 if (isManual && item.transaction?.bank_id && String(item.transaction?.bank_id) !== selectedBankId) return false;
             } else if (isSecondary && subscription?.bankIds && subscription.bankIds.length > 0) {
                 const isManual = item.transaction?.isManual || item.transaction?.source === 'manual';
-                if (!isManual && !subscription.bankIds.includes(String(item.transaction?.bank_id))) return false;
+                if (!isManual && item.transaction?.bank_id && !subscription.bankIds.includes(String(item.transaction?.bank_id))) return false;
             }
 
             if (searchFilters.dateRange && (searchFilters.dateRange.start || searchFilters.dateRange.end)) {

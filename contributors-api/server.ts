@@ -45,7 +45,7 @@ class LocalSqliteEngine {
       const { DatabaseSync } = requireFallback('node:sqlite');
       // Unificação absoluta: apontar sempre para o diretório raiz data/ do projeto
       let rootAppDir = process.cwd();
-      if (!fs.existsSync(path.join(rootAppDir, 'data')) && fs.existsSync(path.resolve(rootAppDir, '..', 'data'))) {
+      if (rootAppDir.endsWith('contributors-api') || (!fs.existsSync(path.join(rootAppDir, 'data')) && fs.existsSync(path.resolve(rootAppDir, '..', 'data')))) {
         rootAppDir = path.resolve(rootAppDir, '..');
       } else if (fs.existsSync(path.resolve(__dirname, '..', '..', 'data'))) {
         rootAppDir = path.resolve(__dirname, '..', '..');
@@ -677,9 +677,13 @@ class LocalSqliteEngine {
 
     // 🛡️ Sincronização e Resgate de Dados entre Bancos Locais:
     try {
-      const subDbPath = path.resolve(process.cwd(), 'contributors-api', 'data', 'contributors_local.sqlite');
-      const canonicalPath = path.resolve(process.cwd(), 'data', 'contributors_local.sqlite');
-      if (fs.existsSync(subDbPath) && subDbPath !== canonicalPath) {
+      let rootDir = process.cwd();
+      if (rootDir.endsWith('contributors-api')) {
+        rootDir = path.resolve(rootDir, '..');
+      }
+      const subDbPath = path.resolve(rootDir, 'contributors-api', 'data', 'contributors_local.sqlite');
+      const canonicalPath = path.resolve(rootDir, 'data', 'contributors_local.sqlite');
+      if (fs.existsSync(subDbPath) && fs.existsSync(canonicalPath) && subDbPath !== canonicalPath) {
         const { DatabaseSync: SubDbSync } = requireFallback('node:sqlite');
         const subDb = new SubDbSync(subDbPath);
         const subTxs = subDb.prepare('SELECT * FROM consolidated_transactions').all();
@@ -690,6 +694,17 @@ class LocalSqliteEngine {
               const cols = Object.keys(tx);
               const placeholders = cols.map(() => '?').join(', ');
               this.db.prepare(`INSERT INTO consolidated_transactions (${cols.join(', ')}) VALUES (${placeholders})`).run(...Object.values(tx));
+            }
+          }
+        }
+        const canTxs = this.db.prepare('SELECT * FROM consolidated_transactions').all();
+        if (canTxs && canTxs.length > 0) {
+          for (const tx of canTxs) {
+            const exists = subDb.prepare('SELECT id FROM consolidated_transactions WHERE id = ?').get(tx.id);
+            if (!exists) {
+              const cols = Object.keys(tx);
+              const placeholders = cols.map(() => '?').join(', ');
+              subDb.prepare(`INSERT INTO consolidated_transactions (${cols.join(', ')}) VALUES (${placeholders})`).run(...Object.values(tx));
             }
           }
         }
