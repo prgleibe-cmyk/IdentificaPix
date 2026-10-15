@@ -646,7 +646,7 @@ class LocalSqliteEngine {
 
         UPDATE consolidated_transactions 
         SET church_id = '00000000-0000-0000-0000-000000000001' 
-        WHERE church_id IS NULL OR trim(church_id) = '' OR church_id = 'church-1';
+        WHERE church_id = 'church-1';
       `);
       // 🛡️ Regra de Identificação e Sincronização de Igrejas para Cadastros do Portal:
       this.db.exec(`
@@ -1424,7 +1424,7 @@ async function initializeDatabase() {
       await pool.query(`
         UPDATE consolidated_transactions 
         SET church_id = '00000000-0000-0000-0000-000000000001' 
-        WHERE church_id IS NULL OR trim(church_id::text) = '' OR church_id::text = 'church-1';
+        WHERE church_id::text = 'church-1';
       `);
       await pool.query(`
         DELETE FROM contributors 
@@ -6924,26 +6924,26 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
         if (!ctx.allowedChurchIds.includes(church_id)) {
           return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para esta congregação.' });
         }
-        query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND splits LIKE $${counter + 1}) OR contributor_id IN (SELECT id FROM contributors WHERE church_id = $${counter}))`;
-        params.push(church_id, `%"churchId":"${church_id}"%`);
-        counter += 2;
+        query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND (splits LIKE $${counter + 1} OR splits LIKE $${counter + 2})) OR contributor_id IN (SELECT id FROM contributors WHERE church_id = $${counter}) OR description IN (SELECT pattern FROM learned_associations WHERE church_id = $${counter} UNION SELECT normalized_description FROM learned_associations WHERE church_id = $${counter}))`;
+        params.push(church_id, `%"churchId":"${church_id}"%`, `%"church_id":"${church_id}"%`);
+        counter += 3;
       } else {
         if (ctx.allowedChurchIds.length === 1) {
-          query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND splits LIKE $${counter + 1}) OR contributor_id IN (SELECT id FROM contributors WHERE church_id = $${counter}))`;
-          params.push(ctx.allowedChurchIds[0], `%"churchId":"${ctx.allowedChurchIds[0]}"%`);
-          counter += 2;
+          query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND (splits LIKE $${counter + 1} OR splits LIKE $${counter + 2})) OR contributor_id IN (SELECT id FROM contributors WHERE church_id = $${counter}) OR description IN (SELECT pattern FROM learned_associations WHERE church_id = $${counter} UNION SELECT normalized_description FROM learned_associations WHERE church_id = $${counter}))`;
+          params.push(ctx.allowedChurchIds[0], `%"churchId":"${ctx.allowedChurchIds[0]}"%`, `%"church_id":"${ctx.allowedChurchIds[0]}"%`);
+          counter += 3;
         } else {
-          const splitClauses = ctx.allowedChurchIds.map((_, i) => `splits LIKE $${counter + 1 + i}`).join(' OR ');
-          query += ` AND (church_id = ANY($${counter}) OR (splits IS NOT NULL AND (${splitClauses})) OR contributor_id IN (SELECT id FROM contributors WHERE church_id = ANY($${counter})))`;
+          const splitClauses = ctx.allowedChurchIds.map((_, i) => `(splits LIKE $${counter + 1 + (i * 2)} OR splits LIKE $${counter + 2 + (i * 2)})`).join(' OR ');
+          query += ` AND (church_id = ANY($${counter}) OR (splits IS NOT NULL AND (${splitClauses})) OR contributor_id IN (SELECT id FROM contributors WHERE church_id = ANY($${counter})) OR description IN (SELECT pattern FROM learned_associations WHERE church_id = ANY($${counter}) UNION SELECT normalized_description FROM learned_associations WHERE church_id = ANY($${counter})))`;
           params.push(ctx.allowedChurchIds);
-          ctx.allowedChurchIds.forEach(cId => params.push(`%"churchId":"${cId}"%`));
-          counter += 1 + ctx.allowedChurchIds.length;
+          ctx.allowedChurchIds.forEach(cId => params.push(`%"churchId":"${cId}"%`, `%"church_id":"${cId}"%`));
+          counter += 1 + (ctx.allowedChurchIds.length * 2);
         }
       }
     } else if (church_id && church_id !== 'all' && typeof church_id === 'string') {
-      query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND splits LIKE $${counter + 1}))`;
-      params.push(church_id, `%"churchId":"${church_id}"%`);
-      counter += 2;
+      query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND (splits LIKE $${counter + 1} OR splits LIKE $${counter + 2})) OR contributor_id IN (SELECT id FROM contributors WHERE church_id = $${counter}) OR description IN (SELECT pattern FROM learned_associations WHERE church_id = $${counter} UNION SELECT normalized_description FROM learned_associations WHERE church_id = $${counter}))`;
+      params.push(church_id, `%"churchId":"${church_id}"%`, `%"church_id":"${church_id}"%`);
+      counter += 3;
     }
 
     if (req.query.contributor_id) {
