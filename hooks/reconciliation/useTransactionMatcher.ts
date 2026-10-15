@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { MatchResult, ReconciliationStatus, GroupedReportData, Transaction } from '../../types';
 import { matchTransactions, groupResultsByChurch, PLACEHOLDER_CHURCH } from '../../services/processingService';
+import { consolidationService } from '../../services/ConsolidationService';
 import { batchState, lastRealtimeUpdate } from './useCloudSync';
 
 interface UseTransactionMatcherProps {
@@ -385,6 +386,8 @@ export const useTransactionMatcher = ({
             filteredExistingResults
         ).filter(r => Number(r.transaction.amount) !== 0);
 
+        const newlyIdentified: MatchResult[] = [];
+
         setMatchResults(prev => {
             const map = new Map<string, MatchResult>();
 
@@ -408,6 +411,10 @@ export const useTransactionMatcher = ({
                     if (r.contributor) r.contributor.reference_date = refDate;
                 }
 
+                if (r.status === ReconciliationStatus.IDENTIFIED && r.church?.id && r.church.id !== 'unidentified' && (!existing || existing.status === ReconciliationStatus.UNIDENTIFIED)) {
+                    newlyIdentified.push(r);
+                }
+
                 map.set(r.transaction.id, r);
             });
 
@@ -426,6 +433,40 @@ export const useTransactionMatcher = ({
                 return Number(r.transaction.amount) !== 0 || isManual || !!r.reference_date || r.status !== ReconciliationStatus.UNIDENTIFIED;
             });
         });
+
+        // 🛡️ PERSISTÊNCIA ATÔMICA DAS ASSOCIAÇÕES IDENTIFICADAS NO BANCO EM NUVEM
+        if (newlyIdentified.length > 0) {
+            (async () => {
+                const validToPersist = newlyIdentified.filter(item => 
+                    item.transaction?.id && 
+                    !item.transaction.id.startsWith('temp-') && 
+                    !item.transaction.id.startsWith('ghost-')
+                );
+                for (const item of validToPersist) {
+                    try {
+                        await consolidationService.updateTransactionStatus(
+                            item.transaction.id,
+                            'identified',
+                            item.church?.id && item.church.id !== 'unidentified' ? item.church.id : null,
+                            item.transaction.bank_id,
+                            item.contributor?.id || null,
+                            false,
+                            item.transaction.type,
+                            item.transaction.pix_key,
+                            item.contributionType,
+                            item.paymentMethod,
+                            item.reference_date || item.transaction.reference_date || null,
+                            item.transaction.amount
+                        );
+                    } catch (err) {
+                        console.error('[handleCompare] Erro ao persistir transação auto-identificada:', err);
+                    }
+                }
+            })().catch(err => {
+                console.error('[handleCompare] Erro na persistência assíncrona de auto-identificação:', err);
+            });
+        }
+
         setHasActiveSession(true);
 
         if (showLoading) {

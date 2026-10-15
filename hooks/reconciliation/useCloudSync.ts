@@ -180,7 +180,7 @@ export const useCloudSync = ({
         needsRetry.current = false;
 
         try {
-            const pendingPromotions: { id: string; churchId: string; bankId: string }[] = [];
+            const pendingPromotions: { id: string; churchId: string; bankId: string; contributorId?: string; contributionType?: string; paymentMethod?: string; type?: string; amount?: number; referenceDate?: string | null }[] = [];
 
             // 1. Busca todas as transações consolidadas em paralelo com os contribuintes
             const fetchTransactionsPromise = (async () => {
@@ -334,7 +334,9 @@ export const useCloudSync = ({
                 const txResults: MatchResult[] = txs.map((t: any) => {
                     const normalizedDesc = strictNormalize(t.description);
                     const assoc = assocMap.get(normalizedDesc);
-                    const church = churchMap.get((t as any).church_id || (t as any).churchId || assoc?.churchId || getRegisteredContributorChurchId(t.contributor_id)) || PLACEHOLDER_CHURCH;
+                    const rawChurchId = (t as any).church_id || (t as any).churchId || assoc?.churchId || getRegisteredContributorChurchId(t.contributor_id);
+                    const resolvedChurch = rawChurchId ? (churchMap.get(rawChurchId) || (rawChurchId !== 'unidentified' ? { id: rawChurchId, name: 'Congregação' } : null)) : null;
+                    const church = resolvedChurch || PLACEHOLDER_CHURCH;
 
                     if (ENABLE_HEAVY_LOGS) {
                         console.log("[DIAGNOSTIC:RECONSTRUCT_ROW_MAPPING]", {
@@ -386,8 +388,9 @@ export const useCloudSync = ({
                         pix_key: t.pix_key,
                         row_hash: t.row_hash,
                         contributionType: savedContribType,
-                        paymentMethod: savedPaymentMethod
-                    };
+                        paymentMethod: savedPaymentMethod,
+                        ...((t as any).church_id ? { church_id: (t as any).church_id } : {})
+                    } as Transaction;
 
                     const regName = t.contributor_id ? getRegisteredContributorName(t.contributor_id) : null;
                     const rawNameCandidate = regName || assoc?.contributorNormalizedName;
@@ -418,14 +421,26 @@ export const useCloudSync = ({
                             pendingPromotions.push({
                                 id: t.id,
                                 churchId: church.id,
-                                bankId: t.bank_id
+                                bankId: t.bank_id,
+                                contributorId: t.contributor_id || undefined,
+                                contributionType: savedContribType,
+                                paymentMethod: savedPaymentMethod,
+                                type: effectiveType,
+                                amount: t.amount,
+                                referenceDate: resolvedRefDate
                             });
                         }
                     } else if (church.id && church.id !== 'unidentified' && (!t.church_id || t.church_id === 'unidentified') && (t.status === 'identified' || t.status === 'resolved')) {
                         pendingPromotions.push({
                             id: t.id,
                             churchId: church.id,
-                            bankId: t.bank_id
+                            bankId: t.bank_id,
+                            contributorId: t.contributor_id || undefined,
+                            contributionType: savedContribType,
+                            paymentMethod: savedPaymentMethod,
+                            type: effectiveType,
+                            amount: t.amount,
+                            referenceDate: resolvedRefDate
                         });
                     }
 
@@ -433,6 +448,7 @@ export const useCloudSync = ({
                         transaction,
                         contributor,
                         church,
+                        _churchId: (church?.id && church.id !== 'unidentified') ? church.id : (rawChurchId && rawChurchId !== 'unidentified' ? rawChurchId : undefined),
                         reportId: t.report_id,
                         status,
                         isConfirmed: t.is_confirmed,
@@ -636,8 +652,14 @@ export const useCloudSync = ({
                                     'identified',
                                     p.churchId,
                                     p.bankId,
+                                    p.contributorId || undefined,
+                                    false,
+                                    p.type,
                                     undefined,
-                                    false
+                                    p.contributionType,
+                                    p.paymentMethod,
+                                    p.referenceDate,
+                                    p.amount
                                 )
                             ));
                         }

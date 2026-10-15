@@ -4627,7 +4627,7 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
       churchesQuery = 'SELECT * FROM churches WHERE 1=1';
       if (equivalentIds.length > 0) {
         churchesParams.push(equivalentIds);
-        churchesQuery += ` AND user_id = ANY($1)`;
+        churchesQuery += ` AND (user_id = ANY($1) OR user_id IS NULL)`;
       }
       if (ctx.isSecondaryUser) {
         churchesParams.push(ctx.allowedChurchIds);
@@ -4863,7 +4863,7 @@ app.get('/api/v1/churches', async (req: Request, res: Response) => {
     if (cleanUserId) {
       const userIds = await getEquivalentUserIds(cleanUserId);
       params.push(userIds);
-      query += ` AND user_id = ANY($1)`;
+      query += ` AND (user_id = ANY($1) OR user_id IS NULL)`;
     }
     if (ctx.isSecondaryUser) {
       params.push(ctx.allowedChurchIds);
