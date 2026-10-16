@@ -370,8 +370,8 @@ export const useCloudSync = ({
                         effectiveType = 'income';
                     }
 
-                    const manualRefDate = isManualTx && t.transaction_date ? String(t.transaction_date).split(/[T ]/)[0] : null;
-                    const resolvedRefDate = t.reference_date || manualRefDate || null;
+                    const defaultRefDate = t.transaction_date ? String(t.transaction_date).split(/[T ]/)[0] : null;
+                    const resolvedRefDate = t.reference_date || defaultRefDate || null;
 
                     const transaction: Transaction = {
                         id: t.id,
@@ -412,7 +412,7 @@ export const useCloudSync = ({
 
                     let status = ReconciliationStatus.UNIDENTIFIED;
                     if (t.status === 'resolved') status = ReconciliationStatus.RESOLVED;
-                    else if (t.status === 'identified' || isManualTx) status = ReconciliationStatus.IDENTIFIED;
+                    else if (t.status === 'identified' || (isManualTx && church?.id && church.id !== 'unidentified')) status = ReconciliationStatus.IDENTIFIED;
 
                     // ⚡ AUTO-IDENTIFICAÇÃO DE VÍNCULOS SALVOS E PROMOÇÃO DE CHURCH_ID
                     if (assoc && t.status === 'pending') {

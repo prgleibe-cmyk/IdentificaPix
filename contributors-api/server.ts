@@ -6889,6 +6889,129 @@ app.delete('/api/v1/church-closings/:churchId/:year/:month', async (req: Request
   }
 });
 
+interface RealtimeSSEClient {
+  id: string;
+  res: Response;
+  ownerId: string;
+  userId: string;
+  isSecondaryUser: boolean;
+  allowedChurchIds: string[];
+}
+
+const sseClients = new Map<string, RealtimeSSEClient>();
+
+export function notifyRealtimeTransactionChange(ownerId: string, event: {
+  type: string;
+  action: 'CREATE' | 'UPDATE' | 'DELETE';
+  txId?: string;
+  churchId?: string | null;
+  oldChurchId?: string | null;
+  updatedAt?: string;
+}) {
+  const targetOwnerId = String(ownerId || '');
+  if (!targetOwnerId) return;
+
+  const payload = JSON.stringify(event);
+  const message = `data: ${payload}\n\n`;
+
+  for (const [clientId, client] of sseClients.entries()) {
+    if (client.ownerId !== targetOwnerId) continue;
+
+    // Se o cliente for usuário secundário, aplica a regra de congregações permitidas
+    if (client.isSecondaryUser) {
+      const allowed = client.allowedChurchIds;
+      const isTargetChurchAllowed = Boolean(event.churchId && allowed.includes(event.churchId));
+      const isOldChurchAllowed = Boolean(event.oldChurchId && allowed.includes(event.oldChurchId));
+
+      // Notifica se a transação foi criada/atualizada para sua congregação OU se foi retirada dela (mudança de igreja / delete)
+      if (!isTargetChurchAllowed && !isOldChurchAllowed) {
+        continue; // Não autorizado para os dados desta congregação
+      }
+    }
+
+    try {
+      client.res.write(message);
+    } catch (_) {
+      sseClients.delete(clientId);
+    }
+  }
+}
+
+// GET /api/v1/realtime/stream - Server-Sent Events (SSE) para sincronização multi-usuários
+app.get('/api/v1/realtime/stream', (req: Request, res: Response) => {
+  let token = (req.query.token as string) || '';
+  if (!token && req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+    token = req.headers.authorization.substring(7).trim();
+  }
+
+  let verifiedUser: any = null;
+  if (token) {
+    try {
+      verifiedUser = verifyAccessToken(token);
+      (req as any).user = verifiedUser;
+    } catch (_) {}
+  }
+
+  // 🛡️ Validação Estrita no Servidor (não confia em headers livres de cliente)
+  if (!verifiedUser) {
+    return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Token de autenticação inválido ou ausente.' });
+  }
+
+  const tokenUserId = String(verifiedUser.user_id || verifiedUser.id || '');
+  const tokenOwnerId = String(verifiedUser.owner_id || verifiedUser.ownerId || tokenUserId);
+  const tokenRole = String(verifiedUser.role || 'user');
+  const isSuperAdmin = Boolean(verifiedUser.is_superadmin || tokenRole === 'superadmin');
+  const hasSeparateOwner = Boolean(tokenOwnerId && tokenUserId && tokenOwnerId !== tokenUserId);
+  const isSecondaryRole = ['secondary', 'member', 'operador', 'colaborador'].includes(tokenRole) || (tokenRole === 'user' && hasSeparateOwner);
+  const isSecondaryUser = !isSuperAdmin && (hasSeparateOwner || isSecondaryRole || Boolean(verifiedUser.is_secondary));
+  
+  // Congregações autorizadas extraídas estritamente do token assinado
+  const allowedChurchIds = isSecondaryUser ? extractContextAllowedChurchIds(verifiedUser) : [];
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no'
+  });
+  if (typeof (res as any).flushHeaders === 'function') {
+    (res as any).flushHeaders();
+  }
+
+  const clientId = `${tokenUserId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const clientObj: RealtimeSSEClient = {
+    id: clientId,
+    res,
+    ownerId: tokenOwnerId,
+    userId: tokenUserId,
+    isSecondaryUser,
+    allowedChurchIds
+  };
+
+  sseClients.set(clientId, clientObj);
+
+  // Mensagem inicial de conexão estabelecida
+  res.write(`data: ${JSON.stringify({ status: 'connected', clientId })}\n\n`);
+
+  const keepAlive = setInterval(() => {
+    try {
+      res.write(': keepalive\n\n');
+    } catch (_) {
+      clearInterval(keepAlive);
+      sseClients.delete(clientId);
+    }
+  }, 25000);
+
+  const cleanup = () => {
+    clearInterval(keepAlive);
+    sseClients.delete(clientId);
+  };
+
+  req.on('close', cleanup);
+  res.on('finish', cleanup);
+  res.on('error', cleanup);
+});
+
 // GET /api/v1/consolidated_transactions
 app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response) => {
   try {
@@ -7024,6 +7147,10 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
     const ctx = getTenantContext(req);
     const { id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits } = req.body;
 
+    const effectiveReferenceDate = reference_date || (req.body as any).referenceDate || (transaction_date ? String(transaction_date).split(/[T ]/)[0] : null);
+    const effectivePaymentMethod = payment_method || (req.body as any).paymentMethod || null;
+    let initialContributionType = contribution_type || (req.body as any).contributionType || null;
+
     const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
     const defaultChurchId = (ctx.allowedChurchIds && ctx.allowedChurchIds.length > 0) ? ctx.allowedChurchIds[0] : '00000000-0000-0000-0000-000000000001';
     const effectiveChurchId = (church_id && church_id !== 'unidentified') ? String(church_id) : ((ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : defaultChurchId);
@@ -7075,7 +7202,6 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
     });
 
     let initialSplits = splits ? (typeof splits === 'string' ? splits : JSON.stringify(splits)) : null;
-    let initialContributionType = contribution_type || null;
 
     if (finalContribReqId && !initialSplits) {
       try {
@@ -7117,12 +7243,12 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
           splits = EXCLUDED.splits,
           updated_at = NOW()
         RETURNING *`;
-      params = [finalId, amount, description, effectiveType, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, reference_date || null, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, initialContributionType, finalContribReqId || null, initialSplits];
+      params = [finalId, amount, description, effectiveType, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, effectiveReferenceDate, effectiveChurchId, contributor_id || null, report_id || null, effectivePaymentMethod, initialContributionType, finalContribReqId || null, initialSplits];
     } else {
       query = `INSERT INTO consolidated_transactions 
         (amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits) 
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING *`;
-      params = [amount, description, effectiveType, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, reference_date || null, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, initialContributionType, finalContribReqId || null, initialSplits];
+      params = [amount, description, effectiveType, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, effectiveReferenceDate, effectiveChurchId, contributor_id || null, report_id || null, effectivePaymentMethod, initialContributionType, finalContribReqId || null, initialSplits];
     }
 
     const result = await pool.query(query, params);
@@ -7141,6 +7267,14 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
         userId: row.user_id,
         newValues: row,
         req
+      });
+
+      notifyRealtimeTransactionChange(row.user_id || effectiveUserId, {
+        type: 'TRANSACTION_UPDATED',
+        action: 'CREATE',
+        txId: row.id,
+        churchId: row.church_id || effectiveChurchId || null,
+        updatedAt: row.updated_at || new Date().toISOString()
       });
     }
 
@@ -7167,6 +7301,10 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
     for (const tx of transactions) {
       const { id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits } = tx;
       
+      const effectiveReferenceDate = reference_date || (tx as any).referenceDate || (transaction_date ? String(transaction_date).split(/[T ]/)[0] : null);
+      const effectivePaymentMethod = payment_method || (tx as any).paymentMethod || null;
+      let initialContributionType = contribution_type || (tx as any).contributionType || null;
+
       const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
       const effectiveChurchId = (church_id && church_id !== 'unidentified')
         ? church_id
@@ -7212,7 +7350,6 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
       });
 
       let initialSplits = splits ? (typeof splits === 'string' ? splits : JSON.stringify(splits)) : null;
-      let initialContributionType = contribution_type || null;
 
       if (finalContribReqId && !initialSplits) {
         try {
@@ -7254,12 +7391,12 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
             splits = EXCLUDED.splits,
             updated_at = NOW()
           RETURNING *`;
-        params = [finalId, amount, description, type, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, reference_date || null, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, initialContributionType, finalContribReqId || null, initialSplits];
+        params = [finalId, amount, description, type, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, effectiveReferenceDate, effectiveChurchId, contributor_id || null, report_id || null, effectivePaymentMethod, initialContributionType, finalContribReqId || null, initialSplits];
       } else {
         query = `INSERT INTO consolidated_transactions 
           (amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits) 
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING *`;
-        params = [amount, description, type, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, reference_date || null, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, initialContributionType, finalContribReqId || null, initialSplits];
+        params = [amount, description, type, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, effectiveReferenceDate, effectiveChurchId, contributor_id || null, report_id || null, effectivePaymentMethod, initialContributionType, finalContribReqId || null, initialSplits];
       }
 
       const result = await client.query(query, params);
@@ -7272,6 +7409,20 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
     }
 
     await client.query('COMMIT');
+
+    // Notifica em tempo real (apenas conexões autorizadas) após a confirmação no banco oficial
+    for (const row of inserted) {
+      if (row && row.id) {
+        notifyRealtimeTransactionChange(row.user_id || ctx.ownerId || ctx.userId, {
+          type: 'TRANSACTION_UPDATED',
+          action: 'CREATE',
+          txId: row.id,
+          churchId: row.church_id || null,
+          updatedAt: row.updated_at || new Date().toISOString()
+        });
+      }
+    }
+
     return res.status(201).json(inserted);
   } catch (err) {
     await client.query('ROLLBACK');
@@ -7515,6 +7666,15 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
       req
     });
 
+    notifyRealtimeTransactionChange(updatedRow.user_id || oldTx?.user_id || ctx.ownerId, {
+      type: 'TRANSACTION_UPDATED',
+      action: 'UPDATE',
+      txId: updatedRow.id,
+      churchId: updatedRow.church_id || null,
+      oldChurchId: oldTx?.church_id || null,
+      updatedAt: updatedRow.updated_at || new Date().toISOString()
+    });
+
     return res.json(updatedRow);
   } catch (err) {
     console.error('[Contributors API] Error PUT consolidated_transaction:', err);
@@ -7563,6 +7723,15 @@ app.delete('/api/v1/consolidated_transactions/:id', async (req: Request, res: Re
     } catch (auditErr) {
       console.warn('[Audit] Erro ao gravar log de auditoria no DELETE:', auditErr);
     }
+
+    notifyRealtimeTransactionChange(oldTx?.user_id || ctx.ownerId, {
+      type: 'TRANSACTION_UPDATED',
+      action: 'DELETE',
+      txId: id,
+      churchId: oldTx?.church_id || null,
+      oldChurchId: oldTx?.church_id || null,
+      updatedAt: new Date().toISOString()
+    });
 
     return res.json({ success: true, id });
   } catch (err) {
@@ -7614,6 +7783,15 @@ app.post('/api/v1/consolidated_transactions/bulk-delete', async (req: Request, r
       } catch (auditErr) {
         console.warn('[Audit] Erro ao gravar log de auditoria no bulk-delete:', auditErr);
       }
+
+      notifyRealtimeTransactionChange(oldTx?.user_id || ctx.ownerId, {
+        type: 'TRANSACTION_UPDATED',
+        action: 'DELETE',
+        txId: oldTx.id,
+        churchId: oldTx?.church_id || null,
+        oldChurchId: oldTx?.church_id || null,
+        updatedAt: new Date().toISOString()
+      });
     }
 
     return res.json({ success: true, count: result.rows.length, ids });

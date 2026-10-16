@@ -219,6 +219,7 @@ export const LaunchService = {
 
                 toPersist.push({
                     transaction_date: finalDate,
+                    reference_date: item.reference_date || (item as any).referenceDate || finalDate,
                     amount: item.amount,
                     description: item.description,
                     type: (item.amount >= 0 ? 'income' : 'expense') as 'income' | 'expense',
@@ -228,6 +229,10 @@ export const LaunchService = {
                     bank_id: currentBankId,
                     row_hash: globalHash,
                     status: 'pending' as const,
+                    payment_method: item.paymentMethod || (item as any).payment_method || null,
+                    contribution_type: item.contributionType || (item as any).contribution_type || null,
+                    church_id: (item as any).church_id || null,
+                    contributor_id: (item as any).contributor_id || null,
                     _localHash: localHash
                 });
             }

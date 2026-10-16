@@ -234,7 +234,7 @@ export const useReconciliationActions = ({
         const newTxPayload = {
           user_id: userId || (reconciliation as any)?.user?.id,
           church_id: (churchId && churchId !== 'unidentified') ? churchId : null,
-          status: 'identified' as const,
+          status: (churchId && churchId !== 'unidentified') ? ('identified' as const) : ('pending' as const),
           is_confirmed: false,
           amount: finalAmount,
           type: txType,

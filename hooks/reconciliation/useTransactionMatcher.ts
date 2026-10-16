@@ -557,7 +557,7 @@ export const useTransactionMatcher = ({
         // 🛡️ PERSISTÊNCIA DIRETA NA TABELA DE TRANSAÇÕES CONSOLIDADAS (SALVAMENTO EM NUVEM MULTI-DISPOSITIVO)
         if (updatedRow.transaction?.id && !updatedRow.transaction.id.startsWith('temp-') && !updatedRow.transaction.id.startsWith('ghost-')) {
             try {
-                const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+                const token = localStorage.getItem('iggestor_vps_access_token') || localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token') || localStorage.getItem('token');
                 const headers: Record<string, string> = { 'Content-Type': 'application/json' };
                 if (token) headers['Authorization'] = `Bearer ${token}`;
 
