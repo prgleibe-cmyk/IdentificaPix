@@ -89,7 +89,7 @@ export const consolidationService = {
 
                     const payload = {
                         transaction_date: finalDate,
-                        reference_date: (t as any).reference_date || (t as any).referenceDate || finalDate,
+                        reference_date: (t as any).reference_date || (t.source === 'manual' ? finalDate : null),
                         amount: isNaN(amount) ? 0 : amount,
                         description: t.description,
                         type: t.type || (amount >= 0 ? 'income' : 'expense'),
@@ -98,12 +98,12 @@ export const consolidationService = {
                         user_id: effectiveUserId || t.user_id,
                         church_id: isUuid((t as any).church_id) ? (t as any).church_id : null,
                         bank_id: isUuid(t.bank_id) ? t.bank_id : null,
-                        status: t.status || (isUuid((t as any).church_id) && (t as any).church_id ? 'identified' : 'pending'),
+                        status: t.status || 'pending',
                         row_hash: t.row_hash,
                         is_confirmed: typeof t.is_confirmed === 'boolean' ? t.is_confirmed : false,
                         contributor_id: isUuid((t as any).contributor_id) ? (t as any).contributor_id : null,
-                        contribution_type: (t as any).contribution_type || (t as any).contributionType || null,
-                        payment_method: (t as any).payment_method || (t as any).paymentMethod || null
+                        contribution_type: (t as any).contribution_type || null,
+                        payment_method: (t as any).payment_method || null
                     };
 
                     // Validação preventiva contra consolidated_transactions_type_check

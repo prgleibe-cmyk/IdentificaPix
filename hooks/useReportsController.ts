@@ -8,7 +8,6 @@ import { ExportService } from '../services/ExportService';
 import { consolidationService } from '../services/ConsolidationService';
 import { filterByUniversalQuery, applyAdvancedFilters } from '../services/processingService';
 import { batchState, lastRealtimeUpdate } from './reconciliation/useCloudSync';
-import { resolveTransactionSource } from '../utils/formatters';
 
 const toIsoDate = (str: any): string => {
     if (!str) return '';
@@ -518,7 +517,7 @@ export const useReportsController = () => {
                 if (isManual && item.transaction?.bank_id && String(item.transaction?.bank_id) !== selectedBankId) return false;
             } else if (isSecondary && subscription?.bankIds && subscription.bankIds.length > 0) {
                 const isManual = item.transaction?.isManual || item.transaction?.source === 'manual';
-                if (!isManual && item.transaction?.bank_id && !subscription.bankIds.includes(String(item.transaction?.bank_id))) return false;
+                if (!isManual && !subscription.bankIds.includes(String(item.transaction?.bank_id))) return false;
             }
 
             if (searchFilters.dateRange && (searchFilters.dateRange.start || searchFilters.dateRange.end)) {
@@ -852,10 +851,10 @@ export const useReportsController = () => {
                                  r.status === ReconciliationStatus.RESOLVED || 
                                  (r.status as string) === 'RESOLVIDO';
 
-            const sourceInfo = resolveTransactionSource(r.transaction, r);
-            const isManualSource = sourceInfo.isManual || 
-                                   !!r.transaction?.isManual || 
+            const isManualSource = !!r.transaction?.isManual || 
                                    r.transaction?.source === 'manual' || 
+                                   r.matchMethod === 'MANUAL' || 
+                                   r.matchMethod === 'AI' ||
                                    (typeof r.transaction?.id === 'string' && (r.transaction.id.startsWith('ghost-manual-') || r.transaction.id.startsWith('manual-')));
 
             if (isManualSource) {

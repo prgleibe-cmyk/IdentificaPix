@@ -42,47 +42,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // 📡 ESCUTA DE SINCRONIZAÇÃO EM TEMPO REAL (Multi-dispositivos, abas e reconexão)
     useEffect(() => {
-        let debounceTimer: any = null;
         let lastTriggerTime = 0;
-        const triggerRefresh = (forceImmediate = false) => {
+        const triggerRefresh = () => {
             const now = Date.now();
-            const elapsed = now - lastTriggerTime;
-
-            const execute = () => {
-                if (debounceTimer) {
-                    clearTimeout(debounceTimer);
-                    debounceTimer = null;
-                }
-                lastTriggerTime = Date.now();
-                console.log("[AppContext:RealtimeRefresh] Sincronização em tempo real acionada.");
-                syncAllChurchClosings().catch(() => {});
-                setRealtimeRefreshKey(prev => prev + 1);
-            };
-
-            if (forceImmediate || elapsed >= 1000) {
-                execute();
-            } else if (!debounceTimer) {
-                debounceTimer = setTimeout(execute, Math.max(300, 1000 - elapsed));
-            }
+            if (now - lastTriggerTime < 4000) return; // debounce de 4s
+            lastTriggerTime = now;
+            
+            console.log("[AppContext:RealtimeRefresh] Sincronização em tempo real acionada.");
+            syncAllChurchClosings().catch(() => {});
+            setRealtimeRefreshKey(prev => prev + 1);
         };
 
         const handleVisibilityOrFocus = () => {
             if (document.visibilityState === 'visible') {
                 triggerRefresh();
-                if (!eventSource && user?.id) {
-                    connectSSE();
-                }
             }
         };
 
-        const handleOnline = () => {
-            triggerRefresh(true);
-            if (!eventSource && user?.id) {
-                connectSSE();
-            }
-        };
-
-        window.addEventListener('online', handleOnline);
+        window.addEventListener('online', triggerRefresh);
         document.addEventListener('visibilitychange', handleVisibilityOrFocus);
         window.addEventListener('focus', handleVisibilityOrFocus);
 
@@ -101,7 +78,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 bc.onmessage = (event) => {
                     if (event.data?.type === 'TRANSACTION_UPDATED' || event.data?.type === 'MONTH_CLOSING_UPDATED') {
                         syncAllChurchClosings().catch(() => {});
-                        triggerRefresh(true);
+                        triggerRefresh();
                     }
                 };
             } catch (e) {
@@ -109,63 +86,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
         }
 
-        // 📡 SSE (Server-Sent Events) para sincronização instantânea multi-aparelhos e multi-usuários
-        let eventSource: EventSource | null = null;
-        let reconnectTimeout: any = null;
-
-        const connectSSE = () => {
-            if (typeof EventSource === 'undefined' || !user?.id) return;
-            const token = localStorage.getItem('iggestor_vps_access_token') || localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token') || localStorage.getItem('token') || '';
-            if (!token) return;
-
-            if (eventSource) {
-                try { eventSource.close(); } catch (_) {}
-                eventSource = null;
-            }
-
-            try {
-                eventSource = new EventSource(`/api/v1/realtime/stream?token=${encodeURIComponent(token)}`);
-                eventSource.onmessage = (event) => {
-                    try {
-                        const data = JSON.parse(event.data);
-                        if (data?.type === 'TRANSACTION_UPDATED' || data?.type === 'MONTH_CLOSING_UPDATED') {
-                            syncAllChurchClosings().catch(() => {});
-                            triggerRefresh(true);
-                        }
-                    } catch (_) {}
-                };
-
-                eventSource.onerror = () => {
-                    if (eventSource) {
-                        try { eventSource.close(); } catch (_) {}
-                        eventSource = null;
-                    }
-                    clearTimeout(reconnectTimeout);
-                    reconnectTimeout = setTimeout(connectSSE, 5000);
-                };
-            } catch (err) {
-                console.warn('[AppContext:SSE] Falha ao conectar EventSource:', err);
-                clearTimeout(reconnectTimeout);
-                reconnectTimeout = setTimeout(connectSSE, 10000);
-            }
-        };
-
-        connectSSE();
-
         return () => {
-            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('online', triggerRefresh);
             document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
             window.removeEventListener('focus', handleVisibilityOrFocus);
             clearInterval(intervalId);
-            clearTimeout(reconnectTimeout);
-            if (debounceTimer) {
-                clearTimeout(debounceTimer);
-                debounceTimer = null;
-            }
-            if (eventSource) {
-                try { eventSource.close(); } catch (_) {}
-                eventSource = null;
-            }
             if (bc) bc.close();
         };
     }, [user?.id]);
