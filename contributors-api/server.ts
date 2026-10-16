@@ -2145,11 +2145,47 @@ export interface TenantContext {
   ownerId: string | null;
   churchId: string | null;
   allowedChurchIds: string[];
+  allowedBankIds: string[];
   role: string | null;
   isSuperAdmin: boolean;
   isOwner: boolean;
   isSecondaryUser: boolean;
   isAuthenticated: boolean;
+}
+
+export function extractContextAllowedBankIds(user: any): string[] {
+  const ids = new Set<string>();
+  if (!user) {
+    return [];
+  }
+
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const addIfValid = (val: any) => {
+    if (typeof val === 'string') {
+      const trimmed = val.trim();
+      if (uuidRegex.test(trimmed)) ids.add(trimmed);
+    }
+  };
+
+  if (Array.isArray(user.bank_ids)) user.bank_ids.forEach(addIfValid);
+  if (Array.isArray(user.bankIds)) user.bankIds.forEach(addIfValid);
+  if (Array.isArray(user.allowed_bank_ids)) user.allowed_bank_ids.forEach(addIfValid);
+  if (Array.isArray(user.allowedBankIds)) user.allowedBankIds.forEach(addIfValid);
+
+  if (user.permissions && typeof user.permissions === 'object') {
+    if (Array.isArray(user.permissions.bankIds)) user.permissions.bankIds.forEach(addIfValid);
+    if (Array.isArray(user.permissions.bank_ids)) user.permissions.bank_ids.forEach(addIfValid);
+  } else if (Array.isArray(user.permissions)) {
+    user.permissions.forEach((perm: any) => {
+      if (typeof perm === 'string') {
+        if (perm.startsWith('bank:') || perm.startsWith('bank_id:')) {
+          addIfValid(perm.split(':')[1]);
+        }
+      }
+    });
+  }
+
+  return Array.from(ids);
 }
 
 export function extractContextAllowedChurchIds(user: any, headerChurchId?: string | null): string[] {
@@ -2248,6 +2284,7 @@ export function getTenantContext(req: Request): TenantContext {
     const allowedChurchIds = headerAllowedChurchIds && headerAllowedChurchIds.length > 0
       ? headerAllowedChurchIds
       : extractContextAllowedChurchIds(user, headerChurchId);
+    const allowedBankIds = extractContextAllowedBankIds(user);
     const churchId = user.church_id || (allowedChurchIds.length > 0 ? allowedChurchIds[0] : null) || headerChurchId || null;
 
     const hasSeparateOwner = Boolean(ownerId && userId && ownerId !== userId);
@@ -2260,6 +2297,7 @@ export function getTenantContext(req: Request): TenantContext {
       ownerId,
       churchId,
       allowedChurchIds,
+      allowedBankIds,
       role,
       isSuperAdmin,
       isOwner,
@@ -2277,6 +2315,7 @@ export function getTenantContext(req: Request): TenantContext {
     ownerId: headerOwnerId,
     churchId: headerChurchId,
     allowedChurchIds: fallbackAllowedChurchIds,
+    allowedBankIds: [],
     role: headerRole,
     isSuperAdmin: headerRole === 'superadmin',
     isOwner: !fallbackIsSecondary,
@@ -6880,7 +6919,24 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
     const ctx = getTenantContext(req);
     const { user_id, status, type, start_date, end_date, limit, offset, row_hash, ids, church_id } = req.query;
 
-    if (ctx.isSecondaryUser && ctx.allowedChurchIds.length === 0) {
+    let allowedBankIds = ctx.allowedBankIds || [];
+    if (ctx.isSecondaryUser && allowedBankIds.length === 0 && ctx.userId) {
+      try {
+        const uRes = await pool.query(
+          'SELECT permissions FROM app_users WHERE id::text = $1 AND deleted_at IS NULL UNION ALL SELECT permissions FROM profiles WHERE id::text = $1 LIMIT 1',
+          [ctx.userId]
+        );
+        if (uRes.rows.length > 0) {
+          const rawPerms = uRes.rows[0].permissions;
+          const parsed = typeof rawPerms === 'string' ? JSON.parse(rawPerms) : rawPerms;
+          allowedBankIds = extractContextAllowedBankIds({ permissions: parsed });
+        }
+      } catch (err) {
+        console.warn('[Contributors API] Erro ao resolver allowedBankIds do banco:', err);
+      }
+    }
+
+    if (ctx.isSecondaryUser && ctx.allowedChurchIds.length === 0 && allowedBankIds.length === 0) {
       return res.json([]);
     }
 
@@ -6913,16 +6969,32 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
         params.push(church_id, `%"churchId":"${church_id}"%`);
         counter += 2;
       } else {
+        const hasBankAuth = allowedBankIds.length > 0;
         if (ctx.allowedChurchIds.length === 1) {
-          query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND splits LIKE $${counter + 1}))`;
+          const bankClause = hasBankAuth ? ` OR (status = 'pending' AND church_id IS NULL AND bank_id = ANY($${counter + 2}))` : '';
+          query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND splits LIKE $${counter + 1})${bankClause})`;
           params.push(ctx.allowedChurchIds[0], `%"churchId":"${ctx.allowedChurchIds[0]}"%`);
           counter += 2;
-        } else {
+          if (hasBankAuth) {
+            params.push(allowedBankIds);
+            counter++;
+          }
+        } else if (ctx.allowedChurchIds.length > 1) {
           const splitClauses = ctx.allowedChurchIds.map((_, i) => `splits LIKE $${counter + 1 + i}`).join(' OR ');
-          query += ` AND (church_id = ANY($${counter}) OR (splits IS NOT NULL AND (${splitClauses})))`;
+          const bankParamIdx = counter + 1 + ctx.allowedChurchIds.length;
+          const bankClause = hasBankAuth ? ` OR (status = 'pending' AND church_id IS NULL AND bank_id = ANY($${bankParamIdx}))` : '';
+          query += ` AND (church_id = ANY($${counter}) OR (splits IS NOT NULL AND (${splitClauses}))${bankClause})`;
           params.push(ctx.allowedChurchIds);
           ctx.allowedChurchIds.forEach(cId => params.push(`%"churchId":"${cId}"%`));
           counter += 1 + ctx.allowedChurchIds.length;
+          if (hasBankAuth) {
+            params.push(allowedBankIds);
+            counter++;
+          }
+        } else if (hasBankAuth) {
+          query += ` AND (status = 'pending' AND church_id IS NULL AND bank_id = ANY($${counter}))`;
+          params.push(allowedBankIds);
+          counter++;
         }
       }
     } else if (church_id && church_id !== 'all' && typeof church_id === 'string') {
