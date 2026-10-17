@@ -853,8 +853,7 @@ export const useReportsController = () => {
 
             const isManualSource = !!r.transaction?.isManual || 
                                    r.transaction?.source === 'manual' || 
-                                   r.matchMethod === 'MANUAL' || 
-                                   r.matchMethod === 'AI' ||
+                                   (r.transaction?.row_hash && (r.transaction.row_hash.includes('|bmanual|') || r.transaction.row_hash.startsWith('manual-'))) ||
                                    (typeof r.transaction?.id === 'string' && (r.transaction.id.startsWith('ghost-manual-') || r.transaction.id.startsWith('manual-')));
 
             if (isManualSource) {
