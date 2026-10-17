@@ -6965,14 +6965,14 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
         if (!ctx.allowedChurchIds.includes(church_id)) {
           return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para esta congregação.' });
         }
-        query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND splits LIKE $${counter + 1}))`;
+        query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND splits::text LIKE $${counter + 1}))`;
         params.push(church_id, `%"churchId":"${church_id}"%`);
         counter += 2;
       } else {
         const hasBankAuth = allowedBankIds.length > 0;
         if (ctx.allowedChurchIds.length === 1) {
           const bankClause = hasBankAuth ? ` OR (status = 'pending' AND church_id IS NULL AND bank_id = ANY($${counter + 2}))` : '';
-          query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND splits LIKE $${counter + 1})${bankClause})`;
+          query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND splits::text LIKE $${counter + 1})${bankClause})`;
           params.push(ctx.allowedChurchIds[0], `%"churchId":"${ctx.allowedChurchIds[0]}"%`);
           counter += 2;
           if (hasBankAuth) {
@@ -6980,7 +6980,7 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
             counter++;
           }
         } else if (ctx.allowedChurchIds.length > 1) {
-          const splitClauses = ctx.allowedChurchIds.map((_, i) => `splits LIKE $${counter + 1 + i}`).join(' OR ');
+          const splitClauses = ctx.allowedChurchIds.map((_, i) => `splits::text LIKE $${counter + 1 + i}`).join(' OR ');
           const bankParamIdx = counter + 1 + ctx.allowedChurchIds.length;
           const bankClause = hasBankAuth ? ` OR (status = 'pending' AND church_id IS NULL AND bank_id = ANY($${bankParamIdx}))` : '';
           query += ` AND (church_id = ANY($${counter}) OR (splits IS NOT NULL AND (${splitClauses}))${bankClause})`;
@@ -6998,7 +6998,7 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
         }
       }
     } else if (church_id && church_id !== 'all' && typeof church_id === 'string') {
-      query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND splits LIKE $${counter + 1}))`;
+      query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND splits::text LIKE $${counter + 1}))`;
       params.push(church_id, `%"churchId":"${church_id}"%`);
       counter += 2;
     }

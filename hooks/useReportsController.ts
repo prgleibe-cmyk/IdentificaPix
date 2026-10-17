@@ -506,7 +506,14 @@ export const useReportsController = () => {
                     ? item.church.id 
                     : (item._churchId && item._churchId !== 'unidentified' ? item._churchId : (item.transaction as any)?.church_id);
                 
-                matchesCat = churchId === targetChurchId;
+                const rSplits = (Array.isArray(item.splits) && item.splits.length > 0)
+                    ? item.splits
+                    : (Array.isArray((item.transaction as any)?.splits) && (item.transaction as any).splits.length > 0)
+                        ? (item.transaction as any).splits
+                        : null;
+                const hasMatchingSplit = rSplits && rSplits.some((s: any) => s.churchId === targetChurchId);
+
+                matchesCat = churchId === targetChurchId || Boolean(hasMatchingSplit);
             }
 
             if (!matchesCat) return false;
@@ -517,7 +524,7 @@ export const useReportsController = () => {
                 if (isManual && item.transaction?.bank_id && String(item.transaction?.bank_id) !== selectedBankId) return false;
             } else if (isSecondary && subscription?.bankIds && subscription.bankIds.length > 0) {
                 const isManual = item.transaction?.isManual || item.transaction?.source === 'manual';
-                if (!isManual && !subscription.bankIds.includes(String(item.transaction?.bank_id))) return false;
+                if (!isManual && item.transaction?.bank_id && !subscription.bankIds.includes(String(item.transaction?.bank_id))) return false;
             }
 
             if (searchFilters.dateRange && (searchFilters.dateRange.start || searchFilters.dateRange.end)) {
