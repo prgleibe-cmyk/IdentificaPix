@@ -490,37 +490,24 @@ export const useTransactionMatcher = ({
         showToast("Item removido.", "success");
     }, [setLaunchedResults, showToast]);
 
-    const updateReportData = useCallback(async (incomingRow: MatchResult) => {
+    const updateReportData = useCallback(async (incomingRow: MatchResult): Promise<{ success: boolean; error?: string }> => {
         const updatedRow: MatchResult = {
             ...incomingRow,
             updatedAt: new Date().toISOString()
         };
-        let nextResults: MatchResult[] = [];
-        batchState.isAtomicUpdate = true;
-        lastRealtimeUpdate.txId = updatedRow.transaction.id;
-        lastRealtimeUpdate.timestamp = Date.now();
-        setMatchResults(prev => {
-            const next = [...prev];
-            const idx = next.findIndex(r => r.transaction.id === updatedRow.transaction.id);
-            if (idx !== -1) next[idx] = updatedRow;
-            else next.push(updatedRow);
-            nextResults = next;
-            return next;
-        });
 
-        // 📡 SINCRONIZAÇÃO GLOBAL EM TEMPO REAL
-        if (triggerSync) {
-            triggerSync(updatedRow);
-        }
+        const isRealDbTx = updatedRow.transaction?.id && 
+            !updatedRow.transaction.id.startsWith('temp-') && 
+            !updatedRow.transaction.id.startsWith('ghost-');
 
-        // 🛡️ PERSISTÊNCIA DIRETA NA TABELA DE TRANSAÇÕES CONSOLIDADAS (SALVAMENTO EM NUVEM MULTI-DISPOSITIVO)
-        if (updatedRow.transaction?.id && !updatedRow.transaction.id.startsWith('temp-') && !updatedRow.transaction.id.startsWith('ghost-')) {
+        // 🛡️ PERSISTÊNCIA DIRETA NA TABELA DE TRANSAÇÕES CONSOLIDADAS (SALVAMENTO EM NUVEM)
+        if (isRealDbTx) {
             try {
                 const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
                 const headers: Record<string, string> = { 'Content-Type': 'application/json' };
                 if (token) headers['Authorization'] = `Bearer ${token}`;
 
-                await fetch(`/api/v1/consolidated_transactions/${updatedRow.transaction.id}`, {
+                const response = await fetch(`/api/v1/consolidated_transactions/${updatedRow.transaction.id}`, {
                     method: 'PUT',
                     headers,
                     body: JSON.stringify({
@@ -539,9 +526,48 @@ export const useTransactionMatcher = ({
                         is_confirmed: updatedRow.isConfirmed
                     })
                 });
-            } catch (err) {
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    let parsedMsg = errorText;
+                    try {
+                        const parsed = JSON.parse(errorText);
+                        parsedMsg = parsed.message || parsed.error || errorText;
+                    } catch (_) {}
+                    const userMsg = parsedMsg || `Erro HTTP ${response.status} ao persistir transação.`;
+                    console.error('[updateReportData] Erro HTTP ao persistir consolidated_transaction:', response.status, userMsg);
+                    if (showToast) {
+                        showToast(userMsg, 'error');
+                    }
+                    return { success: false, error: userMsg };
+                }
+            } catch (err: any) {
                 console.error('[updateReportData] Erro ao persistir consolidated_transaction:', err);
+                const userMsg = err?.message || 'Erro ao persistir transação no banco de dados.';
+                if (showToast) {
+                    showToast(userMsg, 'error');
+                }
+                return { success: false, error: userMsg };
             }
+        }
+
+        // Se a persistência teve sucesso (ou for item temporário de memória), atualiza o estado local e relatório
+        let nextResults: MatchResult[] = [];
+        batchState.isAtomicUpdate = true;
+        lastRealtimeUpdate.txId = updatedRow.transaction.id;
+        lastRealtimeUpdate.timestamp = Date.now();
+        setMatchResults(prev => {
+            const next = [...prev];
+            const idx = next.findIndex(r => r.transaction.id === updatedRow.transaction.id);
+            if (idx !== -1) next[idx] = updatedRow;
+            else next.push(updatedRow);
+            nextResults = next;
+            return next;
+        });
+
+        // 📡 SINCRONIZAÇÃO GLOBAL EM TEMPO REAL
+        if (triggerSync) {
+            triggerSync(updatedRow);
         }
 
         // 🛡️ PERSISTÊNCIA EM RELATÓRIOS SALVOS (SESSÃO ATIVA OU RELATÓRIO ABERTO)
@@ -553,7 +579,9 @@ export const useTransactionMatcher = ({
                 console.error("[updateReportData] Erro ao persistir saved report:", error);
             }
         }
-    }, [setMatchResults, activeReportId, savedReports, overwriteSavedReport, triggerSync]);
+
+        return { success: true };
+    }, [setMatchResults, activeReportId, savedReports, overwriteSavedReport, triggerSync, showToast]);
 
     const revertMatch = useCallback((txId: string) => {
         batchState.isAtomicUpdate = true;

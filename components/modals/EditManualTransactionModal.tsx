@@ -32,7 +32,7 @@ interface EditManualTransactionModalProps {
     isOpen: boolean;
     row: MatchResult | null;
     onClose: () => void;
-    onSave: (updatedRow: MatchResult) => void;
+    onSave?: (updatedRow: MatchResult) => Promise<{ success: boolean; error?: string } | void> | void;
     asView?: boolean;
 }
 
@@ -49,7 +49,8 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
         contributionTypes,
         contributionKeywords, 
         paymentMethods: sysPaymentMethods, 
-        showToast 
+        showToast,
+        updateReportData
     } = useContext(AppContext);
     const { language } = useTranslation();
     const { subscription, user, isSecondaryUser } = useAuth();
@@ -489,46 +490,47 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
                 updatedAt: nowIso
             };
 
-            // Persiste anexos no armazenamento local
+            // 🛡️ PERSISTÊNCIA CENTRALIZADA COM CONFIRMAÇÃO DO BACKEND (FECHADO POR PADRÃO / FAIL-SAFE)
+            let saveResult: { success: boolean; error?: string } = { 
+                success: false, 
+                error: 'Mecanismo de persistência indisponível no momento.' 
+            };
+
+            if (updateReportData) {
+                saveResult = await updateReportData(updatedRow);
+            } else if (onSave) {
+                try {
+                    const res = await onSave(updatedRow);
+                    if (res && typeof res === 'object' && 'success' in res && (res as any).success === true) {
+                        saveResult = { success: true };
+                    } else if (res && typeof res === 'object' && 'success' in res && (res as any).success === false) {
+                        saveResult = res as { success: boolean; error?: string };
+                    } else {
+                        saveResult = { 
+                            success: false, 
+                            error: 'Não foi possível confirmar a gravação no servidor.' 
+                        };
+                    }
+                } catch (saveErr: any) {
+                    saveResult = { 
+                        success: false, 
+                        error: saveErr?.message || 'Falha ao executar gravação.' 
+                    };
+                }
+            }
+
+            if (!saveResult || saveResult.success !== true) {
+                const errorMsg = saveResult?.error || 'Erro ao persistir lançamento manual no banco de dados.';
+                setErrorMessage(errorMsg);
+                return;
+            }
+
+            // Persiste anexos no armazenamento local somente após confirmação do backend
             if (row.transaction.id) {
                 try {
                     await saveAttachmentsForTransaction(row.transaction.id, attachments);
                 } catch (attErr) {
                     console.error('[EditManualTransactionModal] Erro ao persistir anexos:', attErr);
-                }
-            }
-
-            // Call in-memory updater
-            onSave(updatedRow);
-
-            // Persist to backend database via PUT
-            const txId = row.transaction.id;
-            if (txId && !txId.startsWith('temp-') && !txId.startsWith('ghost-')) {
-                try {
-                    const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-                    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-                    if (token) headers['Authorization'] = `Bearer ${token}`;
-
-                    await fetch(`/api/v1/consolidated_transactions/${txId}`, {
-                        method: 'PUT',
-                        headers,
-                        body: JSON.stringify({
-                            amount: finalAmount,
-                            description: cleanDesc,
-                            type: finalType,
-                            transaction_date: date,
-                            church_id: selectedChurch.id && selectedChurch.id !== 'unidentified' ? selectedChurch.id : null,
-                            bank_id: bankId || null,
-                            contributor_id: finalContributorId || null,
-                            contribution_type: contributionType,
-                            payment_method: paymentMethod,
-                            source: 'manual',
-                            status: 'identified',
-                            is_confirmed: row.isConfirmed ?? false
-                        })
-                    });
-                } catch (apiErr) {
-                    console.error('[EditManualTransactionModal] Erro ao persistir na API:', apiErr);
                 }
             }
 
@@ -539,7 +541,7 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
             onClose();
         } catch (err: any) {
             console.error('[EditManualTransactionModal] Erro ao salvar:', err);
-            setErrorMessage('Ocorreu um erro ao salvar as alterações.');
+            setErrorMessage(err?.message || 'Ocorreu um erro ao salvar as alterações.');
         } finally {
             setIsSaving(false);
         }
