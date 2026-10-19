@@ -1680,11 +1680,12 @@ export const RelatoriosView: React.FC = memo(() => {
                                                     paginatedBalanceteData.map((tx: any, idx: number) => {
                                                         const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
                                                         const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
+                                                        const isManualTx = tx.isManual || tx.source === 'manual' || tx.raw?.transaction?.source === 'manual' || tx.raw?.transaction?.isManual === true || (tx.raw as any)?.isManual === true || String(tx.id).startsWith('ghost-manual-') || (tx.row_hash && tx.row_hash.includes('|bmanual|'));
 
                                                         return (
                                                             <tr key={idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
                                                                 <td className="py-2 px-3 font-mono text-slate-500 text-[11px] whitespace-nowrap">
-                                                                    {tx.reference_date && tx.bank_date && tx.reference_date !== tx.bank_date ? (
+                                                                    {!isManualTx && tx.reference_date && tx.bank_date && tx.reference_date !== tx.bank_date ? (
                                                                         <div className="flex flex-col leading-tight">
                                                                             <span className="font-bold text-slate-800 dark:text-white" title={`Data de Referência (Competência): ${formatDateBRL(tx.date)}`}>
                                                                                 {formatDateBRL(tx.date)}
@@ -2342,11 +2343,12 @@ export const RelatoriosView: React.FC = memo(() => {
                                                                             const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
                                                                             const pm = getTxPaymentMethod(tx);
                                                                             const role = getTxRole(tx);
+                                                                            const isManualTx = tx.isManual || tx.source === 'manual' || tx.raw?.transaction?.source === 'manual' || tx.raw?.transaction?.isManual === true || (tx.raw as any)?.isManual === true || String(tx.id).startsWith('ghost-manual-') || (tx.row_hash && tx.row_hash.includes('|bmanual|'));
 
                                                                             return (
                                                                                 <tr key={tIdx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                                                                                     <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px] whitespace-nowrap">
-                                                                                        {tx.reference_date && tx.bank_date && tx.reference_date !== tx.bank_date ? (
+                                                                                        {!isManualTx && tx.reference_date && tx.bank_date && tx.reference_date !== tx.bank_date ? (
                                                                                             <div className="flex flex-col leading-tight">
                                                                                                 <span className="font-bold text-slate-800 dark:text-white" title={`Data de Referência (Competência): ${formatDateBRL(tx.date)}`}>
                                                                                                     {formatDateBRL(tx.date)}

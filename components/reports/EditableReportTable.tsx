@@ -130,8 +130,17 @@ const MobileCard = memo(({
                       rawDescUpper.includes('PAGAMENTO BOLETO') ||
                       rawDescUpper.includes('TED ENVIADA')
     );
+    const sourceInfo = resolveTransactionSource(row.transaction, row);
+    const isManualRow = sourceInfo.isManual || 
+        row.transaction?.source === 'manual' || 
+        row.transaction?.isManual === true || 
+        (row as any).isManual === true ||
+        String(row.transaction?.id).startsWith('ghost-manual-') || 
+        (row.transaction?.row_hash && row.transaction?.row_hash.includes('|bmanual|'));
+    const canDeleteRow = !isSecondaryUser || isManualRow;
+
     const refDate = row.contributor?.reference_date || row.reference_date || row.transaction.reference_date;
-    const hasRefDate = refDate && refDate !== row.transaction.date;
+    const hasRefDate = !isManualRow && Boolean(refDate && refDate !== row.transaction.date);
     const displayDate = formatDate(refDate || row.transaction.date);
     const originalBankDate = formatDate(row.transaction.date);
 
@@ -147,14 +156,6 @@ const MobileCard = memo(({
         contributionTypes,
         contributionKeywords
     );
-    const sourceInfo = resolveTransactionSource(row.transaction, row);
-    const isManualRow = sourceInfo.isManual || 
-        row.transaction?.source === 'manual' || 
-        row.transaction?.isManual === true || 
-        (row as any).isManual === true ||
-        String(row.transaction?.id).startsWith('ghost-manual-') || 
-        (row.transaction?.row_hash && row.transaction?.row_hash.includes('|bmanual|'));
-    const canDeleteRow = !isSecondaryUser || isManualRow;
 
     const txId = row.transaction?.id || (row as any).id;
     const txAttachments: ExpenseAttachment[] = (Array.isArray(row.attachments) && row.attachments.length > 0)
@@ -529,8 +530,17 @@ const IncomeRow = memo(({
                       rawDescUpper.includes('PAGAMENTO BOLETO') ||
                       rawDescUpper.includes('TED ENVIADA')
     );
+    const sourceInfo = resolveTransactionSource(row.transaction, row);
+    const isManualRow = sourceInfo.isManual || 
+        row.transaction?.source === 'manual' || 
+        row.transaction?.isManual === true || 
+        (row as any).isManual === true ||
+        String(row.transaction?.id).startsWith('ghost-manual-') || 
+        (row.transaction?.row_hash && row.transaction?.row_hash.includes('|bmanual|'));
+    const canDeleteRow = !isSecondaryUser || isManualRow;
+
     const refDate = row.contributor?.reference_date || row.reference_date || row.transaction.reference_date;
-    const hasRefDate = refDate && refDate !== row.transaction.date;
+    const hasRefDate = !isManualRow && Boolean(refDate && refDate !== row.transaction.date);
     const displayDate = formatDate(refDate || row.transaction.date);
     const originalBankDate = formatDate(row.transaction.date);
     
@@ -547,14 +557,6 @@ const IncomeRow = memo(({
         contributionTypes,
         contributionKeywords
     );
-    const sourceInfo = resolveTransactionSource(row.transaction, row);
-    const isManualRow = sourceInfo.isManual || 
-        row.transaction?.source === 'manual' || 
-        row.transaction?.isManual === true || 
-        (row as any).isManual === true ||
-        String(row.transaction?.id).startsWith('ghost-manual-') || 
-        (row.transaction?.row_hash && row.transaction?.row_hash.includes('|bmanual|'));
-    const canDeleteRow = !isSecondaryUser || isManualRow;
 
     const txId = row.transaction?.id || (row as any).id;
     const txAttachments: ExpenseAttachment[] = (Array.isArray(row.attachments) && row.attachments.length > 0)

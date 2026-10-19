@@ -165,8 +165,10 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                                               rawDescUpper.includes('PAGAMENTO BOLETO') ||
                                               rawDescUpper.includes('TED ENVIADA')
                             );
+                            const sourceInfo = resolveTransactionSource(transaction, { transaction, contributor, status, matchMethod });
+                            const isManualTx = sourceInfo.isManual || transaction.source === 'manual' || transaction.isManual;
                             const refDate = contributor?.reference_date || transaction.reference_date;
-                            const hasRefDate = refDate && refDate !== transaction.date;
+                            const hasRefDate = !isManualTx && Boolean(refDate && refDate !== transaction.date);
                             const displayDate = formatDate(refDate || transaction.date);
                             const originalBankDate = formatDate(transaction.date);
                             
@@ -175,8 +177,6 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                             const isIdentifiedStatus = statusStr === 'IDENTIFIED' || statusStr === 'RESOLVED' || statusStr === 'IDENTIFICADO' || statusStr === 'RESOLVIDO';
                             const rawIdentifiedName = isIdentifiedStatus ? (contributor?.name || contributor?.cleanedName) : null;
                             const identifiedName = (rawIdentifiedName && !isInvalidOrNumericName(rawIdentifiedName, bankDescription)) ? rawIdentifiedName : null;
-                            const sourceInfo = resolveTransactionSource(transaction, { transaction, contributor, status, matchMethod });
-                            const isManualTx = sourceInfo.isManual || transaction.source === 'manual' || transaction.isManual;
 
                             return (
                                 <tr

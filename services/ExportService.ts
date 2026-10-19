@@ -401,8 +401,9 @@ export const ExportService = {
         const church = resolveChurch(churches, selectedChurchId, data);
 
         const tableRows = data.flatMap(r => {
+            const isManual = r.transaction?.source === 'manual' || r.transaction?.isManual || (r as any).isManual || String(r.transaction?.id).startsWith('ghost-manual-') || (r.transaction?.row_hash && r.transaction?.row_hash.includes('|bmanual|'));
             const refDate = r.contributor?.reference_date || r.reference_date || r.transaction.reference_date;
-            const hasRefDate = refDate && refDate !== r.transaction.date;
+            const hasRefDate = !isManual && Boolean(refDate && refDate !== r.transaction.date);
             const date = formatDate(refDate || r.transaction.date);
             const originalBankDate = formatDate(r.transaction.date);
             const dateCellHtml = hasRefDate
@@ -625,9 +626,10 @@ export const ExportService = {
      */
     downloadExcel: (data: MatchResult[], filename: string = 'relatorio_conciliacao.xlsx') => {
         const rows = data.flatMap(r => {
+            const isManual = r.transaction?.source === 'manual' || r.transaction?.isManual || (r as any).isManual || String(r.transaction?.id).startsWith('ghost-manual-') || (r.transaction?.row_hash && r.transaction?.row_hash.includes('|bmanual|'));
             const refDate = r.contributor?.reference_date || r.reference_date || r.transaction.reference_date;
             const displayDate = formatDate(refDate || r.transaction.date);
-            const bankDate = formatDate(r.transaction.date);
+            const bankDate = isManual ? "---" : formatDate(r.transaction.date);
             
             const desc = getResolvedDisplayName(r).toUpperCase();
             
@@ -842,10 +844,11 @@ ${transactionsOfx}
         const headers = [["Data", "Descrição do Lançamento", "Igreja / Unidade", "Descrição", "Status", "Valor"]];
         
         const rows: any[] = data.flatMap((r: MatchResult) => {
+            const isManual = r.transaction?.source === 'manual' || r.transaction?.isManual || (r as any).isManual || String(r.transaction?.id).startsWith('ghost-manual-') || (r.transaction?.row_hash && r.transaction?.row_hash.includes('|bmanual|'));
             const isGhost = r.status === 'PENDENTE';
             const refDate = r.contributor?.reference_date || r.reference_date || r.transaction?.reference_date;
             const originalBankDateStr = isGhost ? (r.contributor?.date || r.transaction?.date) : r.transaction?.date;
-            const hasRefDate = refDate && refDate !== originalBankDateStr;
+            const hasRefDate = !isManual && Boolean(refDate && refDate !== originalBankDateStr);
             const displayDate = formatDate(refDate || originalBankDateStr);
             const originalBankDate = formatDate(originalBankDateStr);
             const dateStr = hasRefDate ? `${displayDate}\n(Banco: ${originalBankDate})` : displayDate;
@@ -1263,9 +1266,10 @@ ${itemsOfx}
         
         const excelRows: any[] = [];
         transactions.forEach(tx => {
+            const isManual = tx.isManual || tx.source === 'manual' || tx.raw?.transaction?.source === 'manual' || tx.raw?.transaction?.isManual === true || (tx.raw as any)?.isManual === true || String(tx.id).startsWith('ghost-manual-') || (tx.row_hash && tx.row_hash.includes('|bmanual|'));
             const isBaseExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
             const dateStr = tx.date || '---';
-            const bankDateStr = tx.bank_date || tx.bankDate || tx.date || '---';
+            const bankDateStr = isManual ? '---' : (tx.bank_date || tx.bankDate || tx.date || '---');
             const baseDesc = (tx.desc || tx.description || tx.historico || 'Lançamento').toUpperCase();
             const payer = tx.payer || tx.contribuinte || tx.nome || '---';
 
@@ -1809,11 +1813,12 @@ ${itemsOfx}
         const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
         const tableRows = transactions.map(tx => {
+            const isManual = tx.isManual || tx.source === 'manual' || tx.raw?.transaction?.source === 'manual' || tx.raw?.transaction?.isManual === true || (tx.raw as any)?.isManual === true || String(tx.id).startsWith('ghost-manual-') || (tx.row_hash && tx.row_hash.includes('|bmanual|'));
             const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
             const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
             const dateStr = tx.date || '---';
             const bankDateStr = tx.bank_date || tx.bankDate;
-            const hasRefDiff = bankDateStr && tx.reference_date && tx.reference_date !== bankDateStr;
+            const hasRefDiff = !isManual && Boolean(bankDateStr && tx.reference_date && tx.reference_date !== bankDateStr);
             const displayDateHtml = hasRefDiff
                 ? `<div><strong>${dateStr}</strong><br/><span style="font-size: 8px; color: #64748b;">(Banco: ${bankDateStr})</span></div>`
                 : dateStr;
@@ -2281,9 +2286,10 @@ ${ofxTrns}
             ];
 
             const detailRows = rawTransactions.map(tx => {
+                const isManual = tx.isManual || tx.source === 'manual' || tx.raw?.transaction?.source === 'manual' || tx.raw?.transaction?.isManual === true || (tx.raw as any)?.isManual === true || String(tx.id).startsWith('ghost-manual-') || (tx.row_hash && tx.row_hash.includes('|bmanual|'));
                 const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
                 const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
-                const bankDateStr = tx.bank_date || tx.bankDate || tx.date || '---';
+                const bankDateStr = isManual ? '---' : (tx.bank_date || tx.bankDate || tx.date || '---');
                 return {
                     "Data": tx.date || '---',
                     "Data do Banco": bankDateStr,
@@ -2512,12 +2518,13 @@ ${ofxTrns}
         } else if (balanceteType === 'analitico') {
             lines.push("DATA;DATA_BANCO;HISTORICO;CONTRIBUINTE/FAVORECIDO;CATEGORIA;TIPO;VALOR (R$)");
             rawTransactions.forEach(tx => {
+                const isManual = tx.isManual || tx.source === 'manual' || tx.raw?.transaction?.source === 'manual' || tx.raw?.transaction?.isManual === true || (tx.raw as any)?.isManual === true || String(tx.id).startsWith('ghost-manual-') || (tx.row_hash && tx.row_hash.includes('|bmanual|'));
                 const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
                 const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
                 const desc = (tx.desc || tx.description || tx.historico || 'Lançamento').replace(/;/g, ' ');
                 const payer = (tx.payer || tx.contribuinte || tx.nome || '---').replace(/;/g, ' ');
                 const cat = (tx.category || tx.categoria || 'Geral').replace(/;/g, ' ');
-                const bankDateStr = tx.bank_date || tx.bankDate || tx.date || '---';
+                const bankDateStr = isManual ? '---' : (tx.bank_date || tx.bankDate || tx.date || '---');
                 lines.push(`"${tx.date || '---'}";"${bankDateStr}";"${desc}";"${payer}";"${cat}";"${isExpense ? 'Saída' : 'Entrada'}";"${(isExpense ? -amt : amt).toFixed(2).replace('.', ',')}"`);
             });
         } else {

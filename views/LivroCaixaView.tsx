@@ -1906,7 +1906,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                                         return (
                                             <tr key={tx.id || idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
                                                 <td className="px-4 py-2.5 whitespace-nowrap font-mono text-slate-600 dark:text-slate-400">
-                                                    {tx.reference_date && tx.bank_date && tx.reference_date !== tx.bank_date ? (
+                                                    {!isManualRow && tx.reference_date && tx.bank_date && tx.reference_date !== tx.bank_date ? (
                                                         <div className="flex flex-col leading-tight">
                                                             <span className="font-bold text-slate-800 dark:text-slate-100" title={`Data de Referência (Competência): ${formatDateBRL(tx.date)}`}>
                                                                 {formatDateBRL(tx.date)}
