@@ -4594,7 +4594,9 @@ async function getEquivalentUserIds(userId: string): Promise<string[]> {
   const idsSet = new Set<string>([cleanId]);
   try {
     const q = `
-      SELECT id::text FROM app_users WHERE id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
+      SELECT id::text FROM app_users WHERE id::text = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
+      UNION
+      SELECT owner_id::text FROM app_users WHERE (id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)) AND owner_id IS NOT NULL
       UNION
       SELECT id::text FROM profiles WHERE id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
       UNION
