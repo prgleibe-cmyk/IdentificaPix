@@ -64,8 +64,10 @@ export const useReportsController = () => {
         return isSecondary ? 'churches' : 'general';
     });
     const [selectedReportId, setSelectedReportId] = useState<string | null>(() => {
-        if (isSecondary && subscription?.congregationIds && subscription.congregationIds.length > 0) {
-            return subscription.congregationIds[0];
+        if (isSecondary) {
+            return (subscription?.congregationIds && subscription.congregationIds.length > 0)
+                ? subscription.congregationIds[0]
+                : null;
         }
         if (churches && churches.length > 0 && churches[0].id) {
             return churches[0].id;
@@ -350,14 +352,16 @@ export const useReportsController = () => {
         // 4. Rebuild activeData
         let filteredData: MatchResult[] = [];
         if (activeCategory === 'general') {
-            filteredData = periodResults;
+            filteredData = isSecondary ? [] : periodResults;
         } else if (activeCategory === 'unidentified') {
             filteredData = periodResults.filter(isPendingTx);
         } else if (activeCategory === 'expenses') {
             filteredData = periodResults.filter(isExpenseTx);
         } else {
-            const targetChurchId = (isSecondary && subscription.congregationIds && subscription.congregationIds.length > 0)
-                ? (selectedReportId && subscription.congregationIds.includes(selectedReportId) ? selectedReportId : subscription.congregationIds[0])
+            const targetChurchId = isSecondary
+                ? ((subscription?.congregationIds && subscription.congregationIds.length > 0)
+                    ? (selectedReportId && subscription.congregationIds.includes(selectedReportId) ? selectedReportId : subscription.congregationIds[0])
+                    : null)
                 : ((selectedReportId && selectedReportId !== 'general_all' && selectedReportId !== 'unidentified' && selectedReportId !== 'all_expenses_group')
                     ? selectedReportId 
                     : (cacheRef.current.churchList.length > 0 ? cacheRef.current.churchList[0].id : (churches && churches.length > 0 ? churches[0].id : null)));
@@ -689,10 +693,14 @@ export const useReportsController = () => {
             subscription.role !== 'principal');
 
         // Se for usuário secundário, garante que está na categoria correta e com uma igreja válida
-        if (isUserSecondary && subscription.congregationIds && subscription.congregationIds.length > 0) {
+        if (isUserSecondary) {
             setActiveCategory('churches');
-            if (!selectedReportId || !subscription.congregationIds.includes(selectedReportId)) {
-                setSelectedReportId(subscription.congregationIds[0]);
+            if (subscription.congregationIds && subscription.congregationIds.length > 0) {
+                if (!selectedReportId || !subscription.congregationIds.includes(selectedReportId)) {
+                    setSelectedReportId(subscription.congregationIds[0]);
+                }
+            } else if (selectedReportId !== null) {
+                setSelectedReportId(null);
             }
             return;
         }

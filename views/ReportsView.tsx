@@ -42,7 +42,7 @@ export const ReportsView: React.FC = () => {
     const { setActiveView } = useUI();
     const { t, language } = useTranslation();
     const { loadingAiId, setMatchResults, setBulkIdentificationTxs, bulkIdentificationTxs, churches } = useContext(AppContext);
-    const { subscription, user, isSecondaryUser } = useAuth();
+    const { subscription, user, isSecondaryUser, isAuthReady } = useAuth();
 
     const perms = (subscription?.permissions || {}) as any;
     const canIdentify = !isSecondaryUser || (perms.identificar !== false && perms.identifyPayments !== false);
@@ -181,7 +181,7 @@ export const ReportsView: React.FC = () => {
         }
     };
 
-    const isInitialLoading = (ctrl.isHydrating || ctrl.isLoading) && (!ctrl.sortedData || ctrl.sortedData.length === 0) && (!ctrl.churchList || ctrl.churchList.length === 0);
+    const isInitialLoading = (isSecondaryUser && !isAuthReady) || ((ctrl.isHydrating || ctrl.isLoading) && (!ctrl.sortedData || ctrl.sortedData.length === 0) && (!ctrl.churchList || ctrl.churchList.length === 0));
 
     if (isInitialLoading) {
         return (
