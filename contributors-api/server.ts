@@ -7460,6 +7460,19 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: a transação pertence a outra organização.' });
     }
 
+    // 🛡️ Validação de Autorização para Usuário Secundário (Congregação de Destino)
+    if (ctx.isSecondaryUser) {
+      const destChurchId = church_id !== undefined ? church_id : oldTx.church_id;
+      if (destChurchId && destChurchId !== 'unidentified') {
+        if (!ctx.allowedChurchIds || !ctx.allowedChurchIds.includes(destChurchId)) {
+          return res.status(403).json({
+            error: 'FORBIDDEN',
+            message: 'Acesso negado: congregação de destino não autorizada para este usuário.'
+          });
+        }
+      }
+    }
+
     // 🛡️ Validação de Período Fechado (Congelamento)
     // 1. Não permite alterar transação pertencente a um período já fechado (exceto se for item pendente de arquivo/SMS sendo identificado pela primeira vez)
     const isUnconfirmedBankTx = (oldTx.source !== 'manual') && (!oldTx.is_confirmed || oldTx.status !== 'confirmed');
