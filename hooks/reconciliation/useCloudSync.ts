@@ -6,6 +6,7 @@ import { getAuthToken } from '../../services/auth/authAdapter';
 
 interface UseCloudSyncProps {
     user: any;
+    subscription?: any;
     effectiveUserId: string;
     matchResults: MatchResult[];
     setMatchResults: (update: (prev: MatchResult[]) => MatchResult[]) => void;
@@ -52,6 +53,7 @@ const toIsoDate = (str: any): string => {
 
 export const useCloudSync = ({
     user,
+    subscription,
     effectiveUserId,
     matchResults,
     setMatchResults,
@@ -75,6 +77,13 @@ export const useCloudSync = ({
     setIsLoading,
     isReferenceReady
 }: UseCloudSyncProps) => {
+    const isSecondaryUser = Boolean(
+        (subscription?.ownerId && subscription.ownerId !== user?.id) &&
+        subscription?.role !== 'owner' &&
+        subscription?.role !== 'admin' &&
+        subscription?.role !== 'principal'
+    );
+
     const lastCloudSyncRef = useRef<string>('');
     const isHydratingFromCloud = useRef<boolean>(false);
     const [isHydrating, setIsHydrating] = useState<boolean>(false);
@@ -406,7 +415,8 @@ export const useCloudSync = ({
                     // ⚡ AUTO-IDENTIFICAÇÃO DE VÍNCULOS SALVOS (SEM IA)
                     // Se a transação no banco está 'pending', mas existe uma associação aprendida (assoc),
                     // promovemos localmente para IDENTIFIED e agendamos a atualização no banco em segundo plano (sequencialmente).
-                    if (assoc && t.status === 'pending') {
+                    // 🛡️ Usuários secundários NUNCA auto-promovem em memória: respeitam estritamente a fonte da verdade do banco.
+                    if (!isSecondaryUser && assoc && t.status === 'pending') {
                         status = ReconciliationStatus.IDENTIFIED;
                         pendingPromotions.push({
                             id: t.id,
@@ -727,11 +737,11 @@ export const useCloudSync = ({
 
     // 🚀 AUTO-PROCESSAMENTO INICIAL (Lista Viva)
     useEffect(() => {
-        if (isReady && !isLoading && matchResults?.length === 0 && !isHydratingFromCloud.current) {
+        if (!isSecondaryUser && isReady && !isLoading && matchResults?.length === 0 && !isHydratingFromCloud.current) {
             console.log('[AUTO_PROCESS] Executando processamento inicial da lista viva...');
             handleCompare?.(false); // isAuto = true
         }
-    }, [isReady, isLoading, matchResults?.length, handleCompare]);
+    }, [isReady, isLoading, matchResults?.length, handleCompare, isSecondaryUser]);
 
     /**
      * 📡 REALTIME SYNC (Atomização)
@@ -868,7 +878,7 @@ export const useCloudSync = ({
                 postProcessingSignatureRef.current = currentSignature;
                 lastProcessedLength.current = matchResults.length;
                 
-                if (typeof handleCompareRef.current === 'function') {
+                if (!isSecondaryUser && typeof handleCompareRef.current === 'function') {
                     // 🛡️ CORREÇÃO CIRÚRGICA GARGALO 2: Assinatura calculada sob demanda (lazy)
                     // apenas quando o auto-process vai de fato executar, eliminando JSON.stringify,
                     // alocação de objetos e localeCompare síncronos na thread principal a cada edição.
