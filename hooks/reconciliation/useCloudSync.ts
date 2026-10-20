@@ -614,9 +614,10 @@ export const useCloudSync = ({
                     console.log(`[CloudSync] Agendando auto-promoção veloz em lote de ${pendingPromotions.length} transações...`);
                     (async () => {
                         const BATCH_SIZE = 10;
+                        const failedIds = new Set<string>();
                         for (let i = 0; i < pendingPromotions.length; i += BATCH_SIZE) {
                             const chunk = pendingPromotions.slice(i, i + BATCH_SIZE);
-                            await Promise.allSettled(chunk.map(p => 
+                            const results = await Promise.allSettled(chunk.map(p => 
                                 consolidationService.updateTransactionStatus(
                                     p.id,
                                     'identified',
@@ -626,6 +627,28 @@ export const useCloudSync = ({
                                     false
                                 )
                             ));
+                            results.forEach((res, idx) => {
+                                if (res.status === 'rejected') {
+                                    const failedItem = chunk[idx];
+                                    failedIds.add(failedItem.id);
+                                    console.warn(`[CloudSync] Falha na auto-promoção do lançamento ${failedItem.id}:`, res.reason);
+                                }
+                            });
+                        }
+                        if (failedIds.size > 0) {
+                            console.warn(`[CloudSync] ${failedIds.size} lançamento(s) tiveram sua persistência rejeitada. Revertendo estado local para pendente.`);
+                            setMatchResults(prev => prev.map(item => {
+                                if (failedIds.has(item.transaction.id)) {
+                                    return {
+                                        ...item,
+                                        status: ReconciliationStatus.PENDING,
+                                        church: PLACEHOLDER_CHURCH,
+                                        _churchId: undefined,
+                                        matchMethod: MatchMethod.MANUAL
+                                    };
+                                }
+                                return item;
+                            }));
                         }
                     })().catch(err => {
                         console.error('[Auto-promote] Erro no lote de auto-promoção:', err);

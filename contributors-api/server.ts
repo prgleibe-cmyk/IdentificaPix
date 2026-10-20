@@ -7460,11 +7460,21 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: a transação pertence a outra organização.' });
     }
 
-    // 🛡️ Validação de Autorização para Usuário Secundário (Congregação de Destino)
+    // 🛡️ Validação de Autorização para Usuário Secundário (Origem e Destino)
     if (ctx.isSecondaryUser) {
-      const destChurchId = church_id !== undefined ? church_id : oldTx.church_id;
-      if (destChurchId && destChurchId !== 'unidentified') {
-        if (!ctx.allowedChurchIds || !ctx.allowedChurchIds.includes(destChurchId)) {
+      // 1. Não permite alterar ou desassociar lançamento cuja congregação atual não seja autorizada
+      if (oldTx.church_id && oldTx.church_id !== 'unidentified') {
+        if (!ctx.allowedChurchIds || !ctx.allowedChurchIds.includes(oldTx.church_id)) {
+          return res.status(403).json({
+            error: 'FORBIDDEN',
+            message: 'Acesso negado: o lançamento pertence a uma congregação não autorizada para este usuário.'
+          });
+        }
+      }
+
+      // 2. Não permite atribuir o lançamento a uma congregação de destino não autorizada
+      if (church_id !== undefined && church_id !== null && church_id !== 'unidentified') {
+        if (!ctx.allowedChurchIds || !ctx.allowedChurchIds.includes(church_id)) {
           return res.status(403).json({
             error: 'FORBIDDEN',
             message: 'Acesso negado: congregação de destino não autorizada para este usuário.'
