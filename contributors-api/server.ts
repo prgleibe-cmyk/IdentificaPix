@@ -312,9 +312,12 @@ class LocalSqliteEngine {
         recipient_phone TEXT,
         message TEXT,
         message_summary TEXT,
+        error_message TEXT,
+        user_id TEXT,
         queue_id TEXT,
         provider_message_id TEXT,
-        sent_at TEXT DEFAULT (now())
+        sent_at TEXT DEFAULT (now()),
+        created_at TEXT DEFAULT (now())
       );
 
       CREATE TABLE IF NOT EXISTS communication_events (
@@ -546,8 +549,11 @@ class LocalSqliteEngine {
     safeAdd('communication_logs', 'channel TEXT');
     safeAdd('communication_logs', 'recipient_phone TEXT');
     safeAdd('communication_logs', 'message_summary TEXT');
+    safeAdd('communication_logs', 'error_message TEXT');
+    safeAdd('communication_logs', 'user_id TEXT');
     safeAdd('communication_logs', 'queue_id TEXT');
     safeAdd('communication_logs', 'provider_message_id TEXT');
+    safeAdd('communication_logs', 'created_at TEXT DEFAULT (now())');
 
     safeAdd('consolidated_transactions', 'amount REAL');
     safeAdd('consolidated_transactions', 'description TEXT');
