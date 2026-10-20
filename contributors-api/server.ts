@@ -223,11 +223,17 @@ class LocalSqliteEngine {
 
       CREATE TABLE IF NOT EXISTS church_pix_keys (
         id TEXT PRIMARY KEY,
+        bank_id TEXT,
         church_id TEXT,
+        pix_type TEXT,
         key_type TEXT,
         pix_key TEXT,
+        holder_name TEXT,
+        description TEXT,
+        is_active INTEGER DEFAULT 1,
         is_default INTEGER DEFAULT 0,
-        created_at TEXT DEFAULT (now())
+        created_at TEXT DEFAULT (now()),
+        updated_at TEXT DEFAULT (now())
       );
 
       CREATE TABLE IF NOT EXISTS contribution_types (
@@ -586,6 +592,13 @@ class LocalSqliteEngine {
 
     safeAdd('learned_associations', 'normalized_description TEXT');
     safeAdd('learned_associations', 'contributor_normalized_name TEXT');
+
+    safeAdd('church_pix_keys', 'bank_id TEXT');
+    safeAdd('church_pix_keys', 'pix_type TEXT');
+    safeAdd('church_pix_keys', 'holder_name TEXT');
+    safeAdd('church_pix_keys', 'description TEXT');
+    safeAdd('church_pix_keys', 'is_active INTEGER DEFAULT 1');
+    safeAdd('church_pix_keys', 'updated_at TEXT DEFAULT CURRENT_TIMESTAMP');
 
     safeAdd('financial_records', 'user_id TEXT');
     safeAdd('financial_records', 'title TEXT');
