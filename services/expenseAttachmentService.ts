@@ -17,20 +17,25 @@ export function getCachedAttachmentsMap(): Map<string, ExpenseAttachment[]> | nu
 }
 
 /**
- * 🛡️ Sincroniza anexos vindos da nuvem (PostgreSQL / SQLite) para a memória e cache local
+ * 🛡️ Sincroniza metadados de anexos para o mapa de cache leve em memória (Anti-OOM)
+ * dataUrl é estritamente omitido da memória RAM global e carregado apenas sob demanda.
  */
 export function syncAttachmentsToCache(txId: string, attachments?: ExpenseAttachment[]): void {
     if (!txId) return;
     if (!memoryAttachmentsCache) {
         memoryAttachmentsCache = new Map();
     }
-    const key = `${STORAGE_PREFIX}${txId}`;
     if (attachments && attachments.length > 0) {
-        memoryAttachmentsCache.set(txId, attachments);
-        set(key, attachments).catch(() => {});
+        const metaOnly = attachments.map(att => {
+            if (att && att.dataUrl) {
+                const { dataUrl, ...rest } = att;
+                return { ...rest, txId, hasDataUrl: true };
+            }
+            return { ...att, txId, hasDataUrl: Boolean((att as any).hasDataUrl || att.dataUrl) };
+        });
+        memoryAttachmentsCache.set(txId, metaOnly);
     } else if (memoryAttachmentsCache.has(txId)) {
         memoryAttachmentsCache.delete(txId);
-        del(key).catch(() => {});
     }
 }
 
@@ -85,27 +90,48 @@ export async function saveAttachmentsForTransaction(
 }
 
 /**
- * Recupera os comprovantes e faturas de uma transação específica
+ * Recupera os comprovantes e faturas de uma transação específica (com dataUrl sob demanda)
  */
 export async function getAttachmentsForTransaction(
     txId: string
 ): Promise<ExpenseAttachment[]> {
     if (!txId) return [];
-    if (memoryAttachmentsCache && memoryAttachmentsCache.has(txId)) {
-        return memoryAttachmentsCache.get(txId) || [];
-    }
+
+    // 1. Tenta recuperar do IndexedDB local
     try {
         const key = `${STORAGE_PREFIX}${txId}`;
         const data = await get<ExpenseAttachment[]>(key);
-        const list = Array.isArray(data) ? data : [];
-        if (memoryAttachmentsCache && list.length > 0) {
-            memoryAttachmentsCache.set(txId, list);
+        if (Array.isArray(data) && data.length > 0 && data.some(a => !!a.dataUrl)) {
+            return data;
         }
-        return list;
-    } catch (err) {
-        console.error(`[ExpenseAttachmentService] Erro ao carregar anexos para tx ${txId}:`, err);
-        return [];
+    } catch (_) {}
+
+    // 2. Se não tem dataUrl local, busca sob demanda da VPS apenas para esta transação
+    const isRealDbTx = /^[0-9a-fA-F-]{36}$/.test(txId);
+    if (isRealDbTx) {
+        try {
+            const token = await getAuthToken();
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+
+            const res = await fetch(`/api/v1/consolidated_transactions/${txId}/attachments`, { headers });
+            if (res.ok) {
+                const list = await res.json();
+                if (Array.isArray(list) && list.length > 0) {
+                    set(`${STORAGE_PREFIX}${txId}`, list).catch(() => {});
+                    return list;
+                }
+            }
+        } catch (err) {
+            console.warn(`[ExpenseAttachmentService] Erro ao carregar anexos sob demanda para tx ${txId}:`, err);
+        }
     }
+
+    if (memoryAttachmentsCache && memoryAttachmentsCache.has(txId)) {
+        return memoryAttachmentsCache.get(txId) || [];
+    }
+
+    return [];
 }
 
 /**
@@ -150,8 +176,8 @@ export async function deleteAttachmentsForTransaction(
 }
 
 /**
- * Carrega em memória um mapa de todas as transações que possuem anexos cadastrados.
- * Se já carregado em memória, retorna imediatamente sem re-consultar o IndexedDB.
+ * Carrega em memória um mapa de metadados leves de todas as transações que possuem anexos cadastrados.
+ * 🛡️ Anti-OOM: Os campos pesados dataUrl são omitidos da memória RAM e carregados apenas sob demanda.
  */
 export async function preloadAllAttachmentsMap(forceRefresh = false): Promise<Map<string, ExpenseAttachment[]>> {
     if (!forceRefresh && memoryAttachmentsCache !== null) {
@@ -172,7 +198,14 @@ export async function preloadAllAttachmentsMap(forceRefresh = false): Promise<Ma
                     const txId = key.replace(STORAGE_PREFIX, '');
                     const list = await get<ExpenseAttachment[]>(key);
                     if (Array.isArray(list) && list.length > 0) {
-                        map.set(txId, list);
+                        const metaOnly = list.map(a => {
+                            if (a && a.dataUrl) {
+                                const { dataUrl, ...rest } = a;
+                                return { ...rest, txId, hasDataUrl: true };
+                            }
+                            return { ...a, txId, hasDataUrl: Boolean((a as any).hasDataUrl || a.dataUrl) };
+                        });
+                        map.set(txId, metaOnly);
                     }
                 })
             );

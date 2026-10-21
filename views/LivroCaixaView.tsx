@@ -1984,7 +1984,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                             {nfAtt && (
                                                                 <button
                                                                     type="button"
-                                                                    onClick={() => setPreviewAttachment(nfAtt)}
+                                                                    onClick={() => setPreviewAttachment({ ...nfAtt, txId: tx.id })}
                                                                     className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 hover:bg-indigo-200 transition-colors border border-indigo-300/80 dark:border-indigo-800/80 cursor-pointer shadow-2xs"
                                                                     title="Clique para visualizar a Nota Fiscal (NF-e/NFC-e)"
                                                                 >
@@ -1995,7 +1995,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                             {invoiceAtt && (
                                                                 <button
                                                                     type="button"
-                                                                    onClick={() => setPreviewAttachment(invoiceAtt)}
+                                                                    onClick={() => setPreviewAttachment({ ...invoiceAtt, txId: tx.id })}
                                                                     className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 hover:bg-amber-200 transition-colors border border-amber-300/80 dark:border-amber-800/80 cursor-pointer shadow-2xs"
                                                                     title="Clique para visualizar o Boleto / Fatura"
                                                                 >
@@ -2006,7 +2006,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                             {receiptAtt && (
                                                                 <button
                                                                     type="button"
-                                                                    onClick={() => setPreviewAttachment(receiptAtt)}
+                                                                    onClick={() => setPreviewAttachment({ ...receiptAtt, txId: tx.id })}
                                                                     className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 transition-colors border border-emerald-300/80 dark:border-emerald-800/80 cursor-pointer shadow-2xs"
                                                                     title="Clique para visualizar o Comprovante de Pagamento"
                                                                 >
@@ -2017,7 +2017,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                             {serviceReceiptAtt && (
                                                                 <button
                                                                     type="button"
-                                                                    onClick={() => setPreviewAttachment(serviceReceiptAtt)}
+                                                                    onClick={() => setPreviewAttachment({ ...serviceReceiptAtt, txId: tx.id })}
                                                                     className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 hover:bg-amber-200 transition-colors border border-amber-300 dark:border-amber-800 cursor-pointer shadow-2xs"
                                                                     title="Clique para visualizar o Recibo de Prestação de Serviços Assinado"
                                                                 >

@@ -1,7 +1,8 @@
-import React from 'react';
-import { X, Download, FileText, CheckCircle2, Calendar, DollarSign, Building, Receipt, CreditCard } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Download, FileText, CheckCircle2, Calendar, DollarSign, Building, Receipt, CreditCard, Loader2 } from 'lucide-react';
 import { ExpenseAttachment } from '../../types/domain';
 import { formatCurrency } from '../../utils/formatters';
+import { getAttachmentsForTransaction } from '../../services/expenseAttachmentService';
 
 interface AttachmentPreviewModalProps {
     isOpen: boolean;
@@ -14,6 +15,45 @@ export const AttachmentPreviewModal: React.FC<AttachmentPreviewModalProps> = ({
     attachment,
     onClose
 }) => {
+    const [loadedDataUrl, setLoadedDataUrl] = useState<string>('');
+    const [isLoadingData, setIsLoadingData] = useState<boolean>(false);
+
+    useEffect(() => {
+        if (!isOpen || !attachment) {
+            setLoadedDataUrl('');
+            setIsLoadingData(false);
+            return;
+        }
+
+        if (attachment.dataUrl) {
+            setLoadedDataUrl(attachment.dataUrl);
+            return;
+        }
+
+        const txId = (attachment as any).txId;
+        if (!txId) return;
+
+        let isMounted = true;
+        setIsLoadingData(true);
+        getAttachmentsForTransaction(txId)
+            .then(list => {
+                if (!isMounted) return;
+                const found = list.find(a => a.id === attachment.id) || list[0];
+                if (found?.dataUrl) {
+                    setLoadedDataUrl(found.dataUrl);
+                }
+            })
+            .catch(() => {})
+            .finally(() => {
+                if (isMounted) setIsLoadingData(false);
+            });
+
+        return () => {
+            isMounted = false;
+            setLoadedDataUrl('');
+        };
+    }, [isOpen, attachment]);
+
     if (!isOpen || !attachment) return null;
 
     const fileName = attachment.fileName || 'documento';
@@ -31,10 +71,12 @@ export const AttachmentPreviewModal: React.FC<AttachmentPreviewModalProps> = ({
         ? 'Comprovante de Pagamento' 
         : 'Documento';
 
+    const effectiveDataUrl = attachment.dataUrl || loadedDataUrl;
+
     const handleDownload = () => {
-        if (!attachment.dataUrl) return;
+        if (!effectiveDataUrl) return;
         const link = document.createElement('a');
-        link.href = attachment.dataUrl;
+        link.href = effectiveDataUrl;
         link.download = fileName;
         document.body.appendChild(link);
         link.click();
@@ -84,7 +126,7 @@ export const AttachmentPreviewModal: React.FC<AttachmentPreviewModalProps> = ({
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                        {attachment.dataUrl && (
+                        {effectiveDataUrl && (
                             <button
                                 type="button"
                                 onClick={handleDownload}
@@ -130,25 +172,28 @@ export const AttachmentPreviewModal: React.FC<AttachmentPreviewModalProps> = ({
 
                 {/* Preview Body */}
                 <div className="flex-1 overflow-auto p-4 flex items-center justify-center bg-slate-100/60 dark:bg-black/40 min-h-[320px]">
-                    {isImage && attachment.dataUrl && (
+                    {isLoadingData ? (
+                        <div className="flex flex-col items-center justify-center gap-3 p-8">
+                            <Loader2 className="w-8 h-8 animate-spin text-brand-blue" />
+                            <span className="text-xs font-semibold text-slate-500">Carregando arquivo...</span>
+                        </div>
+                    ) : isImage && effectiveDataUrl ? (
                         <img 
-                            src={attachment.dataUrl} 
+                            src={effectiveDataUrl} 
                             alt={fileName}
                             className="max-h-[70vh] w-auto max-w-full rounded-lg shadow-md object-contain" 
                         />
-                    )}
-                    {isPdf && attachment.dataUrl && (
+                    ) : isPdf && effectiveDataUrl ? (
                         <iframe
-                            src={attachment.dataUrl}
+                            src={effectiveDataUrl}
                             title={fileName}
                             className="w-full h-[70vh] rounded-lg border border-slate-200 dark:border-slate-800 shadow-md bg-white"
                         />
-                    )}
-                    {(!attachment.dataUrl || (!isImage && !isPdf)) && (
+                    ) : (
                         <div className="text-center p-8 space-y-3">
                             <FileText className="w-12 h-12 mx-auto text-slate-400" />
                             <p className="text-xs text-slate-500 font-medium">Visualização direta não suportada para este formato.</p>
-                            {attachment.dataUrl && (
+                            {effectiveDataUrl && (
                                 <button
                                     type="button"
                                     onClick={handleDownload}

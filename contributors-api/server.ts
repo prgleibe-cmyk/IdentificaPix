@@ -7246,19 +7246,80 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
     const result = await pool.query(query, params);
     const sanitizedRows = (result.rows || []).map((row: any) => {
       const descUpper = (row.description || '').toUpperCase();
+      let effectiveType = row.type;
       if (
         row.type === 'expense' && 
         (descUpper.includes('NU PAGAMENTOS') || descUpper.includes('RECEBEU') || descUpper.includes('RECEBIDO')) &&
         !descUpper.includes('ENVIADO') && 
         !descUpper.includes('PAGO A')
       ) {
-        return { ...row, type: 'income' };
+        effectiveType = 'income';
       }
-      return row;
+
+      // 🛡️ Otimização Crítica de Memória & Inicialização (Prevenção de Out of Memory):
+      // Na listagem geral de transações, attachments retorna apenas metadados leves (id, nome, tamanho, tipo, role).
+      // O campo massivo dataUrl (base64 de megabytes) é removido da lista global e servido sob demanda em /:id/attachments.
+      let cleanAttachments = row.attachments;
+      if (cleanAttachments) {
+        try {
+          const parsed = typeof cleanAttachments === 'string' ? JSON.parse(cleanAttachments) : cleanAttachments;
+          if (Array.isArray(parsed)) {
+            cleanAttachments = parsed.map((att: any) => {
+              if (att && typeof att === 'object') {
+                const { dataUrl, extractedData, ...rest } = att;
+                const lightExtracted = extractedData ? {
+                  documentType: extractedData.documentType,
+                  extractedAmount: extractedData.extractedAmount,
+                  extractedDate: extractedData.extractedDate,
+                  extractedRecipient: extractedData.extractedRecipient,
+                  extractedCNPJ: extractedData.extractedCNPJ
+                } : undefined;
+                return {
+                  ...rest,
+                  extractedData: lightExtracted,
+                  txId: row.id,
+                  hasDataUrl: Boolean(dataUrl)
+                };
+              }
+              return att;
+            });
+          }
+        } catch (_) {}
+      }
+
+      return {
+        ...row,
+        type: effectiveType,
+        attachments: cleanAttachments
+      };
     });
     return res.json(sanitizedRows);
   } catch (err) {
     console.error('[Contributors API] Error GET consolidated_transactions:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// GET /api/v1/consolidated_transactions/:id/attachments
+// 🛡️ Endpoint sob demanda: Retorna os anexos completos com dataUrl apenas para a transação solicitada
+app.get('/api/v1/consolidated_transactions/:id/attachments', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const ctx = getTenantContext(req);
+    const txRes = await pool.query('SELECT attachments, church_id, user_id FROM consolidated_transactions WHERE id::text = $1 LIMIT 1', [id]);
+    if (!txRes.rows || txRes.rows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND' });
+    }
+    const row = txRes.rows[0];
+    const isAuthorized = await isAuthorizedForTransaction(pool, ctx, row);
+    if (!isAuthorized) {
+      return res.status(403).json({ error: 'FORBIDDEN' });
+    }
+    const rawAtts = row.attachments;
+    const parsed = typeof rawAtts === 'string' ? JSON.parse(rawAtts) : (rawAtts || []);
+    return res.json(parsed);
+  } catch (err) {
+    console.error('[Contributors API] Error GET attachments:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
   }
 });

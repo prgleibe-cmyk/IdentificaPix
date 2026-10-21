@@ -373,14 +373,24 @@ export const useCloudSync = ({
                     const manualRefDate = isManualTx && t.transaction_date ? String(t.transaction_date).split(/[T ]/)[0] : null;
                     const resolvedRefDate = t.reference_date || manualRefDate || null;
 
-                    const parsedAttachments = (Array.isArray(t.attachments) && t.attachments.length > 0)
-                        ? t.attachments
-                        : (typeof t.attachments === 'string' && t.attachments.trim().startsWith('[')
-                            ? (() => { try { const p = JSON.parse(t.attachments); return Array.isArray(p) && p.length > 0 ? p : undefined; } catch (_) { return undefined; } })()
+                    const rawAtts = t.attachments;
+                    const parsedAttachments = (Array.isArray(rawAtts) && rawAtts.length > 0)
+                        ? rawAtts
+                        : (typeof rawAtts === 'string' && rawAtts.trim().startsWith('[')
+                            ? (() => { try { const p = JSON.parse(rawAtts); return Array.isArray(p) && p.length > 0 ? p : undefined; } catch (_) { return undefined; } })()
                             : undefined);
 
-                    if (parsedAttachments && parsedAttachments.length > 0) {
-                        syncAttachmentsToCache(t.id, parsedAttachments);
+                    // 🛡️ Anti-OOM: Garante que anexos em estado global React nunca acumulem dataUrl pesado
+                    const lightAttachments = parsedAttachments ? parsedAttachments.map((a: any) => {
+                        if (a && a.dataUrl) {
+                            const { dataUrl, ...rest } = a;
+                            return { ...rest, txId: t.id, hasDataUrl: true };
+                        }
+                        return { ...a, txId: t.id };
+                    }) : undefined;
+
+                    if (lightAttachments && lightAttachments.length > 0) {
+                        syncAttachmentsToCache(t.id, lightAttachments);
                     }
 
                     const transaction: Transaction = {

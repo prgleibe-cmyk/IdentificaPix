@@ -232,7 +232,7 @@ const MobileCard = memo(({
                                 {nfAtt && (
                                     <button
                                         type="button"
-                                        onClick={(e) => { e.stopPropagation(); onPreviewAttachment(nfAtt); }}
+                                        onClick={(e) => { e.stopPropagation(); onPreviewAttachment({ ...nfAtt, txId: result.transaction.id }); }}
                                         className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 hover:bg-indigo-200 transition-colors border border-indigo-300/80 dark:border-indigo-800/80 cursor-pointer shadow-2xs"
                                         title="Clique para visualizar a Nota Fiscal (NF-e/NFC-e)"
                                     >
@@ -243,7 +243,7 @@ const MobileCard = memo(({
                                 {invoiceAtt && (
                                     <button
                                         type="button"
-                                        onClick={(e) => { e.stopPropagation(); onPreviewAttachment(invoiceAtt); }}
+                                        onClick={(e) => { e.stopPropagation(); onPreviewAttachment({ ...invoiceAtt, txId: result.transaction.id }); }}
                                         className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 hover:bg-amber-200 transition-colors border border-amber-300/80 dark:border-amber-800/80 cursor-pointer shadow-2xs"
                                         title="Clique para visualizar o Boleto / Fatura"
                                     >
@@ -254,7 +254,7 @@ const MobileCard = memo(({
                                 {receiptAtt && (
                                     <button
                                         type="button"
-                                        onClick={(e) => { e.stopPropagation(); onPreviewAttachment(receiptAtt); }}
+                                        onClick={(e) => { e.stopPropagation(); onPreviewAttachment({ ...receiptAtt, txId: result.transaction.id }); }}
                                         className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 transition-colors border border-emerald-300/80 dark:border-emerald-800/80 cursor-pointer shadow-2xs"
                                         title="Clique para visualizar o Comprovante de Pagamento"
                                     >
@@ -265,7 +265,7 @@ const MobileCard = memo(({
                                 {serviceReceiptAtt && (
                                     <button
                                         type="button"
-                                        onClick={(e) => { e.stopPropagation(); onPreviewAttachment(serviceReceiptAtt); }}
+                                        onClick={(e) => { e.stopPropagation(); onPreviewAttachment({ ...serviceReceiptAtt, txId: result.transaction.id }); }}
                                         className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 hover:bg-amber-200 transition-colors border border-amber-300 dark:border-amber-800 cursor-pointer shadow-2xs"
                                         title="Clique para visualizar o Recibo de Prestação de Serviços Assinado"
                                     >
@@ -679,7 +679,7 @@ const IncomeRow = memo(({
                                 {nfAtt && (
                                     <button
                                         type="button"
-                                        onClick={(e) => { e.stopPropagation(); onPreviewAttachment(nfAtt); }}
+                                        onClick={(e) => { e.stopPropagation(); onPreviewAttachment({ ...nfAtt, txId: row.transaction.id }); }}
                                         className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 hover:bg-indigo-200 transition-colors border border-indigo-300/80 dark:border-indigo-800/80 cursor-pointer shadow-2xs"
                                         title="Clique para visualizar a Nota Fiscal (NF-e/NFC-e)"
                                     >
@@ -690,7 +690,7 @@ const IncomeRow = memo(({
                                 {invoiceAtt && (
                                     <button
                                         type="button"
-                                        onClick={(e) => { e.stopPropagation(); onPreviewAttachment(invoiceAtt); }}
+                                        onClick={(e) => { e.stopPropagation(); onPreviewAttachment({ ...invoiceAtt, txId: row.transaction.id }); }}
                                         className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 hover:bg-amber-200 transition-colors border border-amber-300/80 dark:border-amber-800/80 cursor-pointer shadow-2xs"
                                         title="Clique para visualizar o Boleto / Fatura"
                                     >
@@ -701,7 +701,7 @@ const IncomeRow = memo(({
                                 {receiptAtt && (
                                     <button
                                         type="button"
-                                        onClick={(e) => { e.stopPropagation(); onPreviewAttachment(receiptAtt); }}
+                                        onClick={(e) => { e.stopPropagation(); onPreviewAttachment({ ...receiptAtt, txId: row.transaction.id }); }}
                                         className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 transition-colors border border-emerald-300/80 dark:border-emerald-800/80 cursor-pointer shadow-2xs"
                                         title="Clique para visualizar o Comprovante de Pagamento"
                                     >
@@ -712,7 +712,7 @@ const IncomeRow = memo(({
                                 {serviceReceiptAtt && (
                                     <button
                                         type="button"
-                                        onClick={(e) => { e.stopPropagation(); onPreviewAttachment(serviceReceiptAtt); }}
+                                        onClick={(e) => { e.stopPropagation(); onPreviewAttachment({ ...serviceReceiptAtt, txId: row.transaction.id }); }}
                                         className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 hover:bg-amber-200 transition-colors border border-amber-300 dark:border-amber-800 cursor-pointer shadow-2xs"
                                         title="Clique para visualizar o Recibo de Prestação de Serviços Assinado"
                                     >

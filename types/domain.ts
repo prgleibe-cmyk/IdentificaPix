@@ -384,6 +384,8 @@ export interface ExpenseAttachment {
   validationStatus: ExpenseValidationStatus;
   validationNotes?: string;
   documentRole?: DocumentRole;
+  txId?: string;
+  hasDataUrl?: boolean;
 }
 
 export interface FinancialRecord {
