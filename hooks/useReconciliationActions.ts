@@ -422,10 +422,16 @@ export const useReconciliationActions = ({
           const finalAmount = isExpense ? -Math.abs(originalAmountNum) : Math.abs(originalAmountNum);
           const finalRefDate = selectedDate || original.reference_date || original.transaction.reference_date || undefined;
 
+          const effectiveChurchId = (churchId && churchId !== 'unidentified')
+            ? churchId
+            : (original.church?.id && original.church.id !== 'unidentified'
+              ? original.church.id
+              : (original._churchId && original._churchId !== 'unidentified' ? original._churchId : undefined));
+
           await consolidationService.updateTransactionStatus(
             id, 
             'identified', 
-            churchId, 
+            effectiveChurchId, 
             original.transaction.bank_id,
             contributorIdToUse,
             false,

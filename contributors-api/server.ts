@@ -663,9 +663,36 @@ class LocalSqliteEngine {
         SET church_id = '00000000-0000-0000-0000-000000000001' 
         WHERE church_id IS NULL OR trim(church_id) = '' OR church_id = 'church-1';
 
-        UPDATE consolidated_transactions 
-        SET church_id = '00000000-0000-0000-0000-000000000001' 
-        WHERE church_id IS NULL OR trim(church_id) = '' OR church_id = 'church-1';
+        UPDATE consolidated_transactions
+        SET church_id = (
+          SELECT church_id FROM learned_associations 
+          WHERE LOWER(TRIM(learned_associations.normalized_description)) = LOWER(TRIM(consolidated_transactions.description))
+            AND learned_associations.church_id IS NOT NULL
+          LIMIT 1
+        )
+        WHERE (church_id IS NULL OR trim(church_id) = '' OR church_id = 'church-1')
+          AND status IN ('identified', 'resolved')
+          AND EXISTS (
+            SELECT 1 FROM learned_associations 
+            WHERE LOWER(TRIM(learned_associations.normalized_description)) = LOWER(TRIM(consolidated_transactions.description))
+              AND learned_associations.church_id IS NOT NULL
+          );
+
+        UPDATE consolidated_transactions
+        SET church_id = (
+          SELECT church_id FROM contributors 
+          WHERE contributors.id = consolidated_transactions.contributor_id
+            AND contributors.church_id IS NOT NULL
+          LIMIT 1
+        )
+        WHERE (church_id IS NULL OR trim(church_id) = '' OR church_id = 'church-1')
+          AND status IN ('identified', 'resolved')
+          AND contributor_id IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM contributors 
+            WHERE contributors.id = consolidated_transactions.contributor_id
+              AND contributors.church_id IS NOT NULL
+          );
       `);
       // 🛡️ Regra de Identificação e Sincronização de Igrejas para Cadastros do Portal:
       this.db.exec(`
@@ -1670,6 +1697,46 @@ async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_learned_assoc_church_desc ON learned_associations(church_id, normalized_description);');
     await client.query('CREATE INDEX IF NOT EXISTS idx_learned_assoc_user ON learned_associations(user_id);');
     console.log('[Contributors API] Table "learned_associations" verified or successfully created.');
+
+    // 🛡️ Auto-Reparo Cirúrgico: Restaura church_id em transações identificadas que ficaram com church_id nulo
+    try {
+      await client.query(`
+        UPDATE consolidated_transactions
+        SET church_id = (
+          SELECT church_id FROM learned_associations 
+          WHERE LOWER(TRIM(learned_associations.normalized_description)) = LOWER(TRIM(consolidated_transactions.description))
+            AND learned_associations.church_id IS NOT NULL
+          LIMIT 1
+        )
+        WHERE church_id IS NULL 
+          AND status IN ('identified', 'resolved')
+          AND EXISTS (
+            SELECT 1 FROM learned_associations 
+            WHERE LOWER(TRIM(learned_associations.normalized_description)) = LOWER(TRIM(consolidated_transactions.description))
+              AND learned_associations.church_id IS NOT NULL
+          );
+      `);
+
+      await client.query(`
+        UPDATE consolidated_transactions
+        SET church_id = (
+          SELECT church_id FROM contributors 
+          WHERE contributors.id = consolidated_transactions.contributor_id
+            AND contributors.church_id IS NOT NULL
+          LIMIT 1
+        )
+        WHERE church_id IS NULL 
+          AND status IN ('identified', 'resolved')
+          AND contributor_id IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM contributors 
+            WHERE contributors.id = consolidated_transactions.contributor_id
+              AND contributors.church_id IS NOT NULL
+          );
+      `);
+    } catch (healErr: any) {
+      console.warn('[Contributors API] Aviso ao auto-reparar church_id nulo em transações:', healErr?.message);
+    }
 
     // Create table saved_reports
     await client.query(`
@@ -7551,6 +7618,37 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
       } catch (_) {}
     }
 
+    let finalChurchIdToSet = church_id !== undefined ? (church_id && church_id !== 'unidentified' ? church_id : null) : undefined;
+    // 🛡️ Proteção Anti-Regressão de Congregação: se o lançamento está identificado/resolvido e a igreja recebida foi nula ou não identificada,
+    // preserva a congregação anterior ou recupera do cadastro do contribuinte / regra de associação aprendida
+    if ((status === 'identified' || status === 'resolved' || oldTx.status === 'identified' || oldTx.status === 'resolved') && (!finalChurchIdToSet || finalChurchIdToSet === 'unidentified')) {
+      if (oldTx.church_id && oldTx.church_id !== 'unidentified') {
+        finalChurchIdToSet = oldTx.church_id;
+      } else {
+        const targetContribId = contributor_id || oldTx.contributor_id;
+        if (targetContribId) {
+          try {
+            const cRes = await pool.query('SELECT church_id FROM contributors WHERE id = $1 LIMIT 1', [targetContribId]);
+            if (cRes.rows.length > 0 && cRes.rows[0].church_id && cRes.rows[0].church_id !== 'unidentified') {
+              finalChurchIdToSet = cRes.rows[0].church_id;
+            }
+          } catch (_) {}
+        }
+        if (!finalChurchIdToSet) {
+          try {
+            const descToUse = description || oldTx.description;
+            const normDesc = descToUse ? descToUse.toLowerCase().trim() : '';
+            if (normDesc) {
+              const laRes = await pool.query('SELECT church_id FROM learned_associations WHERE LOWER(TRIM(normalized_description)) = $1 AND church_id IS NOT NULL LIMIT 1', [normDesc]);
+              if (laRes.rows.length > 0 && laRes.rows[0].church_id && laRes.rows[0].church_id !== 'unidentified') {
+                finalChurchIdToSet = laRes.rows[0].church_id;
+              }
+            }
+          } catch (_) {}
+        }
+      }
+    }
+
     const result = await pool.query(
       `UPDATE consolidated_transactions SET 
         amount = COALESCE($1, amount), 
@@ -7584,7 +7682,7 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
         row_hash, 
         is_confirmed, 
         transaction_date, 
-        church_id !== undefined ? church_id : null, 
+        finalChurchIdToSet !== undefined ? finalChurchIdToSet : null, 
         contributor_id !== undefined ? contributor_id : null, 
         report_id, 
         payment_method, 
@@ -7593,7 +7691,7 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
         finalSplitsToSet, 
         id,
         bank_id !== undefined,
-        church_id !== undefined,
+        finalChurchIdToSet !== undefined,
         contributor_id !== undefined,
         reference_date !== undefined ? (reference_date || null) : null,
         reference_date !== undefined

@@ -733,10 +733,14 @@ export const ManualIdModal: React.FC = () => {
             const initialDate = matchedResult?.reference_date || tx.reference_date || tx.date || new Date().toISOString().split('T')[0];
             setSelectedDate(initialDate);
 
-            if (matchedResult?.church?.id) {
+            if (matchedResult?.church?.id && matchedResult.church.id !== 'unidentified') {
                 setSelectedChurchId(matchedResult.church.id);
+            } else if (matchedResult?._churchId && matchedResult._churchId !== 'unidentified') {
+                setSelectedChurchId(matchedResult._churchId);
             } else if (churches.length === 1) {
                 setSelectedChurchId(churches[0].id);
+            } else {
+                setSelectedChurchId('');
             }
 
             if (tx.bank_id) {
@@ -753,14 +757,14 @@ export const ManualIdModal: React.FC = () => {
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') handleClose();
-            if (e.key === 'Enter' && selectedChurchId && (!isManualLaunch || (selectedBankId && manualType && selectedType.trim())) && !isSaving) handleConfirm();
+            if (e.key === 'Enter' && selectedChurchId && selectedChurchId !== 'unidentified' && (!isManualLaunch || (selectedBankId && manualType && selectedType.trim())) && !isSaving) handleConfirm();
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [handleClose, selectedChurchId, selectedBankId, isManualLaunch, manualType, selectedType, isSaving]);
 
     useEffect(() => {
-        if (churches.length === 1 && !selectedChurchId) {
+        if (churches.length === 1 && (!selectedChurchId || selectedChurchId === 'unidentified')) {
             setSelectedChurchId(churches[0].id);
         }
     }, [churches, selectedChurchId]);
@@ -882,7 +886,10 @@ export const ManualIdModal: React.FC = () => {
     if (!isBulk) return null;
     
     const handleConfirm = async () => {
-        if (!selectedChurchId) return;
+        if (!selectedChurchId || selectedChurchId === 'unidentified') {
+            alert("Por favor, selecione a Igreja / Congregação de destino antes de salvar.");
+            return;
+        }
 
         if (isManualLaunch && !manualType) {
             alert("Por favor, selecione se este lançamento é uma Entrada ou Saída antes de salvar.");
