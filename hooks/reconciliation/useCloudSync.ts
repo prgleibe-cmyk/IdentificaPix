@@ -620,6 +620,10 @@ export const useCloudSync = ({
                     showToast("Sessão ativa sincronizada.", "success");
                 }
 
+                if (!isSecondaryUser) {
+                    fetch('/api/v1/consolidated_transactions/repair-churches').catch(() => {});
+                }
+
                 if (pendingPromotions.length > 0) {
                     console.log(`[CloudSync] Agendando auto-promoção veloz em lote de ${pendingPromotions.length} transações...`);
                     (async () => {

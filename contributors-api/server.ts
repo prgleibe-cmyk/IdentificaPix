@@ -1991,6 +1991,7 @@ initializeDatabase().then(() => {
   scheduleAutomatedBackups(pool);
   startMonitoringService(pool);
   startBackgroundScheduler(pool);
+  healOrphanChurches(pool).catch((e: any) => console.warn('[AutoHeal:Churches] Erro no boot:', e));
 }).catch((err: any) => {
   const isNetworkOrDns = err?.code === 'EAI_AGAIN' || err?.code === 'ENOTFOUND' || err?.code === 'ECONNREFUSED' || err?.code === 'ETIMEDOUT';
   console.warn(`[Contributors API] Initial database connection not ready (${isNetworkOrDns ? 'Aguardando host PostgreSQL' : 'Erro'}):`, err?.message || err);
@@ -6998,6 +6999,101 @@ app.delete('/api/v1/church-closings/:churchId/:year/:month', async (req: Request
   } catch (err) {
     console.error('[ChurchClosings] Erro ao deletar fechamento:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// 🛡️ Função Cirúrgica de Auto-Cura de Transações com congregação nula
+async function healOrphanChurches(poolInstance: any): Promise<{ totalFound: number; repairedCount: number }> {
+  try {
+    const res = await poolInstance.query(
+      `SELECT id, description, contributor_id, user_id FROM consolidated_transactions 
+       WHERE (church_id IS NULL OR trim(church_id::text) = '' OR church_id::text = 'unidentified') 
+         AND status IN ('identified', 'resolved')`
+    );
+    const rows = res.rows || [];
+    if (rows.length === 0) return { totalFound: 0, repairedCount: 0 };
+
+    console.log(`[AutoHeal:Churches] Encontradas ${rows.length} transações identificadas/resolvidas com church_id nulo. Reparando...`);
+
+    const laRes = await poolInstance.query(`SELECT normalized_description, church_id FROM learned_associations WHERE church_id IS NOT NULL`);
+    const associations = laRes.rows || [];
+
+    const cRes = await poolInstance.query(`SELECT id, church_id FROM contributors WHERE church_id IS NOT NULL`);
+    const contribMap = new Map<string, string>();
+    (cRes.rows || []).forEach((c: any) => {
+      if (c.id && c.church_id) contribMap.set(String(c.id), String(c.church_id));
+    });
+
+    const chRes = await poolInstance.query(`SELECT id FROM churches ORDER BY created_at ASC`);
+    const allChurches = (chRes.rows || []).map((c: any) => String(c.id));
+
+    let repairedCount = 0;
+
+    for (const tx of rows) {
+      let resolvedChurchId: string | null = null;
+
+      // 1. Pelo contribuinte vinculado
+      if (tx.contributor_id && contribMap.has(String(tx.contributor_id))) {
+        resolvedChurchId = contribMap.get(String(tx.contributor_id))!;
+      }
+
+      // 2. Pela regra de associação aprendida (DNA da transação)
+      if (!resolvedChurchId && tx.description) {
+        const strictDesc = String(tx.description)
+          .toUpperCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^A-Z0-9]/g, '')
+          .trim();
+
+        const foundAssoc = associations.find((a: any) => {
+          if (!a.normalized_description) return false;
+          const aNorm = String(a.normalized_description).trim();
+          return aNorm === strictDesc || strictDesc.includes(aNorm) || aNorm.includes(strictDesc);
+        });
+
+        if (foundAssoc && foundAssoc.church_id) {
+          resolvedChurchId = String(foundAssoc.church_id);
+        }
+      }
+
+      // 3. Se houver apenas 1 congregação cadastrada no sistema
+      if (!resolvedChurchId && allChurches.length === 1) {
+        resolvedChurchId = allChurches[0];
+      }
+
+      if (resolvedChurchId && resolvedChurchId !== 'unidentified') {
+        await poolInstance.query(
+          `UPDATE consolidated_transactions SET church_id = $1 WHERE id::text = $2`,
+          [resolvedChurchId, String(tx.id)]
+        );
+        repairedCount++;
+        console.log(`[AutoHeal:Churches] Transação ${tx.id} ("${tx.description}") reparada com sucesso -> church_id: ${resolvedChurchId}`);
+      }
+    }
+
+    console.log(`[AutoHeal:Churches] Concluído: ${repairedCount} de ${rows.length} transações reparadas.`);
+    return { totalFound: rows.length, repairedCount };
+  } catch (err) {
+    console.error('[AutoHeal:Churches] Erro ao executar reparo:', err);
+    return { totalFound: 0, repairedCount: 0 };
+  }
+}
+
+// Endpoint de Auto-Cura de Transações com church_id nulo
+app.all(['/api/v1/consolidated_transactions/repair-churches', '/api/v1/admin/repair-orphan-churches'], async (req: Request, res: Response) => {
+  try {
+    const result = await healOrphanChurches(pool);
+    return res.json({
+      success: true,
+      ...result,
+      message: result.repairedCount > 0 
+        ? `${result.repairedCount} transações identificadas foram reparadas e vinculadas à sua igreja correta no banco de dados!` 
+        : (result.totalFound === 0 ? 'Nenhuma transação com igreja nula encontrada no banco de dados.' : 'Transações analisadas, mas nenhuma associação aprendida correspondente foi encontrada.')
+    });
+  } catch (err: any) {
+    console.error('[RepairChurches Endpoint] Erro:', err);
+    return res.status(500).json({ success: false, error: err?.message || String(err) });
   }
 });
 
