@@ -1,5 +1,6 @@
 import { get, set, del, keys } from 'idb-keyval';
 import { ExpenseAttachment } from '../types/domain';
+import { getAuthToken } from './auth/authAdapter';
 
 const STORAGE_PREFIX = 'idpix_expense_att_';
 
@@ -16,7 +17,26 @@ export function getCachedAttachmentsMap(): Map<string, ExpenseAttachment[]> | nu
 }
 
 /**
- * Salva os comprovantes e faturas de uma transação específica no IndexedDB e atualiza o cache
+ * 🛡️ Sincroniza anexos vindos da nuvem (PostgreSQL / SQLite) para a memória e cache local
+ */
+export function syncAttachmentsToCache(txId: string, attachments?: ExpenseAttachment[]): void {
+    if (!txId) return;
+    if (!memoryAttachmentsCache) {
+        memoryAttachmentsCache = new Map();
+    }
+    const key = `${STORAGE_PREFIX}${txId}`;
+    if (attachments && attachments.length > 0) {
+        memoryAttachmentsCache.set(txId, attachments);
+        set(key, attachments).catch(() => {});
+    } else if (memoryAttachmentsCache.has(txId)) {
+        memoryAttachmentsCache.delete(txId);
+        del(key).catch(() => {});
+    }
+}
+
+/**
+ * Salva os comprovantes e faturas de uma transação específica no IndexedDB e atualiza o cache,
+ * persistindo diretamente na nuvem (VPS PostgreSQL / SQLite) em tempo real.
  */
 export async function saveAttachmentsForTransaction(
     txId: string, 
@@ -38,6 +58,26 @@ export async function saveAttachmentsForTransaction(
         }
         if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('expense_attachments_updated', { detail: { txId } }));
+        }
+
+        // 🛡️ Sincronização e Persistência em Nuvem (VPS PostgreSQL / SQLite) em Tempo Real
+        const isRealDbTx = /^[0-9a-fA-F-]{36}$/.test(txId);
+        if (isRealDbTx) {
+            try {
+                const token = await getAuthToken();
+                const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = `Bearer ${token}`;
+
+                await fetch(`/api/v1/consolidated_transactions/${txId}`, {
+                    method: 'PUT',
+                    headers,
+                    body: JSON.stringify({
+                        attachments: (attachments && attachments.length > 0) ? attachments : []
+                    })
+                });
+            } catch (cloudErr) {
+                console.warn(`[ExpenseAttachmentService] Aviso ao persistir anexos na nuvem para tx ${txId}:`, cloudErr);
+            }
         }
     } catch (err) {
         console.error(`[ExpenseAttachmentService] Erro ao salvar anexos para tx ${txId}:`, err);
@@ -83,6 +123,26 @@ export async function deleteAttachmentsForTransaction(
         }
         if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('expense_attachments_updated', { detail: { txId } }));
+        }
+
+        // 🛡️ Sincronização e Persistência em Nuvem (VPS PostgreSQL / SQLite)
+        const isRealDbTx = /^[0-9a-fA-F-]{36}$/.test(txId);
+        if (isRealDbTx) {
+            try {
+                const token = await getAuthToken();
+                const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = `Bearer ${token}`;
+
+                await fetch(`/api/v1/consolidated_transactions/${txId}`, {
+                    method: 'PUT',
+                    headers,
+                    body: JSON.stringify({
+                        attachments: []
+                    })
+                });
+            } catch (cloudErr) {
+                console.warn(`[ExpenseAttachmentService] Aviso ao remover anexos na nuvem para tx ${txId}:`, cloudErr);
+            }
         }
     } catch (err) {
         console.error(`[ExpenseAttachmentService] Erro ao deletar anexos para tx ${txId}:`, err);

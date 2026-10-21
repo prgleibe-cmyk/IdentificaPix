@@ -3,6 +3,7 @@ import { MatchResult, ReconciliationStatus, MatchMethod, Transaction, Contributo
 import { PLACEHOLDER_CHURCH, strictNormalize, isInvalidOrNumericName } from '../../services/processingService';
 import { consolidationService } from '../../services/ConsolidationService';
 import { getAuthToken } from '../../services/auth/authAdapter';
+import { syncAttachmentsToCache } from '../../services/expenseAttachmentService';
 
 interface UseCloudSyncProps {
     user: any;
@@ -372,6 +373,16 @@ export const useCloudSync = ({
                     const manualRefDate = isManualTx && t.transaction_date ? String(t.transaction_date).split(/[T ]/)[0] : null;
                     const resolvedRefDate = t.reference_date || manualRefDate || null;
 
+                    const parsedAttachments = (Array.isArray(t.attachments) && t.attachments.length > 0)
+                        ? t.attachments
+                        : (typeof t.attachments === 'string' && t.attachments.trim().startsWith('[')
+                            ? (() => { try { const p = JSON.parse(t.attachments); return Array.isArray(p) && p.length > 0 ? p : undefined; } catch (_) { return undefined; } })()
+                            : undefined);
+
+                    if (parsedAttachments && parsedAttachments.length > 0) {
+                        syncAttachmentsToCache(t.id, parsedAttachments);
+                    }
+
                     const transaction: Transaction = {
                         id: t.id,
                         date: t.transaction_date,
@@ -387,7 +398,8 @@ export const useCloudSync = ({
                         pix_key: t.pix_key,
                         row_hash: t.row_hash,
                         contributionType: savedContribType,
-                        paymentMethod: savedPaymentMethod
+                        paymentMethod: savedPaymentMethod,
+                        attachments: parsedAttachments
                     };
 
                     const regName = t.contributor_id ? getRegisteredContributorName(t.contributor_id) : null;
@@ -442,6 +454,7 @@ export const useCloudSync = ({
                             : (typeof t.splits === 'string' && t.splits.trim().startsWith('[')
                                 ? (() => { try { const p = JSON.parse(t.splits); return Array.isArray(p) && p.length > 0 ? p : undefined; } catch (_) { return undefined; } })()
                                 : undefined),
+                        attachments: parsedAttachments,
                         updatedAt: t.updated_at
                     };
 

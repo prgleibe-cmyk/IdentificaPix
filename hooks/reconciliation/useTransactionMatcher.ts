@@ -523,7 +523,8 @@ export const useTransactionMatcher = ({
                         payment_method: updatedRow.paymentMethod || null,
                         splits: updatedRow.splits && updatedRow.splits.length > 0 ? updatedRow.splits : null,
                         status: updatedRow.status || 'identified',
-                        is_confirmed: updatedRow.isConfirmed
+                        is_confirmed: updatedRow.isConfirmed,
+                        attachments: updatedRow.attachments || updatedRow.transaction.attachments || null
                     })
                 });
 

@@ -246,7 +246,8 @@ export const useReconciliationActions = ({
           source: 'manual',
           contributor_id: actualContributorId || null,
           contribution_type: contributionType || null,
-          payment_method: paymentMethod || null
+          payment_method: paymentMethod || null,
+          attachments: (attachments && attachments.length > 0) ? attachments : null
         };
 
         const result = await consolidationService.addTransactions([newTxPayload]);

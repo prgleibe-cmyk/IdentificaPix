@@ -217,6 +217,7 @@ class LocalSqliteEngine {
         contribution_request_id TEXT,
         splits TEXT,
         reference_date TEXT,
+        attachments TEXT DEFAULT '[]',
         created_at TEXT DEFAULT (now()),
         updated_at TEXT DEFAULT (now())
       );
@@ -580,6 +581,7 @@ class LocalSqliteEngine {
     safeAdd('consolidated_transactions', 'contribution_type TEXT');
     safeAdd('consolidated_transactions', 'contribution_request_id TEXT');
     safeAdd('consolidated_transactions', 'splits TEXT');
+    safeAdd('consolidated_transactions', 'attachments TEXT DEFAULT "[]"');
     safeAdd('consolidated_transactions', 'updated_at TEXT DEFAULT CURRENT_TIMESTAMP');
 
     safeAdd('contribution_requests', 'bank_id TEXT');
@@ -1643,6 +1645,7 @@ async function initializeDatabase() {
         row_hash VARCHAR(255),
         is_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
         transaction_date TIMESTAMP NOT NULL,
+        attachments JSONB DEFAULT '[]'::jsonb,
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
     `);
@@ -1667,6 +1670,7 @@ async function initializeDatabase() {
     await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS contribution_request_id UUID;');
     await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS splits JSONB;');
     await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS reference_date VARCHAR(255);');
+    await client.query("ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS attachments JSONB DEFAULT '[]'::jsonb;");
     await client.query('CREATE INDEX IF NOT EXISTS idx_consolidated_tx_contrib_req ON consolidated_transactions(church_id, contribution_request_id);');
     await client.query('CREATE INDEX IF NOT EXISTS idx_consolidated_tx_church_user ON consolidated_transactions(church_id, user_id);');
     await client.query('CREATE INDEX IF NOT EXISTS idx_consolidated_tx_date ON consolidated_transactions(transaction_date);');
@@ -7124,7 +7128,7 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
       return res.json([]);
     }
 
-    let query = 'SELECT id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, created_at, updated_at, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits FROM consolidated_transactions WHERE 1=1';
+    let query = 'SELECT id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, created_at, updated_at, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits, attachments FROM consolidated_transactions WHERE 1=1';
     const params: any[] = [];
     let counter = 1;
 
@@ -7263,7 +7267,7 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
 app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response) => {
   try {
     const ctx = getTenantContext(req);
-    const { id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits } = req.body;
+    const { id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits, attachments } = req.body;
 
     const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
     const defaultChurchId = (ctx.allowedChurchIds && ctx.allowedChurchIds.length > 0) ? ctx.allowedChurchIds[0] : '00000000-0000-0000-0000-000000000001';
@@ -7317,6 +7321,7 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
 
     let initialSplits = splits ? (typeof splits === 'string' ? splits : JSON.stringify(splits)) : null;
     let initialContributionType = contribution_type || null;
+    const initialAttachments = attachments ? (typeof attachments === 'string' ? attachments : JSON.stringify(attachments)) : '[]';
 
     if (finalContribReqId && !initialSplits) {
       try {
@@ -7340,8 +7345,8 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
     let params: any[] = [];
     if (finalId) {
       query = `INSERT INTO consolidated_transactions 
-        (id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) 
+        (id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits, attachments) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) 
         ON CONFLICT (id) DO UPDATE SET 
           amount = EXCLUDED.amount, 
           description = EXCLUDED.description, 
@@ -7356,14 +7361,15 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
           contribution_type = EXCLUDED.contribution_type,
           contribution_request_id = EXCLUDED.contribution_request_id,
           splits = EXCLUDED.splits,
+          attachments = EXCLUDED.attachments,
           updated_at = NOW()
         RETURNING *`;
-      params = [finalId, amount, description, effectiveType, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, reference_date || null, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, initialContributionType, finalContribReqId || null, initialSplits];
+      params = [finalId, amount, description, effectiveType, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, reference_date || null, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, initialContributionType, finalContribReqId || null, initialSplits, initialAttachments];
     } else {
       query = `INSERT INTO consolidated_transactions 
-        (amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING *`;
-      params = [amount, description, effectiveType, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, reference_date || null, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, initialContributionType, finalContribReqId || null, initialSplits];
+        (amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits, attachments) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING *`;
+      params = [amount, description, effectiveType, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, reference_date || null, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, initialContributionType, finalContribReqId || null, initialSplits, initialAttachments];
     }
 
     const result = await pool.query(query, params);
@@ -7406,7 +7412,7 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
     const inserted: any[] = [];
 
     for (const tx of transactions) {
-      const { id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits } = tx;
+      const { id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits, attachments } = tx;
       
       const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
       const effectiveChurchId = (church_id && church_id !== 'unidentified')
@@ -7454,6 +7460,7 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
 
       let initialSplits = splits ? (typeof splits === 'string' ? splits : JSON.stringify(splits)) : null;
       let initialContributionType = contribution_type || null;
+      const initialAttachments = attachments ? (typeof attachments === 'string' ? attachments : JSON.stringify(attachments)) : '[]';
 
       if (finalContribReqId && !initialSplits) {
         try {
@@ -7477,8 +7484,8 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
       let params: any[] = [];
       if (finalId) {
         query = `INSERT INTO consolidated_transactions 
-          (id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits) 
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) 
+          (id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits, attachments) 
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) 
           ON CONFLICT (id) DO UPDATE SET 
             amount = EXCLUDED.amount, 
             description = EXCLUDED.description, 
@@ -7493,14 +7500,15 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
             contribution_type = EXCLUDED.contribution_type,
             contribution_request_id = EXCLUDED.contribution_request_id,
             splits = EXCLUDED.splits,
+            attachments = EXCLUDED.attachments,
             updated_at = NOW()
           RETURNING *`;
-        params = [finalId, amount, description, type, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, reference_date || null, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, initialContributionType, finalContribReqId || null, initialSplits];
+        params = [finalId, amount, description, type, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, reference_date || null, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, initialContributionType, finalContribReqId || null, initialSplits, initialAttachments];
       } else {
         query = `INSERT INTO consolidated_transactions 
-          (amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits) 
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING *`;
-        params = [amount, description, type, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, reference_date || null, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, initialContributionType, finalContribReqId || null, initialSplits];
+          (amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits, attachments) 
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING *`;
+        params = [amount, description, type, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, reference_date || null, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, initialContributionType, finalContribReqId || null, initialSplits, initialAttachments];
       }
 
       const result = await client.query(query, params);
@@ -7625,7 +7633,7 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
   try {
     const { id } = req.params;
     const ctx = getTenantContext(req);
-    const { amount, description, type, pix_key, source, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits } = req.body;
+    const { amount, description, type, pix_key, source, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits, attachments } = req.body;
     
     const oldTxRes = await pool.query('SELECT * FROM consolidated_transactions WHERE id::text = $1', [id]);
     const oldTx = oldTxRes.rows[0] || null;
@@ -7745,6 +7753,10 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
       }
     }
 
+    const finalAttachmentsToSet = attachments !== undefined 
+      ? (typeof attachments === 'string' ? attachments : JSON.stringify(attachments)) 
+      : null;
+
     const result = await pool.query(
       `UPDATE consolidated_transactions SET 
         amount = COALESCE($1, amount), 
@@ -7765,6 +7777,7 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
         contribution_type = COALESCE($15, contribution_type),
         contribution_request_id = COALESCE($16, contribution_request_id),
         splits = CASE WHEN $17::text IS NOT NULL THEN $17::jsonb ELSE splits END,
+        attachments = CASE WHEN $24::boolean THEN $25::jsonb ELSE attachments END,
         updated_at = NOW()
       WHERE id::text = $18 RETURNING *`,
       [
@@ -7790,7 +7803,9 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
         finalChurchIdToSet !== undefined,
         contributor_id !== undefined,
         reference_date !== undefined ? (reference_date || null) : null,
-        reference_date !== undefined
+        reference_date !== undefined,
+        attachments !== undefined,
+        finalAttachmentsToSet
       ]
     );
 

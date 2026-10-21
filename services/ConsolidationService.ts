@@ -103,7 +103,8 @@ export const consolidationService = {
                         is_confirmed: typeof t.is_confirmed === 'boolean' ? t.is_confirmed : false,
                         contributor_id: isUuid((t as any).contributor_id) ? (t as any).contributor_id : null,
                         contribution_type: (t as any).contribution_type || null,
-                        payment_method: (t as any).payment_method || null
+                        payment_method: (t as any).payment_method || null,
+                        attachments: (t as any).attachments || null
                     };
 
                     // Validação preventiva contra consolidated_transactions_type_check
