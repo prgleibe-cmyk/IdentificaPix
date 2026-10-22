@@ -128,24 +128,25 @@ export const useReconciliation = (props: any) => {
 
     // 📡 GATILHO DE SINCRONIZAÇÃO GLOBAL
     const triggerSync = useCallback((updatedRow?: MatchResult) => {
-        if (!updatedRow) return;
-        const ownerId = subscription.ownerId || user?.id;
+        const ownerId = subscription?.ownerId || user?.id;
         if (!ownerId) return;
 
-        const payload = buildCanonicalPayload(updatedRow);
-        console.log("[Sync:Trigger] Payload CANÔNICO:", payload);
+        if (updatedRow) {
+            const payload = buildCanonicalPayload(updatedRow);
+            console.log("[Sync:Trigger] Payload CANÔNICO:", payload);
+        }
 
         // Notifica outras abas no mesmo navegador instantaneamente
         if (typeof BroadcastChannel !== 'undefined') {
             try {
                 const bc = new BroadcastChannel('identificapix_realtime_sync');
-                bc.postMessage({ type: 'TRANSACTION_UPDATED', txId: updatedRow.transaction?.id });
+                bc.postMessage({ type: 'TRANSACTION_UPDATED', txId: updatedRow?.transaction?.id });
                 bc.close();
             } catch (e) {
                 // Ignore
             }
         }
-    }, [user?.id, subscription.ownerId, buildCanonicalPayload]);
+    }, [user?.id, subscription?.ownerId, buildCanonicalPayload]);
 
     const params = {
         ...props,

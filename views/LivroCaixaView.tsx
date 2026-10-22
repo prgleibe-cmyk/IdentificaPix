@@ -1246,11 +1246,14 @@ export const LivroCaixaView: React.FC = memo(() => {
                     isOpen={true}
                     row={editingManualTx}
                     onClose={() => setEditingManualTx(null)}
-                    onSave={(updatedRow) => {
+                    onSave={async (updatedRow) => {
                         if (context?.updateReportData) {
-                            context.updateReportData(updatedRow);
+                            const res = await context.updateReportData(updatedRow);
+                            setEditingManualTx(null);
+                            return res;
                         }
                         setEditingManualTx(null);
+                        return { success: true };
                     }}
                     asView={true}
                 />

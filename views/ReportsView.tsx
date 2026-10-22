@@ -224,9 +224,10 @@ export const ReportsView: React.FC = () => {
                     isOpen={true}
                     row={editingManualRow}
                     onClose={() => setEditingManualRow(null)}
-                    onSave={(updatedRow) => {
-                        ctrl.updateReportData(updatedRow);
+                    onSave={async (updatedRow) => {
+                        const res = await ctrl.updateReportData(updatedRow);
                         setEditingManualRow(null);
+                        return res;
                     }}
                     asView={true}
                 />

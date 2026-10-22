@@ -45,7 +45,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         let lastTriggerTime = 0;
         const triggerRefresh = () => {
             const now = Date.now();
-            if (now - lastTriggerTime < 4000) return; // debounce de 4s
+            if (now - lastTriggerTime < 1000) return; // debounce de 1s para tempo real ágil
             lastTriggerTime = now;
             
             console.log("[AppContext:RealtimeRefresh] Sincronização em tempo real acionada.");
@@ -86,14 +86,60 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
         }
 
+        // 📡 Canal SSE de Alta Velocidade para Sincronização Multi-Usuário em Tempo Real
+        let sse: EventSource | null = null;
+        let lastKnownVersion = 0;
+        const effectiveOwnerId = subscription?.ownerId || user?.id || '';
+
+        if (effectiveOwnerId && typeof EventSource !== 'undefined') {
+            try {
+                const sseUrl = `/api/v1/consolidated_transactions/stream?owner_id=${encodeURIComponent(effectiveOwnerId)}`;
+                sse = new EventSource(sseUrl);
+                sse.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        if (data?.type === 'TRANSACTION_UPDATED') {
+                            console.log('[SSE:Realtime] Transação atualizada na nuvem:', data);
+                            triggerRefresh();
+                        }
+                    } catch (_) {}
+                };
+            } catch (e) {
+                console.warn('[AppContext:SSE] EventSource indisponível:', e);
+            }
+        }
+
+        // 🛡️ Rede de Segurança: Verificação de versão a cada 5s quando a tela estiver ativa
+        const checkVersionInterval = setInterval(async () => {
+            if (document.visibilityState !== 'visible' || !effectiveOwnerId) return;
+            try {
+                const res = await fetch(`/api/v1/consolidated_transactions/sync-version?owner_id=${encodeURIComponent(effectiveOwnerId)}`, {
+                    cache: 'no-store'
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    const v = Number(data?.version) || 0;
+                    if (v && lastKnownVersion && v > lastKnownVersion) {
+                        console.log('[Realtime:SyncVersion] Nova versão detectada na nuvem:', v);
+                        triggerRefresh();
+                    }
+                    if (v) {
+                        lastKnownVersion = v;
+                    }
+                }
+            } catch (_) {}
+        }, 5000);
+
         return () => {
             window.removeEventListener('online', triggerRefresh);
             document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
             window.removeEventListener('focus', handleVisibilityOrFocus);
             clearInterval(intervalId);
+            clearInterval(checkVersionInterval);
+            if (sse) sse.close();
             if (bc) bc.close();
         };
-    }, [user?.id]);
+    }, [user?.id, subscription?.ownerId]);
 
     const modalController = useModalController();
     const referenceData = useReferenceData(user, showToast, realtimeRefreshKey);

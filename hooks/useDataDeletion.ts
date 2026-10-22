@@ -114,6 +114,17 @@ export const useDataDeletion = ({
                         }
                     }
                     
+                    if (typeof reconciliation?.triggerSync === 'function') {
+                        reconciliation.triggerSync();
+                    }
+                    if (typeof BroadcastChannel !== 'undefined') {
+                        try {
+                            const bc = new BroadcastChannel('identificapix_realtime_sync');
+                            bc.postMessage({ type: 'TRANSACTION_UPDATED', txId: id, action: 'delete' });
+                            bc.close();
+                        } catch (_) {}
+                    }
+
                     setTimeout(() => { batchState.isAtomicUpdate = false; }, 500);
                     showToast("Linha removida permanentemente.", "success");
                     break;
@@ -157,6 +168,17 @@ export const useDataDeletion = ({
                             }
                         }
                         
+                        if (typeof reconciliation?.triggerSync === 'function') {
+                            reconciliation.triggerSync();
+                        }
+                        if (typeof BroadcastChannel !== 'undefined') {
+                            try {
+                                const bc = new BroadcastChannel('identificapix_realtime_sync');
+                                bc.postMessage({ type: 'TRANSACTION_UPDATED', txIds: ids, action: 'bulk-delete' });
+                                bc.close();
+                            } catch (_) {}
+                        }
+
                         setTimeout(() => { batchState.isAtomicUpdate = false; }, 500);
                         showToast(`${ids.length} linhas removidas permanentemente.`, "success");
                     }

@@ -7101,6 +7101,81 @@ app.all(['/api/v1/consolidated_transactions/repair-churches', '/api/v1/admin/rep
   }
 });
 
+// 📡 Real-time Transaction Synchronization Infrastructure (Multi-user & Cross-Device)
+interface RealtimeTxClient {
+  res: Response;
+  userId: string;
+  ownerId: string;
+}
+const realtimeTxClients = new Set<RealtimeTxClient>();
+const lastTxChangeVersionMap = new Map<string, number>();
+
+function notifyTxChange(ownerId: string, payload: any) {
+  const normOwnerId = String(ownerId || '').trim();
+  const now = Date.now();
+  if (normOwnerId) {
+    lastTxChangeVersionMap.set(normOwnerId, now);
+  }
+  const msg = `data: ${JSON.stringify({ ...payload, timestamp: now })}\n\n`;
+  for (const client of realtimeTxClients) {
+    if (!normOwnerId || !client.ownerId || client.ownerId === normOwnerId) {
+      try {
+        client.res.write(msg);
+      } catch (_) {
+        realtimeTxClients.delete(client);
+      }
+    }
+  }
+}
+
+// GET /api/v1/consolidated_transactions/sync-version
+app.get('/api/v1/consolidated_transactions/sync-version', (req: Request, res: Response) => {
+  const ctx = getTenantContext(req);
+  const effectiveOwnerId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) 
+    ? (ctx.ownerId || ctx.userId) 
+    : String(req.query.user_id || req.query.owner_id || '');
+  const version = lastTxChangeVersionMap.get(effectiveOwnerId) || 0;
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  return res.json({ version });
+});
+
+// GET /api/v1/consolidated_transactions/stream
+app.get('/api/v1/consolidated_transactions/stream', (req: Request, res: Response) => {
+  const ctx = getTenantContext(req);
+  const effectiveOwnerId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) 
+    ? (ctx.ownerId || ctx.userId) 
+    : String(req.query.user_id || req.query.owner_id || '');
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders?.();
+
+  const client: RealtimeTxClient = {
+    res,
+    userId: String(ctx.userId || ''),
+    ownerId: String(effectiveOwnerId || '')
+  };
+  realtimeTxClients.add(client);
+
+  res.write(`data: ${JSON.stringify({ type: 'CONNECTED', timestamp: Date.now() })}\n\n`);
+
+  const keepAlive = setInterval(() => {
+    try {
+      res.write(': ping\n\n');
+    } catch (_) {
+      clearInterval(keepAlive);
+      realtimeTxClients.delete(client);
+    }
+  }, 25000);
+
+  req.on('close', () => {
+    clearInterval(keepAlive);
+    realtimeTxClients.delete(client);
+  });
+});
+
 // GET /api/v1/consolidated_transactions
 app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response) => {
   try {
@@ -7450,6 +7525,8 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
         newValues: row,
         req
       });
+      const effectiveOwnerId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : row.user_id;
+      notifyTxChange(effectiveOwnerId, { type: 'TRANSACTION_UPDATED', action: 'create', id: row.id });
     }
 
     return res.status(201).json(row);
@@ -7582,6 +7659,8 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
     }
 
     await client.query('COMMIT');
+    const effectiveOwnerId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : (inserted[0]?.user_id || '');
+    notifyTxChange(effectiveOwnerId, { type: 'TRANSACTION_UPDATED', action: 'bulk-create', count: inserted.length });
     return res.status(201).json(inserted);
   } catch (err) {
     await client.query('ROLLBACK');
@@ -7886,6 +7965,9 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
       req
     });
 
+    const effectiveOwnerId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : (updatedRow?.user_id || oldTx?.user_id);
+    notifyTxChange(effectiveOwnerId, { type: 'TRANSACTION_UPDATED', action: 'update', id });
+
     return res.json(updatedRow);
   } catch (err) {
     console.error('[Contributors API] Error PUT consolidated_transaction:', err);
@@ -7934,6 +8016,9 @@ app.delete('/api/v1/consolidated_transactions/:id', async (req: Request, res: Re
     } catch (auditErr) {
       console.warn('[Audit] Erro ao gravar log de auditoria no DELETE:', auditErr);
     }
+
+    const effectiveOwnerId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : oldTx?.user_id;
+    notifyTxChange(effectiveOwnerId, { type: 'TRANSACTION_UPDATED', action: 'delete', id });
 
     return res.json({ success: true, id });
   } catch (err) {
@@ -7986,6 +8071,9 @@ app.post('/api/v1/consolidated_transactions/bulk-delete', async (req: Request, r
         console.warn('[Audit] Erro ao gravar log de auditoria no bulk-delete:', auditErr);
       }
     }
+
+    const effectiveOwnerId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : (oldTxs[0]?.user_id || '');
+    notifyTxChange(effectiveOwnerId, { type: 'TRANSACTION_UPDATED', action: 'bulk-delete', ids });
 
     return res.json({ success: true, count: result.rows.length, ids });
   } catch (err) {

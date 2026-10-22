@@ -99,6 +99,7 @@ export const useCloudSync = ({
     const lastAutoProcessSignatureRef = useRef<string | null>(null);
     const isAutoProcessingRef = useRef<boolean>(false);
     const lastAutoProcessTimeRef = useRef<number>(0);
+    const lastRealtimeKeyRef = useRef<number>(0);
 
     const churchesRef = useRef(churches);
     const learnedAssociationsRef = useRef(learnedAssociations);
@@ -522,12 +523,11 @@ export const useCloudSync = ({
 
                 reportsMap.forEach((value, key) => {
                     if (!reconstructedMap.has(key)) {
-                        const isManual = value.transaction?.isManual || 
-                            value.transaction?.source === 'manual' || 
-                            value.matchMethod === MatchMethod.MANUAL ||
-                            (value.transaction?.id && typeof value.transaction.id === 'string' && (value.transaction.id.startsWith('ghost-manual-') || value.transaction.id.startsWith('manual-')));
+                        // 🛡️ ANTI-RESSURREIÇÃO: Na Lista Viva/Sessão Ativa (!activeReportId), apenas rascunhos temporários não persistidos (ghost-)
+                        // podem ser preservados enquanto o usuário digita. Lançamentos persistidos ausentes do banco foram deletados e NÃO ressuscitam.
+                        const isDraftGhost = typeof key === 'string' && (key.startsWith('ghost-manual-') || key.startsWith('ghost-'));
 
-                        if (activeReportId || isManual) {
+                        if (activeReportId || isDraftGhost) {
                             if (activeReportId) {
                                 const txDate = value.contributor?.reference_date || value.reference_date || value.transaction?.reference_date || value.transaction?.date || (value as any).date;
                                 if (txDate && (startStr || endStr)) {
@@ -610,13 +610,10 @@ export const useCloudSync = ({
                         hasChanges = true;
                     });
 
-                    // Preserva estritamente lançamentos manuais locais (persistidos ou temporários) que ainda não vieram na fatia atual do banco
+                    // 🛡️ ANTI-RESSURREIÇÃO: Preserva estritamente rascunhos temporários não persistidos (ghost-) que ainda não foram gravados no banco
                     prev.forEach(p => {
-                        const isManual = p.transaction?.isManual || 
-                            p.transaction?.source === 'manual' || 
-                            p.matchMethod === MatchMethod.MANUAL ||
-                            (p.transaction?.id && typeof p.transaction.id === 'string' && (p.transaction.id.startsWith('ghost-manual-') || p.transaction.id.startsWith('manual-')));
-                        if (!map.has(p.transaction.id) && isManual) {
+                        const isUnsavedGhost = p.transaction?.id && typeof p.transaction.id === 'string' && (p.transaction.id.startsWith('ghost-manual-') || p.transaction.id.startsWith('ghost-'));
+                        if (!map.has(p.transaction.id) && isUnsavedGhost) {
                             map.set(p.transaction.id, p);
                             hasChanges = true;
                         }
@@ -755,9 +752,16 @@ export const useCloudSync = ({
 
             if (!isReady || activeReportId) return;
 
-            // 🛡️ Evita reconstrução com dados incompletos repetidos
-            if (lastDataReadyKeyRef.current === dataReadyKey) return;
-            lastDataReadyKeyRef.current = dataReadyKey;
+            // 🛡️ Se for um gatilho de tempo real explícito (realtimeRefreshKey incrementado), executa reconstrução sem ser bloqueado
+            const isRealtimeKeyTrigger = Boolean(realtimeRefreshKey && realtimeRefreshKey > 0 && lastRealtimeKeyRef.current !== realtimeRefreshKey);
+            if (isRealtimeKeyTrigger) {
+                lastRealtimeKeyRef.current = realtimeRefreshKey!;
+                lastDataReadyKeyRef.current = dataReadyKey;
+            } else {
+                // 🛡️ Evita reconstrução com dados incompletos repetidos na montagem inicial
+                if (lastDataReadyKeyRef.current === dataReadyKey) return;
+                lastDataReadyKeyRef.current = dataReadyKey;
+            }
 
             reconstructSession();
         }, [isReady, dataReadyKey, activeReportId, reconstructSession, realtimeRefreshKey]);
