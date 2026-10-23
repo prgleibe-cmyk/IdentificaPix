@@ -16,8 +16,10 @@ import {
     Check,
     Lock,
     Plus,
-    X
+    X,
+    Camera
 } from 'lucide-react';
+import { DocumentScannerModal } from '../scanner/DocumentScannerModal';
 import { 
     ExpenseAttachment, 
     ExtractedExpenseDoc, 
@@ -66,6 +68,7 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
     const [selectionAlert, setSelectionAlert] = useState<string | null>(null);
     const alertTimeoutRef = useRef<any>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isScannerOpen, setIsScannerOpen] = useState(false);
 
     const triggerSelectionAlert = () => {
         setSelectionAlert('Selecione primeiro uma das opções acima (Nota Fiscal, Boleto/Fatura ou Comprovante) para liberar o carregamento do arquivo.');
@@ -84,7 +87,7 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
         }, 50);
     };
 
-    const handleFileUpload = async (files: FileList | null, explicitRole?: DocumentRole) => {
+    const handleFileUpload = async (files: FileList | File[] | null, explicitRole?: DocumentRole) => {
         if (!files || files.length === 0 || readOnly) return;
 
         if (explicitRole) {
@@ -287,20 +290,33 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
 
             {/* Painel Triplo Integrado com Upload Direto em cada Card */}
             <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
                         <Upload className="w-3.5 h-3.5 text-orange-500" />
                         <span>Clique no card ou arraste seu documento diretamente para a opção desejada:</span>
                     </span>
-                    {selectedRole && !readOnly && (
-                        <button
-                            type="button"
-                            onClick={() => setSelectedRole(null)}
-                            className="text-[9px] font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 underline cursor-pointer"
-                        >
-                            Limpar seleção
-                        </button>
-                    )}
+                    <div className="flex items-center gap-2">
+                        {!readOnly && (
+                            <button
+                                type="button"
+                                onClick={() => setIsScannerOpen(true)}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10.5px] font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-2xs hover:shadow-xs transition-all active:scale-95 cursor-pointer"
+                                title="Digitalizar comprovante ou nota com câmera do celular, ajuste de bordas e geração de PDF otimizado"
+                            >
+                                <Camera className="w-3.5 h-3.5" />
+                                <span>Digitalizar Documento (PDF)</span>
+                            </button>
+                        )}
+                        {selectedRole && !readOnly && (
+                            <button
+                                type="button"
+                                onClick={() => setSelectedRole(null)}
+                                className="text-[9px] font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 underline cursor-pointer"
+                            >
+                                Limpar seleção
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
@@ -971,6 +987,16 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                     </div>
                 </div>
             )}
+
+            {/* Modal de Digitalização de Documentos pela Câmera com Correção de Perspectiva e PDF */}
+            <DocumentScannerModal
+                isOpen={isScannerOpen}
+                onClose={() => setIsScannerOpen(false)}
+                onComplete={(result) => {
+                    handleFileUpload([result.file], selectedRole || undefined);
+                    setIsScannerOpen(false);
+                }}
+            />
         </div>
     );
 };
