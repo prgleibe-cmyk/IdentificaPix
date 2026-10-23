@@ -483,8 +483,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // 📊 DADOS CONSOLIDADOS PARA RELATÓRIOS E LIVRO CAIXA
     const reportData = useMemo(() => {
-        // 🛡️ BLINDAGEM DE SEGURANÇA: Usa matchResults com os filtros de congregações/bancos aplicados
-        const results = reconciliation.matchResults || [];
+        // 🛡️ BLINDAGEM DE SEGURANÇA: Usa matchResults ignorando rascunhos temporários não confirmados
+        const results = (reconciliation.matchResults || []).filter((r: any) => {
+            const txId = r?.transaction?.id;
+            const isUnsavedGhost = typeof txId === 'string' && txId.startsWith('ghost-manual-') && !r?.isConfirmed;
+            return !isUnsavedGhost;
+        });
 
         const churchMap = new Map<string, any>();
         (referenceData.churches || []).forEach((c: any) => {

@@ -48,6 +48,18 @@ export const ManualIdModal: React.FC = () => {
     const { subscription, user } = useAuth();
 
     const handleClose = () => {
+        // 🛡️ Se o usuário fechou ou cancelou sem clicar em 'Salvar Lançamento', limpa imediatamente o rascunho ghost da lista
+        if (bulkIdentificationTxs && bulkIdentificationTxs.length > 0) {
+            const ghostIds = bulkIdentificationTxs
+                .map((tx: any) => tx?.id)
+                .filter((id: any): id is string => typeof id === 'string' && id.startsWith('ghost-manual-'));
+            
+            if (ghostIds.length > 0 && setMatchResults) {
+                setMatchResults((prev: any[]) => 
+                    prev.filter((r: any) => !r?.transaction?.id || !ghostIds.includes(r.transaction.id))
+                );
+            }
+        }
         closeManualIdentify();
         if (activeView === 'novo_lancamento') {
             setActiveView('reports');

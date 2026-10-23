@@ -828,6 +828,9 @@ export const useReportsController = () => {
 
         for (let i = 0; i < activeData.length; i++) {
             const r = activeData[i];
+            const isUnsavedGhost = typeof r?.transaction?.id === 'string' && r.transaction.id.startsWith('ghost-manual-') && !r?.isConfirmed;
+            if (isUnsavedGhost) continue;
+
             const rSplits = (Array.isArray(r.splits) && r.splits.length > 0)
                 ? r.splits
                 : (Array.isArray((r.transaction as any)?.splits) && (r.transaction as any).splits.length > 0)

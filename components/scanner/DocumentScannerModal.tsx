@@ -283,14 +283,41 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
 
         const img = new Image();
         img.onload = () => {
-            setRawCapturedImage(img);
-            // Executa detecção inteligente de bordas do papel
-            const detectedCorners = autoDetectDocumentCorners(img);
-            setCorners(detectedCorners);
-            setIsProcessing(false);
-            setStep('crop');
+            processImageAndAutoWarp(img);
         };
         img.src = canvas.toDataURL('image/jpeg', 0.92);
+    };
+
+    // Processa a imagem capturada, detecta bordas, retifica e aplica filtro nítido automaticamente
+    const processImageAndAutoWarp = (targetImg: HTMLImageElement) => {
+        setRawCapturedImage(targetImg);
+        const detectedCorners = autoDetectDocumentCorners(targetImg);
+        setCorners(detectedCorners);
+
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = targetImg.width;
+        tempCanvas.height = targetImg.height;
+        const tempCtx = tempCanvas.getContext('2d');
+        if (!tempCtx) {
+            setIsProcessing(false);
+            setStep('crop');
+            return;
+        }
+        tempCtx.drawImage(targetImg, 0, 0);
+
+        try {
+            const warpedCanvas = warpDocumentPerspective(tempCanvas, detectedCorners, 1400);
+            setRectifiedCanvas(warpedCanvas);
+            setCurrentFilter('color');
+            const previewUrl = generateFilteredPreview(warpedCanvas, 'color');
+            setFilteredPreviewUrl(previewUrl);
+            setStep('filter');
+        } catch (err) {
+            console.warn('[Scanner] Fallback para ajuste manual:', err);
+            setStep('crop');
+        } finally {
+            setIsProcessing(false);
+        }
     };
 
     const handleNativeFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -298,7 +325,7 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
         if (!file) return;
 
         setIsProcessing(true);
-        setProcessingMessage('Carregando foto e detectando documento...');
+        setProcessingMessage('Carregando foto e digitalizando documento...');
 
         const reader = new FileReader();
         reader.onload = (loadEvent) => {
@@ -323,20 +350,12 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                     const resizedImg = new Image();
                     resizedImg.onload = () => {
                         stopCamera();
-                        setRawCapturedImage(resizedImg);
-                        const detected = autoDetectDocumentCorners(resizedImg);
-                        setCorners(detected);
-                        setIsProcessing(false);
-                        setStep('crop');
+                        processImageAndAutoWarp(resizedImg);
                     };
                     resizedImg.src = canvas.toDataURL('image/jpeg', 0.92);
                 } else {
                     stopCamera();
-                    setRawCapturedImage(img);
-                    const detected = autoDetectDocumentCorners(img);
-                    setCorners(detected);
-                    setIsProcessing(false);
-                    setStep('crop');
+                    processImageAndAutoWarp(img);
                 }
             };
             img.src = dataUrl;
@@ -620,9 +639,9 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                                 )}
                             </h3>
                             <p className="text-[11px] text-slate-400">
-                                {step === 'camera' && 'Aponte a câmera para o documento e toque em Capturar'}
-                                {step === 'crop' && 'Enquadramento detectado. Ajuste os cantos se necessário'}
-                                {step === 'filter' && 'Escolha o melhor realce de leitura'}
+                                {step === 'camera' && 'Aponte a câmera para o documento e toque em Capturar e Digitalizar'}
+                                {step === 'filter' && 'Documento digitalizado e enquadrado. Revise ou confirme a página'}
+                                {step === 'crop' && 'Ajuste os 4 cantos arrastando os marcadores se necessário'}
                                 {step === 'review' && 'Revise as páginas do PDF final'}
                             </p>
                         </div>
@@ -953,10 +972,10 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                                 <button
                                     type="button"
                                     onClick={handleCaptureFromVideo}
-                                    className="px-6 py-2.5 rounded-full bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-semibold text-xs flex items-center gap-2 shadow-lg shadow-blue-600/30 transition-all"
+                                    className="px-6 py-2.5 rounded-full bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-semibold text-xs flex items-center gap-2 shadow-lg shadow-blue-600/30 transition-all cursor-pointer"
                                 >
                                     <div className="w-3 h-3 rounded-full bg-white animate-pulse" />
-                                    Capturar e Enquadrar
+                                    Capturar e Digitalizar
                                 </button>
                             )}
 
@@ -1030,15 +1049,17 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                             <button
                                 type="button"
                                 onClick={() => setStep('crop')}
-                                className="px-3 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs font-medium transition-colors"
+                                className="px-3 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                                title="Ajustar os 4 cantos do documento manualmente"
                             >
-                                Voltar ao Ajuste
+                                <Scan className="w-3.5 h-3.5 text-blue-400" />
+                                Reajustar Bordas
                             </button>
 
                             <button
                                 type="button"
                                 onClick={handleSaveCurrentPage}
-                                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs flex items-center gap-1.5 shadow-md shadow-emerald-600/30 transition-all"
+                                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs flex items-center gap-1.5 shadow-md shadow-emerald-600/30 transition-all cursor-pointer"
                             >
                                 <Check className="w-4 h-4" />
                                 Confirmar Página

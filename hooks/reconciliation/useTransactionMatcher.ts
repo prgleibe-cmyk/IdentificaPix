@@ -603,8 +603,14 @@ export const useTransactionMatcher = ({
     }, [setMatchResults]);
 
     const closeManualIdentify = useCallback(() => {
+        // 🛡️ Remove quaisquer ghosts de lançamentos manuais não confirmados/salvos ao cancelar ou fechar
+        setMatchResults(prev => prev.filter(r => {
+            const txId = r?.transaction?.id;
+            const isGhost = typeof txId === 'string' && txId.startsWith('ghost-manual-');
+            return !isGhost || Boolean(r?.isConfirmed);
+        }));
         setBulkIdentificationTxs([]);
-    }, [setBulkIdentificationTxs]);
+    }, [setMatchResults, setBulkIdentificationTxs]);
 
     const removeTransaction = useCallback((id: string) => {
         batchState.isAtomicUpdate = true;
