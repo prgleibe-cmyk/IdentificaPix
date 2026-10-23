@@ -13,7 +13,8 @@ import {
     Upload, 
     Maximize2,
     Sliders,
-    Layers
+    Layers,
+    Scan
 } from 'lucide-react';
 import { 
     Point, 
@@ -31,6 +32,7 @@ import {
     compilePagesToPdf, 
     CompiledPdfResult 
 } from '../../utils/scanner/pdfCompiler';
+import { autoDetectDocumentCorners } from '../../utils/scanner/documentDetector';
 
 export interface DocumentScannerModalProps {
     isOpen: boolean;
@@ -72,7 +74,15 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
     const [rawCapturedImage, setRawCapturedImage] = useState<HTMLImageElement | null>(null);
     const [corners, setCorners] = useState<DocumentCorners | null>(null);
     const [activeCorner, setActiveCorner] = useState<keyof DocumentCorners | null>(null);
+    
+    // Contêineres para dimensionamento pixel-perfect do crop
     const cropContainerRef = useRef<HTMLDivElement>(null);
+    const innerCropRef = useRef<HTMLDivElement>(null);
+    const [displayDimensions, setDisplayDimensions] = useState<{
+        width: number;
+        height: number;
+        scale: number;
+    }>({ width: 320, height: 420, scale: 1 });
 
     // Imagem retificada para filtro
     const [rectifiedCanvas, setRectifiedCanvas] = useState<HTMLCanvasElement | null>(null);
@@ -82,6 +92,50 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
     // Estados de processamento
     const [isProcessing, setIsProcessing] = useState<boolean>(false);
     const [processingMessage, setProcessingMessage] = useState<string>('');
+
+    // -------------------------------------------------------------
+    // DIMENSIONAMENTO PRECISO DO CROP CONTAINER
+    // -------------------------------------------------------------
+    const updateDisplayDimensions = useCallback(() => {
+        if (!cropContainerRef.current || !rawCapturedImage) return;
+
+        const containerRect = cropContainerRef.current.getBoundingClientRect();
+        // Margem de respiro para os marcadores não cortarem nas bordas
+        const availableW = Math.max(100, containerRect.width - 24);
+        const availableH = Math.max(100, containerRect.height - 24);
+
+        const imgAspect = rawCapturedImage.width / rawCapturedImage.height;
+        let w = availableW;
+        let h = availableW / imgAspect;
+
+        if (h > availableH) {
+            h = availableH;
+            w = availableH * imgAspect;
+        }
+
+        const finalW = Math.round(w);
+        const finalH = Math.round(h);
+        const scale = finalW / rawCapturedImage.width;
+
+        setDisplayDimensions({
+            width: finalW,
+            height: finalH,
+            scale
+        });
+    }, [rawCapturedImage]);
+
+    useEffect(() => {
+        if (step === 'crop' && rawCapturedImage) {
+            // Executa imediatamente e no próximo frame para garantir medidas do container
+            updateDisplayDimensions();
+            const timer = setTimeout(updateDisplayDimensions, 50);
+            window.addEventListener('resize', updateDisplayDimensions);
+            return () => {
+                clearTimeout(timer);
+                window.removeEventListener('resize', updateDisplayDimensions);
+            };
+        }
+    }, [step, rawCapturedImage, updateDisplayDimensions]);
 
     // -------------------------------------------------------------
     // GERENCIAMENTO DA CÂMERA (WebRTC com Fallback Nativo)
@@ -151,7 +205,6 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
         }
     }, [stopCamera]);
 
-    // Alternar lanterna
     const toggleTorch = async () => {
         if (!mediaStreamRef.current) return;
         const videoTrack = mediaStreamRef.current.getVideoTracks()[0];
@@ -168,7 +221,6 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
         }
     };
 
-    // Inicialização da câmera ao abrir modal ou voltar para captura
     useEffect(() => {
         if (isOpen && step === 'camera') {
             startCamera();
@@ -181,7 +233,6 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
         };
     }, [isOpen, step, startCamera, stopCamera]);
 
-    // Fechamento e limpeza geral
     const handleCloseModal = () => {
         stopCamera();
         pages.forEach(p => {
@@ -198,14 +249,16 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
     };
 
     // -------------------------------------------------------------
-    // CAPTURA DA IMAGEM
+    // CAPTURA DA IMAGEM & DETECÇÃO AUTOMÁTICA DE BORDAS
     // -------------------------------------------------------------
-    // 1. Captura via WebRTC
     const handleCaptureFromVideo = () => {
         if (!videoRef.current) return;
         const video = videoRef.current;
         const vw = video.videoWidth || 1280;
         const vh = video.videoHeight || 720;
+
+        setIsProcessing(true);
+        setProcessingMessage('Enquadrando documento...');
 
         // Limita tamanho para no máximo 1600px na maior dimensão para proteção de memória
         const maxDim = 1600;
@@ -220,7 +273,10 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
         canvas.width = tw;
         canvas.height = th;
         const ctx = canvas.getContext('2d');
-        if (!ctx) return;
+        if (!ctx) {
+            setIsProcessing(false);
+            return;
+        }
 
         ctx.drawImage(video, 0, 0, tw, th);
         stopCamera();
@@ -228,19 +284,21 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
         const img = new Image();
         img.onload = () => {
             setRawCapturedImage(img);
-            setCorners(getDefaultCorners(tw, th));
+            // Executa detecção inteligente de bordas do papel
+            const detectedCorners = autoDetectDocumentCorners(img);
+            setCorners(detectedCorners);
+            setIsProcessing(false);
             setStep('crop');
         };
         img.src = canvas.toDataURL('image/jpeg', 0.92);
     };
 
-    // 2. Captura via Fallback Nativo (Input file com capture="environment")
     const handleNativeFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
         setIsProcessing(true);
-        setProcessingMessage('Carregando foto...');
+        setProcessingMessage('Carregando foto e detectando documento...');
 
         const reader = new FileReader();
         reader.onload = (loadEvent) => {
@@ -266,7 +324,8 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                     resizedImg.onload = () => {
                         stopCamera();
                         setRawCapturedImage(resizedImg);
-                        setCorners(getDefaultCorners(tw, th));
+                        const detected = autoDetectDocumentCorners(resizedImg);
+                        setCorners(detected);
                         setIsProcessing(false);
                         setStep('crop');
                     };
@@ -274,7 +333,8 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                 } else {
                     stopCamera();
                     setRawCapturedImage(img);
-                    setCorners(getDefaultCorners(img.width, img.height));
+                    const detected = autoDetectDocumentCorners(img);
+                    setCorners(detected);
                     setIsProcessing(false);
                     setStep('crop');
                 }
@@ -288,28 +348,45 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
     // -------------------------------------------------------------
     // AJUSTE DE BORDAS E PERSPECTIVA (CROP INTERATIVO)
     // -------------------------------------------------------------
+    const handleAutoDetect = () => {
+        if (!rawCapturedImage) return;
+        const detected = autoDetectDocumentCorners(rawCapturedImage);
+        setCorners(detected);
+    };
+
+    const handleFullImageCorners = () => {
+        if (!rawCapturedImage) return;
+        setCorners({
+            topLeft: { x: 0, y: 0 },
+            topRight: { x: rawCapturedImage.width, y: 0 },
+            bottomRight: { x: rawCapturedImage.width, y: rawCapturedImage.height },
+            bottomLeft: { x: 0, y: rawCapturedImage.height }
+        });
+    };
+
     const handleResetCorners = () => {
         if (!rawCapturedImage) return;
         setCorners(getDefaultCorners(rawCapturedImage.width, rawCapturedImage.height));
     };
 
-    // Arrastar vértices (Mouse e Touch)
+    // Arrastar vértices com mapeamento exato de escala
     const updateCornerPosition = (clientX: number, clientY: number) => {
-        if (!activeCorner || !corners || !cropContainerRef.current || !rawCapturedImage) return;
+        if (!activeCorner || !corners || !innerCropRef.current || !rawCapturedImage) return;
 
-        const rect = cropContainerRef.current.getBoundingClientRect();
-        const displayWidth = rect.width;
-        const displayHeight = rect.height;
+        const rect = innerCropRef.current.getBoundingClientRect();
+        const scale = displayDimensions.scale;
+        if (!scale || scale <= 0) return;
 
-        const relativeX = Math.max(0, Math.min(1, (clientX - rect.left) / displayWidth));
-        const relativeY = Math.max(0, Math.min(1, (clientY - rect.top) / displayHeight));
+        // Converte pixel da tela diretamente para coordenadas da imagem
+        const rawX = (clientX - rect.left) / scale;
+        const rawY = (clientY - rect.top) / scale;
 
-        const imgX = Math.round(relativeX * rawCapturedImage.width);
-        const imgY = Math.round(relativeY * rawCapturedImage.height);
+        const clampedX = Math.round(Math.max(0, Math.min(rawCapturedImage.width, rawX)));
+        const clampedY = Math.round(Math.max(0, Math.min(rawCapturedImage.height, rawY)));
 
         setCorners({
             ...corners,
-            [activeCorner]: { x: imgX, y: imgY }
+            [activeCorner]: { x: clampedX, y: clampedY }
         });
     };
 
@@ -324,7 +401,6 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
         updateCornerPosition(e.clientX, e.clientY);
     };
 
-    // Confirmar recorte e aplicar homografia
     const handleApplyWarp = async () => {
         if (!rawCapturedImage || !corners) return;
 
@@ -334,7 +410,6 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
         try {
             await new Promise(resolve => setTimeout(resolve, 30));
 
-            // Desenha a imagem capturada em um canvas temporário
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = rawCapturedImage.width;
             tempCanvas.height = rawCapturedImage.height;
@@ -342,11 +417,9 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
             if (!tempCtx) throw new Error('Não foi possível obter contexto 2D');
             tempCtx.drawImage(rawCapturedImage, 0, 0);
 
-            // Executa a transformação planar matemática
             const warpedCanvas = warpDocumentPerspective(tempCanvas, corners, 1400);
             setRectifiedCanvas(warpedCanvas);
 
-            // Aplica filtro padrão ('color' - Documento Nítido)
             setCurrentFilter('color');
             const previewUrl = generateFilteredPreview(warpedCanvas, 'color');
             setFilteredPreviewUrl(previewUrl);
@@ -359,10 +432,10 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
         }
     };
 
-    // Girar imagem original em 90 graus
     const handleRotateRawImage = () => {
         if (!rawCapturedImage) return;
         setIsProcessing(true);
+        setProcessingMessage('Girando imagem...');
         setTimeout(() => {
             const canvas = document.createElement('canvas');
             canvas.width = rawCapturedImage.height;
@@ -375,7 +448,8 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                 const rotatedImg = new Image();
                 rotatedImg.onload = () => {
                     setRawCapturedImage(rotatedImg);
-                    setCorners(getDefaultCorners(rotatedImg.width, rotatedImg.height));
+                    const detected = autoDetectDocumentCorners(rotatedImg);
+                    setCorners(detected);
                     setIsProcessing(false);
                 };
                 rotatedImg.src = canvas.toDataURL('image/jpeg', 0.92);
@@ -407,7 +481,6 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
         setFilteredPreviewUrl(previewUrl);
     };
 
-    // Confirmar página e adicionar à lista
     const handleSaveCurrentPage = async () => {
         if (!rectifiedCanvas) return;
 
@@ -417,7 +490,6 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
         try {
             await new Promise(resolve => setTimeout(resolve, 30));
 
-            // Cria cópia do canvas retificado para aplicar o filtro selecionado
             const finalCanvas = document.createElement('canvas');
             finalCanvas.width = rectifiedCanvas.width;
             finalCanvas.height = rectifiedCanvas.height;
@@ -427,7 +499,6 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
             ctx.drawImage(rectifiedCanvas, 0, 0);
             enhanceDocumentCanvas(finalCanvas, currentFilter);
 
-            // Comprime em JPEG leve (~80KB - 140KB)
             const { dataUrl } = await canvasToOptimizedBlob(finalCanvas, 0.78);
 
             const newPage: ScannedPageItem = {
@@ -441,13 +512,11 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
             setPages(updatedPages);
             setActivePageIndex(updatedPages.length - 1);
 
-            // Limpa buffers temporários para garantia anti-OOM
             setRawCapturedImage(null);
             setCorners(null);
             setRectifiedCanvas(null);
             setFilteredPreviewUrl('');
 
-            // Vai para a tela de revisão
             setStep('review');
         } catch (err) {
             console.error('[Scanner] Erro ao salvar página:', err);
@@ -495,7 +564,6 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
 
             const pdfResult: CompiledPdfResult = await compilePagesToPdf(pages, { fileName });
 
-            // Cria objeto File padrão compatível com a infraestrutura existente
             const compiledFile = new File([pdfResult.blob], pdfResult.fileName, {
                 type: 'application/pdf',
                 lastModified: Date.now()
@@ -552,8 +620,8 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                                 )}
                             </h3>
                             <p className="text-[11px] text-slate-400">
-                                {step === 'camera' && 'Enquadre o documento e capture'}
-                                {step === 'crop' && 'Ajuste os 4 cantos para alinhar'}
+                                {step === 'camera' && 'Aponte a câmera para o documento e toque em Capturar'}
+                                {step === 'crop' && 'Enquadramento detectado. Ajuste os cantos se necessário'}
                                 {step === 'filter' && 'Escolha o melhor realce de leitura'}
                                 {step === 'review' && 'Revise as páginas do PDF final'}
                             </p>
@@ -588,7 +656,10 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                 </div>
 
                 {/* 2. ÁREA CENTRAL DE CONTEÚDO */}
-                <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden min-h-[360px] sm:min-h-[460px]">
+                <div 
+                    ref={cropContainerRef}
+                    className="relative flex-1 bg-black flex items-center justify-center overflow-hidden min-h-[360px] sm:min-h-[460px] p-2"
+                >
                     
                     {/* PASSO 1: CÂMERA */}
                     {step === 'camera' && (
@@ -603,10 +674,11 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                                         className="w-full h-full object-cover sm:object-contain"
                                     />
 
-                                    {/* Guia visual de enquadramento de documento */}
-                                    <div className="absolute inset-8 sm:inset-12 border-2 border-dashed border-blue-400/70 rounded-2xl pointer-events-none flex items-center justify-center shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]">
-                                        <div className="bg-slate-900/80 backdrop-blur-sm px-3 py-1.5 rounded-full text-[11px] text-blue-200 border border-blue-500/40 font-medium">
-                                            Alinhe o comprovante no retângulo
+                                    {/* Guia visual de enquadramento ativo */}
+                                    <div className="absolute inset-6 sm:inset-12 border-2 border-dashed border-blue-400 rounded-2xl pointer-events-none flex items-center justify-center shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]">
+                                        <div className="bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-full text-[11px] text-blue-200 border border-blue-500/40 font-medium flex items-center gap-1.5 shadow-lg">
+                                            <Scan className="w-3.5 h-3.5 text-blue-400 animate-pulse" />
+                                            Enquadre o comprovante e toque em Capturar
                                         </div>
                                     </div>
                                 </>
@@ -634,88 +706,112 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                         </div>
                     )}
 
-                    {/* PASSO 2: AJUSTE DE BORDAS / PERSPECTIVA (CROP) */}
+                    {/* PASSO 2: AJUSTE DE BORDAS / PERSPECTIVA (CROP COM ESCALA EXATA) */}
                     {step === 'crop' && rawCapturedImage && corners && (
                         <div 
-                            ref={cropContainerRef}
-                            className="relative w-full h-full flex items-center justify-center bg-slate-950 overflow-hidden"
+                            className="relative flex items-center justify-center w-full h-full select-none"
                             onMouseMove={handleMouseMove}
                             onMouseUp={() => setActiveCorner(null)}
                             onTouchMove={handleTouchMove}
                             onTouchEnd={() => setActiveCorner(null)}
                         >
-                            <img
-                                src={rawCapturedImage.src}
-                                alt="Documento para alinhamento"
-                                className="max-w-full max-h-full object-contain pointer-events-none"
-                            />
-
-                            <svg 
-                                className="absolute inset-0 w-full h-full pointer-events-none"
-                                viewBox={`0 0 ${rawCapturedImage.width} ${rawCapturedImage.height}`}
-                                preserveAspectRatio="xMidYMid meet"
+                            {/* Contêiner interno dimensionado exatamente na proporção da imagem */}
+                            <div 
+                                ref={innerCropRef}
+                                style={{ 
+                                    width: `${displayDimensions.width}px`, 
+                                    height: `${displayDimensions.height}px` 
+                                }}
+                                className="relative rounded-lg overflow-hidden shadow-2xl border border-slate-700 bg-slate-900"
                             >
-                                <polygon
-                                    points={`${corners.topLeft.x},${corners.topLeft.y} ${corners.topRight.x},${corners.topRight.y} ${corners.bottomRight.x},${corners.bottomRight.y} ${corners.bottomLeft.x},${corners.bottomLeft.y}`}
-                                    fill="rgba(59, 130, 246, 0.22)"
-                                    stroke="#3b82f6"
-                                    strokeWidth="6"
-                                    strokeDasharray="12,6"
+                                <img
+                                    src={rawCapturedImage.src}
+                                    alt="Documento capturado"
+                                    className="w-full h-full object-fill pointer-events-none"
                                 />
-                                <line 
-                                    x1={corners.topLeft.x} y1={corners.topLeft.y} 
-                                    x2={corners.bottomRight.x} y2={corners.bottomRight.y} 
-                                    stroke="rgba(59, 130, 246, 0.3)" strokeWidth="2" 
-                                />
-                                <line 
-                                    x1={corners.topRight.x} y1={corners.topRight.y} 
-                                    x2={corners.bottomLeft.x} y2={corners.bottomLeft.y} 
-                                    stroke="rgba(59, 130, 246, 0.3)" strokeWidth="2" 
-                                />
-                            </svg>
 
-                            {cropContainerRef.current && (
-                                <>
-                                    {cornerKeys.map((cornerKey) => {
-                                        const pt = corners[cornerKey];
-                                        const leftPercent = (pt.x / rawCapturedImage.width) * 100;
-                                        const topPercent = (pt.y / rawCapturedImage.height) * 100;
+                                {/* Overlay SVG com polígono de recorte alinhado em coordenadas reais de tela */}
+                                <svg 
+                                    className="absolute inset-0 w-full h-full pointer-events-none"
+                                    viewBox={`0 0 ${displayDimensions.width} ${displayDimensions.height}`}
+                                >
+                                    {/* Máscara semi-transparente escurecida fora do documento */}
+                                    <polygon
+                                        points={`
+                                            ${corners.topLeft.x * displayDimensions.scale},${corners.topLeft.y * displayDimensions.scale} 
+                                            ${corners.topRight.x * displayDimensions.scale},${corners.topRight.y * displayDimensions.scale} 
+                                            ${corners.bottomRight.x * displayDimensions.scale},${corners.bottomRight.y * displayDimensions.scale} 
+                                            ${corners.bottomLeft.x * displayDimensions.scale},${corners.bottomLeft.y * displayDimensions.scale}
+                                        `}
+                                        fill="rgba(59, 130, 246, 0.28)"
+                                        stroke="#3b82f6"
+                                        strokeWidth="3"
+                                        strokeDasharray="6,4"
+                                    />
+                                    {/* Linhas diagonais cruzadas sutis */}
+                                    <line 
+                                        x1={corners.topLeft.x * displayDimensions.scale} 
+                                        y1={corners.topLeft.y * displayDimensions.scale} 
+                                        x2={corners.bottomRight.x * displayDimensions.scale} 
+                                        y2={corners.bottomRight.y * displayDimensions.scale} 
+                                        stroke="rgba(59, 130, 246, 0.35)" 
+                                        strokeWidth="1.5" 
+                                    />
+                                    <line 
+                                        x1={corners.topRight.x * displayDimensions.scale} 
+                                        y1={corners.topRight.y * displayDimensions.scale} 
+                                        x2={corners.bottomLeft.x * displayDimensions.scale} 
+                                        y2={corners.bottomLeft.y * displayDimensions.scale} 
+                                        stroke="rgba(59, 130, 246, 0.35)" 
+                                        strokeWidth="1.5" 
+                                    />
+                                </svg>
 
-                                        return (
-                                            <div
-                                                key={String(cornerKey)}
-                                                style={{ left: `${leftPercent}%`, top: `${topPercent}%` }}
-                                                className={`absolute -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full border-2 border-white shadow-xl flex items-center justify-center cursor-pointer touch-none transition-transform ${
-                                                    activeCorner === cornerKey 
-                                                        ? 'bg-blue-500 scale-125 ring-4 ring-blue-400/50' 
-                                                        : 'bg-blue-600 hover:scale-110'
-                                                }`}
-                                                onMouseDown={(e) => {
-                                                    e.stopPropagation();
-                                                    setActiveCorner(cornerKey);
-                                                }}
-                                                onTouchStart={(e) => {
-                                                    e.stopPropagation();
-                                                    setActiveCorner(cornerKey);
-                                                }}
-                                            >
-                                                <div className="w-2.5 h-2.5 rounded-full bg-white" />
+                                {/* 4 Marcadores Circulares Interativos Arrastáveis */}
+                                {cornerKeys.map((cornerKey) => {
+                                    const pt = corners[cornerKey];
+                                    const screenX = pt.x * displayDimensions.scale;
+                                    const screenY = pt.y * displayDimensions.scale;
+
+                                    return (
+                                        <div
+                                            key={String(cornerKey)}
+                                            style={{ 
+                                                left: `${screenX}px`, 
+                                                top: `${screenY}px` 
+                                            }}
+                                            className={`absolute -translate-x-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing touch-none z-10 transition-transform ${
+                                                activeCorner === cornerKey 
+                                                    ? 'scale-125' 
+                                                    : 'hover:scale-110'
+                                            }`}
+                                            onMouseDown={(e) => {
+                                                e.stopPropagation();
+                                                setActiveCorner(cornerKey);
+                                            }}
+                                            onTouchStart={(e) => {
+                                                e.stopPropagation();
+                                                setActiveCorner(cornerKey);
+                                            }}
+                                        >
+                                            <div className="w-7 h-7 rounded-full bg-blue-600 border-2 border-white shadow-xl flex items-center justify-center ring-4 ring-blue-500/40">
+                                                <div className="w-2 h-2 rounded-full bg-white" />
                                             </div>
-                                        );
-                                    })}
-                                </>
-                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
                     )}
 
                     {/* PASSO 3: FILTRO / REALCE DO DOCUMENTO */}
                     {step === 'filter' && filteredPreviewUrl && (
-                        <div className="relative w-full h-full flex flex-col items-center justify-center p-4 bg-slate-950">
-                            <div className="relative max-w-full max-h-[60vh] rounded-lg overflow-hidden border border-slate-700 shadow-2xl bg-white">
+                        <div className="relative w-full h-full flex flex-col items-center justify-center p-2 bg-slate-950">
+                            <div className="relative max-w-full max-h-[58vh] rounded-lg overflow-hidden border border-slate-700 shadow-2xl bg-white">
                                 <img
                                     src={filteredPreviewUrl}
                                     alt="Pré-visualização do Documento Retificado"
-                                    className="max-w-full max-h-[60vh] object-contain"
+                                    className="max-w-full max-h-[58vh] object-contain"
                                 />
                             </div>
 
@@ -839,7 +935,7 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                 </div>
 
                 {/* 3. BARRA INFERIOR DE AÇÕES / BOTOES */}
-                <div className="px-4 py-3 bg-slate-800/95 border-t border-slate-700/60 flex items-center justify-between gap-3 z-20">
+                <div className="px-4 py-3 bg-slate-800/95 border-t border-slate-700/60 flex items-center justify-between gap-2 sm:gap-3 z-20 flex-wrap">
                     
                     {step === 'camera' && (
                         <>
@@ -860,7 +956,7 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                                     className="px-6 py-2.5 rounded-full bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-semibold text-xs flex items-center gap-2 shadow-lg shadow-blue-600/30 transition-all"
                                 >
                                     <div className="w-3 h-3 rounded-full bg-white animate-pulse" />
-                                    Capturar Foto
+                                    Capturar e Enquadrar
                                 </button>
                             )}
 
@@ -882,12 +978,21 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                             <div className="flex items-center gap-1.5">
                                 <button
                                     type="button"
-                                    onClick={handleResetCorners}
-                                    className="p-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs font-medium flex items-center gap-1 transition-colors"
-                                    title="Redefinir Bordas"
+                                    onClick={handleAutoDetect}
+                                    className="px-2.5 py-1.5 rounded-xl bg-blue-600/30 border border-blue-500/40 text-blue-300 hover:bg-blue-600/50 text-xs font-medium flex items-center gap-1 transition-colors"
+                                    title="Detectar Bordas do Documento Automaticamente"
                                 >
-                                    <Maximize2 className="w-4 h-4" />
-                                    <span className="hidden sm:inline">Redefinir</span>
+                                    <Scan className="w-3.5 h-3.5 text-blue-400" />
+                                    <span>Auto Enquadrar</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleFullImageCorners}
+                                    className="p-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs font-medium flex items-center gap-1 transition-colors"
+                                    title="Enquadrar Foto Inteira"
+                                >
+                                    <Maximize2 className="w-3.5 h-3.5" />
+                                    <span className="hidden sm:inline">Total</span>
                                 </button>
                                 <button
                                     type="button"
@@ -895,7 +1000,7 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                                     className="p-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs font-medium flex items-center gap-1 transition-colors"
                                     title="Girar 90°"
                                 >
-                                    <RotateCw className="w-4 h-4" />
+                                    <RotateCw className="w-3.5 h-3.5" />
                                     <span className="hidden sm:inline">Girar</span>
                                 </button>
                             </div>
@@ -914,7 +1019,7 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                                     className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs flex items-center gap-1.5 shadow-md shadow-blue-600/30 transition-all"
                                 >
                                     <Check className="w-4 h-4" />
-                                    Ajustar e Continuar
+                                    Confirmar Enquadramento
                                 </button>
                             </div>
                         </>
