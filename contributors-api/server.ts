@@ -4685,19 +4685,18 @@ async function getEquivalentUserIds(userId: string): Promise<string[]> {
   const idsSet = new Set<string>([cleanId]);
   try {
     const q = `
-      SELECT id::text FROM app_users WHERE id::text = $1 OR owner_id::text = $1
+      SELECT id::text FROM app_users WHERE id::text = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
       UNION
-      SELECT owner_id::text FROM app_users WHERE id::text = $1 AND owner_id IS NOT NULL
+      SELECT owner_id::text FROM app_users WHERE (id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)) AND owner_id IS NOT NULL
       UNION
-      SELECT id::text FROM profiles WHERE id::text = $1 OR user_id::text = $1
+      SELECT id::text FROM profiles WHERE id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
       UNION
-      SELECT user_id::text FROM profiles WHERE id::text = $1 OR user_id::text = $1
+      SELECT owner_id::text FROM profiles WHERE (id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)) AND owner_id IS NOT NULL
     `;
     const res = await pool.query(q, [cleanId]);
     for (const r of (res.rows || [])) {
       if (r.id) idsSet.add(String(r.id));
       if (r.owner_id) idsSet.add(String(r.owner_id));
-      if (r.user_id) idsSet.add(String(r.user_id));
     }
   } catch (err) {
     console.warn('[getEquivalentUserIds] Erro ao resolver equivalência, usando ID direto:', err);
@@ -4734,9 +4733,7 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
     const banksParams: any[] = [];
     if (equivalentIds.length > 0) {
       banksParams.push(equivalentIds);
-      banksQuery += ` AND user_id::text = ANY($1::text[])`;
-    } else {
-      banksQuery += ` AND 1=0`;
+      banksQuery += ` AND user_id = ANY($1)`;
     }
     banksQuery += ' ORDER BY created_at DESC';
 
@@ -4824,7 +4821,7 @@ app.get('/api/v1/banks', async (req: Request, res: Response) => {
       ? requestedUserId.trim()
       : (ctx.ownerId || ctx.userId);
 
-    if (!cleanUserId) {
+    if (!cleanUserId && !ctx.isSuperAdmin) {
       return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'user_id é obrigatório para consultar bancos.' });
     }
 
@@ -4833,9 +4830,7 @@ app.get('/api/v1/banks', async (req: Request, res: Response) => {
     if (cleanUserId) {
       const userIds = await getEquivalentUserIds(cleanUserId);
       params.push(userIds);
-      query += ` AND user_id::text = ANY($1::text[])`;
-    } else {
-      query += ` AND 1=0`;
+      query += ` AND user_id = ANY($1)`;
     }
     query += ' ORDER BY created_at DESC';
     const result = await pool.query(query, params);
@@ -7106,81 +7101,6 @@ app.all(['/api/v1/consolidated_transactions/repair-churches', '/api/v1/admin/rep
   }
 });
 
-// 📡 Real-time Transaction Synchronization Infrastructure (Multi-user & Cross-Device)
-interface RealtimeTxClient {
-  res: Response;
-  userId: string;
-  ownerId: string;
-}
-const realtimeTxClients = new Set<RealtimeTxClient>();
-const lastTxChangeVersionMap = new Map<string, number>();
-
-function notifyTxChange(ownerId: string, payload: any) {
-  const normOwnerId = String(ownerId || '').trim();
-  const now = Date.now();
-  if (normOwnerId) {
-    lastTxChangeVersionMap.set(normOwnerId, now);
-  }
-  const msg = `data: ${JSON.stringify({ ...payload, timestamp: now })}\n\n`;
-  for (const client of realtimeTxClients) {
-    if (!normOwnerId || !client.ownerId || client.ownerId === normOwnerId) {
-      try {
-        client.res.write(msg);
-      } catch (_) {
-        realtimeTxClients.delete(client);
-      }
-    }
-  }
-}
-
-// GET /api/v1/consolidated_transactions/sync-version
-app.get('/api/v1/consolidated_transactions/sync-version', (req: Request, res: Response) => {
-  const ctx = getTenantContext(req);
-  const effectiveOwnerId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) 
-    ? (ctx.ownerId || ctx.userId) 
-    : String(req.query.user_id || req.query.owner_id || '');
-  const version = lastTxChangeVersionMap.get(effectiveOwnerId) || 0;
-  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-  return res.json({ version });
-});
-
-// GET /api/v1/consolidated_transactions/stream
-app.get('/api/v1/consolidated_transactions/stream', (req: Request, res: Response) => {
-  const ctx = getTenantContext(req);
-  const effectiveOwnerId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) 
-    ? (ctx.ownerId || ctx.userId) 
-    : String(req.query.user_id || req.query.owner_id || '');
-
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache, no-transform');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-  res.flushHeaders?.();
-
-  const client: RealtimeTxClient = {
-    res,
-    userId: String(ctx.userId || ''),
-    ownerId: String(effectiveOwnerId || '')
-  };
-  realtimeTxClients.add(client);
-
-  res.write(`data: ${JSON.stringify({ type: 'CONNECTED', timestamp: Date.now() })}\n\n`);
-
-  const keepAlive = setInterval(() => {
-    try {
-      res.write(': ping\n\n');
-    } catch (_) {
-      clearInterval(keepAlive);
-      realtimeTxClients.delete(client);
-    }
-  }, 25000);
-
-  req.on('close', () => {
-    clearInterval(keepAlive);
-    realtimeTxClients.delete(client);
-  });
-});
-
 // GET /api/v1/consolidated_transactions
 app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response) => {
   try {
@@ -7530,8 +7450,6 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
         newValues: row,
         req
       });
-      const effectiveOwnerId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : row.user_id;
-      notifyTxChange(effectiveOwnerId, { type: 'TRANSACTION_UPDATED', action: 'create', id: row.id });
     }
 
     return res.status(201).json(row);
@@ -7664,8 +7582,6 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
     }
 
     await client.query('COMMIT');
-    const effectiveOwnerId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : (inserted[0]?.user_id || '');
-    notifyTxChange(effectiveOwnerId, { type: 'TRANSACTION_UPDATED', action: 'bulk-create', count: inserted.length });
     return res.status(201).json(inserted);
   } catch (err) {
     await client.query('ROLLBACK');
@@ -7970,9 +7886,6 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
       req
     });
 
-    const effectiveOwnerId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : (updatedRow?.user_id || oldTx?.user_id);
-    notifyTxChange(effectiveOwnerId, { type: 'TRANSACTION_UPDATED', action: 'update', id });
-
     return res.json(updatedRow);
   } catch (err) {
     console.error('[Contributors API] Error PUT consolidated_transaction:', err);
@@ -8021,9 +7934,6 @@ app.delete('/api/v1/consolidated_transactions/:id', async (req: Request, res: Re
     } catch (auditErr) {
       console.warn('[Audit] Erro ao gravar log de auditoria no DELETE:', auditErr);
     }
-
-    const effectiveOwnerId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : oldTx?.user_id;
-    notifyTxChange(effectiveOwnerId, { type: 'TRANSACTION_UPDATED', action: 'delete', id });
 
     return res.json({ success: true, id });
   } catch (err) {
@@ -8076,9 +7986,6 @@ app.post('/api/v1/consolidated_transactions/bulk-delete', async (req: Request, r
         console.warn('[Audit] Erro ao gravar log de auditoria no bulk-delete:', auditErr);
       }
     }
-
-    const effectiveOwnerId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : (oldTxs[0]?.user_id || '');
-    notifyTxChange(effectiveOwnerId, { type: 'TRANSACTION_UPDATED', action: 'bulk-delete', ids });
 
     return res.json({ success: true, count: result.rows.length, ids });
   } catch (err) {

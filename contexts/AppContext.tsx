@@ -45,7 +45,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         let lastTriggerTime = 0;
         const triggerRefresh = () => {
             const now = Date.now();
-            if (now - lastTriggerTime < 1000) return; // debounce de 1s para tempo real ágil
+            if (now - lastTriggerTime < 4000) return; // debounce de 4s
             lastTriggerTime = now;
             
             console.log("[AppContext:RealtimeRefresh] Sincronização em tempo real acionada.");
@@ -86,60 +86,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
         }
 
-        // 📡 Canal SSE de Alta Velocidade para Sincronização Multi-Usuário em Tempo Real
-        let sse: EventSource | null = null;
-        let lastKnownVersion = 0;
-        const effectiveOwnerId = subscription?.ownerId || user?.id || '';
-
-        if (effectiveOwnerId && typeof EventSource !== 'undefined') {
-            try {
-                const sseUrl = `/api/v1/consolidated_transactions/stream?owner_id=${encodeURIComponent(effectiveOwnerId)}`;
-                sse = new EventSource(sseUrl);
-                sse.onmessage = (event) => {
-                    try {
-                        const data = JSON.parse(event.data);
-                        if (data?.type === 'TRANSACTION_UPDATED') {
-                            console.log('[SSE:Realtime] Transação atualizada na nuvem:', data);
-                            triggerRefresh();
-                        }
-                    } catch (_) {}
-                };
-            } catch (e) {
-                console.warn('[AppContext:SSE] EventSource indisponível:', e);
-            }
-        }
-
-        // 🛡️ Rede de Segurança: Verificação de versão a cada 5s quando a tela estiver ativa
-        const checkVersionInterval = setInterval(async () => {
-            if (document.visibilityState !== 'visible' || !effectiveOwnerId) return;
-            try {
-                const res = await fetch(`/api/v1/consolidated_transactions/sync-version?owner_id=${encodeURIComponent(effectiveOwnerId)}`, {
-                    cache: 'no-store'
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    const v = Number(data?.version) || 0;
-                    if (v && lastKnownVersion && v > lastKnownVersion) {
-                        console.log('[Realtime:SyncVersion] Nova versão detectada na nuvem:', v);
-                        triggerRefresh();
-                    }
-                    if (v) {
-                        lastKnownVersion = v;
-                    }
-                }
-            } catch (_) {}
-        }, 5000);
-
         return () => {
             window.removeEventListener('online', triggerRefresh);
             document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
             window.removeEventListener('focus', handleVisibilityOrFocus);
             clearInterval(intervalId);
-            clearInterval(checkVersionInterval);
-            if (sse) sse.close();
             if (bc) bc.close();
         };
-    }, [user?.id, subscription?.ownerId]);
+    }, [user?.id]);
 
     const modalController = useModalController();
     const referenceData = useReferenceData(user, showToast, realtimeRefreshKey);
@@ -465,18 +419,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const bankList = useMemo(() => {
         if (!referenceData.banks) return [];
-        const effectiveOwnerId = subscription?.ownerId || user?.owner_id || user?.id;
-
-        let list = referenceData.banks
-            .filter((b: any) => {
-                if (!b || !b.id) return false;
-                // 🛡️ Garante que apenas bancos genuinamente cadastrados para este tenant sejam listados
-                if (b.user_id && effectiveOwnerId && String(b.user_id) !== String(effectiveOwnerId) && String(b.user_id) !== String(user?.id)) {
-                    return false;
-                }
-                return true;
-            })
-            .map((b: any) => ({ id: b.id, name: b.account_name ?? b.name }));
+        let list = referenceData.banks.map((b: any) => ({ id: b.id, name: b.account_name ?? b.name }));
 
         const isSecondary = (subscription.ownerId && subscription.ownerId !== user?.id) &&
             subscription.role !== 'owner' &&
@@ -490,16 +433,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
 
         return list.sort((a: any, b: any) => a.name.localeCompare(b.name));
-    }, [referenceData.banks, subscription, user?.id, user?.owner_id]);
+    }, [referenceData.banks, subscription, user?.id]);
 
     // 📊 DADOS CONSOLIDADOS PARA RELATÓRIOS E LIVRO CAIXA
     const reportData = useMemo(() => {
-        // 🛡️ BLINDAGEM DE SEGURANÇA: Usa matchResults ignorando rascunhos temporários não confirmados
-        const results = (reconciliation.matchResults || []).filter((r: any) => {
-            const txId = r?.transaction?.id;
-            const isUnsavedGhost = typeof txId === 'string' && txId.startsWith('ghost-manual-') && !r?.isConfirmed;
-            return !isUnsavedGhost;
-        });
+        // 🛡️ BLINDAGEM DE SEGURANÇA: Usa matchResults com os filtros de congregações/bancos aplicados
+        const results = reconciliation.matchResults || [];
 
         const churchMap = new Map<string, any>();
         (referenceData.churches || []).forEach((c: any) => {
