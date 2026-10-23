@@ -465,7 +465,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const bankList = useMemo(() => {
         if (!referenceData.banks) return [];
-        let list = referenceData.banks.map((b: any) => ({ id: b.id, name: b.account_name ?? b.name }));
+        const effectiveOwnerId = subscription?.ownerId || user?.owner_id || user?.id;
+
+        let list = referenceData.banks
+            .filter((b: any) => {
+                if (!b || !b.id) return false;
+                // 🛡️ Garante que apenas bancos genuinamente cadastrados para este tenant sejam listados
+                if (b.user_id && effectiveOwnerId && String(b.user_id) !== String(effectiveOwnerId) && String(b.user_id) !== String(user?.id)) {
+                    return false;
+                }
+                return true;
+            })
+            .map((b: any) => ({ id: b.id, name: b.account_name ?? b.name }));
 
         const isSecondary = (subscription.ownerId && subscription.ownerId !== user?.id) &&
             subscription.role !== 'owner' &&
@@ -479,7 +490,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
 
         return list.sort((a: any, b: any) => a.name.localeCompare(b.name));
-    }, [referenceData.banks, subscription, user?.id]);
+    }, [referenceData.banks, subscription, user?.id, user?.owner_id]);
 
     // 📊 DADOS CONSOLIDADOS PARA RELATÓRIOS E LIVRO CAIXA
     const reportData = useMemo(() => {

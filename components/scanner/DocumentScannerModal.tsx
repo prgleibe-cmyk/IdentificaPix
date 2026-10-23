@@ -66,6 +66,7 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
     const [cameraError, setCameraError] = useState<string | null>(null);
     const [torchSupported, setTorchSupported] = useState<boolean>(false);
     const [torchOn, setTorchOn] = useState<boolean>(false);
+    const [shutterFlash, setShutterFlash] = useState<boolean>(false);
 
     // Fallback nativo (Input File)
     const fileFallbackInputRef = useRef<HTMLInputElement>(null);
@@ -170,9 +171,12 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
             const constraints: MediaStreamConstraints = {
                 video: {
                     facingMode: { ideal: 'environment' },
-                    width: { ideal: 1920, min: 1024 },
-                    height: { ideal: 1080, min: 720 }
-                },
+                    width: { ideal: 3840, min: 1280 },
+                    height: { ideal: 2160, min: 720 },
+                    advanced: [
+                        { focusMode: 'continuous' }
+                    ]
+                } as any,
                 audio: false
             };
 
@@ -249,19 +253,66 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
     };
 
     // -------------------------------------------------------------
-    // CAPTURA DA IMAGEM & DETECÇÃO AUTOMÁTICA DE BORDAS
+    // CAPTURA DA IMAGEM EM ALTA DEFINIÇÃO (ImageCapture ou Frame HD)
     // -------------------------------------------------------------
-    const handleCaptureFromVideo = () => {
-        if (!videoRef.current) return;
-        const video = videoRef.current;
-        const vw = video.videoWidth || 1280;
-        const vh = video.videoHeight || 720;
+    const handleCaptureFromVideo = async () => {
+        // Efeito de obturador óptico (flash branco suave)
+        setShutterFlash(true);
+        setTimeout(() => setShutterFlash(false), 180);
 
         setIsProcessing(true);
-        setProcessingMessage('Enquadrando documento...');
+        setProcessingMessage('Capturando em alta definição e auto-enquadrando...');
 
-        // Limita tamanho para no máximo 1600px na maior dimensão para proteção de memória
-        const maxDim = 1600;
+        // 1. Tenta API ImageCapture.takePhoto() direto do sensor óptico da câmera (hardware full resolution)
+        if (typeof (window as any).ImageCapture !== 'undefined' && mediaStreamRef.current) {
+            const track = mediaStreamRef.current.getVideoTracks()[0];
+            if (track && track.readyState === 'live') {
+                try {
+                    // Força autofoco contínuo antes da foto
+                    try {
+                        const caps = (track.getCapabilities ? track.getCapabilities() : {}) as any;
+                        if (caps?.focusMode?.includes('continuous')) {
+                            await (track as any).applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+                        }
+                    } catch (_) {}
+
+                    const imageCapture = new (window as any).ImageCapture(track);
+                    const photoBlob = await imageCapture.takePhoto({ fillLightMode: 'auto' });
+
+                    const img = new Image();
+                    const objectUrl = URL.createObjectURL(photoBlob);
+                    img.onload = () => {
+                        URL.revokeObjectURL(objectUrl);
+                        stopCamera();
+                        processImageAndAutoWarp(img);
+                    };
+                    img.onerror = () => {
+                        URL.revokeObjectURL(objectUrl);
+                        fallbackCaptureVideoFrame();
+                    };
+                    img.src = objectUrl;
+                    return;
+                } catch (photoErr) {
+                    console.warn('[Scanner] takePhoto falhou, usando captura direta do frame:', photoErr);
+                }
+            }
+        }
+
+        // Fallback robusto direto do elemento <video>
+        fallbackCaptureVideoFrame();
+    };
+
+    const fallbackCaptureVideoFrame = () => {
+        if (!videoRef.current) {
+            setIsProcessing(false);
+            return;
+        }
+        const video = videoRef.current;
+        const vw = video.videoWidth || 1920;
+        const vh = video.videoHeight || 1080;
+
+        // Limita tamanho para 1800px para máxima nitidez de texto com total segurança de memória
+        const maxDim = 1800;
         let scale = 1;
         if (Math.max(vw, vh) > maxDim) {
             scale = maxDim / Math.max(vw, vh);
@@ -285,7 +336,7 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
         img.onload = () => {
             processImageAndAutoWarp(img);
         };
-        img.src = canvas.toDataURL('image/jpeg', 0.92);
+        img.src = canvas.toDataURL('image/jpeg', 0.95);
     };
 
     // Processa a imagem capturada, detecta bordas, retifica e aplica filtro nítido automaticamente
@@ -306,7 +357,8 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
         tempCtx.drawImage(targetImg, 0, 0);
 
         try {
-            const warpedCanvas = warpDocumentPerspective(tempCanvas, detectedCorners, 1400);
+            // Retifica perspectiva em alta definição (1600px para texto perfeitamente nítido)
+            const warpedCanvas = warpDocumentPerspective(tempCanvas, detectedCorners, 1600);
             setRectifiedCanvas(warpedCanvas);
             setCurrentFilter('color');
             const previewUrl = generateFilteredPreview(warpedCanvas, 'color');
@@ -693,13 +745,41 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                                         className="w-full h-full object-cover sm:object-contain"
                                     />
 
-                                    {/* Guia visual de enquadramento ativo */}
-                                    <div className="absolute inset-6 sm:inset-12 border-2 border-dashed border-blue-400 rounded-2xl pointer-events-none flex items-center justify-center shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]">
-                                        <div className="bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-full text-[11px] text-blue-200 border border-blue-500/40 font-medium flex items-center gap-1.5 shadow-lg">
-                                            <Scan className="w-3.5 h-3.5 text-blue-400 animate-pulse" />
-                                            Enquadre o comprovante e toque em Capturar
+                                    {/* Molde Inteligente A4 Iluminado (Guia Ativa de Enquadramento) */}
+                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-3 sm:p-6">
+                                        <div className="relative w-full max-w-[320px] sm:max-w-[400px] aspect-[1/1.414] rounded-2xl shadow-[0_0_0_9999px_rgba(0,0,0,0.55)] flex flex-col items-center justify-between p-3 border border-cyan-400/30">
+                                            
+                                            {/* 4 Cantos Iluminados (Luminous Brackets em Neon Cyan) */}
+                                            <div className="absolute -top-1 -left-1 w-7 h-7 border-t-[3.5px] border-l-[3.5px] border-cyan-400 rounded-tl-xl drop-shadow-[0_0_8px_rgba(34,211,238,0.9)]" />
+                                            <div className="absolute -top-1 -right-1 w-7 h-7 border-t-[3.5px] border-r-[3.5px] border-cyan-400 rounded-tr-xl drop-shadow-[0_0_8px_rgba(34,211,238,0.9)]" />
+                                            <div className="absolute -bottom-1 -left-1 w-7 h-7 border-b-[3.5px] border-l-[3.5px] border-cyan-400 rounded-bl-xl drop-shadow-[0_0_8px_rgba(34,211,238,0.9)]" />
+                                            <div className="absolute -bottom-1 -right-1 w-7 h-7 border-b-[3.5px] border-r-[3.5px] border-cyan-400 rounded-br-xl drop-shadow-[0_0_8px_rgba(34,211,238,0.9)]" />
+
+                                            {/* Linha de Varredura Laser Suave */}
+                                            <div className="absolute inset-x-3 h-0.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent opacity-60 animate-pulse pointer-events-none top-1/2 -translate-y-1/2" />
+
+                                            {/* Mira Central */}
+                                            <div className="w-5 h-5 border border-cyan-400/30 rounded-full flex items-center justify-center my-auto opacity-50">
+                                                <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-ping" />
+                                            </div>
+
+                                            {/* Badge Superior: Molde Inteligente A4 */}
+                                            <div className="bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-full text-[11px] text-cyan-200 border border-cyan-500/40 font-medium flex items-center gap-1.5 shadow-xl">
+                                                <Scan className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+                                                <span>Molde Inteligente A4 Ativo</span>
+                                            </div>
+
+                                            {/* Dica Inferior */}
+                                            <div className="bg-black/75 backdrop-blur-md px-3 py-1 rounded-lg text-[10px] text-slate-200 border border-white/10 text-center font-medium shadow-lg">
+                                                Alinhe o comprovante na moldura e dispare
+                                            </div>
                                         </div>
                                     </div>
+
+                                    {/* Flash visual suave do obturador ao disparar a foto */}
+                                    {shutterFlash && (
+                                        <div className="absolute inset-0 bg-white pointer-events-none transition-opacity duration-150 opacity-90 z-40" />
+                                    )}
                                 </>
                             ) : (
                                 <div className="p-6 text-center max-w-sm flex flex-col items-center">
@@ -972,10 +1052,10 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                                 <button
                                     type="button"
                                     onClick={handleCaptureFromVideo}
-                                    className="px-6 py-2.5 rounded-full bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-semibold text-xs flex items-center gap-2 shadow-lg shadow-blue-600/30 transition-all cursor-pointer"
+                                    className="px-6 py-2.5 rounded-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 active:scale-95 text-white font-semibold text-xs flex items-center gap-2.5 shadow-lg shadow-cyan-600/30 transition-all cursor-pointer ring-2 ring-cyan-400/40"
                                 >
-                                    <div className="w-3 h-3 rounded-full bg-white animate-pulse" />
-                                    Capturar e Digitalizar
+                                    <Camera className="w-4 h-4 text-white" />
+                                    <span>Capturar em Alta Definição</span>
                                 </button>
                             )}
 

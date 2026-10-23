@@ -930,6 +930,32 @@ export const useReportsController = () => {
 
     const handleSaveReport = () => openSaveReportModal({ type: 'global', results: matchResults, groupName: 'Geral' });
 
+    // 🛡️ Garante que apenas bancos autenticamente cadastrados e com registros reais no sistema apareçam
+    const reportBankList = useMemo(() => {
+        if (!bankList || bankList.length === 0) return [];
+
+        const activeBankIds = new Set<string>();
+        const activeBankNames = new Set<string>();
+        (currentResults || []).forEach((r: any) => {
+            const tx = r?.transaction;
+            const bId = tx?.bank_id || tx?.bankId || r?.bank_id || r?.bankId || r?._bankId || (r?.bank as any)?.id;
+            if (bId) activeBankIds.add(String(bId).toLowerCase().trim());
+            const bName = tx?.bank_name || r?.bank_name || (r?.bank as any)?.name || (r?.bank as any)?.account_name;
+            if (bName) activeBankNames.add(String(bName).toLowerCase().trim());
+        });
+
+        if (activeBankIds.size > 0 || activeBankNames.size > 0) {
+            const matched = bankList.filter((b: any) => {
+                const idMatch = activeBankIds.has(String(b.id).toLowerCase().trim());
+                const nameMatch = activeBankNames.has(String(b.name || '').toLowerCase().trim());
+                return idMatch || nameMatch;
+            });
+            if (matched.length > 0) return matched;
+        }
+
+        return bankList;
+    }, [bankList, currentResults]);
+
     return {
         activeCategory, setActiveCategory,
         selectedReportId, setSelectedReportId,
@@ -937,7 +963,7 @@ export const useReportsController = () => {
         searchTerm, setSearchTerm,
         sortConfig, setSortConfig,
         handleSort,
-        churchList, bankList, counts, activeSummary, sortedData,
+        churchList, bankList: reportBankList, counts, activeSummary, sortedData,
         activeReportId, saveCurrentReportChanges, runAiAutoIdentification,
         handleDownload, handleDownloadExcel, handleDownloadPdf, handleDownloadOfx, handlePrint, handleSaveReport, updateReportData,
         setActiveView, reportPreviewData,

@@ -4685,18 +4685,19 @@ async function getEquivalentUserIds(userId: string): Promise<string[]> {
   const idsSet = new Set<string>([cleanId]);
   try {
     const q = `
-      SELECT id::text FROM app_users WHERE id::text = $1 OR owner_id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
+      SELECT id::text FROM app_users WHERE id::text = $1 OR owner_id::text = $1
       UNION
-      SELECT owner_id::text FROM app_users WHERE (id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)) AND owner_id IS NOT NULL
+      SELECT owner_id::text FROM app_users WHERE id::text = $1 AND owner_id IS NOT NULL
       UNION
-      SELECT id::text FROM profiles WHERE id::text = $1 OR owner_id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
+      SELECT id::text FROM profiles WHERE id::text = $1 OR user_id::text = $1
       UNION
-      SELECT owner_id::text FROM profiles WHERE (id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)) AND owner_id IS NOT NULL
+      SELECT user_id::text FROM profiles WHERE id::text = $1 OR user_id::text = $1
     `;
     const res = await pool.query(q, [cleanId]);
     for (const r of (res.rows || [])) {
       if (r.id) idsSet.add(String(r.id));
       if (r.owner_id) idsSet.add(String(r.owner_id));
+      if (r.user_id) idsSet.add(String(r.user_id));
     }
   } catch (err) {
     console.warn('[getEquivalentUserIds] Erro ao resolver equivalência, usando ID direto:', err);
@@ -4733,7 +4734,9 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
     const banksParams: any[] = [];
     if (equivalentIds.length > 0) {
       banksParams.push(equivalentIds);
-      banksQuery += ` AND user_id = ANY($1)`;
+      banksQuery += ` AND user_id::text = ANY($1::text[])`;
+    } else {
+      banksQuery += ` AND 1=0`;
     }
     banksQuery += ' ORDER BY created_at DESC';
 
@@ -4821,7 +4824,7 @@ app.get('/api/v1/banks', async (req: Request, res: Response) => {
       ? requestedUserId.trim()
       : (ctx.ownerId || ctx.userId);
 
-    if (!cleanUserId && !ctx.isSuperAdmin) {
+    if (!cleanUserId) {
       return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'user_id é obrigatório para consultar bancos.' });
     }
 
@@ -4830,7 +4833,9 @@ app.get('/api/v1/banks', async (req: Request, res: Response) => {
     if (cleanUserId) {
       const userIds = await getEquivalentUserIds(cleanUserId);
       params.push(userIds);
-      query += ` AND user_id = ANY($1)`;
+      query += ` AND user_id::text = ANY($1::text[])`;
+    } else {
+      query += ` AND 1=0`;
     }
     query += ' ORDER BY created_at DESC';
     const result = await pool.query(query, params);
