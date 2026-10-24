@@ -4959,7 +4959,7 @@ app.delete('/api/v1/banks/:id', async (req: Request, res: Response) => {
 app.get('/api/v1/churches', async (req: Request, res: Response) => {
   try {
     const ctx = getTenantContext(req);
-    const { user_id } = req.query;
+    const { user_id, church, slug, church_id } = req.query;
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
       if (user_id && user_id !== ctx.userId && user_id !== ctx.ownerId) {
@@ -4971,16 +4971,37 @@ app.get('/api/v1/churches', async (req: Request, res: Response) => {
       return res.json([]);
     }
 
-    const cleanUserId = (typeof user_id === 'string' && user_id.trim())
+    let cleanUserId = (typeof user_id === 'string' && user_id.trim())
       ? user_id.trim()
       : (ctx.ownerId || ctx.userId);
+
+    // Se a requisição for pública/anônima, resolve o tenant (user_id) a partir da igreja/slug solicitada
+    if (!cleanUserId) {
+      const target = (church || slug || church_id);
+      if (typeof target === 'string' && target.trim()) {
+        const cleanTarget = target.trim();
+        const matchRes = await pool.query(
+          `SELECT user_id FROM churches 
+           WHERE (id = $1 OR lower(id) = lower($1) OR lower(name) = lower($1) OR replace(lower(name), ' ', '-') = lower($1))
+             AND user_id IS NOT NULL AND user_id != ''
+           LIMIT 1`,
+          [cleanTarget]
+        );
+        if (matchRes.rows && matchRes.rows.length > 0 && matchRes.rows[0].user_id) {
+          cleanUserId = matchRes.rows[0].user_id;
+        }
+      }
+    }
 
     let query = 'SELECT * FROM churches WHERE 1=1';
     const params: any[] = [];
     if (cleanUserId) {
       const userIds = await getEquivalentUserIds(cleanUserId);
       params.push(userIds);
-      query += ` AND user_id = ANY($1)`;
+      query += ` AND user_id = ANY($${params.length})`;
+    } else {
+      // Impede vazamento de igrejas sem proprietário, órfãs ou de simulação para o portal público
+      query += ` AND user_id IS NOT NULL AND user_id != '' AND name IS NOT NULL AND trim(name) != ''`;
     }
     if (ctx.isSecondaryUser) {
       params.push(ctx.allowedChurchIds);
@@ -4989,7 +5010,21 @@ app.get('/api/v1/churches', async (req: Request, res: Response) => {
     query += ' ORDER BY name ASC';
     const result = await pool.query(query, params);
 
-    return res.json(result.rows || []);
+    // Desduplicação estrita por ID e Nome normalizado para garantir lista 100% limpa e sem repetições
+    const rawRows = result.rows || [];
+    const seenIds = new Set<string>();
+    const seenNames = new Set<string>();
+    const distinctChurches = rawRows.filter((c: any) => {
+      const idKey = String(c.id || '').trim().toLowerCase();
+      const nameKey = String(c.name || '').trim().toLowerCase();
+      if (!idKey || !nameKey) return false;
+      if (seenIds.has(idKey) || seenNames.has(nameKey)) return false;
+      seenIds.add(idKey);
+      seenNames.add(nameKey);
+      return true;
+    });
+
+    return res.json(distinctChurches);
   } catch (err) {
     console.error('[Contributors API] Error GET churches:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });

@@ -92,12 +92,14 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [apiError, setApiError] = useState<string | null>(null);
 
-    // Fetch all registered churches from backend so user has the complete relation to choose from
+    // Fetch all registered churches from backend scoped to the church tenant
     useEffect(() => {
         let isMounted = true;
         const fetchAllChurches = async () => {
             try {
-                const res = await fetch('/api/v1/churches', { cache: 'no-store' });
+                const targetSlug = church?.slug || church?.id;
+                const queryParam = targetSlug ? `?church=${encodeURIComponent(targetSlug)}` : '';
+                const res = await fetch(`/api/v1/churches${queryParam}`, { cache: 'no-store' });
                 if (res.ok) {
                     const data = await res.json();
                     if (isMounted && Array.isArray(data) && data.length > 0) {
@@ -111,13 +113,26 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                             description: c.address ? `Endereço: ${c.address}` : 'Ambiente Oficial de Contribuição'
                         }));
                         setAllChurches(formatted);
+                        // Garante seleção automática imediata da congregação
+                        if (church && church.id) {
+                            const found = formatted.find(c => c.id === church.id || (church.slug && c.slug === church.slug) || (church.name && c.name.toLowerCase() === church.name.toLowerCase()));
+                            if (found) {
+                                setSelectedChurchId(found.id);
+                                setSelectedChurch(found);
+                                setCongregation(found.name);
+                            }
+                        } else if (!selectedChurchId && formatted.length > 0) {
+                            setSelectedChurchId(formatted[0].id);
+                            setSelectedChurch(formatted[0]);
+                            setCongregation(formatted[0].name);
+                        }
                     }
                 }
             } catch (_) {}
         };
         fetchAllChurches();
         return () => { isMounted = false; };
-    }, []);
+    }, [church?.id, church?.slug]);
 
     // Sync selected church with portal link church by default
     useEffect(() => {
@@ -127,23 +142,27 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
             if (church.name && church.name !== 'Igreja') {
                 setCongregation(church.name);
             }
-        } else if (allChurches.length > 0 && !selectedChurchId) {
-            setSelectedChurch(allChurches[0]);
-            setSelectedChurchId(allChurches[0].id);
-            if (allChurches[0].name && allChurches[0].name !== 'Igreja') {
-                setCongregation(allChurches[0].name);
+        }
+    }, [church?.id, church?.slug, church?.name]);
+
+    // Keep allChurches synchronized with churchesList prop if provided
+    useEffect(() => {
+        if (churchesList && churchesList.length > 0) {
+            setAllChurches(churchesList);
+            if (church && church.id) {
+                const found = churchesList.find(c => c.id === church.id || (church.slug && c.slug === church.slug));
+                if (found) {
+                    setSelectedChurchId(found.id);
+                    setSelectedChurch(found);
+                    setCongregation(found.name);
+                }
+            } else if (!selectedChurchId && churchesList.length > 0) {
+                setSelectedChurchId(churchesList[0].id);
+                setSelectedChurch(churchesList[0]);
+                setCongregation(churchesList[0].name);
             }
         }
-        if (churchesList && churchesList.length > 0) {
-            setAllChurches(prev => {
-                const merged = [...churchesList];
-                prev.forEach(p => {
-                    if (!merged.some(m => m.id === p.id)) merged.push(p);
-                });
-                return merged;
-            });
-        }
-    }, [church, churchesList, allChurches.length]);
+    }, [churchesList, church?.id]);
 
     // Pre-load contributors list for smooth name suggestions and instant identification
     useEffect(() => {
@@ -665,27 +684,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                 <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl">
                     <form onSubmit={handleSubmit} className="space-y-4 text-slate-800 dark:text-slate-100">
                         
-                        {/* Church Selector (if multiple available) */}
-                        {churchesList.length > 1 && (
-                            <div>
-                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
-                                    <Building2 className="w-4 h-4 text-emerald-600" />
-                                    <span>Selecione a sua Congregação / Igreja *</span>
-                                </label>
-                                <select
-                                    value={selectedChurchId}
-                                    onChange={(e) => handleChurchChange(e.target.value)}
-                                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
-                                >
-                                    {churchesList.map(c => (
-                                        <option key={c.id} value={c.id}>
-                                            {c.name}
-                                        </option>
-                                    ))}
-                                </select>
-                                {errors.church && <p className="text-xs text-rose-500 mt-1 font-semibold">{errors.church}</p>}
-                            </div>
-                        )}
+
 
                         {/* STEP 1: CPF FIRST WITH AUTOMATIC IDENTIFICATION */}
                         <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-500/5 via-teal-500/5 to-slate-50/50 dark:from-emerald-950/20 dark:to-slate-800/60 border border-emerald-500/20 dark:border-emerald-800/40 space-y-2">
@@ -887,7 +886,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                                         className={`w-full px-4 py-3 rounded-2xl border ${errors.church ? 'border-rose-500 focus:ring-rose-500/20' : 'border-slate-200 dark:border-slate-700'} bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 appearance-none cursor-pointer pr-10`}
                                         required
                                     >
-                                        {allChurches.length === 0 && selectedChurch && (
+                                        {selectedChurch && !allChurches.some(c => c.id === selectedChurch.id) && (
                                             <option value={selectedChurch.id}>
                                                 {selectedChurch.name}
                                             </option>

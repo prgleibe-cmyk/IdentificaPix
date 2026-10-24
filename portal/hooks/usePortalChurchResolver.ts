@@ -31,7 +31,13 @@ const getCachedChurches = (): PortalChurch[] => {
         if (raw) {
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed) && parsed.length > 0) {
-                return parsed;
+                const seen = new Set<string>();
+                return parsed.filter((c: any) => {
+                    const key = String(c?.id || c?.name || '').trim().toLowerCase();
+                    if (!key || seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                });
             }
         }
     } catch (_) {}
@@ -154,7 +160,9 @@ export const usePortalChurchResolver = (churchSlug?: string) => {
 
         const fetchChurches = async () => {
             try {
-                const response = await fetch('/api/v1/churches', { cache: 'no-store' });
+                const targetSlug = extractSlugFromLocation(churchSlug);
+                const queryParam = targetSlug ? `?church=${encodeURIComponent(targetSlug)}` : '';
+                const response = await fetch(`/api/v1/churches${queryParam}`, { cache: 'no-store' });
                 if (!response.ok) {
                     throw new Error(`Falha ao carregar dados das igrejas (${response.status})`);
                 }

@@ -1,6 +1,6 @@
 
 import React, { useState, useContext, useEffect, useMemo, useCallback } from 'react';
-import { Calendar, FileText, DollarSign, PlusCircle, ArrowLeft, ArrowUpRight, ArrowDownRight, CheckCircle2, Sparkles, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { Calendar, FileText, DollarSign, PlusCircle, ArrowLeft, ArrowUpRight, ArrowDownRight, CheckCircle2, Sparkles, X, ChevronUp, ChevronDown, Camera } from 'lucide-react';
 import { AppContext } from '../../contexts/AppContext';
 import { useUI } from '../../contexts/UIContext';
 import { useTranslation } from '../../contexts/I18nContext';
@@ -86,6 +86,39 @@ export const ManualIdModal: React.FC = () => {
     } | null>(null);
     const [isBottomUploaderOpen, setIsBottomUploaderOpen] = useState(false);
     const [attachments, setAttachments] = useState<ExpenseAttachment[]>([]);
+    const [selectedDocType, setSelectedDocType] = useState<string>('Boleto');
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+    const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+        const file = files[0];
+        const reader = new FileReader();
+        reader.onload = () => {
+            const dataUrl = reader.result as string;
+            const roleMap: Record<string, any> = {
+                'Boleto': 'fatura',
+                'Nota Fiscal': 'nota_fiscal',
+                'Recibo': 'recibo',
+                'Outro': 'outro'
+            };
+            const newAttachment: ExpenseAttachment = {
+                id: `att-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+                fileName: file.name || `${selectedDocType}.jpg`,
+                fileSize: file.size,
+                fileType: file.type || 'image/jpeg',
+                dataUrl: dataUrl,
+                uploadedAt: new Date().toISOString(),
+                documentRole: roleMap[selectedDocType] || 'outro',
+                validationStatus: 'validated'
+            };
+            setAttachments(prev => [...prev, newAttachment]);
+            showToast(`${selectedDocType} anexado com sucesso!`, 'success');
+        };
+        reader.readAsDataURL(file);
+        e.target.value = '';
+    };
+
     const [isSaving, setIsSaving] = useState(false);
     const isSavingRef = React.useRef<boolean>(false);
 
@@ -1075,84 +1108,82 @@ export const ManualIdModal: React.FC = () => {
                         </div>
                     )}
 
-                    {/* Escolha Intuitiva de Modo para Saída (Despesa): Opção 1 */}
+                    {/* Botão Único para Upload ou Tirar Foto com Seleção do Documento (Boleto, Nota Fiscal, Recibo) */}
                     {manualType === 'saida' && (
-                        <div className="space-y-3 animate-fade-in">
-                            <div className="bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 shadow-xs">
-                                <div>
-                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                                        <Sparkles className="w-3.5 h-3.5 text-orange-500" />
-                                        Como você prefere lançar esta despesa?
+                        <div className="flex flex-wrap items-center justify-between gap-2.5 py-1 px-0.5 animate-fade-in">
+                            <div className="inline-flex items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/90 dark:bg-slate-800/80 p-1 shadow-xs hover:border-orange-400 dark:hover:border-orange-500/80 transition-all">
+                                {/* Opção integrada para selecionar o nome do documento se o usuário quiser */}
+                                <div className="flex items-center gap-1.5 px-2.5 py-1">
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                        Documento:
                                     </span>
-                                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
-                                        Escolha entre leitura automática por documento ou digitação manual.
-                                    </span>
-                                </div>
-                                <div className="grid grid-cols-2 gap-1.5 w-full sm:w-auto shrink-0">
-                                    <button
-                                        type="button"
-                                        onClick={() => setSaidaMode('upload')}
-                                        className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                                            saidaMode === 'upload'
-                                                ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-sm shadow-orange-500/20 ring-2 ring-orange-400/40'
-                                                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700'
-                                        }`}
+                                    <select
+                                        value={selectedDocType}
+                                        onChange={(e) => setSelectedDocType(e.target.value)}
+                                        className="bg-transparent text-xs font-black text-slate-800 dark:text-slate-100 outline-none cursor-pointer pr-1"
+                                        title="Selecione o tipo do documento (opcional)"
                                     >
-                                        <Sparkles className="w-3.5 h-3.5" />
-                                        <span>⚡ Carregar Documento</span>
-                                        <span className="text-[9px] bg-white/20 px-1 py-0.5 rounded font-normal">Recomendado</span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setSaidaMode('manual')}
-                                        className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                                            saidaMode === 'manual'
-                                                ? 'bg-rose-600 text-white shadow-sm shadow-rose-600/20 ring-2 ring-rose-400/40'
-                                                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700'
-                                        }`}
-                                    >
-                                        <FileText className="w-3.5 h-3.5" />
-                                        <span>✍️ Digitar Manual</span>
-                                    </button>
+                                        <option value="Boleto" className="text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800">Boleto</option>
+                                        <option value="Nota Fiscal" className="text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800">Nota Fiscal</option>
+                                        <option value="Recibo" className="text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800">Recibo</option>
+                                        <option value="Outro" className="text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800">Outro</option>
+                                    </select>
                                 </div>
+
+                                <div className="h-5 w-px bg-slate-200 dark:bg-slate-700 mx-0.5" />
+
+                                {/* O Único Botão de Upload ou Foto */}
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-black text-white bg-gradient-to-r from-orange-500 to-amber-600 hover:opacity-95 shadow-xs cursor-pointer transition-all active:scale-95"
+                                    title="Clique para anexar arquivo ou tirar foto com a câmera"
+                                >
+                                    <Camera className="w-3.5 h-3.5" />
+                                    <span>Upload / Foto</span>
+                                </button>
                             </div>
 
-                            {/* No modo Upload: Uploader no topo para preenchimento imediato */}
-                            {saidaMode === 'upload' && (
-                                <div className="space-y-2">
-                                    <ExpenseDocumentUploader
-                                        attachments={attachments}
-                                        onChangeAttachments={setAttachments}
-                                        currentAmount={parsedCurrentAmount}
-                                        onApplyExtractedAmount={(val) => {
-                                            setManualAmount(val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-                                            isAmountManuallyChangedRef.current = true;
-                                        }}
-                                        onApplyExtractedRecipient={(recipient) => {
-                                            setManualDescription(recipient);
-                                            isDescManuallyChangedRef.current = true;
-                                        }}
-                                        onDocumentDataExtracted={handleDocumentDataExtracted}
-                                    />
+                            {/* Input oculto padrão para upload de arquivos ou foto da câmera */}
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*,application/pdf"
+                                className="hidden"
+                                onChange={handleFileSelected}
+                            />
 
-                                    {/* Feedback de sucesso e transparência */}
-                                    {lastAutoFilledDoc && (
-                                        <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-xl text-emerald-900 dark:text-emerald-200 flex items-center justify-between gap-2 animate-fade-in shadow-xs">
-                                            <div className="flex items-center gap-2 text-xs">
-                                                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                                                <span>
-                                                    <strong>Documento lido ({lastAutoFilledDoc.fileName}):</strong> {lastAutoFilledDoc.fieldsCount} dado(s) preenchido(s) automaticamente nos campos abaixo. Revise e clique em <strong>Salvar Lançamento</strong>.
-                                                </span>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => setLastAutoFilledDoc(null)}
-                                                className="text-emerald-700 hover:text-emerald-900 dark:text-emerald-300 p-0.5 rounded cursor-pointer"
+                            {/* Chips dos documentos anexados com visual enxuto */}
+                            {attachments.length > 0 && (
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                    {attachments.map((att, idx) => {
+                                        const docLabel = att.documentRole === 'nota_fiscal' 
+                                            ? 'Nota Fiscal' 
+                                            : att.documentRole === 'fatura' 
+                                                ? 'Boleto' 
+                                                : att.documentRole === 'recibo' 
+                                                    ? 'Recibo' 
+                                                    : 'Doc';
+                                        return (
+                                            <div
+                                                key={att.id || idx}
+                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800/60 text-xs font-bold text-orange-800 dark:text-orange-200 shadow-2xs animate-fade-in"
                                             >
-                                                <X className="w-3.5 h-3.5" />
-                                            </button>
-                                        </div>
-                                    )}
+                                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                                <span className="truncate max-w-[170px] font-semibold">
+                                                    {docLabel}: {att.fileName}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
+                                                    className="text-orange-400 hover:text-rose-600 p-0.5 rounded cursor-pointer transition-colors ml-0.5"
+                                                    title="Remover documento"
+                                                >
+                                                    <X className="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>
@@ -1671,40 +1702,6 @@ export const ManualIdModal: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Anexos Opcionais no Modo Digitação Manual */}
-                    {manualType === 'saida' && saidaMode === 'manual' && (
-                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 animate-fade-in">
-                            <button
-                                type="button"
-                                onClick={() => setIsBottomUploaderOpen(prev => !prev)}
-                                className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-orange-500 transition-colors cursor-pointer py-1"
-                            >
-                                <FileText className="w-3.5 h-3.5 text-orange-500" />
-                                <span>Anexar documento / comprovante (opcional)</span>
-                                {isBottomUploaderOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                            </button>
-                            {isBottomUploaderOpen && (
-                                <div className="mt-2.5">
-                                    <ExpenseDocumentUploader
-                                        attachments={attachments}
-                                        onChangeAttachments={setAttachments}
-                                        currentAmount={parsedCurrentAmount}
-                                        onApplyExtractedAmount={(val) => {
-                                            setManualAmount(val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-                                            isAmountManuallyChangedRef.current = true;
-                                        }}
-                                        onApplyExtractedRecipient={(recipient) => {
-                                            if (!manualDescription) {
-                                                setManualDescription(recipient);
-                                                isDescManuallyChangedRef.current = true;
-                                            }
-                                        }}
-                                        onDocumentDataExtracted={handleDocumentDataExtracted}
-                                    />
-                                </div>
-                            )}
-                        </div>
-                    )}
 
                     {/* Rodapé / Ações */}
                     <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2.5">
