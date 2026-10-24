@@ -35,13 +35,16 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
     churchesList = [], 
     onNavigate 
 }) => {
+    const cleanList = (list: PortalChurch[]) => (list || []).filter(c => c && c.name && c.name.trim() !== '' && c.name.trim().toLowerCase() !== 'igreja');
+
     const [allChurches, setAllChurches] = useState<PortalChurch[]>(() => {
-        if (churchesList && churchesList.length > 0) return churchesList;
-        if (church) return [church];
+        const cleanedList = cleanList(churchesList);
+        if (cleanedList.length > 0) return cleanedList;
+        if (church && church.name && church.name.trim().toLowerCase() !== 'igreja') return [church];
         return [];
     });
-    const [selectedChurchId, setSelectedChurchId] = useState<string>(() => church?.id || (churchesList?.[0]?.id || ''));
-    const [selectedChurch, setSelectedChurch] = useState<PortalChurch | null>(() => church || churchesList?.[0] || null);
+    const [selectedChurchId, setSelectedChurchId] = useState<string>(() => (church && church.name && church.name.trim().toLowerCase() !== 'igreja' ? church.id : (cleanList(churchesList)?.[0]?.id || '')));
+    const [selectedChurch, setSelectedChurch] = useState<PortalChurch | null>(() => (church && church.name && church.name.trim().toLowerCase() !== 'igreja' ? church : (cleanList(churchesList)?.[0] || null)));
     
     // Form fields
     const [cpf, setCpf] = useState('');
@@ -49,9 +52,9 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
     const [phone, setPhone] = useState('');
     const [email, setEmail] = useState('');
     const [birthDate, setBirthDate] = useState('');
-    const initialChurchName = (church?.name && church.name !== 'Igreja') 
+    const initialChurchName = (church?.name && church.name.trim().toLowerCase() !== 'igreja') 
         ? church.name 
-        : (churchesList?.[0]?.name && churchesList[0].name !== 'Igreja' ? churchesList[0].name : '');
+        : (cleanList(churchesList)?.[0]?.name || '');
     const [congregation, setCongregation] = useState<string>(() => initialChurchName);
     const [city, setCity] = useState('');
     const [state, setState] = useState('SP');
@@ -102,11 +105,12 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                 const res = await fetch(`/api/v1/churches${queryParam}`, { cache: 'no-store' });
                 if (res.ok) {
                     const data = await res.json();
-                    if (isMounted && Array.isArray(data) && data.length > 0) {
-                        const formatted: PortalChurch[] = data.map((c: any) => ({
+                    const validData = (data || []).filter((c: any) => c.name && String(c.name).trim() !== '' && String(c.name).trim().toLowerCase() !== 'igreja');
+                    if (isMounted && validData.length > 0) {
+                        const formatted: PortalChurch[] = validData.map((c: any) => ({
                             id: c.id,
-                            name: c.name || 'Igreja',
-                            slug: c.slug || 'igreja',
+                            name: String(c.name).trim(),
+                            slug: c.slug || normalizeChurchSlug(c.name),
                             address: c.address || '',
                             logoUrl: c.logoUrl || '',
                             pastor: c.pastor || '',
@@ -114,14 +118,14 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                         }));
                         setAllChurches(formatted);
                         // Garante seleção automática imediata da congregação
-                        if (church && church.id) {
+                        if (church && church.id && church.name && church.name.trim().toLowerCase() !== 'igreja') {
                             const found = formatted.find(c => c.id === church.id || (church.slug && c.slug === church.slug) || (church.name && c.name.toLowerCase() === church.name.toLowerCase()));
                             if (found) {
                                 setSelectedChurchId(found.id);
                                 setSelectedChurch(found);
                                 setCongregation(found.name);
                             }
-                        } else if (!selectedChurchId && formatted.length > 0) {
+                        } else if (formatted.length > 0) {
                             setSelectedChurchId(formatted[0].id);
                             setSelectedChurch(formatted[0]);
                             setCongregation(formatted[0].name);
@@ -136,30 +140,29 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
 
     // Sync selected church with portal link church by default
     useEffect(() => {
-        if (church && church.id) {
+        if (church && church.id && church.name && church.name.trim().toLowerCase() !== 'igreja') {
             setSelectedChurch(church);
             setSelectedChurchId(church.id);
-            if (church.name && church.name !== 'Igreja') {
-                setCongregation(church.name);
-            }
+            setCongregation(church.name);
         }
     }, [church?.id, church?.slug, church?.name]);
 
     // Keep allChurches synchronized with churchesList prop if provided
     useEffect(() => {
-        if (churchesList && churchesList.length > 0) {
-            setAllChurches(churchesList);
-            if (church && church.id) {
-                const found = churchesList.find(c => c.id === church.id || (church.slug && c.slug === church.slug));
+        const validPropList = cleanList(churchesList);
+        if (validPropList.length > 0) {
+            setAllChurches(validPropList);
+            if (church && church.id && church.name && church.name.trim().toLowerCase() !== 'igreja') {
+                const found = validPropList.find(c => c.id === church.id || (church.slug && c.slug === church.slug));
                 if (found) {
                     setSelectedChurchId(found.id);
                     setSelectedChurch(found);
                     setCongregation(found.name);
                 }
-            } else if (!selectedChurchId && churchesList.length > 0) {
-                setSelectedChurchId(churchesList[0].id);
-                setSelectedChurch(churchesList[0]);
-                setCongregation(churchesList[0].name);
+            } else if (!selectedChurchId && validPropList.length > 0) {
+                setSelectedChurchId(validPropList[0].id);
+                setSelectedChurch(validPropList[0]);
+                setCongregation(validPropList[0].name);
             }
         }
     }, [churchesList, church?.id]);
@@ -886,12 +889,12 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                                         className={`w-full px-4 py-3 rounded-2xl border ${errors.church ? 'border-rose-500 focus:ring-rose-500/20' : 'border-slate-200 dark:border-slate-700'} bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 appearance-none cursor-pointer pr-10`}
                                         required
                                     >
-                                        {selectedChurch && !allChurches.some(c => c.id === selectedChurch.id) && (
+                                        {selectedChurch && selectedChurch.name && selectedChurch.name.trim().toLowerCase() !== 'igreja' && !allChurches.some(c => c.id === selectedChurch.id) && (
                                             <option value={selectedChurch.id}>
                                                 {selectedChurch.name}
                                             </option>
                                         )}
-                                        {allChurches.map((c) => (
+                                        {allChurches.filter(c => c.name && c.name.trim().toLowerCase() !== 'igreja').map((c) => (
                                             <option key={c.id} value={c.id} className="text-slate-800 dark:text-white font-semibold">
                                                 {c.name}
                                             </option>

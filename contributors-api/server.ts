@@ -4975,39 +4975,48 @@ app.get('/api/v1/churches', async (req: Request, res: Response) => {
       ? user_id.trim()
       : (ctx.ownerId || ctx.userId);
 
+    const normalizeSlug = (text: string) => {
+      return String(text || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    };
+
     // Se a requisição for pública/anônima, resolve o tenant (user_id) a partir da igreja/slug solicitada
     if (!cleanUserId) {
       const target = (church || slug || church_id);
       if (typeof target === 'string' && target.trim()) {
         const cleanTarget = target.trim();
-        const matchRes = await pool.query(
-          `SELECT user_id FROM churches 
-           WHERE (id = $1 OR lower(id) = lower($1) OR lower(name) = lower($1) OR replace(lower(name), ' ', '-') = lower($1))
-             AND user_id IS NOT NULL AND user_id != ''
-           LIMIT 1`,
-          [cleanTarget]
+        const normTarget = normalizeSlug(cleanTarget);
+        const candidates = await pool.query(
+          `SELECT id, name, user_id FROM churches WHERE name IS NOT NULL AND trim(name) != '' AND lower(trim(name)) != 'igreja'`
         );
-        if (matchRes.rows && matchRes.rows.length > 0 && matchRes.rows[0].user_id) {
-          cleanUserId = matchRes.rows[0].user_id;
+        const matched = (candidates.rows || []).find((c: any) => {
+          const cId = String(c.id || '').trim().toLowerCase();
+          const cName = String(c.name || '').trim().toLowerCase();
+          const cNorm = normalizeSlug(c.name);
+          return cId === cleanTarget.toLowerCase() || cName === cleanTarget.toLowerCase() || (normTarget && cNorm === normTarget);
+        });
+        if (matched && matched.user_id) {
+          cleanUserId = matched.user_id;
         }
       }
     }
 
-    let query = 'SELECT * FROM churches WHERE 1=1';
+    let query = "SELECT * FROM churches WHERE name IS NOT NULL AND trim(name) != '' AND lower(trim(name)) != 'igreja'";
     const params: any[] = [];
     if (cleanUserId) {
       const userIds = await getEquivalentUserIds(cleanUserId);
       params.push(userIds);
-      query += ` AND user_id = ANY($${params.length})`;
-    } else {
-      // Impede vazamento de igrejas sem proprietário, órfãs ou de simulação para o portal público
-      query += ` AND user_id IS NOT NULL AND user_id != '' AND name IS NOT NULL AND trim(name) != ''`;
+      query += ` AND (user_id = ANY($${params.length}) OR user_id IS NULL)`;
     }
     if (ctx.isSecondaryUser) {
       params.push(ctx.allowedChurchIds);
       query += ` AND id = ANY($${params.length})`;
     }
-    query += ' ORDER BY name ASC';
+    query += ' ORDER BY created_at ASC';
     const result = await pool.query(query, params);
 
     // Desduplicação estrita por ID e Nome normalizado para garantir lista 100% limpa e sem repetições
@@ -5017,7 +5026,7 @@ app.get('/api/v1/churches', async (req: Request, res: Response) => {
     const distinctChurches = rawRows.filter((c: any) => {
       const idKey = String(c.id || '').trim().toLowerCase();
       const nameKey = String(c.name || '').trim().toLowerCase();
-      if (!idKey || !nameKey) return false;
+      if (!idKey || !nameKey || nameKey === 'igreja') return false;
       if (seenIds.has(idKey) || seenNames.has(nameKey)) return false;
       seenIds.add(idKey);
       seenNames.add(nameKey);

@@ -33,8 +33,9 @@ const getCachedChurches = (): PortalChurch[] => {
             if (Array.isArray(parsed) && parsed.length > 0) {
                 const seen = new Set<string>();
                 return parsed.filter((c: any) => {
-                    const key = String(c?.id || c?.name || '').trim().toLowerCase();
-                    if (!key || seen.has(key)) return false;
+                    const nameStr = String(c?.name || '').trim();
+                    const key = String(c?.id || nameStr).trim().toLowerCase();
+                    if (!key || !nameStr || nameStr.toLowerCase() === 'igreja' || seen.has(key)) return false;
                     seen.add(key);
                     return true;
                 });
@@ -171,45 +172,41 @@ export const usePortalChurchResolver = (churchSlug?: string) => {
                 if (!isMounted) return;
 
                 if (Array.isArray(data) && data.length > 0) {
-                    const formattedChurches: PortalChurch[] = data.map((c: any) => ({
+                    const validData = data.filter((c: any) => c.name && String(c.name).trim() !== '' && String(c.name).trim().toLowerCase() !== 'igreja');
+                    const formattedChurches: PortalChurch[] = validData.map((c: any) => ({
                         id: c.id,
-                        name: c.name || 'Igreja',
-                        slug: c.slug || normalizeChurchSlug(c.name) || 'igreja',
+                        name: String(c.name).trim(),
+                        slug: c.slug || normalizeChurchSlug(c.name),
                         address: c.address || '',
                         logoUrl: c.logoUrl || '',
                         pastor: c.pastor || '',
                         description: c.address ? `Endereço: ${c.address}` : 'Ambiente Oficial de Contribuição'
                     }));
 
-                    try {
-                        localStorage.setItem(CACHE_KEY, JSON.stringify(formattedChurches));
-                    } catch (_) {}
-
-                    setChurchesList(formattedChurches);
-
-                    const targetSlug = extractSlugFromLocation(churchSlug);
-                    const found = resolveChurchFromList(formattedChurches, targetSlug);
-                    const chosen = found || (targetSlug ? null : formattedChurches[0]) || formattedChurches[0] || DEFAULT_PORTAL_CHURCH;
-                    
-                    setChurch(chosen);
-
-                    if (chosen && chosen.slug && chosen.slug !== 'igreja') {
+                    if (formattedChurches.length > 0) {
                         try {
-                            localStorage.setItem(ACTIVE_CHURCH_SLUG_KEY, chosen.slug);
+                            localStorage.setItem(CACHE_KEY, JSON.stringify(formattedChurches));
                         } catch (_) {}
+
+                        setChurchesList(formattedChurches);
+
+                        const targetSlug = extractSlugFromLocation(churchSlug);
+                        const found = resolveChurchFromList(formattedChurches, targetSlug);
+                        const chosen = found || formattedChurches[0];
+                        
+                        setChurch(chosen);
+
+                        if (chosen && chosen.slug && chosen.slug !== 'igreja') {
+                            try {
+                                localStorage.setItem(ACTIVE_CHURCH_SLUG_KEY, chosen.slug);
+                            } catch (_) {}
+                        }
                     }
-                } else {
-                    setChurchesList([DEFAULT_PORTAL_CHURCH]);
-                    setChurch(DEFAULT_PORTAL_CHURCH);
                 }
             } catch (err: any) {
                 if (isMounted) {
                     console.error('[usePortalChurchResolver] Erro:', err);
                     setError(err.message || 'Erro ao carregar dados da igreja');
-                    if (!church) {
-                        setChurchesList([DEFAULT_PORTAL_CHURCH]);
-                        setChurch(DEFAULT_PORTAL_CHURCH);
-                    }
                 }
             } finally {
                 if (isMounted) {
