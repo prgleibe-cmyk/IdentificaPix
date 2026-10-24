@@ -36,20 +36,7 @@ interface PortalEditProfileModalProps {
 }
 
 const DEFAULT_ROLES_LIST = [
-    'Membro',
-    'Visitante',
-    'Pastor / Pastora',
-    'Diácono / Diaconisa',
-    'Presbítero / Evangelista',
-    'Obreiro / Obreira',
-    'Líder de Ministério / Célula',
-    'Voluntário',
-    'Dizimista',
-    'Músico / Louvor',
-    'Prestador de Serviços',
-    'Fornecedor / Empresa',
-    'Concessionária / Utilidades',
-    'Outro'
+    'Membro'
 ];
 
 const getMembroOption = (roles: string[]): string => {
@@ -91,21 +78,16 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
     const [addressState, setAddressState] = useState('');
     const [congregation, setCongregation] = useState('');
     const [availableRoles, setAvailableRoles] = useState<string[]>(() => {
-        const list = [...DEFAULT_ROLES_LIST];
         try {
             const saved = localStorage.getItem('iggestor_custom_roles_v1');
             if (saved) {
                 const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed)) {
-                    parsed.forEach((r: any) => {
-                        if (typeof r === 'string' && r.trim() && !list.some(x => x.toLowerCase() === r.trim().toLowerCase())) {
-                            list.push(r.trim());
-                        }
-                    });
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    return parsed;
                 }
             }
         } catch (_) {}
-        return list;
+        return [...DEFAULT_ROLES_LIST];
     });
     const [rolePosition, setRolePosition] = useState<string>(() => getMembroOption(DEFAULT_ROLES_LIST));
     const [customRoleInput, setCustomRoleInput] = useState('');
@@ -135,10 +117,11 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                 const res = await fetch('/api/v1/churches', { cache: 'no-store' });
                 if (res.ok) {
                     const data = await res.json();
-                    if (isMounted && Array.isArray(data) && data.length > 0) {
-                        const formatted: PortalChurch[] = data.map((c: any) => ({
+                    const validData = (data || []).filter((c: any) => c.name && String(c.name).trim() !== '' && String(c.name).trim().toLowerCase() !== 'igreja');
+                    if (isMounted && validData.length > 0) {
+                        const formatted: PortalChurch[] = validData.map((c: any) => ({
                             id: c.id,
-                            name: c.name || 'Igreja',
+                            name: String(c.name).trim(),
                             slug: c.slug || 'igreja',
                             address: c.address || '',
                             logoUrl: c.logoUrl || '',
@@ -163,21 +146,23 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                 if (res.ok) {
                     const data = await res.json();
                     if (isMounted && Array.isArray(data) && data.length > 0) {
-                        setAvailableRoles(prev => {
-                            const merged = [...prev];
-                            data.forEach((r: any) => {
-                                if (typeof r === 'string' && r.trim() && !merged.some(x => x.toLowerCase() === r.trim().toLowerCase())) {
-                                    merged.push(r.trim());
-                                }
-                            });
-                            return merged;
-                        });
+                        setAvailableRoles(data);
+                        try {
+                            localStorage.setItem('iggestor_custom_roles_v1', JSON.stringify(data));
+                        } catch (_) {}
                     }
                 }
             } catch (_) {}
         };
         fetchRoles();
-        return () => { isMounted = false; };
+        const handleRolesUpdated = () => {
+            fetchRoles();
+        };
+        window.addEventListener('contributor_roles_updated', handleRolesUpdated);
+        return () => { 
+            isMounted = false; 
+            window.removeEventListener('contributor_roles_updated', handleRolesUpdated);
+        };
     }, []);
 
     // Initialize or reset form state when modal opens
@@ -193,13 +178,18 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
             setAddressNumber(contributor.address_number || '');
             setAddressCity(contributor.address_city || contributor.city || '');
             setAddressState(contributor.address_state || contributor.state || '');
-            const currentChurchName = (church?.name && church.name !== 'Igreja') ? church.name : (church?.name || '');
-            const initialCongregation = (contributor.congregation && contributor.congregation !== 'Sede Central' && contributor.congregation !== 'Igreja') 
-                ? contributor.congregation 
-                : (currentChurchName || contributor.congregation || '');
+            const activePortalChurch = (church && church.id && church.name && church.name.trim().toLowerCase() !== 'igreja') ? church : null;
+            const initialCongregation = activePortalChurch?.name 
+                || ((contributor.congregation && contributor.congregation !== 'Sede Central' && contributor.congregation !== 'Igreja') ? contributor.congregation : '')
+                || allChurches[0]?.name 
+                || '';
             setCongregation(initialCongregation);
 
-            const initialChurchId = contributor.church_id || church?.id || allChurches.find(c => c.name.trim().toLowerCase() === initialCongregation.trim().toLowerCase())?.id || allChurches[0]?.id || '00000000-0000-0000-0000-000000000001';
+            const initialChurchId = activePortalChurch?.id 
+                || contributor.church_id 
+                || allChurches.find(c => c.name.trim().toLowerCase() === initialCongregation.trim().toLowerCase())?.id 
+                || allChurches[0]?.id 
+                || '00000000-0000-0000-0000-000000000001';
             setSelectedChurchId(initialChurchId);
 
             // Resolve initial role: defaults to registered 'Membro' option if empty/null
@@ -512,6 +502,12 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                     const nextRoles = [...availableRoles, effectiveRole];
                     setAvailableRoles(nextRoles);
                     localStorage.setItem('iggestor_custom_roles_v1', JSON.stringify(nextRoles));
+                    fetch('/api/v1/contributors/roles', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: effectiveRole })
+                    }).catch(() => {});
+                    window.dispatchEvent(new CustomEvent('contributor_roles_updated', { detail: { name: effectiveRole } }));
                 }
                 notifyContributorUpdated(updatedProfileObj);
             } catch (_) {}

@@ -64,20 +64,7 @@ export const ContributorsList: React.FC = () => {
     
     // Vínculo / Cargo States
     const DEFAULT_ROLES_LIST = [
-        'Membro',
-        'Visitante',
-        'Pastor / Pastora',
-        'Diácono / Diaconisa',
-        'Presbítero / Evangelista',
-        'Obreiro / Obreira',
-        'Líder de Ministério / Célula',
-        'Voluntário',
-        'Dizimista',
-        'Músico / Louvor',
-        'Prestador de Serviços',
-        'Fornecedor / Empresa',
-        'Concessionária / Utilidades',
-        'Outro'
+        'Membro'
     ];
 
     const DEFAULT_SUPPLIER_CATEGORIES = [
@@ -104,6 +91,35 @@ export const ContributorsList: React.FC = () => {
         return DEFAULT_ROLES_LIST;
     });
 
+    // Cloud fetch & realtime listener for roles
+    const fetchCloudRoles = async () => {
+        try {
+            const res = await fetch('/api/v1/contributors/roles', { cache: 'no-store' });
+            if (res.ok) {
+                const data = await res.json();
+                if (Array.isArray(data) && data.length > 0) {
+                    setCustomRoles(data);
+                    try {
+                        localStorage.setItem('iggestor_custom_roles_v1', JSON.stringify(data));
+                    } catch (_) {}
+                }
+            }
+        } catch (e) {
+            console.error('Error loading cloud roles:', e);
+        }
+    };
+
+    useEffect(() => {
+        fetchCloudRoles();
+        const handleRolesUpdated = () => {
+            fetchCloudRoles();
+        };
+        window.addEventListener('contributor_roles_updated', handleRolesUpdated);
+        return () => {
+            window.removeEventListener('contributor_roles_updated', handleRolesUpdated);
+        };
+    }, []);
+
     const [supplierCategories, setSupplierCategories] = useState<string[]>(() => {
         try {
             const saved = localStorage.getItem('iggestor_supplier_categories_v1');
@@ -124,20 +140,30 @@ export const ContributorsList: React.FC = () => {
         } catch (e) {
             console.error('Error saving custom roles', e);
         }
+        window.dispatchEvent(new CustomEvent('contributor_roles_updated', { detail: { roles: updated } }));
     };
 
-    const handleAddRole = (newRole: string) => {
+    const handleAddRole = async (newRole: string) => {
         const trimmed = newRole.trim();
         if (!trimmed) return;
-        if (!customRoles.includes(trimmed)) {
+        if (!customRoles.some(r => r.toLowerCase() === trimmed.toLowerCase())) {
             const updated = [...customRoles, trimmed];
             saveCustomRoles(updated);
+            try {
+                await fetch('/api/v1/contributors/roles', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: trimmed })
+                });
+            } catch (err) {
+                console.error('Error adding role to cloud:', err);
+            }
         }
         setRolePosition(trimmed);
         setCategory(trimmed);
     };
 
-    const handleRenameRole = (oldRole: string, newRole: string) => {
+    const handleRenameRole = async (oldRole: string, newRole: string) => {
         const trimmed = newRole.trim();
         if (!trimmed) return;
         const updated = customRoles.map(r => r === oldRole ? trimmed : r);
@@ -146,14 +172,32 @@ export const ContributorsList: React.FC = () => {
             setRolePosition(trimmed);
             setCategory(trimmed);
         }
+        try {
+            await fetch('/api/v1/contributors/roles', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ oldName: oldRole, newName: trimmed })
+            });
+            fetchContributors(true);
+        } catch (err) {
+            console.error('Error renaming role in cloud:', err);
+        }
     };
 
-    const handleDeleteRole = (roleToDelete: string) => {
+    const handleDeleteRole = async (roleToDelete: string) => {
         const updated = customRoles.filter(r => r !== roleToDelete);
         saveCustomRoles(updated);
         if (rolePosition === roleToDelete) {
-            setRolePosition('');
-            setCategory('');
+            setRolePosition('Membro');
+            setCategory('Membro');
+        }
+        try {
+            await fetch(`/api/v1/contributors/roles?name=${encodeURIComponent(roleToDelete)}`, {
+                method: 'DELETE'
+            });
+            fetchContributors(true);
+        } catch (err) {
+            console.error('Error deleting role from cloud:', err);
         }
     };
 
@@ -656,7 +700,7 @@ export const ContributorsList: React.FC = () => {
 
         const savedRole = contributor.role_position || contributor.category || 'Membro';
         setRolePosition(savedRole);
-        if (savedRole && !customRoles.includes(savedRole)) {
+        if (savedRole && !customRoles.some(r => r.toLowerCase() === savedRole.toLowerCase())) {
             const nextRoles = [...customRoles, savedRole];
             setCustomRoles(nextRoles);
             try {

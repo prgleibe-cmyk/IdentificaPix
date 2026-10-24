@@ -1,20 +1,7 @@
 import { useState, useEffect } from 'react';
 
 export const DEFAULT_PORTAL_ROLES: string[] = [
-    'Membro',
-    'Visitante',
-    'Pastor / Pastora',
-    'Diácono / Diaconisa',
-    'Presbítero / Evangelista',
-    'Obreiro / Obreira',
-    'Líder de Ministério / Célula',
-    'Voluntário',
-    'Dizimista',
-    'Músico / Louvor',
-    'Prestador de Serviços',
-    'Fornecedor / Empresa',
-    'Concessionária / Utilidades',
-    'Outro'
+    'Membro'
 ];
 
 /**
@@ -32,38 +19,18 @@ export function getMembroOption(rolesList: string[]): string {
     return rolesList[0] || 'Membro';
 }
 
-function mergeRoles(base: string[], additions: string[]): string[] {
-    const list = [...base];
-    for (const item of additions) {
-        if (typeof item === 'string' && item.trim()) {
-            const trimmed = item.trim();
-            if (!list.some(x => x.toLowerCase() === trimmed.toLowerCase())) {
-                // Insere antes de 'Outro' se existir
-                const outroIdx = list.findIndex(x => x.toLowerCase() === 'outro');
-                if (outroIdx !== -1) {
-                    list.splice(outroIdx, 0, trimmed);
-                } else {
-                    list.push(trimmed);
-                }
-            }
-        }
-    }
-    return list;
-}
-
 export function usePortalRoles() {
     const [roles, setRoles] = useState<string[]>(() => {
-        let initial = [...DEFAULT_PORTAL_ROLES];
         try {
             const saved = localStorage.getItem('iggestor_custom_roles_v1');
             if (saved) {
                 const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed)) {
-                    initial = mergeRoles(initial, parsed);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    return parsed;
                 }
             }
         } catch (_) {}
-        return initial;
+        return [...DEFAULT_PORTAL_ROLES];
     });
 
     const [loading, setLoading] = useState(false);
@@ -78,7 +45,10 @@ export function usePortalRoles() {
                 if (res.ok) {
                     const serverRoles = await res.json();
                     if (isMounted && Array.isArray(serverRoles) && serverRoles.length > 0) {
-                        setRoles(prev => mergeRoles(prev, serverRoles));
+                        setRoles(serverRoles);
+                        try {
+                            localStorage.setItem('iggestor_custom_roles_v1', JSON.stringify(serverRoles));
+                        } catch (_) {}
                     }
                 }
             } catch (err) {
@@ -94,17 +64,23 @@ export function usePortalRoles() {
             if (e.key === 'iggestor_custom_roles_v1' && e.newValue) {
                 try {
                     const parsed = JSON.parse(e.newValue);
-                    if (Array.isArray(parsed)) {
-                        setRoles(prev => mergeRoles(prev, parsed));
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        setRoles(parsed);
                     }
                 } catch (_) {}
             }
         };
 
+        const handleRolesUpdated = () => {
+            loadRoles();
+        };
+
         window.addEventListener('storage', handleStorage);
+        window.addEventListener('contributor_roles_updated', handleRolesUpdated);
         return () => {
             isMounted = false;
             window.removeEventListener('storage', handleStorage);
+            window.removeEventListener('contributor_roles_updated', handleRolesUpdated);
         };
     }, []);
 

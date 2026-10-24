@@ -249,6 +249,13 @@ class LocalSqliteEngine {
         created_at TEXT DEFAULT (now())
       );
 
+      CREATE TABLE IF NOT EXISTS contributor_roles (
+        id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()),
+        name TEXT NOT NULL,
+        user_id TEXT,
+        created_at TEXT DEFAULT (now())
+      );
+
       CREATE TABLE IF NOT EXISTS church_closings (
         id TEXT PRIMARY KEY,
         church_id TEXT NOT NULL,
@@ -1927,6 +1934,20 @@ async function initializeDatabase() {
     await client.query("CREATE INDEX IF NOT EXISTS idx_contrib_types_bank ON contribution_types(bank_id);");
     console.log('[Contributors API] Table "contribution_types" verified or successfully created.');
 
+    // Create table contributor_roles
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS contributor_roles (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        user_id VARCHAR(255),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+    await client.query('ALTER TABLE contributor_roles ADD COLUMN IF NOT EXISTS name VARCHAR(255);');
+    await client.query('ALTER TABLE contributor_roles ADD COLUMN IF NOT EXISTS user_id VARCHAR(255);');
+    await client.query('ALTER TABLE contributor_roles ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();');
+    console.log('[Contributors API] Table "contributor_roles" verified or successfully created.');
+
     // Create table church_closings
     await client.query(`
       CREATE TABLE IF NOT EXISTS church_closings (
@@ -2592,63 +2613,188 @@ app.get('/api/v1/contributors', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/v1/contributors/roles (List of registered roles / cargos / funções)
+// GET /api/v1/contributors/roles (List of registered roles / cargos / funções in cloud)
 app.get('/api/v1/contributors/roles', async (req: Request, res: Response) => {
   try {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.set('Pragma', 'no-cache');
     res.set('Expires', '0');
 
-    const DEFAULT_ROLES = [
-      'Membro',
-      'Visitante',
-      'Pastor / Pastora',
-      'Diácono / Diaconisa',
-      'Presbítero / Evangelista',
-      'Obreiro / Obreira',
-      'Líder de Ministério / Célula',
-      'Voluntário',
-      'Dizimista',
-      'Músico / Louvor',
-      'Prestador de Serviços',
-      'Fornecedor / Empresa',
-      'Concessionária / Utilidades',
-      'Outro'
-    ];
+    const ctx = getTenantContext(req);
+    const { church_id, user_id } = req.query;
 
-    const rolesSet = new Set<string>(DEFAULT_ROLES);
-    try {
-      const dbRes = await pool.query(
-        `SELECT DISTINCT role_position FROM contributors WHERE role_position IS NOT NULL AND trim(role_position) != ''`
-      );
-      if (dbRes && dbRes.rows) {
-        for (const row of dbRes.rows) {
-          if (row.role_position && typeof row.role_position === 'string') {
-            const trimmed = row.role_position.trim();
-            if (trimmed) rolesSet.add(trimmed);
+    let cleanUserId = (typeof user_id === 'string' && user_id.trim())
+      ? user_id.trim()
+      : (ctx.ownerId || ctx.userId);
+
+    // If unauthenticated portal request, resolve tenant from church_id
+    if (!cleanUserId && church_id && typeof church_id === 'string') {
+      try {
+        const churchMatch = await pool.query("SELECT user_id FROM churches WHERE id = $1 LIMIT 1", [church_id.trim()]);
+        if (churchMatch.rows[0]?.user_id) {
+          cleanUserId = churchMatch.rows[0].user_id;
+        }
+      } catch (_) {}
+    }
+
+    let query = "SELECT id, name FROM contributor_roles WHERE name IS NOT NULL AND trim(name) != ''";
+    const params: any[] = [];
+    if (cleanUserId) {
+      const userIds = await getEquivalentUserIds(cleanUserId);
+      params.push(userIds);
+      query += ` AND (user_id = ANY($${params.length}) OR user_id IS NULL)`;
+    }
+    query += " ORDER BY created_at ASC";
+
+    let dbRes = await pool.query(query, params).catch(() => ({ rows: [] }));
+
+    // Auto-seed if contributor_roles table is completely empty for this tenant
+    if (!dbRes.rows || dbRes.rows.length === 0) {
+      const existingDistinctRes = await pool.query(
+        "SELECT DISTINCT role_position FROM contributors WHERE role_position IS NOT NULL AND trim(role_position) != ''"
+      ).catch(() => ({ rows: [] }));
+
+      const seedRoles: string[] = ['Membro'];
+      const seen = new Set<string>(['membro']);
+
+      if (existingDistinctRes.rows) {
+        for (const row of existingDistinctRes.rows) {
+          const val = String(row.role_position || '').trim();
+          const norm = val.toLowerCase();
+          if (val && !seen.has(norm) && norm !== 'outro') {
+            seen.add(norm);
+            seedRoles.push(val);
           }
         }
       }
-    } catch (_) {}
 
-    return res.json(Array.from(rolesSet));
+      for (const roleName of seedRoles) {
+        const roleId = crypto.randomUUID();
+        await pool.query(
+          "INSERT INTO contributor_roles (id, name, user_id, created_at) VALUES ($1, $2, $3, $4)",
+          [roleId, roleName, cleanUserId || null, new Date().toISOString()]
+        ).catch(() => {});
+      }
+
+      return res.json(seedRoles);
+    }
+
+    // Deduplicate case-insensitively and keep 'Membro' first if present
+    const distinctList: string[] = [];
+    const seen = new Set<string>();
+
+    // Prioritize 'Membro'
+    const membroRow = dbRes.rows.find((r: any) => String(r.name || '').trim().toLowerCase() === 'membro');
+    if (membroRow) {
+      const trimmed = String(membroRow.name).trim();
+      seen.add('membro');
+      distinctList.push(trimmed);
+    }
+
+    for (const row of dbRes.rows) {
+      const roleName = String(row.name || '').trim();
+      const norm = roleName.toLowerCase();
+      if (roleName && !seen.has(norm)) {
+        seen.add(norm);
+        distinctList.push(roleName);
+      }
+    }
+
+    return res.json(distinctList);
   } catch (err: any) {
-    return res.json([
-      'Membro',
-      'Visitante',
-      'Pastor / Pastora',
-      'Diácono / Diaconisa',
-      'Presbítero / Evangelista',
-      'Obreiro / Obreira',
-      'Líder de Ministério / Célula',
-      'Voluntário',
-      'Dizimista',
-      'Músico / Louvor',
-      'Prestador de Serviços',
-      'Fornecedor / Empresa',
-      'Concessionária / Utilidades',
-      'Outro'
-    ]);
+    console.error('[Contributors API] Error GET roles:', err);
+    return res.json(['Membro']);
+  }
+});
+
+// POST /api/v1/contributors/roles (Create new role in cloud)
+app.post('/api/v1/contributors/roles', async (req: Request, res: Response) => {
+  try {
+    const ctx = getTenantContext(req);
+    const { name } = req.body;
+    const cleanName = typeof name === 'string' ? name.trim() : '';
+
+    if (!cleanName) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Nome do cargo/vínculo é obrigatório.' });
+    }
+
+    const cleanUserId = ctx.ownerId || ctx.userId || null;
+
+    // Check if role already exists case-insensitively
+    const existingRes = await pool.query(
+      "SELECT id, name FROM contributor_roles WHERE lower(trim(name)) = lower(trim($1))",
+      [cleanName]
+    );
+
+    if (existingRes.rows && existingRes.rows.length > 0) {
+      return res.status(200).json({ id: existingRes.rows[0].id, name: existingRes.rows[0].name, created: false });
+    }
+
+    const newId = crypto.randomUUID();
+    await pool.query(
+      "INSERT INTO contributor_roles (id, name, user_id, created_at) VALUES ($1, $2, $3, $4)",
+      [newId, cleanName, cleanUserId, new Date().toISOString()]
+    );
+
+    return res.status(201).json({ id: newId, name: cleanName, created: true });
+  } catch (err: any) {
+    console.error('[Contributors API] Error POST role:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// PUT /api/v1/contributors/roles (Rename role in cloud & cascade to contributors)
+app.put('/api/v1/contributors/roles', async (req: Request, res: Response) => {
+  try {
+    const { oldName, newName, id } = req.body;
+    const cleanOld = typeof oldName === 'string' ? oldName.trim() : '';
+    const cleanNew = typeof newName === 'string' ? newName.trim() : '';
+
+    if (!cleanNew) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Novo nome do cargo é obrigatório.' });
+    }
+
+    if (id) {
+      await pool.query("UPDATE contributor_roles SET name = $1 WHERE id = $2", [cleanNew, id]);
+    } else if (cleanOld) {
+      await pool.query("UPDATE contributor_roles SET name = $1 WHERE lower(trim(name)) = lower(trim($2))", [cleanNew, cleanOld]);
+    }
+
+    // Cascade rename to contributors table in database
+    if (cleanOld) {
+      await pool.query("UPDATE contributors SET role_position = $1 WHERE lower(trim(role_position)) = lower(trim($2))", [cleanNew, cleanOld]);
+    }
+
+    return res.json({ success: true, name: cleanNew });
+  } catch (err: any) {
+    console.error('[Contributors API] Error PUT role:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// DELETE /api/v1/contributors/roles (Delete role from cloud & disassociate)
+app.delete('/api/v1/contributors/roles', async (req: Request, res: Response) => {
+  try {
+    const roleName = (req.query.name || req.body.name) as string | undefined;
+    const roleId = (req.query.id || req.body.id) as string | undefined;
+
+    if (roleId) {
+      const existing = await pool.query("SELECT name FROM contributor_roles WHERE id = $1", [roleId]);
+      const name = existing.rows[0]?.name;
+      await pool.query("DELETE FROM contributor_roles WHERE id = $1", [roleId]);
+      if (name) {
+        await pool.query("UPDATE contributors SET role_position = NULL WHERE lower(trim(role_position)) = lower(trim($1))", [name]);
+      }
+    } else if (roleName && roleName.trim()) {
+      const cleanName = roleName.trim();
+      await pool.query("DELETE FROM contributor_roles WHERE lower(trim(name)) = lower(trim($1))", [cleanName]);
+      await pool.query("UPDATE contributors SET role_position = NULL WHERE lower(trim(role_position)) = lower(trim($1))", [cleanName]);
+    }
+
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error('[Contributors API] Error DELETE role:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
   }
 });
 
