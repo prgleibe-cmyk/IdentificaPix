@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 
 export const DEFAULT_PORTAL_ROLES: string[] = [
-    'Membro'
+    'Membro',
+    'Congregado'
 ];
 
 /**

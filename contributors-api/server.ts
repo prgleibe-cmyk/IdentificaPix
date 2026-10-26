@@ -2650,23 +2650,7 @@ app.get('/api/v1/contributors/roles', async (req: Request, res: Response) => {
 
     // Auto-seed if contributor_roles table is completely empty for this tenant
     if (!dbRes.rows || dbRes.rows.length === 0) {
-      const existingDistinctRes = await pool.query(
-        "SELECT DISTINCT role_position FROM contributors WHERE role_position IS NOT NULL AND trim(role_position) != ''"
-      ).catch(() => ({ rows: [] }));
-
-      const seedRoles: string[] = ['Membro'];
-      const seen = new Set<string>(['membro']);
-
-      if (existingDistinctRes.rows) {
-        for (const row of existingDistinctRes.rows) {
-          const val = String(row.role_position || '').trim();
-          const norm = val.toLowerCase();
-          if (val && !seen.has(norm) && norm !== 'outro') {
-            seen.add(norm);
-            seedRoles.push(val);
-          }
-        }
-      }
+      const seedRoles: string[] = ['Membro', 'Congregado'];
 
       for (const roleName of seedRoles) {
         const roleId = crypto.randomUUID();
@@ -2679,7 +2663,18 @@ app.get('/api/v1/contributors/roles', async (req: Request, res: Response) => {
       return res.json(seedRoles);
     }
 
-    // Deduplicate case-insensitively and keep 'Membro' first if present
+    // Ensure baseline 'Congregado' exists if only 'Membro' was present
+    const hasCongregado = dbRes.rows.some((r: any) => String(r.name || '').trim().toLowerCase() === 'congregado');
+    if (!hasCongregado) {
+      const congId = crypto.randomUUID();
+      await pool.query(
+        "INSERT INTO contributor_roles (id, name, user_id, created_at) VALUES ($1, $2, $3, $4)",
+        [congId, 'Congregado', cleanUserId || null, new Date().toISOString()]
+      ).catch(() => {});
+      (dbRes.rows as any[]).push({ id: congId, name: 'Congregado' });
+    }
+
+    // Deduplicate case-insensitively and keep 'Membro' and 'Congregado' first
     const distinctList: string[] = [];
     const seen = new Set<string>();
 
@@ -2688,6 +2683,14 @@ app.get('/api/v1/contributors/roles', async (req: Request, res: Response) => {
     if (membroRow) {
       const trimmed = String(membroRow.name).trim();
       seen.add('membro');
+      distinctList.push(trimmed);
+    }
+
+    // Prioritize 'Congregado'
+    const congregadoRow = dbRes.rows.find((r: any) => String(r.name || '').trim().toLowerCase() === 'congregado');
+    if (congregadoRow) {
+      const trimmed = String(congregadoRow.name).trim();
+      seen.add('congregado');
       distinctList.push(trimmed);
     }
 
@@ -2703,11 +2706,11 @@ app.get('/api/v1/contributors/roles', async (req: Request, res: Response) => {
     return res.json(distinctList);
   } catch (err: any) {
     console.error('[Contributors API] Error GET roles:', err);
-    return res.json(['Membro']);
+    return res.json(['Membro', 'Congregado']);
   }
 });
 
-// POST /api/v1/contributors/roles (Create new role in cloud)
+// POST /api/v1/contributors/roles (Create new role in cloud - tenant scoped)
 app.post('/api/v1/contributors/roles', async (req: Request, res: Response) => {
   try {
     const ctx = getTenantContext(req);
@@ -2719,12 +2722,19 @@ app.post('/api/v1/contributors/roles', async (req: Request, res: Response) => {
     }
 
     const cleanUserId = ctx.ownerId || ctx.userId || null;
+    let userIds: string[] = [];
+    if (cleanUserId) {
+      userIds = await getEquivalentUserIds(cleanUserId);
+    }
 
-    // Check if role already exists case-insensitively
-    const existingRes = await pool.query(
-      "SELECT id, name FROM contributor_roles WHERE lower(trim(name)) = lower(trim($1))",
-      [cleanName]
-    );
+    // Check if role already exists case-insensitively for this tenant
+    let checkQuery = "SELECT id, name FROM contributor_roles WHERE lower(trim(name)) = lower(trim($1))";
+    const checkParams: any[] = [cleanName];
+    if (userIds.length > 0) {
+      checkParams.push(userIds);
+      checkQuery += ` AND (user_id = ANY($2) OR user_id IS NULL)`;
+    }
+    const existingRes = await pool.query(checkQuery, checkParams);
 
     if (existingRes.rows && existingRes.rows.length > 0) {
       return res.status(200).json({ id: existingRes.rows[0].id, name: existingRes.rows[0].name, created: false });
@@ -2743,9 +2753,10 @@ app.post('/api/v1/contributors/roles', async (req: Request, res: Response) => {
   }
 });
 
-// PUT /api/v1/contributors/roles (Rename role in cloud & cascade to contributors)
+// PUT /api/v1/contributors/roles (Rename role in cloud & cascade to contributors - tenant scoped)
 app.put('/api/v1/contributors/roles', async (req: Request, res: Response) => {
   try {
+    const ctx = getTenantContext(req);
     const { oldName, newName, id } = req.body;
     const cleanOld = typeof oldName === 'string' ? oldName.trim() : '';
     const cleanNew = typeof newName === 'string' ? newName.trim() : '';
@@ -2754,15 +2765,33 @@ app.put('/api/v1/contributors/roles', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Novo nome do cargo é obrigatório.' });
     }
 
-    if (id) {
-      await pool.query("UPDATE contributor_roles SET name = $1 WHERE id = $2", [cleanNew, id]);
-    } else if (cleanOld) {
-      await pool.query("UPDATE contributor_roles SET name = $1 WHERE lower(trim(name)) = lower(trim($2))", [cleanNew, cleanOld]);
+    const cleanUserId = ctx.ownerId || ctx.userId || null;
+    let userIds: string[] = [];
+    if (cleanUserId) {
+      userIds = await getEquivalentUserIds(cleanUserId);
     }
 
-    // Cascade rename to contributors table in database
+    if (id) {
+      if (userIds.length > 0) {
+        await pool.query("UPDATE contributor_roles SET name = $1 WHERE id = $2 AND (user_id = ANY($3) OR user_id IS NULL)", [cleanNew, id, userIds]);
+      } else {
+        await pool.query("UPDATE contributor_roles SET name = $1 WHERE id = $2", [cleanNew, id]);
+      }
+    } else if (cleanOld) {
+      if (userIds.length > 0) {
+        await pool.query("UPDATE contributor_roles SET name = $1 WHERE lower(trim(name)) = lower(trim($2)) AND (user_id = ANY($3) OR user_id IS NULL)", [cleanNew, cleanOld, userIds]);
+      } else {
+        await pool.query("UPDATE contributor_roles SET name = $1 WHERE lower(trim(name)) = lower(trim($2))", [cleanNew, cleanOld]);
+      }
+    }
+
+    // Cascade rename to contributors table in database scoped to tenant
     if (cleanOld) {
-      await pool.query("UPDATE contributors SET role_position = $1 WHERE lower(trim(role_position)) = lower(trim($2))", [cleanNew, cleanOld]);
+      if (userIds.length > 0) {
+        await pool.query("UPDATE contributors SET role_position = $1 WHERE lower(trim(role_position)) = lower(trim($2)) AND (user_id = ANY($3) OR user_id IS NULL)", [cleanNew, cleanOld, userIds]);
+      } else {
+        await pool.query("UPDATE contributors SET role_position = $1 WHERE lower(trim(role_position)) = lower(trim($2))", [cleanNew, cleanOld]);
+      }
     }
 
     return res.json({ success: true, name: cleanNew });
@@ -2772,23 +2801,49 @@ app.put('/api/v1/contributors/roles', async (req: Request, res: Response) => {
   }
 });
 
-// DELETE /api/v1/contributors/roles (Delete role from cloud & disassociate)
+// DELETE /api/v1/contributors/roles (Delete role from cloud & disassociate - tenant scoped)
 app.delete('/api/v1/contributors/roles', async (req: Request, res: Response) => {
   try {
+    const ctx = getTenantContext(req);
     const roleName = (req.query.name || req.body.name) as string | undefined;
     const roleId = (req.query.id || req.body.id) as string | undefined;
 
+    const cleanUserId = ctx.ownerId || ctx.userId || null;
+    let userIds: string[] = [];
+    if (cleanUserId) {
+      userIds = await getEquivalentUserIds(cleanUserId);
+    }
+
     if (roleId) {
-      const existing = await pool.query("SELECT name FROM contributor_roles WHERE id = $1", [roleId]);
+      let findQuery = "SELECT name FROM contributor_roles WHERE id = $1";
+      const findParams: any[] = [roleId];
+      if (userIds.length > 0) {
+        findParams.push(userIds);
+        findQuery += ` AND (user_id = ANY($2) OR user_id IS NULL)`;
+      }
+      const existing = await pool.query(findQuery, findParams);
       const name = existing.rows[0]?.name;
-      await pool.query("DELETE FROM contributor_roles WHERE id = $1", [roleId]);
-      if (name) {
-        await pool.query("UPDATE contributors SET role_position = NULL WHERE lower(trim(role_position)) = lower(trim($1))", [name]);
+
+      if (userIds.length > 0) {
+        await pool.query("DELETE FROM contributor_roles WHERE id = $1 AND (user_id = ANY($2) OR user_id IS NULL)", [roleId, userIds]);
+        if (name) {
+          await pool.query("UPDATE contributors SET role_position = NULL WHERE lower(trim(role_position)) = lower(trim($1)) AND (user_id = ANY($2) OR user_id IS NULL)", [name, userIds]);
+        }
+      } else {
+        await pool.query("DELETE FROM contributor_roles WHERE id = $1", [roleId]);
+        if (name) {
+          await pool.query("UPDATE contributors SET role_position = NULL WHERE lower(trim(role_position)) = lower(trim($1))", [name]);
+        }
       }
     } else if (roleName && roleName.trim()) {
       const cleanName = roleName.trim();
-      await pool.query("DELETE FROM contributor_roles WHERE lower(trim(name)) = lower(trim($1))", [cleanName]);
-      await pool.query("UPDATE contributors SET role_position = NULL WHERE lower(trim(role_position)) = lower(trim($1))", [cleanName]);
+      if (userIds.length > 0) {
+        await pool.query("DELETE FROM contributor_roles WHERE lower(trim(name)) = lower(trim($1)) AND (user_id = ANY($2) OR user_id IS NULL)", [cleanName, userIds]);
+        await pool.query("UPDATE contributors SET role_position = NULL WHERE lower(trim(role_position)) = lower(trim($1)) AND (user_id = ANY($2) OR user_id IS NULL)", [cleanName, userIds]);
+      } else {
+        await pool.query("DELETE FROM contributor_roles WHERE lower(trim(name)) = lower(trim($1))", [cleanName]);
+        await pool.query("UPDATE contributors SET role_position = NULL WHERE lower(trim(role_position)) = lower(trim($1))", [cleanName]);
+      }
     }
 
     return res.json({ success: true });

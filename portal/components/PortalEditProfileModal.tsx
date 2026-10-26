@@ -36,7 +36,8 @@ interface PortalEditProfileModalProps {
 }
 
 const DEFAULT_ROLES_LIST = [
-    'Membro'
+    'Membro',
+    'Congregado'
 ];
 
 const getMembroOption = (roles: string[]): string => {

@@ -64,7 +64,8 @@ export const ContributorsList: React.FC = () => {
     
     // Vínculo / Cargo States
     const DEFAULT_ROLES_LIST = [
-        'Membro'
+        'Membro',
+        'Congregado'
     ];
 
     const DEFAULT_SUPPLIER_CATEGORIES = [
