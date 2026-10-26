@@ -578,8 +578,9 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                                 if (y === closingYear && m === closingMonth) {
                                     return {
                                         ...r,
+                                        status: 'RESOLVED',
                                         isConfirmed: true,
-                                        transaction: r.transaction ? { ...r.transaction, isConfirmed: true } : r.transaction
+                                        transaction: r.transaction ? { ...r.transaction, isConfirmed: true, status: 'resolved' } : r.transaction
                                     };
                                 }
                             }
@@ -663,6 +664,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                 onClosingComplete(closingRecord);
             }
             window.dispatchEvent(new CustomEvent('month_closing_updated', { detail: closingRecord }));
+            window.dispatchEvent(new CustomEvent('transaction_updated', { detail: { action: 'bulk_confirmed' } }));
 
             let successText = `Fechamento do mês ${String(closingMonth).padStart(2, '0')}/${closingYear} registrado com sucesso para a igreja "${originChurch.name}".`;
             if (signatures.length > 0) {

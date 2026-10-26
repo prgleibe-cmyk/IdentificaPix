@@ -42,7 +42,8 @@ import {
     Receipt,
     FileSignature,
     Pencil,
-    ShieldCheck
+    ShieldCheck,
+    Lock
 } from 'lucide-react';
 
 export const LivroCaixaView: React.FC = memo(() => {
@@ -1903,6 +1904,17 @@ export const LivroCaixaView: React.FC = memo(() => {
                                             (tx.raw?.transaction?.row_hash && tx.raw?.transaction?.row_hash.includes('|bmanual|')) ||
                                             (tx.row_hash && tx.row_hash.includes('|bmanual|'));
 
+                                        const isRowConfirmed = Boolean(
+                                            tx.isConfirmed || 
+                                            tx.is_confirmed || 
+                                            tx.raw?.isConfirmed || 
+                                            tx.raw?.transaction?.isConfirmed || 
+                                            tx.raw?.transaction?.is_confirmed || 
+                                            (tx.status === 'resolved') || 
+                                            (tx.raw?.status === 'resolved') || 
+                                            (tx.raw?.transaction?.status === 'resolved')
+                                        );
+
                                         return (
                                             <tr key={tx.id || idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
                                                 <td className="px-4 py-2.5 whitespace-nowrap font-mono text-slate-600 dark:text-slate-400">
@@ -1923,7 +1935,16 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                 <td className="px-4 py-2.5">
                                                     <div className="font-bold text-slate-800 dark:text-slate-100 uppercase flex items-center gap-1.5 flex-wrap">
                                                         <span>{payerName}</span>
-                                                        {isManualRow && (
+                                                        {isRowConfirmed && (
+                                                            <span 
+                                                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/80 shadow-2xs"
+                                                                title="Lançamento com Fechamento Final confirmado e bloqueado"
+                                                            >
+                                                                <Lock className="w-2.5 h-2.5 text-indigo-600 dark:text-indigo-400" />
+                                                                <span>Confirmado</span>
+                                                            </span>
+                                                        )}
+                                                        {isManualRow && !isRowConfirmed && (
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setEditingManualTx(tx.raw || tx)}

@@ -2259,6 +2259,7 @@ export interface TenantContext {
   allowedChurchIds: string[];
   allowedBankIds: string[];
   role: string | null;
+  permissions: string[];
   isSuperAdmin: boolean;
   isOwner: boolean;
   isSecondaryUser: boolean;
@@ -2404,6 +2405,12 @@ export function getTenantContext(req: Request): TenantContext {
     const isSecondaryUser = !isSuperAdmin && (hasSeparateOwner || isSecondaryRole || Boolean(user.is_secondary));
     const isOwner = isSuperAdmin || (!isSecondaryUser && (role === 'owner' || role === 'principal' || !hasSeparateOwner));
 
+    const userPermissions: string[] = Array.isArray(user.permissions)
+      ? user.permissions
+      : (typeof req.headers['x-user-permissions'] === 'string'
+          ? (req.headers['x-user-permissions'] as string).split(',').map(s => s.trim()).filter(Boolean)
+          : []);
+
     return {
       userId,
       ownerId,
@@ -2411,6 +2418,7 @@ export function getTenantContext(req: Request): TenantContext {
       allowedChurchIds,
       allowedBankIds,
       role,
+      permissions: userPermissions,
       isSuperAdmin,
       isOwner,
       isSecondaryUser,
@@ -2421,6 +2429,9 @@ export function getTenantContext(req: Request): TenantContext {
   const fallbackHasSeparateOwner = Boolean(headerOwnerId && headerUserId && headerOwnerId !== headerUserId);
   const fallbackIsSecondary = headerRole ? (['secondary', 'member', 'operador', 'colaborador'].includes(headerRole) || (headerRole === 'user' && fallbackHasSeparateOwner)) : fallbackHasSeparateOwner;
   const fallbackAllowedChurchIds = headerAllowedChurchIds || (headerChurchId ? [headerChurchId] : []);
+  const fallbackPermissions: string[] = typeof req.headers['x-user-permissions'] === 'string'
+    ? (req.headers['x-user-permissions'] as string).split(',').map(s => s.trim()).filter(Boolean)
+    : [];
 
   return {
     userId: headerUserId,
@@ -2429,6 +2440,7 @@ export function getTenantContext(req: Request): TenantContext {
     allowedChurchIds: fallbackAllowedChurchIds,
     allowedBankIds: [],
     role: headerRole,
+    permissions: fallbackPermissions,
     isSuperAdmin: headerRole === 'superadmin',
     isOwner: !fallbackIsSecondary,
     isSecondaryUser: fallbackIsSecondary,
@@ -7073,6 +7085,34 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
       }
     }
 
+    // 🛡️ RECURSO ÚNICO "CONFIRMAR FINAL": Homologação atômica de todas as transações do período no PostgreSQL
+    if (effStatus !== 'reopened') {
+      try {
+        const monthPrefix = `${effYear}-${String(effMonth).padStart(2, '0')}`;
+        let confirmQuery = `
+          UPDATE consolidated_transactions 
+          SET is_confirmed = 1, status = 'resolved', updated_at = NOW()
+          WHERE church_id::text = $1
+            AND (
+              transaction_date::text LIKE $2 
+              OR reference_date::text LIKE $2
+              OR SUBSTRING(COALESCE(reference_date, transaction_date), 1, 7) = $3
+            )
+        `;
+        const confirmParams: any[] = [effChurchId, `${monthPrefix}%`, monthPrefix];
+
+        if (effBankId && effBankId !== 'all') {
+          confirmQuery += ` AND bank_id::text = $${confirmParams.length + 1}`;
+          confirmParams.push(effBankId);
+        }
+
+        const confirmRes = await pool.query(confirmQuery, confirmParams);
+        console.log(`[ChurchClosings] 🔒 Fechamento Final: ${confirmRes.rowCount || 0} transações marcadas como confirmadas/bloqueadas no PostgreSQL.`);
+      } catch (confirmErr) {
+        console.error('[ChurchClosings] Erro ao confirmar transações do período no banco:', confirmErr);
+      }
+    }
+
     try {
       await logAudit(pool, {
         action: 'CREATE',
@@ -7973,12 +8013,38 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
       }
     }
 
-    // 🛡️ Validação de Período Fechado (Congelamento)
-    // 1. Não permite alterar transação pertencente a um período já fechado (exceto se for item pendente de arquivo/SMS sendo identificado pela primeira vez)
+    // 🛡️ RECURSO ÚNICO "CONFIRMAR FINAL": Validação de Bloqueio e Período Fechado
+    const isFinancialDataModified = 
+      (amount !== undefined && Number(amount) !== Number(oldTx.amount)) ||
+      (type !== undefined && type !== oldTx.type) ||
+      (bank_id !== undefined && String(bank_id) !== String(oldTx.bank_id)) ||
+      (church_id !== undefined && String(church_id) !== String(oldTx.church_id)) ||
+      (transaction_date !== undefined && String(transaction_date) !== String(oldTx.transaction_date)) ||
+      (reference_date !== undefined && String(reference_date) !== String(oldTx.reference_date || oldTx.transaction_date));
+
+    const canConfirmFinal = ctx.isOwner || (Array.isArray(ctx.permissions) && (
+      ctx.permissions.includes('confirmar_final') ||
+      ctx.permissions.includes('confirm_final') ||
+      ctx.permissions.includes('financeiro') ||
+      ctx.permissions.includes('admin')
+    ));
+
+    const isOnlyConfirmationToggle = is_confirmed !== undefined && !isFinancialDataModified && canConfirmFinal;
+
+    // Se o lançamento já está confirmado e o usuário tenta alterar valores, bancos ou datas (sem destravá-lo antes com permissão):
+    const isCurrentlyConfirmed = Boolean(oldTx.is_confirmed);
+    if (isCurrentlyConfirmed && isFinancialDataModified && !isOnlyConfirmationToggle) {
+      return res.status(422).json({
+        error: 'TRANSACTION_CONFIRMED',
+        message: 'LANÇAMENTO CONFIRMADO: Esta transação já possui confirmação final homologada. Alterações em valores, contas ou datas estão bloqueadas.'
+      });
+    }
+
+    // 1. Não permite alterar transação pertencente a um período já fechado (exceto se for item pendente ou toggle autorizado de confirmação)
     const isUnconfirmedBankTx = (oldTx.source !== 'manual') && (!oldTx.is_confirmed || oldTx.status !== 'confirmed');
     const oldEffectiveDate = oldTx.reference_date || oldTx.transaction_date;
     const oldCheck = await isChurchPeriodClosed(pool, oldTx.church_id, oldEffectiveDate);
-    if (oldCheck.isClosed && !isUnconfirmedBankTx) {
+    if (oldCheck.isClosed && !isUnconfirmedBankTx && !isOnlyConfirmationToggle) {
       return res.status(422).json({
         error: 'PERIOD_CLOSED',
         message: `PERÍODO CONGELADO: Esta transação pertence ao período ${String(oldCheck.month).padStart(2, '0')}/${oldCheck.year}, que já teve seu Fechamento Final homologado. Alterações estão expressamente bloqueadas.`
@@ -7986,14 +8052,16 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
     }
 
     // 2. Não permite mover transação para uma congregação/data cujo período esteja fechado
-    const targetChurchId = church_id !== undefined ? church_id : oldTx.church_id;
-    const targetDate = (reference_date !== undefined && reference_date) ? reference_date : (transaction_date !== undefined ? transaction_date : (oldTx.reference_date || oldTx.transaction_date));
-    const newCheck = await isChurchPeriodClosed(pool, targetChurchId, targetDate);
-    if (newCheck.isClosed) {
-      return res.status(422).json({
-        error: 'PERIOD_CLOSED',
-        message: newCheck.message
-      });
+    if (isFinancialDataModified) {
+      const targetChurchId = church_id !== undefined ? church_id : oldTx.church_id;
+      const targetDate = (reference_date !== undefined && reference_date) ? reference_date : (transaction_date !== undefined ? transaction_date : (oldTx.reference_date || oldTx.transaction_date));
+      const newCheck = await isChurchPeriodClosed(pool, targetChurchId, targetDate);
+      if (newCheck.isClosed) {
+        return res.status(422).json({
+          error: 'PERIOD_CLOSED',
+          message: newCheck.message
+        });
+      }
     }
 
     let finalContribReqId = contribution_request_id;
@@ -8155,7 +8223,14 @@ app.delete('/api/v1/consolidated_transactions/:id', async (req: Request, res: Re
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: a transação pertence a outra organização.' });
     }
 
-    // 🛡️ Validação de Período Fechado (Congelamento)
+    // 🛡️ Validação de Bloqueio (Lançamento Confirmado) e Período Fechado
+    if (oldTx.is_confirmed) {
+      return res.status(422).json({
+        error: 'TRANSACTION_CONFIRMED',
+        message: 'LANÇAMENTO CONFIRMADO: Esta transação possui confirmação final homologada e está bloqueada contra exclusão.'
+      });
+    }
+
     const oldCheck = await isChurchPeriodClosed(pool, oldTx.church_id, oldTx.transaction_date || oldTx.reference_date);
     if (oldCheck.isClosed) {
       return res.status(422).json({
@@ -8204,7 +8279,14 @@ app.post('/api/v1/consolidated_transactions/bulk-delete', async (req: Request, r
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: uma ou mais transações pertencem a outra organização.' });
       }
 
-      // 🛡️ Validação de Período Fechado (Congelamento)
+      // 🛡️ Validação de Bloqueio (Lançamento Confirmado) e Período Fechado
+      if (oldTx.is_confirmed) {
+        return res.status(422).json({
+          error: 'TRANSACTION_CONFIRMED',
+          message: `LANÇAMENTO CONFIRMADO: A transação "${oldTx.description}" possui confirmação final homologada e está bloqueada contra exclusão.`
+        });
+      }
+
       const closedCheck = await isChurchPeriodClosed(pool, oldTx.church_id, oldTx.transaction_date || oldTx.reference_date);
       if (closedCheck.isClosed) {
         return res.status(422).json({

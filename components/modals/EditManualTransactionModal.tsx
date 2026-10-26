@@ -431,6 +431,19 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
                 return;
             }
 
+            const isConfirmedRow = Boolean(
+                row.isConfirmed || 
+                (row.transaction as any)?.isConfirmed || 
+                (row.transaction as any)?.is_confirmed ||
+                (row.contributor as any)?.is_confirmed ||
+                (row.status as any) === 'RESOLVED' ||
+                (row.transaction as any)?.status === 'resolved'
+            );
+            if (isConfirmedRow) {
+                setErrorMessage("Este lançamento possui Confirmação Final homologada. Alterações em lançamentos confirmados estão bloqueadas.");
+                return;
+            }
+
             setIsSaving(true);
 
             // Resolução segura do ID de contribuinte
