@@ -33,6 +33,7 @@ import {
     RotateCcw,
     CheckCircle2,
     ArrowRight,
+    ArrowRightLeft,
     Check,
     ChevronLeft,
     ChevronRight,
@@ -517,6 +518,11 @@ export const LivroCaixaView: React.FC = memo(() => {
             if (selectedBankIds.length > 0) {
                 const itemBankId = item.bankId || item.raw?.transaction?.bank_id || item.raw?.bankId;
                 const itemBankName = item.bankName;
+                const catStr = (item.category || item.categoria || item.contributionType || '').toString().toUpperCase();
+                const isClosing = item.source === 'closing' ||
+                    catStr.includes('SALDO TRANSPORTADO') ||
+                    catStr.includes('DÉFICIT TRANSPORTADO') ||
+                    (typeof item.id === 'string' && item.id.startsWith('closing-'));
                 const matchesAny = selectedBankIds.some(bId => {
                     if (itemBankId && itemBankId === bId) return true;
                     const bObj = banks.find((b: any) => b.id === bId);
@@ -525,7 +531,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                     if (itemBankName && itemBankName.toLowerCase() === bName) return true;
                     return false;
                 });
-                if (!matchesAny) return false;
+                if (!matchesAny && !isClosing) return false;
             }
 
             if (item.date && selectionMode !== 'all') {
@@ -575,6 +581,22 @@ export const LivroCaixaView: React.FC = memo(() => {
 
         filteredReportData.forEach((tx: any) => {
             const isBaseExp = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && (String(tx.category).toLowerCase().includes('saida') || String(tx.category).toLowerCase().includes('saída')));
+            const cat = String(tx.category || '').toUpperCase();
+            const desc = String(tx.desc || tx.description || '').toUpperCase();
+            const isClosingTransfer = tx.source === 'closing' 
+                || cat.includes('SALDO TRANSPORTADO') 
+                || cat.includes('DÉFICIT TRANSPORTADO') 
+                || cat.includes('DEFICIT TRANSPORTADO')
+                || (desc.startsWith('[RECEBIMENTO]') && desc.includes('SALDO RECEBIDO'))
+                || (desc.startsWith('[FECHAMENTO]') && desc.includes('TRANSP. SALDO'))
+                || desc.startsWith('[APORTE/FECHAMENTO]')
+                || desc.startsWith('[REPASSE/FECHAMENTO]');
+
+            if (isClosingTransfer) {
+                // Não mistura transportes de fechamento nas receitas/despesas operacionais
+                return;
+            }
+
             const txSplits = (Array.isArray(tx.splits) && tx.splits.length > 0)
                 ? tx.splits
                 : (Array.isArray(tx.raw?.splits) && tx.raw.splits.length > 0)
@@ -642,12 +664,15 @@ export const LivroCaixaView: React.FC = memo(() => {
         let entradasPix = 0;
         let entradasOutras = 0;
         let transfRecebidas = 0;
+        let saldosTransportadosRecebidos = 0;
+        let deficitsTransportadosRecebidos = 0;
 
         let saidasDinheiro = 0;
         let saidasPix = 0;
         let saidasBoletoFaturas = 0;
         let saidasOutras = 0;
         let transfEnviadas = 0;
+        let saldosTransportadosEnviados = 0;
 
         // Data de corte para o Saldo Anterior
         const effectiveStartDate = selectionMode === 'dates'
@@ -882,37 +907,104 @@ export const LivroCaixaView: React.FC = memo(() => {
             } else {
                 const amt = Math.abs(Number(item.amount) || Number(item.val) || 0);
                 const pm = (item.paymentMethod || item.forma || '').toString().toUpperCase();
-                const cat = (item.category || item.categoria || '').toString().toUpperCase();
+                const cat = (item.category || item.categoria || item.contributionType || '').toString().toUpperCase();
                 const desc = (item.desc || item.description || item.historico || '').toString().toUpperCase();
                 const isExp = isBaseExp || cat.includes('SAIDA') || cat.includes('SAÍDA');
 
-                const isTransf = pm.includes('TRANSFER') || pm.includes('TED') || pm.includes('DOC') || cat.includes('TRANSFER') || desc.includes('TRANSFER');
+                const isClosingTransfer = item.source === 'closing' 
+                    || cat.includes('SALDO TRANSPORTADO') 
+                    || cat.includes('DÉFICIT TRANSPORTADO') 
+                    || cat.includes('DEFICIT TRANSPORTADO')
+                    || (desc.startsWith('[RECEBIMENTO]') && desc.includes('SALDO RECEBIDO'))
+                    || (desc.startsWith('[FECHAMENTO]') && desc.includes('TRANSP. SALDO'))
+                    || desc.startsWith('[APORTE/FECHAMENTO]')
+                    || desc.startsWith('[REPASSE/FECHAMENTO]');
 
-                if (isExp) {
-                    if (isTransf) {
-                        transfEnviadas += amt;
-                    } else if (pm.includes('DINHEIRO') || pm.includes('ESPÉCIE') || pm.includes('ESPECIE')) {
-                        saidasDinheiro += amt;
-                    } else if (pm.includes('PIX')) {
-                        saidasPix += amt;
-                    } else if (pm.includes('BOLETO') || pm.includes('FATURA') || pm.includes('CARTÃO') || pm.includes('CARTAO')) {
-                        saidasBoletoFaturas += amt;
+                if (isClosingTransfer) {
+                    if (isExp) {
+                        saldosTransportadosEnviados += amt;
                     } else {
-                        saidasOutras += amt;
+                        if (cat.includes('DÉFICIT') || cat.includes('DEFICIT') || Number(item.amount) < 0) {
+                            deficitsTransportadosRecebidos += amt;
+                        } else {
+                            saldosTransportadosRecebidos += amt;
+                        }
                     }
                 } else {
-                    if (isTransf) {
-                        transfRecebidas += amt;
-                    } else if (pm.includes('DINHEIRO') || pm.includes('ESPÉCIE') || pm.includes('ESPECIE')) {
-                        entradasDinheiro += amt;
-                    } else if (pm.includes('PIX')) {
-                        entradasPix += amt;
+                    const isTransf = pm.includes('TRANSFER') || pm.includes('TED') || pm.includes('DOC') || cat.includes('TRANSFER') || desc.includes('TRANSFER');
+
+                    if (isExp) {
+                        if (isTransf) {
+                            transfEnviadas += amt;
+                        } else if (pm.includes('DINHEIRO') || pm.includes('ESPÉCIE') || pm.includes('ESPECIE')) {
+                            saidasDinheiro += amt;
+                        } else if (pm.includes('PIX')) {
+                            saidasPix += amt;
+                        } else if (pm.includes('BOLETO') || pm.includes('FATURA') || pm.includes('CARTÃO') || pm.includes('CARTAO')) {
+                            saidasBoletoFaturas += amt;
+                        } else {
+                            saidasOutras += amt;
+                        }
                     } else {
-                        entradasOutras += amt;
+                        if (isTransf) {
+                            transfRecebidas += amt;
+                        } else if (pm.includes('DINHEIRO') || pm.includes('ESPÉCIE') || pm.includes('ESPECIE')) {
+                            entradasDinheiro += amt;
+                        } else if (pm.includes('PIX')) {
+                            entradasPix += amt;
+                        } else {
+                            entradasOutras += amt;
+                        }
                     }
                 }
             }
         });
+
+        // 🛡️ Identifica fechamentos homologados de outras congregações com transporte destinado para esta congregação no período
+        const currentPeriodKey = selectionMode === 'month' && selectedYear && selectedMonth
+            ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`
+            : (customStartDate ? customStartDate.slice(0, 7) : '');
+
+        const transportedClosingsList: any[] = [];
+        if (pastClosings && pastClosings.length > 0 && selectedChurchIds.length > 0) {
+            const currentSelectedChurchId = selectedChurchIds[0];
+            pastClosings.forEach((c: MonthClosingRecord) => {
+                if (!c || c.status === 'reopened') return;
+                const closingPeriodKey = `${c.year}-${String(c.month).padStart(2, '0')}`;
+                if (currentPeriodKey && closingPeriodKey !== currentPeriodKey) return;
+                
+                const destIds = (c.targetChurchId || '').split(',').map((s: string) => s.trim()).filter(Boolean);
+                const isDestForThisChurch = destIds.includes(currentSelectedChurchId);
+                if (isDestForThisChurch && c.churchId !== currentSelectedChurchId) {
+                    const transAmt = Number(c.transferredBalance) || 0;
+                    if (transAmt !== 0) {
+                        const originBank = banks.find((b: any) => b.id === c.bankId);
+                        transportedClosingsList.push({
+                            id: c.id,
+                            originChurchId: c.churchId,
+                            originChurchName: c.churchName || 'Igreja de Origem',
+                            originBankName: originBank?.account_name || originBank?.name || (c.bankId ? 'Conta Bancária' : 'Caixa Geral'),
+                            year: c.year,
+                            month: c.month,
+                            periodLabel: `${String(c.month).padStart(2, '0')}/${c.year}`,
+                            closedAt: c.closedAt,
+                            finalBalance: Number(c.finalBalance) || 0,
+                            transferredAmount: transAmt,
+                            isDeficit: transAmt < 0
+                        });
+                    }
+                }
+            });
+        }
+
+        const totalFromList = transportedClosingsList.reduce((acc, item) => acc + item.transferredAmount, 0);
+        const effectiveSaldosRecebidos = saldosTransportadosRecebidos > 0 
+            ? saldosTransportadosRecebidos 
+            : Math.max(0, totalFromList);
+        const effectiveDeficitsRecebidos = deficitsTransportadosRecebidos > 0
+            ? deficitsTransportadosRecebidos
+            : Math.abs(Math.min(0, totalFromList));
+        const totalTransportadoLiquido = (effectiveSaldosRecebidos - effectiveDeficitsRecebidos) - saldosTransportadosEnviados;
 
         const totalEntradas = entradasDinheiro + entradasPix + entradasOutras;
         const totalSaidas = saidasDinheiro + saidasPix + saidasBoletoFaturas + saidasOutras;
@@ -923,7 +1015,7 @@ export const LivroCaixaView: React.FC = memo(() => {
         const saldoDinheiro = entradasDinheiro - saidasDinheiro;
         const saldoPix = entradasPix - saidasPix;
 
-        const saldoFinal = saldoAnterior + totalEntradasPlusTransf - totalSaidasPlusTransf;
+        const saldoFinal = saldoAnterior + totalEntradasPlusTransf - totalSaidasPlusTransf + totalTransportadoLiquido;
 
         return {
             saldoAnterior,
@@ -942,6 +1034,11 @@ export const LivroCaixaView: React.FC = memo(() => {
             totalSaidasPlusTransf,
             saldoDinheiro,
             saldoPix,
+            saldosTransportadosRecebidos: effectiveSaldosRecebidos,
+            deficitsTransportadosRecebidos: effectiveDeficitsRecebidos,
+            saldosTransportadosEnviados,
+            totalTransportadoLiquido,
+            transportedClosingsList,
             saldoFinal
         };
     }, [reportData, filteredReportData, selectionMode, customStartDate, selectedYear, selectedMonth, selectedChurchIds, selectedBankIds, isSecondaryUser, allowedChurchIds, churches, banks, pastClosings]);
@@ -952,6 +1049,13 @@ export const LivroCaixaView: React.FC = memo(() => {
         const expenseMap = new Map<string, { label: string; total: number; count: number }>();
 
         filteredReportData.forEach((tx: any) => {
+            const cat = (tx.category || tx.categoria || tx.contributionType || '').toString().toUpperCase();
+            const isClosingTransfer = tx.source === 'closing'
+                || cat.includes('SALDO TRANSPORTADO')
+                || cat.includes('DÉFICIT TRANSPORTADO')
+                || (typeof tx.id === 'string' && tx.id.startsWith('closing-'));
+            if (isClosingTransfer) return;
+
             const isBaseExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && String(tx.category).toLowerCase().includes('saida'));
             const txSplits = (Array.isArray(tx.splits) && tx.splits.length > 0)
                 ? tx.splits
@@ -1757,6 +1861,89 @@ export const LivroCaixaView: React.FC = memo(() => {
                                     Valor resultante após o transporte
                                 </span>
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Demonstrativo de Saldos e Déficits Transportados Recebidos de Outros Caixas */}
+                {summaryBreakdown.transportedClosingsList && summaryBreakdown.transportedClosingsList.length > 0 && (
+                    <div className="p-4 md:p-5 rounded-2xl bg-gradient-to-r from-blue-50/90 via-indigo-50/50 to-slate-50 dark:from-blue-950/40 dark:via-indigo-950/20 dark:to-slate-900 border border-blue-200/80 dark:border-blue-800/60 shadow-xs space-y-3.5">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-blue-200/60 dark:border-blue-800/40 pb-3">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                                    <ArrowRightLeft className="w-5 h-5 stroke-[2.2]" />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h4 className="text-xs md:text-sm font-black uppercase tracking-wider text-blue-950 dark:text-blue-200">
+                                            Saldos e Déficits Transportados Recebidos
+                                        </h4>
+                                        <span className="text-[10px] font-mono font-bold bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-300 px-2 py-0.5 rounded-md">
+                                            {summaryBreakdown.transportedClosingsList.length} {summaryBreakdown.transportedClosingsList.length === 1 ? 'fechamento recebido' : 'fechamentos recebidos'}
+                                        </span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
+                                        Valores recebidos por transferência decorrente de fechamento de livro caixa de outras congregações.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                                    TOTAL LÍQUIDO TRANSPORTADO:
+                                </span>
+                                <span className={`text-base font-black font-mono ${
+                                    (summaryBreakdown.saldosTransportadosRecebidos - summaryBreakdown.deficitsTransportadosRecebidos) >= 0
+                                        ? 'text-emerald-600 dark:text-emerald-400'
+                                        : 'text-rose-600 dark:text-rose-400'
+                                }`}>
+                                    {formatBRL(summaryBreakdown.saldosTransportadosRecebidos - summaryBreakdown.deficitsTransportadosRecebidos)}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Tabela de Caixas de Origem Fechados */}
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse text-xs">
+                                <thead>
+                                    <tr className="border-b border-blue-200/50 dark:border-blue-900/50 text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">
+                                        <th className="py-2 px-2.5">Igreja de Origem</th>
+                                        <th className="py-2 px-2.5">Conta / Banco Origem</th>
+                                        <th className="py-2 px-2.5 text-center">Período Fechado</th>
+                                        <th className="py-2 px-2.5 text-center">Data do Fechamento</th>
+                                        <th className="py-2 px-2.5 text-right">Saldo Origem Anterior</th>
+                                        <th className="py-2 px-2.5 text-right">Valor Transportado</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-blue-100/60 dark:divide-blue-900/40">
+                                    {summaryBreakdown.transportedClosingsList.map((item: any, idx: number) => {
+                                        const isDeficit = item.isDeficit || item.transferredAmount < 0;
+                                        return (
+                                            <tr key={item.id || idx} className="hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-colors">
+                                                <td className="py-2 px-2.5 font-bold text-slate-800 dark:text-slate-200">
+                                                    {item.originChurchName}
+                                                </td>
+                                                <td className="py-2 px-2.5 text-slate-600 dark:text-slate-400">
+                                                    {item.originBankName}
+                                                </td>
+                                                <td className="py-2 px-2.5 text-center font-mono font-bold text-slate-700 dark:text-slate-300">
+                                                    {item.periodLabel}
+                                                </td>
+                                                <td className="py-2 px-2.5 text-center text-slate-500 dark:text-slate-400">
+                                                    {item.closedAt ? new Date(item.closedAt).toLocaleDateString('pt-BR') : '-'}
+                                                </td>
+                                                <td className="py-2 px-2.5 text-right font-mono text-slate-600 dark:text-slate-400">
+                                                    {formatBRL(item.finalBalance)}
+                                                </td>
+                                                <td className={`py-2 px-2.5 text-right font-mono font-bold ${
+                                                    isDeficit ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
+                                                }`}>
+                                                    {isDeficit ? `- ${formatBRL(Math.abs(item.transferredAmount))}` : `+ ${formatBRL(item.transferredAmount)}`}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 )}

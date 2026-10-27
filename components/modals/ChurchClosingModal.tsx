@@ -489,12 +489,20 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                     const destAmount = isNegative ? -amt : amt;
 
                     const originDescription = isNegative
-                        ? `[APORTE/FECHAMENTO] ${memoText} - COBERTURA DE SALDO PELO ${destChurch.name.toUpperCase()}`
+                        ? `[APORTE/FECHAMENTO] ${memoText} - COBERTURA DE DÉFICIT PELO ${destChurch.name.toUpperCase()}`
                         : `[FECHAMENTO] ${memoText} - TRANSP. SALDO PARA ${destChurch.name.toUpperCase()}`;
 
                     const destDescription = isNegative
                         ? `[REPASSE/FECHAMENTO] ${memoText} - REPASSE DE COBERTURA PARA ${originChurch.name.toUpperCase()}`
                         : `[RECEBIMENTO] ${memoText} - SALDO RECEBIDO DE ${originChurch.name.toUpperCase()}`;
+
+                    // Auto-resolução do banco cadastrado pertencente à congregação de destino
+                    const destBankId = (banks || []).find((b: any) => b.church_id === d.churchId)?.id
+                        || (matchResults || []).find((r: any) => (r.church?.id === d.churchId || r._churchId === d.churchId) && (r.transaction?.bank_id || r.bank_id))?.transaction?.bank_id
+                        || ((churches?.find((c: any) => c.id === d.churchId) as any)?.bankId)
+                        || (banks && banks.length === 1 ? banks[0].id : undefined);
+
+                    const closingCategory = isNegative ? 'DÉFICIT TRANSPORTADO' : 'SALDO TRANSPORTADO';
 
                     const originMatch: MatchResult = {
                         transaction: {
@@ -509,7 +517,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                             bank_id: originBankId && originBankId !== 'all' ? originBankId : undefined,
                             source: 'closing',
                             row_hash: originRowHash,
-                            contributionType: isNegative ? 'ENTRADA / TRANSFERÊNCIA' : 'SAÍDA / TRANSFERÊNCIA',
+                            contributionType: closingCategory,
                             paymentMethod: 'TRANSFERÊNCIA'
                         },
                         contributor: null,
@@ -523,7 +531,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                         },
                         _churchId: originChurch.id,
                         isConfirmed: true,
-                        contributionType: isNegative ? 'ENTRADA / TRANSFERÊNCIA' : 'SAÍDA / TRANSFERÊNCIA',
+                        contributionType: closingCategory,
                         paymentMethod: 'TRANSFERÊNCIA',
                         updatedAt: new Date().toISOString()
                     };
@@ -538,9 +546,10 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                             amount: destAmount,
                             type: isNegative ? 'expense' : 'income',
                             isConfirmed: true,
+                            bank_id: destBankId,
                             source: 'closing',
                             row_hash: destRowHash,
-                            contributionType: isNegative ? 'SAÍDA / TRANSFERÊNCIA' : 'ENTRADA / TRANSFERÊNCIA',
+                            contributionType: closingCategory,
                             paymentMethod: 'TRANSFERÊNCIA'
                         },
                         contributor: null,
@@ -554,7 +563,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                         },
                         _churchId: destChurch.id,
                         isConfirmed: true,
-                        contributionType: isNegative ? 'SAÍDA / TRANSFERÊNCIA' : 'ENTRADA / TRANSFERÊNCIA',
+                        contributionType: closingCategory,
                         paymentMethod: 'TRANSFERÊNCIA',
                         updatedAt: new Date().toISOString()
                     };

@@ -6826,9 +6826,9 @@ async function isChurchPeriodClosed(
           AND (
             transaction_date::text LIKE $2 
             OR reference_date::text LIKE $2
-            OR SUBSTRING(COALESCE(reference_date, transaction_date::text), 1, 10) = $3
+            OR substr(COALESCE(reference_date, transaction_date::text), 1, 10) = $3
           )
-          AND (is_confirmed = true OR is_confirmed = 1 OR status = 'resolved')
+          AND (is_confirmed IS TRUE OR status = 'resolved')
           AND (source IS NULL OR source != 'closing')
       `;
       const dateConfirmParams: any[] = [String(churchId), `${dateYmd}%`, dateYmd];
@@ -7017,13 +7017,13 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
     if (effStatus !== 'reopened' && effTransferred !== null && effTransferred !== 0) {
       const monthPrefix = `${effYear}-${String(effMonth).padStart(2, '0')}`;
       try {
-        // Limpa transações anteriores deste mesmo fechamento para evitar duplicidade
+        // Limpa transações anteriores estritamente deste fechamento para evitar duplicidade
         await pool.query(
           `DELETE FROM consolidated_transactions 
-           WHERE (church_id::text = $1 OR row_hash LIKE $2 OR (user_id = $3 AND (id LIKE 'closing-%' OR row_hash LIKE 'closing-%' OR source = 'closing')))
+           WHERE (church_id::text = $1 OR row_hash LIKE $2)
              AND (id LIKE 'closing-%' OR row_hash LIKE 'closing-%' OR source = 'closing')
-             AND (transaction_date::text LIKE $4 OR reference_date::text LIKE $4)`,
-          [effChurchId, `closing-%-${effChurchId}-%`, ctx.userId || '', `${monthPrefix}%`]
+             AND (transaction_date::text LIKE $3 OR reference_date::text LIKE $3)`,
+          [effChurchId, `closing-%-${effChurchId}-%`, `${monthPrefix}%`]
         );
 
         const providedTxs = Array.isArray(transferTransactions || transfer_transactions) 
@@ -7051,7 +7051,7 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
             amount: isNegative ? absAmt : -absAmt,
             type: isNegative ? 'income' : 'expense',
             description: isNegative 
-              ? `[APORTE/FECHAMENTO] ${memoPrefix} - COBERTURA DE SALDO PELO ${effTargetChurchName || 'DESTINO'}` 
+              ? `[APORTE/FECHAMENTO] ${memoPrefix} - COBERTURA DE DÉFICIT PELO ${effTargetChurchName || 'DESTINO'}` 
               : `[FECHAMENTO] ${memoPrefix} - TRANSP. SALDO PARA ${effTargetChurchName || 'DESTINO'}`,
             transaction_date: originDate,
             reference_date: originDate,
@@ -7059,7 +7059,7 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
             source: 'closing',
             status: 'identified',
             is_confirmed: true,
-            contribution_type: isNegative ? 'ENTRADA / TRANSFERÊNCIA' : 'SAÍDA / TRANSFERÊNCIA',
+            contribution_type: isNegative ? 'DÉFICIT TRANSPORTADO' : 'SALDO TRANSPORTADO',
             payment_method: 'TRANSFERÊNCIA'
           });
 
@@ -7081,7 +7081,7 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
               source: 'closing',
               status: 'identified',
               is_confirmed: true,
-              contribution_type: isNegative ? 'SAÍDA / TRANSFERÊNCIA' : 'ENTRADA / TRANSFERÊNCIA',
+              contribution_type: isNegative ? 'DÉFICIT TRANSPORTADO' : 'SALDO TRANSPORTADO',
               payment_method: 'TRANSFERÊNCIA'
             });
           });
@@ -7091,14 +7091,39 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
           const finalTxId = (tx.id && /^[0-9a-fA-F-]{36}$/.test(tx.id)) ? tx.id : crypto.randomUUID();
           const finalUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : (tx.user_id || ctx.userId || null);
           const finalChurchId = String(tx.church_id || tx.churchId || effChurchId);
-          const finalBankId = (tx.bank_id && tx.bank_id !== 'all') ? String(tx.bank_id) : null;
+          let finalBankId = (tx.bank_id && tx.bank_id !== 'all') ? String(tx.bank_id) : null;
+
+          // 🛡️ Auto-resolução da conta bancária da congregação de destino se não vier preenchida
+          if (!finalBankId && finalChurchId) {
+            try {
+              const pixKeyRes = await pool.query(
+                `SELECT bank_id FROM church_pix_keys WHERE church_id::text = $1 AND is_active = 1 AND bank_id IS NOT NULL AND bank_id != '' ORDER BY is_default DESC LIMIT 1`,
+                [finalChurchId]
+              );
+              if (pixKeyRes.rows && pixKeyRes.rows.length > 0 && pixKeyRes.rows[0].bank_id) {
+                finalBankId = String(pixKeyRes.rows[0].bank_id);
+              } else {
+                const prevTxRes = await pool.query(
+                  `SELECT bank_id FROM consolidated_transactions WHERE church_id::text = $1 AND bank_id IS NOT NULL AND bank_id != '' LIMIT 1`,
+                  [finalChurchId]
+                );
+                if (prevTxRes.rows && prevTxRes.rows.length > 0 && prevTxRes.rows[0].bank_id) {
+                  finalBankId = String(prevTxRes.rows[0].bank_id);
+                }
+              }
+            } catch (_) {}
+          }
+
           const finalAmount = Number(tx.amount || 0);
           const finalType = tx.type || (finalAmount >= 0 ? 'income' : 'expense');
           const finalDesc = String(tx.description || tx.desc || 'Transporte de Fechamento');
           const finalDate = tx.transaction_date || tx.date || (effClosedAt ? String(effClosedAt).split('T')[0] : `${effYear}-${String(effMonth).padStart(2, '0')}-01`);
           const finalRefDate = tx.reference_date || finalDate;
           const finalRowHash = tx.row_hash || `closing-${finalTxId}`;
-          const finalContribType = tx.contribution_type || (finalType === 'expense' ? 'SAÍDA / TRANSFERÊNCIA' : 'ENTRADA / TRANSFERÊNCIA');
+          const isNegative = effTransferred < 0;
+          const finalContribType = tx.contribution_type && (tx.contribution_type.includes('SALDO') || tx.contribution_type.includes('DÉFICIT'))
+            ? tx.contribution_type
+            : (isNegative ? 'DÉFICIT TRANSPORTADO' : 'SALDO TRANSPORTADO');
           const finalPaymentMethod = tx.payment_method || 'TRANSFERÊNCIA';
 
           await pool.query(
@@ -7116,7 +7141,7 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
               row_hash = EXCLUDED.row_hash,
               source = 'closing',
               status = 'identified',
-              is_confirmed = 1,
+              is_confirmed = true,
               contribution_type = EXCLUDED.contribution_type,
               payment_method = EXCLUDED.payment_method,
               updated_at = NOW()`,
@@ -7139,12 +7164,12 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
         const monthPrefix = `${effYear}-${String(effMonth).padStart(2, '0')}`;
         let confirmQuery = `
           UPDATE consolidated_transactions 
-          SET is_confirmed = 1, status = 'resolved', updated_at = NOW()
+          SET is_confirmed = true, status = 'resolved', updated_at = NOW()
           WHERE church_id::text = $1
             AND (
               transaction_date::text LIKE $2 
               OR reference_date::text LIKE $2
-              OR SUBSTRING(COALESCE(reference_date, transaction_date), 1, 7) = $3
+              OR substr(COALESCE(reference_date, transaction_date::text), 1, 7) = $3
             )
         `;
         const confirmParams: any[] = [effChurchId, `${monthPrefix}%`, monthPrefix];
@@ -7816,7 +7841,7 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
       // Prevenção cirúrgica contra duplicidades: se row_hash já existe para o usuário, reutiliza o registro existente
       // Lançamentos manuais são criados intencionalmente pelo usuário e não devem ser ignorados por colisão de hash
       if (row_hash && source !== 'manual') {
-        const dupCheck = await client.query(
+        const dupCheck = await pool.query(
           'SELECT * FROM consolidated_transactions WHERE user_id = $1 AND row_hash = $2 LIMIT 1',
           [effectiveUserId, row_hash]
         );
@@ -7829,7 +7854,7 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
 
       // 🛡️ Validação de Período Fechado (Congelamento)
       const isClosingTx = source === 'closing' || (tx.id && String(tx.id).startsWith('closing-')) || (row_hash && String(row_hash).startsWith('closing-'));
-      const closedCheck = await isChurchPeriodClosed(client, effectiveChurchId, transaction_date || reference_date, bank_id, isClosingTx);
+      const closedCheck = await isChurchPeriodClosed(pool, effectiveChurchId, transaction_date || reference_date, bank_id, isClosingTx);
       if (closedCheck.isClosed) {
         await client.query('ROLLBACK');
         return res.status(422).json({
@@ -7844,7 +7869,7 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
 
       const finalId = id || crypto.randomUUID();
 
-      const finalContribReqId = await matchAndLinkContributionRequest(client, {
+      const finalContribReqId = await matchAndLinkContributionRequest(pool, {
         id: finalId,
         church_id: effectiveChurchId,
         contributor_id,
@@ -7858,7 +7883,7 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
 
       if (finalContribReqId && !initialSplits) {
         try {
-          const reqCheck = await client.query('SELECT splits, description FROM contribution_requests WHERE id = $1 LIMIT 1', [finalContribReqId]);
+          const reqCheck = await pool.query('SELECT splits, description FROM contribution_requests WHERE id = $1 LIMIT 1', [finalContribReqId]);
           if (reqCheck.rows.length > 0 && reqCheck.rows[0].splits) {
             const reqSplits = reqCheck.rows[0].splits;
             initialSplits = typeof reqSplits === 'string' ? reqSplits : JSON.stringify(reqSplits);
@@ -7916,10 +7941,12 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
 
     await client.query('COMMIT');
     return res.status(201).json(inserted);
-  } catch (err) {
-    await client.query('ROLLBACK');
+  } catch (err: any) {
+    try {
+      await client.query('ROLLBACK');
+    } catch (_) {}
     console.error('[Contributors API] Error POST bulk consolidated_transactions:', err);
-    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: err?.message || 'Erro interno ao processar transações em lote' });
   } finally {
     client.release();
   }
