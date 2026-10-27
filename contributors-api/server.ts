@@ -6758,40 +6758,55 @@ async function isChurchPeriodClosed(
   if (isClosingTx) {
     return { isClosed: false };
   }
-  if (!churchId || !dateInput || churchId === 'unidentified' || churchId === 'geral') {
+  if (!churchId || !dateInput || churchId === "unidentified" || churchId === "geral") {
     return { isClosed: false };
   }
 
-  let dateStr = typeof dateInput === 'string' ? dateInput : (dateInput as Date).toISOString();
-  dateStr = dateStr.split(/[T ]/)[0];
-  const parts = dateStr.split('-');
-  if (parts.length < 2) {
-    return { isClosed: false };
+  let dateStr = typeof dateInput === "string" ? dateInput : (dateInput as Date).toISOString();
+  dateStr = dateStr.split(/[T ]/)[0].trim();
+  
+  let year: number;
+  let month: number;
+  let dayPart = "";
+
+  if (dateStr.includes("/")) {
+    const parts = dateStr.split("/");
+    if (parts.length < 3) return { isClosed: false };
+    dayPart = parts[0].padStart(2, "0");
+    month = parseInt(parts[1], 10);
+    year = parseInt(parts[2], 10);
+  } else {
+    const parts = dateStr.split("-");
+    if (parts.length < 2) return { isClosed: false };
+    year = parseInt(parts[0], 10);
+    month = parseInt(parts[1], 10);
+    if (parts.length >= 3) {
+      dayPart = String(parts[2]).slice(0, 2).padStart(2, "0");
+    }
   }
 
-  const year = parseInt(parts[0], 10);
-  const month = parseInt(parts[1], 10);
   if (isNaN(year) || isNaN(month)) {
     return { isClosed: false };
   }
 
   try {
+    // 1. Checagem de mês/período fechado em church_closings
     let query = `SELECT id, church_id, bank_id, year, month, status, closed_at 
        FROM church_closings 
        WHERE church_id::text = $1 AND year = $2 AND month = $3 AND status != 'reopened'`;
     const params: any[] = [String(churchId), year, month];
 
-    if (bankId && bankId !== 'all') {
+    if (bankId && bankId !== "all") {
       query += ` AND (bank_id IS NULL OR bank_id = '' OR bank_id = 'all' OR bank_id::text = $${params.length + 1})`;
       params.push(String(bankId));
     }
 
-    query += ' LIMIT 1';
+    query += " LIMIT 1";
 
     const res = await clientOrPool.query(query, params);
 
     if (res.rows && res.rows.length > 0) {
-      const mStr = String(month).padStart(2, '0');
+      const mStr = String(month).padStart(2, "0");
       return {
         isClosed: true,
         churchId: String(churchId),
@@ -6800,13 +6815,46 @@ async function isChurchPeriodClosed(
         message: `PERÍODO CONGELADO: O período ${mStr}/${year} desta congregação já teve seu Fechamento Final homologado. Novos lançamentos, alterações ou exclusões estão expressamente bloqueados.`
       };
     }
+
+    // 2. Checagem de data com lançamentos confirmados (CONFIRMAR FINAL)
+    if (dayPart && !isNaN(parseInt(dayPart, 10))) {
+      const dateYmd = `${year}-${String(month).padStart(2, "0")}-${dayPart}`;
+      let dateConfirmQuery = `
+        SELECT id, description, transaction_date, reference_date 
+        FROM consolidated_transactions 
+        WHERE church_id::text = $1 
+          AND (
+            transaction_date::text LIKE $2 
+            OR reference_date::text LIKE $2
+            OR SUBSTRING(COALESCE(reference_date, transaction_date::text), 1, 10) = $3
+          )
+          AND (is_confirmed = true OR is_confirmed = 1 OR status = 'resolved')
+          AND (source IS NULL OR source != 'closing')
+      `;
+      const dateConfirmParams: any[] = [String(churchId), `${dateYmd}%`, dateYmd];
+      if (bankId && bankId !== "all") {
+        dateConfirmQuery += ` AND (bank_id IS NULL OR bank_id = '' OR bank_id = 'all' OR bank_id::text = $${dateConfirmParams.length + 1})`;
+        dateConfirmParams.push(String(bankId));
+      }
+      dateConfirmQuery += " LIMIT 1";
+      const dateRes = await clientOrPool.query(dateConfirmQuery, dateConfirmParams);
+      if (dateRes.rows && dateRes.rows.length > 0) {
+        const dStr = `${dayPart}/${String(month).padStart(2, "0")}/${year}`;
+        return {
+          isClosed: true,
+          churchId: String(churchId),
+          year,
+          month,
+          message: `DATA CONGELADA: A data ${dStr} desta congregação já possui lançamentos com Confirmação Final homologada. Novos lançamentos, alterações ou exclusões nesta data estão expressamente bloqueados.`
+        };
+      }
+    }
   } catch (err: any) {
-    console.error('[ChurchClosings] Erro ao consultar status do fechamento:', err?.message || err);
+    console.error("[ChurchClosings] Erro ao consultar status do fechamento:", err?.message || err);
   }
 
   return { isClosed: false };
 }
-
 // GET /api/v1/church-closings
 app.get('/api/v1/church-closings', async (req: Request, res: Response) => {
   try {

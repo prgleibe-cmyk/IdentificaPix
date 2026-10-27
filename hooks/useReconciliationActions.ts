@@ -9,6 +9,7 @@ import { extractNameAndCpf } from '../utils/contributorHelper';
 import { CommunicationEventService } from '../services/CommunicationEventService';
 import { ExpenseAttachment } from '../types/domain';
 import { saveAttachmentsForTransaction } from '../services/expenseAttachmentService';
+import { isPeriodClosed } from '../utils/formatters';
 
 interface UseReconciliationActionsProps {
   reconciliation: any;
@@ -160,6 +161,12 @@ export const useReconciliationActions = ({
 
         const finalDescription = manualDescription ? manualDescription.trim() : (isEntrada ? 'Lançamento Manual Entrada' : 'Lançamento Manual Saída');
         const finalDate = selectedDate || new Date().toISOString().split('T')[0];
+
+        // 🛡️ Validação de Período ou Data Congelada
+        const churchIdToCheck = (churchId && churchId !== 'unidentified') ? churchId : null;
+        if (churchIdToCheck && isPeriodClosed(finalDate, reconciliation.fullMatchResults, churchIdToCheck, selectedBankId)) {
+          throw new Error(`DATA OU PERÍODO CONGELADO: A congregação já possui Confirmação Final homologada para esta data (${finalDate}). Novos lançamentos ou alterações estão expressamente bloqueados.`);
+        }
 
         // Geração de hash robusto e de acordo com o sistema
         const stableRaw = finalDescription.replace(/\r\n/g, '\n').trim();

@@ -941,8 +941,8 @@ export const ManualIdModal: React.FC = () => {
 
         const effectiveDateToCheck = selectedDate || bulkIdentificationTxs?.[0]?.date || new Date().toISOString().split('T')[0];
 
-        if (selectedChurchId && isPeriodClosed(effectiveDateToCheck, matchResults, selectedChurchId)) {
-            alert("PERÍODO CONGELADO: Este período contábil já teve seu Fechamento Final homologado para a congregação selecionada. Novos lançamentos ou alterações nesta congregação estão bloqueados.");
+        if (selectedChurchId && isPeriodClosed(effectiveDateToCheck, matchResults, selectedChurchId, selectedBankId)) {
+            alert("LANÇAMENTO BLOQUEADO: Esta data ou período contábil já possui Confirmação Final homologada para a congregação selecionada. Novos lançamentos ou alterações nesta data/congregação estão expressamente bloqueados.");
             return;
         }
 
@@ -997,8 +997,8 @@ export const ManualIdModal: React.FC = () => {
         } catch (error: any) {
             console.error("[ManualIdModal] Error confirming identification:", error);
             const errMsg = error?.message || String(error);
-            if (errMsg.includes('PERIOD_CLOSED') || errMsg.includes('PERÍODO CONGELADO')) {
-                alert("OPERAÇÃO REJEITADA PELO SERVIDOR:\n\nEste período contábil já teve seu Fechamento Final homologado para a igreja. Não é permitido criar ou alterar lançamentos neste período.");
+            if (errMsg.includes('PERIOD_CLOSED') || errMsg.includes('PERÍODO CONGELADO') || errMsg.includes('DATA CONGELADA') || errMsg.includes('TRANSACTION_CONFIRMED')) {
+                alert(`OPERAÇÃO REJEITADA PELO SERVIDOR:\n\n${errMsg}`);
             } else {
                 alert(`Erro ao salvar lançamento: ${errMsg}`);
             }
