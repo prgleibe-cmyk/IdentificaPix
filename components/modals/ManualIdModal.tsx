@@ -824,13 +824,17 @@ export const ManualIdModal: React.FC = () => {
 
         // 3. Data da Operação / Vencimento
         const docDate = extracted.extractedDueDate || extracted.extractedDate;
-        if (docDate) {
-            setSelectedDate(docDate);
-            isDateManuallyChangedRef.current = true;
-            if (bulkIdentificationTxs?.[0] && bulkIdentificationTxs[0].id?.startsWith('ghost-manual-')) {
-                bulkIdentificationTxs[0].date = docDate;
+        if (docDate && !isDateManuallyChangedRef.current) {
+            const docYear = parseInt(docDate.split('-')[0], 10);
+            const currentYear = new Date().getFullYear();
+            // Preserva a data atual se a data do documento for de anos anteriores distantes (ex: fotos de notas antigas para teste)
+            if (!isNaN(docYear) && Math.abs(docYear - currentYear) <= 1) {
+                setSelectedDate(docDate);
+                if (bulkIdentificationTxs?.[0] && bulkIdentificationTxs[0].id?.startsWith('ghost-manual-')) {
+                    bulkIdentificationTxs[0].date = docDate;
+                }
+                fieldsFilledCount++;
             }
-            fieldsFilledCount++;
         }
 
         // 4. Forma de Pagamento

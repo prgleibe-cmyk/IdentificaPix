@@ -122,8 +122,9 @@ export const useReconciliationActions = ({
     selectedBankId?: string,
     attachments?: ExpenseAttachment[]
   ) => {
-    const church = referenceData.churches.find((c: Church) => c.id === churchId);
-    if (!church) return;
+    const church = referenceData.churches.find((c: Church) => c.id === churchId) || 
+      (referenceData.churches && referenceData.churches.length > 0 ? referenceData.churches[0] : null) || 
+      { id: churchId || '', name: 'Igreja', address: '', logoUrl: '' };
 
     let affectedCount = 0;
     const isManualLaunch = txIds.some(id => id.startsWith('ghost-manual-'));

@@ -10,18 +10,11 @@ import {
 } from './brazilianDocUtils';
 export * from './brazilianDocUtils';
 
-// @ts-ignore
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-
-// Configuração do worker do pdfjs-dist
+// Configuração resiliente do worker do pdfjs-dist
 if (typeof window !== 'undefined') {
     try {
-        if (pdfWorkerUrl) {
-            pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
-        } else {
-            const version = pdfjsLib.version || '6.2.108';
-            pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${version}/build/pdf.worker.min.mjs`;
-        }
+        const version = pdfjsLib.version || '3.11.174';
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${version}/pdf.worker.min.js`;
     } catch (e) {
         console.warn('[PDF.js] Worker configuration fallback:', e);
     }
@@ -334,7 +327,7 @@ export function extractAmountsFromText(text: string): { primaryAmount: number | 
 
     // Padrões de alta prioridade (frases com palavras-chave de valor final ou total)
     const priorityPatterns = [
-        /(?:valor\s*(?:pago|total|l[ií]quido|do\s*documento|principal|da\s*nota|recebido|cobrado|a\s*pagar|a\s*cobrar|d[eé]bito|da\s*transa[cç][aã]o|transferido|da\s*fatura|do\s*boleto|final)|total\s*a\s*pagar|valor\s*a\s*pagar|total\s*geral|total\s*nota|valor\s*da\s*opera[cç][aã]o|valor)\s*[:=]?\s*(?:R\$\s*)?([0-9]{1,3}(?:\.[0-9]{3})*\,[0-9]{2}|[0-9]{1,9}\,[0-9]{2})/gi,
+        /(?:valor\s*total(?:\s*da\s*nota|\s*da\s*nota\s*fiscal|\s*dos\s*produtos|\s*a\s*pagar|\s*do\s*documento|\s*da\s*fatura|\s*geral)?|total\s*(?:da\s*nota|\s*a\s*pagar|\s*geral|\s*liquido|l[ií]quido)|valor\s*(?:pago|l[ií]quido|a\s*pagar|recebido|cobrado|d[eé]bito|transferido|final)|valor)\s*[:=]?\s*(?:R\$\s*)?([0-9]{1,3}(?:\.[0-9]{3})*\,[0-9]{2}|[0-9]{1,9}\,[0-9]{2})/gi,
         /(?:R\$\s*)([0-9]{1,3}(?:\.[0-9]{3})*\,[0-9]{2}|[0-9]{1,9}\,[0-9]{2})/gi
     ];
 
@@ -407,6 +400,11 @@ function cleanCandidateRecipient(raw: string): string | null {
 
     // Rejeita endereços comuns
     if (/^(?:av(?:enida)?|rua|r\.|rod(?:ovia)?|estrada|alameda|travessa|pra[cç]a|quadra|lote|condom[ií]nio|bairro|cep|fone|tel)\b/i.test(s)) {
+        return null;
+    }
+
+    // Rejeita caixas técnicas de DANFE (0-ENTRADA 1-SAIDA, Série, Número, Folha, Via)
+    if (/^(?:0\s*-\s*entrada|1\s*-\s*sa[ií]da|s[eé]rie\s*\d+|n\.?\s*\d+|folha\s*\d+|via\s*\d+)/i.test(s)) {
         return null;
     }
 
@@ -487,8 +485,14 @@ export function extractRecipientFromText(text: string): string | null {
     }
 
     // 2.4 Primeira linha da seção do cabeçalho que seja um nome empresarial válido
-    // (Garante captura em cupons onde o nome da loja/supermercado está logo no início)
-    for (let i = 0; i < Math.min(sellerLines.length, 6); i++) {
+    // Prioriza linhas com sufixos ou termos empresariais (LTDA, S/A, ME, EPP, SUPERMERCADO, etc.)
+    for (let i = 0; i < Math.min(sellerLines.length, 15); i++) {
+        const cand = cleanCandidateRecipient(sellerLines[i]);
+        if (cand && /\b(?:ltda|s\/?a|me|epp|eireli|cia|comercio|com[eé]rcio|servicos|servi[cç]os|supermercado|mercado|posto|loja|distribuidora|farmacia|farm[aá]cia|restaurante|panificadora|industria|ind[uú]stria)\b/i.test(cand)) {
+            return cand;
+        }
+    }
+    for (let i = 0; i < Math.min(sellerLines.length, 10); i++) {
         const cand = cleanCandidateRecipient(sellerLines[i]);
         if (cand && cand.length >= 4 && !cand.toLowerCase().includes('comprovante') && !cand.toLowerCase().includes('extrato')) {
             return cand;
@@ -523,7 +527,11 @@ export function extractDateFromText(text: string): string | null {
         const day = dateMatch[1].padStart(2, '0');
         const month = dateMatch[2].padStart(2, '0');
         const year = dateMatch[3];
-        return `${year}-${month}-${day}`;
+        const dNum = parseInt(day, 10);
+        const mNum = parseInt(month, 10);
+        if (dNum >= 1 && dNum <= 31 && mNum >= 1 && mNum <= 12) {
+            return `${year}-${month}-${day}`;
+        }
     }
     return null;
 }
