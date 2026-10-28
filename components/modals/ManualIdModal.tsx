@@ -911,14 +911,25 @@ export const ManualIdModal: React.FC = () => {
             if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
                 setReadingStatusText('Lendo texto digital do PDF...');
                 const arrayBuffer = await file.arrayBuffer();
-                rawText = await extractTextFromPDF(arrayBuffer);
+                // 🛡️ Clona o ArrayBuffer ANTES de passar para o worker do pdf.js para evitar que seja destacado (detached ArrayBuffer)
+                const arrayBufferForRender = arrayBuffer.slice(0);
+                try {
+                    rawText = await extractTextFromPDF(arrayBuffer);
+                } catch (pdfErr) {
+                    console.warn('Falha na extração de texto digital do PDF:', pdfErr);
+                    rawText = '';
+                }
 
                 // Se o PDF não tiver camada de texto digital (escaneado), aciona OCR óptico
                 if (!rawText || rawText.trim().length < 20) {
                     setReadingStatusText('Lendo OCR do PDF escaneado...');
-                    const pdfPageImage = await renderPdfFirstPageToImage(arrayBuffer);
-                    if (pdfPageImage) {
-                        rawText = await processImageAndExtractText(pdfPageImage, file.name);
+                    try {
+                        const pdfPageImage = await renderPdfFirstPageToImage(arrayBufferForRender);
+                        if (pdfPageImage) {
+                            rawText = await processImageAndExtractText(pdfPageImage, file.name);
+                        }
+                    } catch (ocrErr) {
+                        console.warn('Falha no OCR do PDF escaneado:', ocrErr);
                     }
                 }
 
@@ -933,7 +944,11 @@ export const ManualIdModal: React.FC = () => {
                 const compressed = await compressImageIfNeeded(file);
                 dataUrl = compressed.dataUrl;
                 finalSize = compressed.size;
-                rawText = await processImageAndExtractText(dataUrl, file.name);
+                try {
+                    rawText = await processImageAndExtractText(dataUrl, file.name);
+                } catch (imgErr) {
+                    console.warn('Falha no OCR da imagem:', imgErr);
+                }
             } else if (file.type === 'text/xml' || file.type === 'application/xml' || file.name.toLowerCase().endsWith('.xml')) {
                 setReadingStatusText('Lendo XML da Nota Fiscal...');
                 try {

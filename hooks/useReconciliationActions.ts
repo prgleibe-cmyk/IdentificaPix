@@ -344,17 +344,16 @@ export const useReconciliationActions = ({
 
         // Substitui o ghost-manual pelo MatchResult com ID real no estado da UI, preservando todos os itens existentes
         batchState.isAtomicUpdate = true;
-        let finalManualList: MatchResult[] = [];
-        reconciliation.setMatchResults((prev: MatchResult[]) => {
-          const withoutGhostsAndReal = prev.filter(r => !txIds.includes(r.transaction.id) && r.transaction.id !== realId);
-          finalManualList = [...withoutGhostsAndReal, updatedMatchResult];
-          return finalManualList;
-        });
+        const currentList = (reconciliation.fullMatchResults && reconciliation.fullMatchResults.length > 0)
+          ? reconciliation.fullMatchResults
+          : (reconciliation.matchResults || []);
+        const withoutGhostsAndReal = currentList.filter(r => !txIds.includes(r.transaction.id) && r.transaction.id !== realId);
+        const finalManualList = [...withoutGhostsAndReal, updatedMatchResult];
+        reconciliation.setMatchResults(finalManualList);
 
-        // 🛡️ CORREÇÃO CIRÚRGICA DE DUPLO SALVAMENTO:
-        // A persistência unificada (onAfterAction -> persistActiveReport) já sincroniza o relatório ativo ou a nuvem.
-        // O bloco redundante que chamava reportManager.overwriteSavedReport diretamente uma segunda vez foi eliminado.
-        if (onAfterAction && finalManualList.length > 0) {
+        // 🛡️ PERSISTÊNCIA UNIFICADA GARANTIDA:
+        // onAfterAction (persistActiveReport) persiste o relatório ativo na VPS/nuvem
+        if (onAfterAction) {
           onAfterAction(finalManualList);
         }
 
