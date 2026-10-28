@@ -1,6 +1,6 @@
 
 import React, { useState, useContext, useEffect, useMemo, useCallback } from 'react';
-import { Calendar, FileText, DollarSign, PlusCircle, ArrowLeft, ArrowUpRight, ArrowDownRight, CheckCircle2, Sparkles, X, ChevronUp, ChevronDown, Camera } from 'lucide-react';
+import { Calendar, FileText, DollarSign, PlusCircle, ArrowLeft, ArrowUpRight, ArrowDownRight, CheckCircle2, Sparkles, X, ChevronUp, ChevronDown, Camera, Loader2 } from 'lucide-react';
 import { AppContext } from '../../contexts/AppContext';
 import { useUI } from '../../contexts/UIContext';
 import { useTranslation } from '../../contexts/I18nContext';
@@ -13,7 +13,15 @@ import { getStoredWhatsAppSettings } from './WhatsAppReceiptModal';
 import { getCachedContributors } from '../../services/contributorsCache';
 import { ExpenseDocumentUploader } from '../financial/ExpenseDocumentUploader';
 import { ExpenseAttachment } from '../../types/domain';
-import { ExtractedExpenseDoc } from '../../utils/expenseDocumentParser';
+import { 
+    ExtractedExpenseDoc, 
+    extractTextFromPDF, 
+    analyzeExpenseDocumentText, 
+    compressImageIfNeeded, 
+    inferDocumentRole, 
+    DocumentRole 
+} from '../../utils/expenseDocumentParser';
+import { processImageAndExtractText, renderPdfFirstPageToImage } from '../../utils/imageOcrReader';
 import { getAttachmentsForTransaction } from '../../services/expenseAttachmentService';
 
 const formatCpfCnpj = (value: string) => {
@@ -87,37 +95,9 @@ export const ManualIdModal: React.FC = () => {
     const [isBottomUploaderOpen, setIsBottomUploaderOpen] = useState(false);
     const [attachments, setAttachments] = useState<ExpenseAttachment[]>([]);
     const [selectedDocType, setSelectedDocType] = useState<string>('Boleto');
+    const [isReadingDocument, setIsReadingDocument] = useState<boolean>(false);
+    const [readingStatusText, setReadingStatusText] = useState<string>('');
     const fileInputRef = React.useRef<HTMLInputElement>(null);
-
-    const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = e.target.files;
-        if (!files || files.length === 0) return;
-        const file = files[0];
-        const reader = new FileReader();
-        reader.onload = () => {
-            const dataUrl = reader.result as string;
-            const roleMap: Record<string, any> = {
-                'Boleto': 'fatura',
-                'Nota Fiscal': 'nota_fiscal',
-                'Recibo': 'recibo',
-                'Outro': 'outro'
-            };
-            const newAttachment: ExpenseAttachment = {
-                id: `att-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-                fileName: file.name || `${selectedDocType}.jpg`,
-                fileSize: file.size,
-                fileType: file.type || 'image/jpeg',
-                dataUrl: dataUrl,
-                uploadedAt: new Date().toISOString(),
-                documentRole: roleMap[selectedDocType] || 'outro',
-                validationStatus: 'validated'
-            };
-            setAttachments(prev => [...prev, newAttachment]);
-            showToast(`${selectedDocType} anexado com sucesso!`, 'success');
-        };
-        reader.readAsDataURL(file);
-        e.target.value = '';
-    };
 
     const [isSaving, setIsSaving] = useState(false);
     const isSavingRef = React.useRef<boolean>(false);
@@ -916,6 +896,104 @@ export const ManualIdModal: React.FC = () => {
         }
     };
 
+    const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+        const file = files[0];
+        setIsReadingDocument(true);
+        setReadingStatusText('Processando documento...');
+
+        try {
+            let rawText = '';
+            let dataUrl = '';
+            let finalSize = file.size;
+
+            if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+                setReadingStatusText('Lendo texto digital do PDF...');
+                const arrayBuffer = await file.arrayBuffer();
+                rawText = await extractTextFromPDF(arrayBuffer);
+
+                // Se o PDF não tiver camada de texto digital (escaneado), aciona OCR óptico
+                if (!rawText || rawText.trim().length < 20) {
+                    setReadingStatusText('Lendo OCR do PDF escaneado...');
+                    const pdfPageImage = await renderPdfFirstPageToImage(arrayBuffer);
+                    if (pdfPageImage) {
+                        rawText = await processImageAndExtractText(pdfPageImage, file.name);
+                    }
+                }
+
+                const reader = new FileReader();
+                dataUrl = await new Promise<string>((resolve) => {
+                    reader.onload = () => resolve(reader.result as string);
+                    reader.onerror = () => resolve('');
+                    reader.readAsDataURL(file);
+                });
+            } else if (file.type.startsWith('image/')) {
+                setReadingStatusText('Lendo foto via OCR óptico...');
+                const compressed = await compressImageIfNeeded(file);
+                dataUrl = compressed.dataUrl;
+                finalSize = compressed.size;
+                rawText = await processImageAndExtractText(dataUrl, file.name);
+            } else if (file.type === 'text/xml' || file.type === 'application/xml' || file.name.toLowerCase().endsWith('.xml')) {
+                setReadingStatusText('Lendo XML da Nota Fiscal...');
+                try {
+                    rawText = await file.text();
+                } catch (_) {
+                    rawText = '';
+                }
+                const reader = new FileReader();
+                dataUrl = await new Promise<string>((resolve) => {
+                    reader.onload = () => resolve(reader.result as string);
+                    reader.onerror = () => resolve('');
+                    reader.readAsDataURL(file);
+                });
+            } else {
+                const reader = new FileReader();
+                dataUrl = await new Promise<string>((resolve) => {
+                    reader.onload = () => resolve(reader.result as string);
+                    reader.onerror = () => resolve('');
+                    reader.readAsDataURL(file);
+                });
+            }
+
+            // Analisa e extrai dados (valor, favorecido, data, forma de pagamento, etc.)
+            const extractedData: ExtractedExpenseDoc = analyzeExpenseDocumentText(rawText);
+            const autoRole = inferDocumentRole(extractedData.documentType, file.name);
+
+            const roleMap: Record<string, DocumentRole> = {
+                'Boleto': 'fatura',
+                'Nota Fiscal': 'nota_fiscal',
+                'Recibo': 'recibo',
+                'Outro': 'outro'
+            };
+            const assignedRole: DocumentRole = roleMap[selectedDocType] || (autoRole === 'outro' ? 'comprovante' : autoRole);
+
+            const newAttachment: ExpenseAttachment = {
+                id: `att-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+                fileName: file.name || `${selectedDocType}.jpg`,
+                fileSize: finalSize,
+                fileType: file.type || 'image/jpeg',
+                dataUrl: dataUrl,
+                uploadedAt: new Date().toISOString(),
+                documentRole: assignedRole,
+                extractedData,
+                validationStatus: 'validated'
+            };
+
+            setAttachments(prev => [...prev, newAttachment]);
+
+            // Preenche automaticamente os campos do formulário manual
+            handleDocumentDataExtracted(extractedData, newAttachment);
+        } catch (err) {
+            console.error('Erro ao ler e processar documento:', err);
+            showToast('Aviso: documento anexado, mas não foi possível ler todos os campos.', 'error');
+        } finally {
+            setIsReadingDocument(false);
+            setReadingStatusText('');
+            if (e.target) e.target.value = '';
+        }
+    };
+
     if (!isBulk) return null;
     
     const handleConfirm = async () => {
@@ -1136,11 +1214,16 @@ export const ManualIdModal: React.FC = () => {
                                 <button
                                     type="button"
                                     onClick={() => fileInputRef.current?.click()}
-                                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-black text-white bg-gradient-to-r from-orange-500 to-amber-600 hover:opacity-95 shadow-xs cursor-pointer transition-all active:scale-95"
+                                    disabled={isReadingDocument}
+                                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-black text-white bg-gradient-to-r from-orange-500 to-amber-600 hover:opacity-95 shadow-xs cursor-pointer transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
                                     title="Clique para anexar arquivo ou tirar foto com a câmera"
                                 >
-                                    <Camera className="w-3.5 h-3.5" />
-                                    <span>Upload / Foto</span>
+                                    {isReadingDocument ? (
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    ) : (
+                                        <Camera className="w-3.5 h-3.5" />
+                                    )}
+                                    <span>{isReadingDocument ? (readingStatusText || 'Lendo documento...') : 'Upload / Foto'}</span>
                                 </button>
                             </div>
 
@@ -1148,9 +1231,10 @@ export const ManualIdModal: React.FC = () => {
                             <input
                                 ref={fileInputRef}
                                 type="file"
-                                accept="image/*,application/pdf"
+                                accept="image/*,application/pdf,application/xml,text/xml,.xml"
                                 className="hidden"
                                 onChange={handleFileSelected}
+                                disabled={isReadingDocument}
                             />
 
                             {/* Chips dos documentos anexados com visual enxuto */}
@@ -2258,6 +2342,7 @@ export const ManualIdModal: React.FC = () => {
                                 attachments={attachments}
                                 onChangeAttachments={setAttachments}
                                 currentAmount={Math.abs(bulkIdentificationTxs[0]?.amount || 0)}
+                                onDocumentDataExtracted={handleDocumentDataExtracted}
                             />
                         </div>
                     )}
