@@ -187,7 +187,8 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
 
                 newAttachmentsList.push(newAttachment);
 
-                if (onDocumentDataExtracted) {
+                // 🛡️ Preenche campos automaticamente apenas a partir do primeiro documento carregado
+                if (onDocumentDataExtracted && attachments.length === 0 && i === 0) {
                     onDocumentDataExtracted(extractedData, newAttachment);
                 }
             } catch (err) {

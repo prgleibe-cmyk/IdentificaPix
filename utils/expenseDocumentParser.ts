@@ -683,3 +683,28 @@ export function validateExpenseAgainstDocument(
         diff
     };
 }
+
+/**
+ * 🛡️ Verifica se o texto extraído de um arquivo possui legibilidade mínima necessária
+ * para ter validade documental e contábil.
+ */
+export function isDocumentTextLegible(rawText: string, extractedDoc?: ExtractedExpenseDoc): boolean {
+    if (!rawText || typeof rawText !== 'string') return false;
+    const clean = rawText.trim();
+    if (clean.length < 15) return false;
+
+    // Se tiver mais de 35 caracteres de texto legível, é aceito
+    if (clean.length >= 35) return true;
+
+    // Se tiver entre 15 e 35 caracteres, precisa conter ao menos um dado estruturado reconhecido
+    if (extractedDoc) {
+        if (extractedDoc.extractedAmount !== null && extractedDoc.extractedAmount > 0) return true;
+        if (extractedDoc.extractedRecipient && extractedDoc.extractedRecipient.trim().length >= 3) return true;
+        if (extractedDoc.barcodeOrAuth && extractedDoc.barcodeOrAuth.trim().length >= 8) return true;
+        if (extractedDoc.extractedDate || extractedDoc.extractedDueDate) return true;
+        if (extractedDoc.extractedRecipientCnpjCpf) return true;
+        return false;
+    }
+
+    return true;
+}

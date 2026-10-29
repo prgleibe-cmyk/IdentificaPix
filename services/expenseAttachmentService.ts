@@ -58,28 +58,38 @@ export async function saveAttachmentsForTransaction(
         } else {
             await set(key, attachments);
             if (memoryAttachmentsCache) {
-                memoryAttachmentsCache.set(txId, attachments);
+                const metaOnly = (attachments || []).map(a => {
+                    if (a && a.dataUrl) {
+                        const { dataUrl, ...rest } = a;
+                        return { ...rest, txId, hasDataUrl: true };
+                    }
+                    return { ...a, txId, hasDataUrl: Boolean((a as any).hasDataUrl || a.dataUrl) };
+                });
+                memoryAttachmentsCache.set(txId, metaOnly);
             }
         }
         if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('expense_attachments_updated', { detail: { txId } }));
+            window.dispatchEvent(new CustomEvent('expense_attachments_updated', { detail: { txId, attachments } }));
         }
 
         // 🛡️ Sincronização e Persistência em Nuvem (VPS PostgreSQL / SQLite) em Tempo Real
-        const isRealDbTx = /^[0-9a-fA-F-]{36}$/.test(txId);
+        const isRealDbTx = Boolean(txId && !txId.startsWith('temp-') && !txId.startsWith('ghost-'));
         if (isRealDbTx) {
             try {
-                const token = await getAuthToken();
+                const token = await getAuthToken() || (typeof window !== 'undefined' ? (localStorage.getItem('iggestor_vps_access_token') || localStorage.getItem('auth_token') || localStorage.getItem('token') || sessionStorage.getItem('auth_token')) : null);
                 const headers: Record<string, string> = { 'Content-Type': 'application/json' };
                 if (token) headers['Authorization'] = `Bearer ${token}`;
 
-                await fetch(`/api/v1/consolidated_transactions/${txId}`, {
+                const response = await fetch(`/api/v1/consolidated_transactions/${txId}`, {
                     method: 'PUT',
                     headers,
                     body: JSON.stringify({
                         attachments: (attachments && attachments.length > 0) ? attachments : []
                     })
                 });
+                if (!response.ok) {
+                    console.warn(`[ExpenseAttachmentService] Aviso: status ${response.status} ao persistir anexos para tx ${txId}`);
+                }
             } catch (cloudErr) {
                 console.warn(`[ExpenseAttachmentService] Aviso ao persistir anexos na nuvem para tx ${txId}:`, cloudErr);
             }
@@ -107,10 +117,10 @@ export async function getAttachmentsForTransaction(
     } catch (_) {}
 
     // 2. Se não tem dataUrl local, busca sob demanda da VPS apenas para esta transação
-    const isRealDbTx = /^[0-9a-fA-F-]{36}$/.test(txId);
+    const isRealDbTx = Boolean(txId && !txId.startsWith('temp-') && !txId.startsWith('ghost-'));
     if (isRealDbTx) {
         try {
-            const token = await getAuthToken();
+            const token = await getAuthToken() || (typeof window !== 'undefined' ? (localStorage.getItem('iggestor_vps_access_token') || localStorage.getItem('auth_token') || localStorage.getItem('token') || sessionStorage.getItem('auth_token')) : null);
             const headers: Record<string, string> = { 'Content-Type': 'application/json' };
             if (token) headers['Authorization'] = `Bearer ${token}`;
 
@@ -152,10 +162,10 @@ export async function deleteAttachmentsForTransaction(
         }
 
         // 🛡️ Sincronização e Persistência em Nuvem (VPS PostgreSQL / SQLite)
-        const isRealDbTx = /^[0-9a-fA-F-]{36}$/.test(txId);
+        const isRealDbTx = Boolean(txId && !txId.startsWith('temp-') && !txId.startsWith('ghost-'));
         if (isRealDbTx) {
             try {
-                const token = await getAuthToken();
+                const token = await getAuthToken() || (typeof window !== 'undefined' ? (localStorage.getItem('iggestor_vps_access_token') || localStorage.getItem('auth_token') || localStorage.getItem('token') || sessionStorage.getItem('auth_token')) : null);
                 const headers: Record<string, string> = { 'Content-Type': 'application/json' };
                 if (token) headers['Authorization'] = `Bearer ${token}`;
 

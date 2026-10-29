@@ -1,6 +1,6 @@
 
 import React, { useState, useContext, useEffect, useMemo, useCallback } from 'react';
-import { Calendar, FileText, DollarSign, PlusCircle, ArrowLeft, ArrowUpRight, ArrowDownRight, CheckCircle2, Sparkles, X, ChevronUp, ChevronDown, Camera, Loader2 } from 'lucide-react';
+import { Calendar, FileText, DollarSign, PlusCircle, ArrowLeft, ArrowUpRight, ArrowDownRight, CheckCircle2, Sparkles, X, ChevronUp, ChevronDown, Camera, Loader2, Eye } from 'lucide-react';
 import { AppContext } from '../../contexts/AppContext';
 import { useUI } from '../../contexts/UIContext';
 import { useTranslation } from '../../contexts/I18nContext';
@@ -12,6 +12,7 @@ import { extractNameAndCpf, findSimilarContributors } from '../../utils/contribu
 import { getStoredWhatsAppSettings } from './WhatsAppReceiptModal';
 import { getCachedContributors } from '../../services/contributorsCache';
 import { ExpenseDocumentUploader } from '../financial/ExpenseDocumentUploader';
+import { AttachmentPreviewModal } from '../financial/AttachmentPreviewModal';
 import { ExpenseAttachment } from '../../types/domain';
 import { 
     ExtractedExpenseDoc, 
@@ -19,7 +20,8 @@ import {
     analyzeExpenseDocumentText, 
     compressImageIfNeeded, 
     inferDocumentRole, 
-    DocumentRole 
+    DocumentRole,
+    isDocumentTextLegible
 } from '../../utils/expenseDocumentParser';
 import { processImageAndExtractText, renderPdfFirstPageToImage } from '../../utils/imageOcrReader';
 import { getAttachmentsForTransaction } from '../../services/expenseAttachmentService';
@@ -94,6 +96,7 @@ export const ManualIdModal: React.FC = () => {
     } | null>(null);
     const [isBottomUploaderOpen, setIsBottomUploaderOpen] = useState(false);
     const [attachments, setAttachments] = useState<ExpenseAttachment[]>([]);
+    const [previewAttachment, setPreviewAttachment] = useState<ExpenseAttachment | null>(null);
     const [selectedDocType, setSelectedDocType] = useState<string>('Boleto');
     const [isReadingDocument, setIsReadingDocument] = useState<boolean>(false);
     const [readingStatusText, setReadingStatusText] = useState<string>('');
@@ -904,13 +907,56 @@ export const ManualIdModal: React.FC = () => {
         const files = e.target.files;
         if (!files || files.length === 0) return;
         const file = files[0];
+        const isFirstDocument = attachments.length === 0;
+
         setIsReadingDocument(true);
-        setReadingStatusText('Processando documento...');
+        setReadingStatusText(isFirstDocument ? 'Processando e lendo documento...' : 'Anexando documento adicional...');
 
         try {
-            let rawText = '';
             let dataUrl = '';
             let finalSize = file.size;
+
+            // 🛡️ Se NÃO for o primeiro documento carregado, apenas anexa o arquivo sem tentar ler/OCR nem sobrescrever campos preenchidos
+            if (!isFirstDocument) {
+                if (file.type.startsWith('image/')) {
+                    const compressed = await compressImageIfNeeded(file);
+                    dataUrl = compressed.dataUrl;
+                    finalSize = compressed.size;
+                } else {
+                    const reader = new FileReader();
+                    dataUrl = await new Promise<string>((resolve) => {
+                        reader.onload = () => resolve(reader.result as string);
+                        reader.onerror = () => resolve('');
+                        reader.readAsDataURL(file);
+                    });
+                }
+
+                const roleMap: Record<string, DocumentRole> = {
+                    'Boleto': 'fatura',
+                    'Nota Fiscal': 'nota_fiscal',
+                    'Recibo': 'recibo',
+                    'Outro': 'outro'
+                };
+                const assignedRole: DocumentRole = roleMap[selectedDocType] || 'comprovante';
+
+                const newAttachment: ExpenseAttachment = {
+                    id: `att-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+                    fileName: file.name || `${selectedDocType}.jpg`,
+                    fileSize: finalSize,
+                    fileType: file.type || 'image/jpeg',
+                    dataUrl: dataUrl,
+                    uploadedAt: new Date().toISOString(),
+                    documentRole: assignedRole,
+                    validationStatus: 'validated'
+                };
+
+                setAttachments(prev => [...prev, newAttachment]);
+                showToast('Documento adicional anexado com sucesso.', 'success');
+                return;
+            }
+
+            // --- FLUXO DO PRIMEIRO DOCUMENTO: Leitura e preenchimento automático ---
+            let rawText = '';
 
             if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
                 setReadingStatusText('Lendo texto digital do PDF...');
@@ -977,6 +1023,13 @@ export const ManualIdModal: React.FC = () => {
 
             // Analisa e extrai dados (valor, favorecido, data, forma de pagamento, etc.)
             const extractedData: ExtractedExpenseDoc = analyzeExpenseDocumentText(rawText);
+
+            // 🛡️ Validação de legibilidade: se o documento não estiver legível para leitura, emite aviso e rejeita
+            if (!isDocumentTextLegible(rawText, extractedData)) {
+                showToast('Documento ilegível: Não foi possível realizar a leitura do arquivo. Para garantir a validade contábil, envie uma foto ou PDF mais nítido e legível.', 'error');
+                return;
+            }
+
             const autoRole = inferDocumentRole(extractedData.documentType, file.name);
 
             const roleMap: Record<string, DocumentRole> = {
@@ -1001,11 +1054,11 @@ export const ManualIdModal: React.FC = () => {
 
             setAttachments(prev => [...prev, newAttachment]);
 
-            // Preenche automaticamente os campos do formulário manual
+            // Preenche automaticamente os campos do formulário manual exclusivamente para o primeiro documento
             handleDocumentDataExtracted(extractedData, newAttachment);
         } catch (err) {
             console.error('Erro ao ler e processar documento:', err);
-            showToast('Aviso: documento anexado, mas não foi possível ler todos os campos.', 'error');
+            showToast('Documento ilegível ou corrompido: Não foi possível processar o arquivo. Por favor, envie um documento legível.', 'error');
         } finally {
             setIsReadingDocument(false);
             setReadingStatusText('');
@@ -1256,9 +1309,9 @@ export const ManualIdModal: React.FC = () => {
                                 disabled={isReadingDocument}
                             />
 
-                            {/* Chips dos documentos anexados com visual enxuto */}
+                            {/* Chips dos documentos anexados com visual enxuto e opção de visualização */}
                             {attachments.length > 0 && (
-                                <div className="flex items-center gap-1.5 flex-wrap">
+                                <div className="flex items-center gap-2 flex-wrap">
                                     {attachments.map((att, idx) => {
                                         const docLabel = att.documentRole === 'nota_fiscal' 
                                             ? 'Nota Fiscal' 
@@ -1278,6 +1331,15 @@ export const ManualIdModal: React.FC = () => {
                                                 </span>
                                                 <button
                                                     type="button"
+                                                    onClick={() => setPreviewAttachment(att)}
+                                                    className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-orange-700 dark:text-orange-300 bg-orange-100 hover:bg-orange-200 dark:bg-orange-900/60 dark:hover:bg-orange-800/60 px-2 py-0.5 rounded-md cursor-pointer transition-colors"
+                                                    title="Visualizar documento carregado"
+                                                >
+                                                    <Eye className="w-3 h-3" />
+                                                    <span>Ver</span>
+                                                </button>
+                                                <button
+                                                    type="button"
                                                     onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
                                                     className="text-orange-400 hover:text-rose-600 p-0.5 rounded cursor-pointer transition-colors ml-0.5"
                                                     title="Remover documento"
@@ -1287,6 +1349,16 @@ export const ManualIdModal: React.FC = () => {
                                             </div>
                                         );
                                     })}
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setPreviewAttachment(attachments[attachments.length - 1])}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-orange-100/90 dark:bg-orange-900/50 hover:bg-orange-200 dark:hover:bg-orange-800/70 border border-orange-300 dark:border-orange-700 text-xs font-black text-orange-800 dark:text-orange-200 cursor-pointer shadow-2xs transition-all active:scale-95"
+                                        title="Visualizar documento na tela"
+                                    >
+                                        <Eye className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
+                                        <span>Visualizar Documento</span>
+                                    </button>
                                 </div>
                             )}
                         </div>
@@ -2387,6 +2459,13 @@ export const ManualIdModal: React.FC = () => {
                      {!isSaving && selectedChurchId && (!isManualLaunch || selectedBankId) && <span className="ml-1 text-[8px] opacity-70 bg-white/20 px-1 rounded">Enter</span>}
                 </button>
             </div>
+
+            {/* Modal de Pré-visualização do Documento (Foto / PDF) */}
+            <AttachmentPreviewModal
+                isOpen={!!previewAttachment}
+                attachment={previewAttachment}
+                onClose={() => setPreviewAttachment(null)}
+            />
         </div>
     );
 };

@@ -2075,7 +2075,13 @@ export const LivroCaixaView: React.FC = memo(() => {
                                             : (Array.isArray(tx.raw?.splits) && tx.raw.splits.length > 0)
                                                 ? tx.raw.splits
                                                 : null;
-                                        const txAttachments: ExpenseAttachment[] = tx.attachments || tx.raw?.attachments || tx.raw?.transaction?.attachments || [];
+                                        const txAttachments: ExpenseAttachment[] = (Array.isArray(tx.attachments) && tx.attachments.length > 0)
+                                            ? tx.attachments
+                                            : (Array.isArray(tx.raw?.attachments) && tx.raw.attachments.length > 0)
+                                                ? tx.raw.attachments
+                                                : (Array.isArray(tx.raw?.transaction?.attachments) && tx.raw.transaction.attachments.length > 0)
+                                                    ? tx.raw.transaction.attachments
+                                                    : (attachmentsMap ? (attachmentsMap.get(tx.id) || attachmentsMap.get(tx.raw?.transaction?.id)) : undefined) || [];
                                         const nfAtt = txAttachments.find(a => a.documentRole === 'nota_fiscal' || (a.extractedData && a.extractedData.documentType === 'nota_fiscal'));
                                         const invoiceAtt = txAttachments.find(a => a.documentRole === 'fatura' || (a.extractedData && (a.extractedData.documentType === 'fatura' || a.extractedData.documentType === 'boleto')));
                                         const serviceReceiptAtt = txAttachments.find(a => a.documentRole === 'recibo' || a.extractedData?.documentType === 'recibo');
@@ -2741,6 +2747,17 @@ export const LivroCaixaView: React.FC = memo(() => {
                         next.set(txId, atts);
                         return next;
                     });
+                    const targetRow = context?.matchResults?.find((r: any) => r.transaction?.id === txId || (r as any).id === txId);
+                    if (targetRow && context?.updateReportData) {
+                        context.updateReportData({
+                            ...targetRow,
+                            attachments: atts,
+                            transaction: {
+                                ...targetRow.transaction,
+                                attachments: atts
+                            }
+                        });
+                    }
                     showToast('Comprovante(s) salvo(s) com sucesso!', 'success');
                 }}
             />

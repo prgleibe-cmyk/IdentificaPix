@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { MatchResult, ReconciliationStatus, GroupedReportData, Transaction } from '../../types';
 import { matchTransactions, groupResultsByChurch, PLACEHOLDER_CHURCH } from '../../services/processingService';
 import { batchState, lastRealtimeUpdate } from './useCloudSync';
+import { getAuthToken } from '../../services/auth/authAdapter';
 
 interface UseTransactionMatcherProps {
     subscription: any;
@@ -503,7 +504,7 @@ export const useTransactionMatcher = ({
         // 🛡️ PERSISTÊNCIA DIRETA NA TABELA DE TRANSAÇÕES CONSOLIDADAS (SALVAMENTO EM NUVEM)
         if (isRealDbTx) {
             try {
-                const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+                const token = await getAuthToken() || (typeof window !== 'undefined' ? (localStorage.getItem('iggestor_vps_access_token') || localStorage.getItem('auth_token') || localStorage.getItem('token') || sessionStorage.getItem('auth_token')) : null);
                 const headers: Record<string, string> = { 'Content-Type': 'application/json' };
                 if (token) headers['Authorization'] = `Bearer ${token}`;
 

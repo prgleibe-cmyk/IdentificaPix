@@ -49,4 +49,24 @@ NOME: IGREJA BATISTA
     const parsedDate = extractDateFromText(textWithValidDate);
     assert.equal(parsedDate, '2026-10-28', 'Não formatou data válida');
   });
+
+  await t.test('Deve rejeitar documento ilegível (texto em branco, vazio ou borrado)', async () => {
+    const { isDocumentTextLegible } = await import('../../utils/expenseDocumentParser');
+    assert.equal(isDocumentTextLegible(''), false, 'Não rejeitou string vazia');
+    assert.equal(isDocumentTextLegible('   \n  \t  '), false, 'Não rejeitou espaços em branco');
+    assert.equal(isDocumentTextLegible('ab .'), false, 'Não rejeitou ruído menor que 15 caracteres');
+  });
+
+  await t.test('Deve aceitar documentos nítidos e legíveis', async () => {
+    const { isDocumentTextLegible, analyzeExpenseDocumentText } = await import('../../utils/expenseDocumentParser');
+    const validDanfe = `
+DANFE NOTA FISCAL ELETRONICA
+POSTO DE COMBUSTIVEIS ALVORADA LTDA
+CNPJ: 11.222.333/0001-44
+VALOR TOTAL: R$ 250,00
+DATA: 25/10/2026
+    `;
+    const extracted = analyzeExpenseDocumentText(validDanfe);
+    assert.equal(isDocumentTextLegible(validDanfe, extracted), true, 'Rejeitou indevidamente documento legível');
+  });
 });
