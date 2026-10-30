@@ -59,6 +59,9 @@ export const ManualIdModal: React.FC = () => {
 
     const handleClose = () => {
         closeManualIdentify();
+        if (setMatchResults) {
+            setMatchResults((prev: any) => prev.filter((r: any) => !r.transaction?.id?.startsWith('ghost-manual-')));
+        }
         if (activeView === 'novo_lancamento') {
             setActiveView('reports');
         }
