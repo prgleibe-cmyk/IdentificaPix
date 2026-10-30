@@ -87,7 +87,7 @@ export const AttachmentPreviewModal: React.FC<AttachmentPreviewModalProps> = ({
 
     return (
         <div 
-            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-fade-in"
+            className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-fade-in"
             onClick={onClose}
         >
             <div 

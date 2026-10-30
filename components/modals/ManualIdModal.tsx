@@ -1349,16 +1349,6 @@ export const ManualIdModal: React.FC = () => {
                                             </div>
                                         );
                                     })}
-
-                                    <button
-                                        type="button"
-                                        onClick={() => setPreviewAttachment(attachments[attachments.length - 1])}
-                                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-orange-100/90 dark:bg-orange-900/50 hover:bg-orange-200 dark:hover:bg-orange-800/70 border border-orange-300 dark:border-orange-700 text-xs font-black text-orange-800 dark:text-orange-200 cursor-pointer shadow-2xs transition-all active:scale-95"
-                                        title="Visualizar documento na tela"
-                                    >
-                                        <Eye className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
-                                        <span>Visualizar Documento</span>
-                                    </button>
                                 </div>
                             )}
                         </div>
@@ -1904,6 +1894,13 @@ export const ManualIdModal: React.FC = () => {
                         </button>
                     </div>
                 </div>
+
+                {/* Modal de Pré-visualização do Documento (Foto / PDF) no Lançamento Manual */}
+                <AttachmentPreviewModal
+                    isOpen={!!previewAttachment}
+                    attachment={previewAttachment}
+                    onClose={() => setPreviewAttachment(null)}
+                />
             </div>
         );
     }
