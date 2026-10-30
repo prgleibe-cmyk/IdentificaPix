@@ -485,16 +485,10 @@ export function extractRecipientFromText(text: string): string | null {
     }
 
     // 2.4 Primeira linha da seção do cabeçalho que seja um nome empresarial válido
-    // Prioriza linhas com sufixos ou termos empresariais (LTDA, S/A, ME, EPP, SUPERMERCADO, etc.)
+    // Exige termos ou sufixos empresariais reconhecidos (LTDA, S/A, ME, EPP, SUPERMERCADO, etc.)
     for (let i = 0; i < Math.min(sellerLines.length, 15); i++) {
         const cand = cleanCandidateRecipient(sellerLines[i]);
         if (cand && /\b(?:ltda|s\/?a|me|epp|eireli|cia|comercio|com[eé]rcio|servicos|servi[cç]os|supermercado|mercado|posto|loja|distribuidora|farmacia|farm[aá]cia|restaurante|panificadora|industria|ind[uú]stria)\b/i.test(cand)) {
-            return cand;
-        }
-    }
-    for (let i = 0; i < Math.min(sellerLines.length, 10); i++) {
-        const cand = cleanCandidateRecipient(sellerLines[i]);
-        if (cand && cand.length >= 4 && !cand.toLowerCase().includes('comprovante') && !cand.toLowerCase().includes('extrato')) {
             return cand;
         }
     }
@@ -685,30 +679,47 @@ export function validateExpenseAgainstDocument(
 }
 
 /**
- * 🛡️ Verifica se o texto extraído de um arquivo possui legibilidade mínima necessária
- * para ter validade documental e contábil.
+ * 🛡️ Verifica se o texto extraído de um arquivo possui legibilidade e integridade necessárias
+ * para permitir a leitura contábil e extração segura e correta dos dados.
+ * Se o documento for ilegível (foto embaçada, escura, corrompida ou sem dados contábeis reconhecíveis), retorna false.
  */
 export function isDocumentTextLegible(rawText: string, extractedDoc?: ExtractedExpenseDoc): boolean {
     if (!rawText || typeof rawText !== 'string') return false;
-    const clean = rawText.trim();
-    if (clean.length < 15) return false;
 
-    // 🛡️ Garante que existam caracteres alfanuméricos reais e não apenas ruído de pontuação/espaços
+    // Remove eventuais prefixos sintéticos para avaliar o texto real lido do documento
+    const clean = rawText
+        .replace(/^ARQUIVO:[^\n]*\n?/gi, '')
+        .replace(/^CODIGO_DETECTADO:[^\n]*\n?/gi, '')
+        .trim();
+
+    // Se o texto limpo for vazio ou tiver menos de 10 caracteres alfanuméricos
     const alphanumeric = clean.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚãõÃÕâêîôûÂÊÎÔÛçÇ]/g, '');
     if (alphanumeric.length < 10) return false;
 
-    // Se tiver mais de 35 caracteres alfanuméricos legíveis, é aceito
-    if (alphanumeric.length >= 35) return true;
-
-    // Se tiver texto curto (entre 10 e 35 alfanuméricos), precisa conter ao menos um dado estruturado contábil reconhecido
+    // Se temos os dados extraídos pelo analisador contábil
     if (extractedDoc) {
+        // 1. Possui valor monetário identificado e válido
         if (extractedDoc.extractedAmount !== null && extractedDoc.extractedAmount > 0) return true;
+
+        // 2. Possui favorecido / emitente / fornecedor identificado
         if (extractedDoc.extractedRecipient && extractedDoc.extractedRecipient.trim().length >= 3) return true;
+
+        // 3. Possui CNPJ ou CPF válido do emitente ou pagador
+        if (extractedDoc.extractedRecipientCnpjCpf || extractedDoc.extractedPayerCnpjCpf) return true;
+
+        // 4. Possui código de barras, linha digitável, QR Code ou autenticação bancária
         if (extractedDoc.barcodeOrAuth && extractedDoc.barcodeOrAuth.trim().length >= 8) return true;
+
+        // 5. Possui data de emissão ou vencimento reconhecida
         if (extractedDoc.extractedDate || extractedDoc.extractedDueDate) return true;
-        if (extractedDoc.extractedRecipientCnpjCpf) return true;
+
+        // 6. Possui tipo de documento financeiro reconhecido pelas palavras-chave (Boleto, Nota Fiscal, Recibo, Fatura, PIX)
+        if (extractedDoc.documentType && extractedDoc.documentType !== 'outro') return true;
+
+        // Se nenhum dado contábil estruturado nem tipo de documento pôde ser extraído, o documento é ilegível
         return false;
     }
 
-    return true;
+    // Se não foi fornecido extractedDoc, exige texto substancial com vocabulário contábil/financeiro mínimo
+    return alphanumeric.length >= 40;
 }
