@@ -43,6 +43,7 @@ export const ManualIdModal: React.FC = () => {
         setMatchResults,
         churches,
         banks,
+        activeBankFiles,
         confirmBulkManualIdentification,
         closeManualIdentify,
         findMatchResult,
@@ -58,6 +59,7 @@ export const ManualIdModal: React.FC = () => {
     const { subscription, user } = useAuth();
 
     const handleClose = () => {
+        isChurchManuallyChangedRef.current = false;
         closeManualIdentify();
         if (setMatchResults) {
             setMatchResults((prev: any) => prev.filter((r: any) => !r.transaction?.id?.startsWith('ghost-manual-')));
@@ -104,6 +106,7 @@ export const ManualIdModal: React.FC = () => {
     const [isReadingDocument, setIsReadingDocument] = useState<boolean>(false);
     const [readingStatusText, setReadingStatusText] = useState<string>('');
     const fileInputRef = React.useRef<HTMLInputElement>(null);
+    const block2FileInputRef = React.useRef<HTMLInputElement>(null);
 
     const [isSaving, setIsSaving] = useState(false);
     const isSavingRef = React.useRef<boolean>(false);
@@ -118,6 +121,7 @@ export const ManualIdModal: React.FC = () => {
     const isDateManuallyChangedRef = React.useRef<boolean>(false);
     const isAmountManuallyChangedRef = React.useRef<boolean>(false);
     const isDescManuallyChangedRef = React.useRef<boolean>(false);
+    const isChurchManuallyChangedRef = React.useRef<boolean>(false);
 
     const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         isAmountManuallyChangedRef.current = true;
@@ -501,7 +505,7 @@ export const ManualIdModal: React.FC = () => {
         setManualDescription(chosenName);
         isDescManuallyChangedRef.current = true;
 
-        // Auto-preenche a igreja conforme o cadastro imediatamente
+        // Auto-preenche a igreja conforme o cadastro imediatamente se o usuário ainda não escolheu manualmente
         const targetChurch = (churches || []).find((ch: any) => 
             (col._churchId && ch.id === col._churchId) ||
             (col.church_id && ch.id === col.church_id) ||
@@ -511,7 +515,7 @@ export const ManualIdModal: React.FC = () => {
             (col.church_name && ch.name && ch.name.trim().toLowerCase() === col.church_name.trim().toLowerCase())
         ) || (col._churchId && churches.some(ch => ch.id === col._churchId) ? { id: col._churchId, name: col._churchName } : null) || (churches && churches.length === 1 ? churches[0] : null);
 
-        if (targetChurch?.id) {
+        if (!isChurchManuallyChangedRef.current && targetChurch?.id) {
             setSelectedChurchId(targetChurch.id);
         }
 
@@ -566,7 +570,7 @@ export const ManualIdModal: React.FC = () => {
                         setSelectedAssociationType('unify');
                         setSelectedUnifiedField(best.contributor.id);
                         const chId = best.contributor._churchId || best.contributor.church_id || best.church?.id;
-                        if (chId) {
+                        if (chId && !isChurchManuallyChangedRef.current) {
                             setSelectedChurchId(chId);
                         }
                     } else {
@@ -603,6 +607,7 @@ export const ManualIdModal: React.FC = () => {
             isDateManuallyChangedRef.current = false;
             isAmountManuallyChangedRef.current = false;
             isDescManuallyChangedRef.current = false;
+            isChurchManuallyChangedRef.current = false;
 
             const existingAtts = tx.attachments || (findMatchResult ? findMatchResult(tx.id)?.attachments : null);
             if (Array.isArray(existingAtts) && existingAtts.length > 0) {
@@ -661,10 +666,12 @@ export const ManualIdModal: React.FC = () => {
             }
 
             // 4. Church ID & Bank ID
-            if (matchedResult?.church?.id) {
-                setSelectedChurchId(matchedResult.church.id);
-            } else if (churches.length === 1) {
-                setSelectedChurchId(churches[0].id);
+            if (!isChurchManuallyChangedRef.current) {
+                if (matchedResult?.church?.id) {
+                    setSelectedChurchId(matchedResult.church.id);
+                } else if (churches.length === 1) {
+                    setSelectedChurchId(churches[0].id);
+                }
             }
 
             if (tx.bank_id) {
@@ -771,25 +778,31 @@ export const ManualIdModal: React.FC = () => {
             const initialDate = matchedResult?.reference_date || tx.reference_date || tx.date || new Date().toISOString().split('T')[0];
             setSelectedDate(initialDate);
 
-            if (matchedResult?.church?.id && matchedResult.church.id !== 'unidentified') {
-                setSelectedChurchId(matchedResult.church.id);
-            } else if (matchedResult?._churchId && matchedResult._churchId !== 'unidentified') {
-                setSelectedChurchId(matchedResult._churchId);
-            } else if (churches.length === 1) {
-                setSelectedChurchId(churches[0].id);
-            } else {
-                setSelectedChurchId('');
+            if (!isChurchManuallyChangedRef.current) {
+                if (matchedResult?.church?.id && matchedResult.church.id !== 'unidentified') {
+                    setSelectedChurchId(matchedResult.church.id);
+                } else if (matchedResult?._churchId && matchedResult._churchId !== 'unidentified') {
+                    setSelectedChurchId(matchedResult._churchId);
+                } else if (churches.length === 1) {
+                    setSelectedChurchId(churches[0].id);
+                } else {
+                    setSelectedChurchId('');
+                }
             }
 
-            if (tx.bank_id) {
-                setSelectedBankId(tx.bank_id);
+            const txBankId = tx.bank_id || 
+                matchedResult?.transaction?.bank_id || 
+                (activeBankFiles || []).find((f: any) => (f.processedTransactions || []).some((pt: any) => pt.id === tx.id))?.bankId;
+
+            if (txBankId) {
+                setSelectedBankId(txBankId);
             } else if (matchedResult?.transaction?.bank_id) {
                 setSelectedBankId(matchedResult.transaction.bank_id);
             } else if (availableBanks.length === 1) {
                 setSelectedBankId(availableBanks[0].id);
             }
         }
-    }, [activeTxId, bulkIdentificationTxs, findMatchResult, churches, defaultEntradaType, defaultSaidaType, availableBanks]);
+    }, [activeTxId, bulkIdentificationTxs, findMatchResult, churches, defaultEntradaType, defaultSaidaType, availableBanks, activeBankFiles]);
 
     // --- ATALHOS DE TECLADO ---
     useEffect(() => {
@@ -841,7 +854,7 @@ export const ManualIdModal: React.FC = () => {
             if (matchedCol) {
                 setSelectedAssociationType('unify');
                 setSelectedUnifiedField(matchedCol.id);
-                if (matchedCol._churchId && !selectedChurchId) {
+                if (matchedCol._churchId && !selectedChurchId && !isChurchManuallyChangedRef.current) {
                     setSelectedChurchId(matchedCol._churchId);
                 }
             }
@@ -1049,6 +1062,7 @@ export const ManualIdModal: React.FC = () => {
             setReadingStatusText('');
             if (e.target) e.target.value = '';
             if (fileInputRef.current) fileInputRef.current.value = '';
+            if (block2FileInputRef.current) block2FileInputRef.current.value = '';
         }
     };
 
@@ -1259,9 +1273,9 @@ export const ManualIdModal: React.FC = () => {
                                         className="bg-transparent text-xs font-black text-slate-800 dark:text-slate-100 outline-none cursor-pointer pr-1"
                                         title="Selecione o tipo do documento (opcional)"
                                     >
-                                        <option value="Boleto" className="text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800">Boleto</option>
+                                        <option value="Boleto" className="text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800">Boleto / Fatura</option>
                                         <option value="Nota Fiscal" className="text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800">Nota Fiscal</option>
-                                        <option value="Recibo" className="text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800">Recibo</option>
+                                        <option value="Recibo" className="text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800">Comprovante</option>
                                         <option value="Outro" className="text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800">Outro</option>
                                     </select>
                                 </div>
@@ -1302,9 +1316,9 @@ export const ManualIdModal: React.FC = () => {
                                         const docLabel = att.documentRole === 'nota_fiscal' 
                                             ? 'Nota Fiscal' 
                                             : att.documentRole === 'fatura' 
-                                                ? 'Boleto' 
+                                                ? 'Boleto / Fatura' 
                                                 : att.documentRole === 'recibo' 
-                                                    ? 'Recibo' 
+                                                    ? 'Comprovante' 
                                                     : 'Doc';
                                         return (
                                             <div
@@ -1435,7 +1449,7 @@ export const ManualIdModal: React.FC = () => {
                                     if (exactMatch) {
                                         setSelectedAssociationType('unify');
                                         setSelectedUnifiedField(exactMatch.id);
-                                        if (exactMatch._churchId && churches.some(ch => ch.id === exactMatch._churchId)) {
+                                        if (!isChurchManuallyChangedRef.current && exactMatch._churchId && churches.some(ch => ch.id === exactMatch._churchId)) {
                                             setSelectedChurchId(exactMatch._churchId);
                                         }
                                     } else {
@@ -1567,10 +1581,12 @@ export const ManualIdModal: React.FC = () => {
                                         onClick={() => {
                                             setSelectedAssociationType('create_new');
                                             setSelectedUnifiedField('');
-                                            if (churches.length !== 1) {
-                                                setSelectedChurchId('');
-                                            } else {
-                                                setSelectedChurchId(churches[0].id);
+                                            if (!isChurchManuallyChangedRef.current) {
+                                                if (churches.length !== 1) {
+                                                    setSelectedChurchId('');
+                                                } else {
+                                                    setSelectedChurchId(churches[0].id);
+                                                }
                                             }
                                         }}
                                         className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
@@ -1589,7 +1605,7 @@ export const ManualIdModal: React.FC = () => {
                                                 const match = similarMatches[0];
                                                 setSelectedUnifiedField(match.contributor.id);
                                                 const chId = match.contributor._churchId || match.contributor.church_id || match.church?.id;
-                                                if (chId) setSelectedChurchId(chId);
+                                                if (chId && !isChurchManuallyChangedRef.current) setSelectedChurchId(chId);
                                             }
                                         }}
                                         className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
@@ -1618,7 +1634,7 @@ export const ManualIdModal: React.FC = () => {
                                                     type="button"
                                                     onClick={() => {
                                                         setSelectedUnifiedField(m.contributor.id);
-                                                        if (chId) setSelectedChurchId(chId);
+                                                        if (chId && !isChurchManuallyChangedRef.current) setSelectedChurchId(chId);
                                                     }}
                                                     className={`px-2 py-1 rounded-lg border text-left transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer text-[10px] ${
                                                         isSelected
@@ -1657,7 +1673,10 @@ export const ManualIdModal: React.FC = () => {
                                 <BuildingOfficeIcon className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-orange-500 transition-colors pointer-events-none" />
                                 <select
                                     value={selectedChurchId}
-                                    onChange={e => setSelectedChurchId(e.target.value)}
+                                    onChange={e => {
+                                        setSelectedChurchId(e.target.value);
+                                        isChurchManuallyChangedRef.current = true;
+                                    }}
                                     className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2.5 pl-10 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer"
                                 >
                                     <option value="">-- Clique para ver as igrejas --</option>
@@ -1910,7 +1929,7 @@ export const ManualIdModal: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2 self-end sm:self-auto">
                     <span className="text-[8px] font-black text-slate-400 uppercase border border-slate-200 dark:border-slate-800 px-1.5 py-0.5 rounded">Esc</span>
-                    <button type="button" onClick={closeManualIdentify} className="p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors">
+                    <button type="button" onClick={handleClose} className="p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors">
                         <XMarkIcon className="w-5 h-5" />
                     </button>
                 </div>
@@ -2028,7 +2047,7 @@ export const ManualIdModal: React.FC = () => {
                                             if (exactMatch) {
                                                 setSelectedAssociationType('unify');
                                                 setSelectedUnifiedField(exactMatch.id);
-                                                if (exactMatch._churchId && churches.some(ch => ch.id === exactMatch._churchId)) {
+                                                if (!isChurchManuallyChangedRef.current && exactMatch._churchId && churches.some(ch => ch.id === exactMatch._churchId)) {
                                                     setSelectedChurchId(exactMatch._churchId);
                                                 }
                                             } else {
@@ -2121,10 +2140,12 @@ export const ManualIdModal: React.FC = () => {
                                     type="button"
                                     onClick={() => {
                                         setSelectedAssociationType('create_new');
-                                        if (churches.length !== 1) {
-                                            setSelectedChurchId('');
-                                        } else {
-                                            setSelectedChurchId(churches[0].id);
+                                        if (!isChurchManuallyChangedRef.current) {
+                                            if (churches.length !== 1) {
+                                                setSelectedChurchId('');
+                                            } else {
+                                                setSelectedChurchId(churches[0].id);
+                                            }
                                         }
                                     }}
                                     className={`py-1.5 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${
@@ -2143,7 +2164,7 @@ export const ManualIdModal: React.FC = () => {
                                             const match = similarMatches[0];
                                             setSelectedUnifiedField(match.contributor.id);
                                             const chId = match.contributor._churchId || match.contributor.church_id || match.church?.id;
-                                            if (chId) setSelectedChurchId(chId);
+                                            if (chId && !isChurchManuallyChangedRef.current) setSelectedChurchId(chId);
                                         }
                                     }}
                                     className={`py-1.5 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${
@@ -2172,7 +2193,7 @@ export const ManualIdModal: React.FC = () => {
                                                     key={m.contributor.id || idx}
                                                     onClick={() => {
                                                         setSelectedUnifiedField(m.contributor.id);
-                                                        if (chId) setSelectedChurchId(chId);
+                                                        if (chId && !isChurchManuallyChangedRef.current) setSelectedChurchId(chId);
                                                     }}
                                                     className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
                                                         isSelected
@@ -2239,7 +2260,10 @@ export const ManualIdModal: React.FC = () => {
                                 <BuildingOfficeIcon className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
                                 <select
                                     value={selectedChurchId}
-                                    onChange={e => setSelectedChurchId(e.target.value)}
+                                    onChange={e => {
+                                        setSelectedChurchId(e.target.value);
+                                        isChurchManuallyChangedRef.current = true;
+                                    }}
                                     className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 pl-10 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer"
                                 >
                                     <option value="">-- Clique para ver as igrejas --</option>
@@ -2260,40 +2284,37 @@ export const ManualIdModal: React.FC = () => {
                         <div className="space-y-1.5">
                             <div className="flex items-center justify-between flex-wrap gap-1">
                                 <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-1">
-                                   Conta / Caixa de Destino {isManualLaunch && <span className="text-amber-500 font-bold">*</span>}
+                                   Conta / Caixa de Origem
                                 </label>
-                                {isManualLaunch && (
-                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border transition-colors ${
-                                        !selectedBankId 
-                                            ? 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 animate-pulse' 
-                                            : 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200/60 dark:border-emerald-800/60'
-                                    }`}>
-                                        {!selectedBankId ? '⚠️ Obrigatório' : '✓ Selecionado'}
-                                    </span>
-                                )}
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 flex items-center gap-1">
+                                    🔒 Origem Fixa
+                                </span>
                             </div>
                             <div className="relative group">
-                                <svg className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                                <svg className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                                 </svg>
                                 <select
+                                    disabled
                                     value={selectedBankId}
-                                    onChange={e => setSelectedBankId(e.target.value)}
-                                    className={`block w-full rounded-xl border ${
-                                        isManualLaunch && !selectedBankId 
-                                            ? 'border-amber-300/80 dark:border-amber-700/80 bg-amber-50/30 dark:bg-amber-950/20' 
-                                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'
-                                    } text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 pl-10 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer`}
+                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100/80 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 shadow-xs py-2.5 pl-10 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-not-allowed opacity-90"
                                 >
-                                    <option value="">{isManualLaunch ? '-- Selecione a Conta / Caixa (Obrigatório) --' : '-- Sem Conta / Caixa Principal --'}</option>
+                                    <option value="">-- Sem Conta / Caixa de Origem --</option>
                                     {availableBanks.map((bank: any) => (
                                         <option key={bank.id} value={bank.id}>
                                             {bank.account_name || bank.name || 'Conta Bancária / Caixa'}
                                         </option>
                                     ))}
+                                    {!availableBanks.some((b: any) => b.id === selectedBankId) && selectedBankId && (
+                                        <option value={selectedBankId}>
+                                            {(banks || []).find((b: any) => b.id === selectedBankId)?.account_name || (banks || []).find((b: any) => b.id === selectedBankId)?.name || 'Conta de Origem'}
+                                        </option>
+                                    )}
                                 </select>
                                 <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                    <ChevronDownIcon className="w-3.5 h-3.5" />
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                    </svg>
                                 </div>
                             </div>
                         </div>
@@ -2409,15 +2430,101 @@ export const ManualIdModal: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Comprovantes e Faturas para Saídas Bancárias */}
-                    {bulkIdentificationTxs.some(t => Number(t.amount) < 0 || t.type === 'expense') && (
+                    {/* Comprovantes e Documentos Fiscais */}
+                    {(bulkIdentificationTxs.some(t => Number(t.amount) < 0 || t.type === 'expense') || manualType === 'saida') && (
                         <div className="pt-2 border-t border-slate-100 dark:border-slate-800 animate-fade-in">
-                            <ExpenseDocumentUploader
-                                attachments={attachments}
-                                onChangeAttachments={setAttachments}
-                                currentAmount={Math.abs(bulkIdentificationTxs[0]?.amount || 0)}
-                                onDocumentDataExtracted={handleDocumentDataExtracted}
-                            />
+                            <div className="flex flex-wrap items-center justify-between gap-2.5 py-1 px-0.5">
+                                <div className="inline-flex items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/90 dark:bg-slate-800/80 p-1 shadow-xs hover:border-brand-blue dark:hover:border-blue-500/80 transition-all">
+                                    {/* Opção integrada para selecionar o tipo do documento (opcional) */}
+                                    <div className="flex items-center gap-1.5 px-2.5 py-1">
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                            Documento:
+                                        </span>
+                                        <select
+                                            value={selectedDocType}
+                                            onChange={(e) => setSelectedDocType(e.target.value)}
+                                            className="bg-transparent text-xs font-black text-slate-800 dark:text-slate-100 outline-none cursor-pointer pr-1"
+                                            title="Selecione o tipo do documento (opcional)"
+                                        >
+                                            <option value="Boleto" className="text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800">Boleto / Fatura</option>
+                                            <option value="Nota Fiscal" className="text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800">Nota Fiscal</option>
+                                            <option value="Recibo" className="text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800">Comprovante</option>
+                                            <option value="Outro" className="text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800">Outro</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="h-5 w-px bg-slate-200 dark:bg-slate-700 mx-0.5" />
+
+                                    {/* O Único Botão de Upload ou Foto */}
+                                    <button
+                                        type="button"
+                                        onClick={() => block2FileInputRef.current?.click()}
+                                        disabled={isReadingDocument}
+                                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-black text-white bg-gradient-to-r from-orange-500 to-amber-600 hover:opacity-95 shadow-xs cursor-pointer transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+                                        title="Clique para anexar arquivo ou tirar foto com a câmera"
+                                    >
+                                        {isReadingDocument ? (
+                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                        ) : (
+                                            <Camera className="w-3.5 h-3.5" />
+                                        )}
+                                        <span>{isReadingDocument ? (readingStatusText || 'Lendo documento...') : 'Upload / Foto'}</span>
+                                    </button>
+                                </div>
+
+                                {/* Input oculto padrão para upload de arquivos ou foto da câmera */}
+                                <input
+                                    ref={block2FileInputRef}
+                                    type="file"
+                                    accept="image/*,application/pdf,application/xml,text/xml,.xml"
+                                    className="hidden"
+                                    onChange={handleFileSelected}
+                                    disabled={isReadingDocument}
+                                />
+
+                                {/* Chips dos documentos anexados com visual enxuto e opção de visualização */}
+                                {attachments.length > 0 && (
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        {attachments.map((att, idx) => {
+                                            const docLabel = att.documentRole === 'nota_fiscal' 
+                                                ? 'Nota Fiscal' 
+                                                : att.documentRole === 'fatura' 
+                                                    ? 'Boleto / Fatura' 
+                                                    : att.documentRole === 'recibo' 
+                                                        ? 'Comprovante' 
+                                                        : 'Doc';
+                                            return (
+                                                <div
+                                                    key={att.id || idx}
+                                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800/60 text-xs font-bold text-orange-800 dark:text-orange-200 shadow-2xs animate-fade-in"
+                                                >
+                                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                                    <span className="truncate max-w-[170px] font-semibold">
+                                                        {docLabel}: {att.fileName}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setPreviewAttachment(att)}
+                                                        className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-orange-700 dark:text-orange-300 bg-orange-100 hover:bg-orange-200 dark:bg-orange-900/60 dark:hover:bg-orange-800/60 px-2 py-0.5 rounded-md cursor-pointer transition-colors"
+                                                        title="Visualizar documento carregado"
+                                                    >
+                                                        <Eye className="w-3 h-3" />
+                                                        <span>Ver</span>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
+                                                        className="text-orange-400 hover:text-rose-600 p-0.5 rounded cursor-pointer transition-colors ml-0.5"
+                                                        title="Remover documento"
+                                                    >
+                                                        <X className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>
@@ -2427,7 +2534,7 @@ export const ManualIdModal: React.FC = () => {
             <div className="px-6 py-3.5 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-white/5 flex justify-end gap-3 shrink-0">
                 <button 
                     type="button" 
-                    onClick={closeManualIdentify} 
+                    onClick={handleClose} 
                     className="px-5 py-2 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-xl shadow-xs hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
                 >
                     {t('common.cancel')}
