@@ -620,6 +620,12 @@ export const ManualIdModal: React.FC = () => {
         if (initializedTxIdRef.current === activeTxId) return;
         initializedTxIdRef.current = activeTxId || null;
 
+        const isGenericOrInvalidType = (typeVal?: string | null) => {
+            if (!typeVal) return true;
+            const upper = typeVal.trim().toUpperCase();
+            return ['ENTRADA', 'ENTRADAS', 'SAÍDA', 'SAIDA', 'SAIDAS', 'INCOME', 'EXPENSE', '---', 'NONE', 'NULL', 'UNDEFINED'].includes(upper);
+        };
+
         if (isManual) {
             const matchedResult = findMatchResult ? findMatchResult(tx.id) : null;
             
@@ -676,10 +682,12 @@ export const ManualIdModal: React.FC = () => {
             
             if (isExplicitSaida) {
                 setManualType('saida');
-                setSelectedType(matchedResult?.contributionType || '');
+                const candidate = matchedResult?.contributionType?.trim();
+                setSelectedType(candidate && !isGenericOrInvalidType(candidate) ? candidate : '');
             } else if (isExplicitEntrada) {
                 setManualType('entrada');
-                setSelectedType(matchedResult?.contributionType || '');
+                const candidate = matchedResult?.contributionType?.trim();
+                setSelectedType(candidate && !isGenericOrInvalidType(candidate) ? candidate : '');
             } else {
                 setManualType(null);
                 setSelectedType('');
@@ -734,18 +742,29 @@ export const ManualIdModal: React.FC = () => {
 
             if (isTxSaida) {
                 setManualType('saida');
-                if (matchedResult?.contributionType) {
-                    setSelectedType(matchedResult.contributionType);
-                } else {
-                    setSelectedType(defaultSaidaType);
-                }
+                const candidateSaida = matchedResult?.contributionType?.trim();
+                const registeredSaidas = (contributionTypes || [])
+                    .filter((ct: any) => ct.type === 'saida' && ct.is_active !== false)
+                    .map((ct: any) => ct.name?.toUpperCase());
+                const isRegisteredSaida = candidateSaida && (
+                    registeredSaidas.includes(candidateSaida.toUpperCase()) ||
+                    registeredSaidas.length === 0
+                );
+                const isValidSaida = candidateSaida && !isGenericOrInvalidType(candidateSaida) && isRegisteredSaida;
+                setSelectedType(isValidSaida ? candidateSaida : defaultSaidaType);
             } else {
                 setManualType('entrada');
-                if (matchedResult?.contributionType) {
-                    setSelectedType(matchedResult.contributionType);
-                } else {
-                    setSelectedType(defaultEntradaType);
-                }
+                const candidateEntrada = matchedResult?.contributionType?.trim();
+                const registeredEntradas = (contributionTypes || [])
+                    .filter((ct: any) => (ct.type === 'entrada' || !ct.type) && ct.is_active !== false)
+                    .map((ct: any) => ct.name?.toUpperCase());
+                const isRegisteredEntrada = candidateEntrada && (
+                    registeredEntradas.includes(candidateEntrada.toUpperCase()) ||
+                    (contributionKeywords || []).some((k: string) => k?.toUpperCase() === candidateEntrada.toUpperCase()) ||
+                    (registeredEntradas.length === 0 && (candidateEntrada === 'Dízimo' || candidateEntrada === 'Oferta'))
+                );
+                const isValidEntrada = candidateEntrada && !isGenericOrInvalidType(candidateEntrada) && isRegisteredEntrada;
+                setSelectedType(isValidEntrada ? candidateEntrada : defaultEntradaType);
             }
 
             // Inicializa a data de referência com a data da transação ou a reference_date existente
