@@ -164,18 +164,15 @@ export const UploadView: React.FC = memo(() => {
                                 feedingMode === 'android' ? 'pointer-events-none select-none blur-[2px] opacity-20' : ''
                             }`}>
                                 {(() => {
-                                    const filteredBanks = (banks || []).filter((b: any) => {
-                                        const key = resolveBankKey(b);
-                                        return key === 'SICOOB' || key === 'SICREDI';
-                                    });
-                                    if (filteredBanks.length === 0) {
+                                    const availableBanks = banks || [];
+                                    if (availableBanks.length === 0) {
                                         return (
                                             <div className="p-10 text-center border-2 border-dashed border-slate-100 dark:border-slate-700 rounded-3xl col-span-full">
-                                                <p className="text-slate-400 text-sm font-medium">Nenhum banco cadastrado (Sicoob ou Sicredi). Vá em "Cadastro" para adicionar.</p>
+                                                <p className="text-slate-400 text-sm font-medium">Nenhum banco cadastrado. Vá em "Cadastro" para adicionar.</p>
                                             </div>
                                         );
                                     }
-                                    return filteredBanks.map((bank: any) => (
+                                    return availableBanks.map((bank: any) => (
                                         <SmartBankCard key={bank.id} bank={bank} />
                                     ));
                                 })()}
