@@ -918,47 +918,6 @@ export const ManualIdModal: React.FC = () => {
         try {
             let dataUrl = '';
             let finalSize = file.size;
-
-            // 🛡️ Se NÃO for o primeiro documento carregado, apenas anexa o arquivo sem tentar ler/OCR nem sobrescrever campos preenchidos
-            if (!isFirstDocument) {
-                if (file.type.startsWith('image/')) {
-                    const compressed = await compressImageIfNeeded(file);
-                    dataUrl = compressed.dataUrl;
-                    finalSize = compressed.size;
-                } else {
-                    const reader = new FileReader();
-                    dataUrl = await new Promise<string>((resolve) => {
-                        reader.onload = () => resolve(reader.result as string);
-                        reader.onerror = () => resolve('');
-                        reader.readAsDataURL(file);
-                    });
-                }
-
-                const roleMap: Record<string, DocumentRole> = {
-                    'Boleto': 'fatura',
-                    'Nota Fiscal': 'nota_fiscal',
-                    'Recibo': 'recibo',
-                    'Outro': 'outro'
-                };
-                const assignedRole: DocumentRole = roleMap[selectedDocType] || 'comprovante';
-
-                const newAttachment: ExpenseAttachment = {
-                    id: `att-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-                    fileName: file.name || `${selectedDocType}.jpg`,
-                    fileSize: finalSize,
-                    fileType: file.type || 'image/jpeg',
-                    dataUrl: dataUrl,
-                    uploadedAt: new Date().toISOString(),
-                    documentRole: assignedRole,
-                    validationStatus: 'validated'
-                };
-
-                setAttachments(prev => [...prev, newAttachment]);
-                showToast('Documento adicional anexado com sucesso.', 'success');
-                return;
-            }
-
-            // --- FLUXO DO PRIMEIRO DOCUMENTO: Leitura e preenchimento automático ---
             let rawText = '';
 
             if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
@@ -1027,9 +986,9 @@ export const ManualIdModal: React.FC = () => {
             // Analisa e extrai dados (valor, favorecido, data, forma de pagamento, etc.)
             const extractedData: ExtractedExpenseDoc = analyzeExpenseDocumentText(rawText);
 
-            // 🛡️ Validação de legibilidade: se o documento não estiver legível para leitura, emite aviso e rejeita
+            // 🛡️ Validação de legibilidade obrigatória para TODOS os documentos: se não estiver legível, rejeita upload
             if (!isDocumentTextLegible(rawText, extractedData)) {
-                showToast('Documento ilegível: Não foi possível realizar a leitura do arquivo. Para garantir a validade contábil, envie uma foto ou PDF mais nítido e legível.', 'error');
+                showToast('Documento ilegível: Não foi possível realizar a leitura do arquivo para extração segura e correta dos dados. Para garantir a validade contábil, envie uma foto ou PDF nítido e legível.', 'error');
                 return;
             }
 
@@ -1057,8 +1016,12 @@ export const ManualIdModal: React.FC = () => {
 
             setAttachments(prev => [...prev, newAttachment]);
 
-            // Preenche automaticamente os campos do formulário manual exclusivamente para o primeiro documento
-            handleDocumentDataExtracted(extractedData, newAttachment);
+            // 🛡️ Preenche automaticamente os campos do formulário manual exclusivamente para o primeiro documento
+            if (isFirstDocument) {
+                handleDocumentDataExtracted(extractedData, newAttachment);
+            } else {
+                showToast('Documento adicional verificado e anexado com sucesso.', 'success');
+            }
         } catch (err) {
             console.error('Erro ao ler e processar documento:', err);
             showToast('Documento ilegível ou corrompido: Não foi possível processar o arquivo. Por favor, envie um documento legível.', 'error');
@@ -1066,6 +1029,7 @@ export const ManualIdModal: React.FC = () => {
             setIsReadingDocument(false);
             setReadingStatusText('');
             if (e.target) e.target.value = '';
+            if (fileInputRef.current) fileInputRef.current.value = '';
         }
     };
 

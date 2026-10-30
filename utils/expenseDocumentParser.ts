@@ -693,10 +693,14 @@ export function isDocumentTextLegible(rawText: string, extractedDoc?: ExtractedE
     const clean = rawText.trim();
     if (clean.length < 15) return false;
 
-    // Se tiver mais de 35 caracteres de texto legível, é aceito
-    if (clean.length >= 35) return true;
+    // 🛡️ Garante que existam caracteres alfanuméricos reais e não apenas ruído de pontuação/espaços
+    const alphanumeric = clean.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚãõÃÕâêîôûÂÊÎÔÛçÇ]/g, '');
+    if (alphanumeric.length < 10) return false;
 
-    // Se tiver entre 15 e 35 caracteres, precisa conter ao menos um dado estruturado reconhecido
+    // Se tiver mais de 35 caracteres alfanuméricos legíveis, é aceito
+    if (alphanumeric.length >= 35) return true;
+
+    // Se tiver texto curto (entre 10 e 35 alfanuméricos), precisa conter ao menos um dado estruturado contábil reconhecido
     if (extractedDoc) {
         if (extractedDoc.extractedAmount !== null && extractedDoc.extractedAmount > 0) return true;
         if (extractedDoc.extractedRecipient && extractedDoc.extractedRecipient.trim().length >= 3) return true;

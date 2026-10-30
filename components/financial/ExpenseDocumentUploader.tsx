@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useContext } from 'react';
 import { 
     FileText, 
     Upload, 
@@ -27,10 +27,12 @@ import {
     validateExpenseAgainstDocument,
     inferDocumentRole,
     compressImageIfNeeded,
-    ExpenseValidationStatus
+    ExpenseValidationStatus,
+    isDocumentTextLegible
 } from '../../utils/expenseDocumentParser';
 import { processImageAndExtractText, renderPdfFirstPageToImage } from '../../utils/imageOcrReader';
 import { formatCurrency } from '../../utils/formatters';
+import { AppContext } from '../../contexts/AppContext';
 
 interface ExpenseDocumentUploaderProps {
     currentAmount?: number;
@@ -57,6 +59,7 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
     language = 'pt',
     readOnly = false
 }) => {
+    const appContext = useContext(AppContext);
     const currentAmount = propCurrentAmount ?? (launchAmount ?? 0);
     const [isParsing, setIsParsing] = useState(false);
     const [parsingStatusText, setParsingStatusText] = useState<string>('Processando e extraindo dados do arquivo...');
@@ -163,6 +166,15 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                 }
 
                 const extractedData: ExtractedExpenseDoc = analyzeExpenseDocumentText(rawText);
+
+                // 🛡️ Validação de legibilidade obrigatória para TODOS os documentos: se não estiver legível, rejeita upload
+                if (!isDocumentTextLegible(rawText, extractedData)) {
+                    const errorMsg = `Documento ilegível: Não foi possível realizar a leitura do arquivo "${file.name}" para extração segura e correta dos dados. Para garantir a validade contábil, envie uma foto ou PDF nítido e legível.`;
+                    setSelectionAlert(errorMsg);
+                    appContext?.showToast?.(errorMsg, 'error');
+                    continue;
+                }
+
                 const validation = validateExpenseAgainstDocument(currentAmount, extractedData);
                 const autoRole = inferDocumentRole(extractedData.documentType, file.name);
 
