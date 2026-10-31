@@ -16,8 +16,11 @@ import {
     Check,
     Lock,
     Plus,
-    X
+    X,
+    Camera,
+    Loader2
 } from 'lucide-react';
+import { AttachmentPreviewModal } from './AttachmentPreviewModal';
 import { 
     ExpenseAttachment, 
     ExtractedExpenseDoc, 
@@ -66,9 +69,17 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
     const [ocrProgress, setOcrProgress] = useState<number | null>(null);
     const [previewAttachment, setPreviewAttachment] = useState<ExpenseAttachment | null>(null);
     const [selectedRole, setSelectedRole] = useState<DocumentRole | null>(null);
+    const [selectedDocType, setSelectedDocType] = useState<string>('Boleto');
     const [selectionAlert, setSelectionAlert] = useState<string | null>(null);
     const alertTimeoutRef = useRef<any>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const docTypeRoleMap: Record<string, DocumentRole> = {
+        'Boleto': 'fatura',
+        'Nota Fiscal': 'nota_fiscal',
+        'Recibo': 'recibo',
+        'Outro': 'outro'
+    };
 
     const triggerSelectionAlert = () => {
         setSelectionAlert('Selecione primeiro uma das opções acima (Nota Fiscal, Boleto/Fatura ou Comprovante) para liberar o carregamento do arquivo.');
@@ -179,7 +190,8 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                 const autoRole = inferDocumentRole(extractedData.documentType, file.name);
 
                 // O documento é identificado pelo tipo selecionado ou inferido automaticamente!
-                const assignedRole: DocumentRole = explicitRole || selectedRole || (autoRole === 'outro' ? 'comprovante' : autoRole);
+                const mappedRole = docTypeRoleMap[selectedDocType] || (selectedDocType === 'Boleto' ? 'fatura' : 'recibo');
+                const assignedRole: DocumentRole = explicitRole || selectedRole || mappedRole || (autoRole === 'outro' ? 'comprovante' : autoRole);
                 if (!selectedRole && assignedRole) {
                     setSelectedRole(assignedRole);
                 }
@@ -298,241 +310,101 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                 onChange={(e) => handleFileUpload(e.target.files)}
             />
 
-            {/* Painel Triplo Integrado com Upload Direto em cada Card */}
-            <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
-                        <Upload className="w-3.5 h-3.5 text-orange-500" />
-                        <span>Clique no card ou arraste seu documento diretamente para a opção desejada:</span>
-                    </span>
-                    {selectedRole && !readOnly && (
-                        <button
-                            type="button"
-                            onClick={() => setSelectedRole(null)}
-                            className="text-[9px] font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 underline cursor-pointer"
+            {/* Botão Único para Upload ou Tirar Foto com Seleção do Documento (Boleto, Nota Fiscal, Recibo) */}
+            <div className="flex flex-wrap items-center justify-between gap-2.5 py-1 px-0.5 animate-fade-in">
+                <div className="inline-flex items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/90 dark:bg-slate-800/80 p-1 shadow-xs hover:border-orange-400 dark:hover:border-orange-500/80 transition-all">
+                    {/* Opção integrada para selecionar o nome do documento se o usuário quiser */}
+                    <div className="flex items-center gap-1.5 px-2.5 py-1">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                            Documento:
+                        </span>
+                        <select
+                            value={selectedDocType}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                setSelectedDocType(val);
+                                const mapped = docTypeRoleMap[val];
+                                if (mapped) setSelectedRole(mapped);
+                            }}
+                            disabled={readOnly || isParsing}
+                            className="bg-transparent text-xs font-black text-slate-800 dark:text-slate-100 outline-none cursor-pointer pr-1"
+                            title="Selecione o tipo do documento (opcional)"
                         >
-                            Limpar seleção
-                        </button>
-                    )}
+                            <option value="Boleto" className="text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800">Boleto / Fatura</option>
+                            <option value="Nota Fiscal" className="text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800">Nota Fiscal</option>
+                            <option value="Recibo" className="text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800">Comprovante</option>
+                            <option value="Outro" className="text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800">Outro</option>
+                        </select>
+                    </div>
+
+                    <div className="h-5 w-px bg-slate-200 dark:bg-slate-700 mx-0.5" />
+
+                    {/* O Único Botão de Upload ou Foto */}
+                    <button
+                        type="button"
+                        onClick={() => {
+                            if (readOnly) return;
+                            fileInputRef.current?.click();
+                        }}
+                        disabled={readOnly || isParsing}
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-black text-white bg-gradient-to-r from-orange-500 to-amber-600 hover:opacity-95 shadow-xs cursor-pointer transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+                        title="Clique para anexar arquivo ou tirar foto com a câmera"
+                    >
+                        {isParsing ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                            <Camera className="w-3.5 h-3.5" />
+                        )}
+                        <span>{isParsing ? (parsingStatusText || 'Lendo documento...') : 'Upload / Foto'}</span>
+                    </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                    {/* Slot 1: Nota Fiscal / Cupom (Compras) */}
-                    <div 
-                        id="btn-role-nota-fiscal"
-                        onClick={() => {
-                            if (readOnly) return;
-                            triggerUploadForRole('nota_fiscal');
-                        }}
-                        onDragOver={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                        }}
-                        onDrop={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setSelectedRole('nota_fiscal');
-                            handleFileUpload(e.dataTransfer.files, 'nota_fiscal');
-                        }}
-                        className={`p-3 rounded-xl border transition-all duration-200 flex flex-col justify-between gap-2.5 cursor-pointer select-none group relative overflow-hidden ${
-                            hasNf
-                                ? 'bg-indigo-50/60 dark:bg-indigo-950/40 border-indigo-400 dark:border-indigo-700 shadow-xs ring-1 ring-indigo-500/20'
-                                : 'bg-slate-50/80 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 hover:border-indigo-400 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 hover:shadow-xs'
-                        }`}
-                        title="Clique ou arraste para carregar Nota Fiscal (PDF, XML ou Foto)"
-                    >
-                        <div className="flex items-start justify-between gap-2">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                                <div className={`p-2 rounded-xl shrink-0 transition-colors ${
-                                    hasNf 
-                                        ? 'bg-indigo-600 text-white shadow-xs' 
-                                        : 'bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 group-hover:bg-indigo-600 group-hover:text-white'
-                                }`}>
-                                    <Receipt className="w-4 h-4" />
+                {/* Chips dos documentos anexados com visual enxuto e opção de visualização */}
+                {attachments && attachments.length > 0 && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {attachments.map((att, idx) => {
+                            const docLabel = att.documentRole === 'nota_fiscal' 
+                                ? 'Nota Fiscal' 
+                                : att.documentRole === 'fatura' 
+                                    ? 'Boleto / Fatura' 
+                                    : (att.documentRole === 'recibo' || att.documentRole === 'comprovante')
+                                        ? 'Comprovante' 
+                                        : 'Doc';
+                            return (
+                                <div
+                                    key={att.id || idx}
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800/60 text-xs font-bold text-orange-800 dark:text-orange-200 shadow-2xs animate-fade-in"
+                                >
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                    <span className="truncate max-w-[170px] font-semibold" title={att.fileName}>
+                                        {docLabel}: {att.fileName}
+                                    </span>
+                                    {att.dataUrl && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setPreviewAttachment(att)}
+                                            className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-orange-700 dark:text-orange-300 bg-orange-100 hover:bg-orange-200 dark:bg-orange-900/60 dark:hover:bg-orange-800/60 px-2 py-0.5 rounded-md cursor-pointer transition-colors"
+                                            title="Visualizar documento carregado"
+                                        >
+                                            <Eye className="w-3 h-3" />
+                                            <span>Ver</span>
+                                        </button>
+                                    )}
+                                    {!readOnly && (
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRemoveAttachment(att.id)}
+                                            className="text-orange-400 hover:text-rose-600 p-0.5 rounded cursor-pointer transition-colors ml-0.5"
+                                            title="Remover documento"
+                                        >
+                                            <X className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
                                 </div>
-                                <div className="min-w-0">
-                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block truncate">
-                                        1. Nota Fiscal
-                                    </span>
-                                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block truncate">
-                                        Compra / Mercadorias
-                                    </span>
-                                </div>
-                            </div>
-                            
-                            <div className="shrink-0 flex items-center gap-1">
-                                {hasNf ? (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-indigo-600 text-white shadow-xs">
-                                        <Check className="w-2.5 h-2.5" /> Anexada
-                                    </span>
-                                ) : (
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80 group-hover:bg-indigo-600 group-hover:text-white transition-colors shadow-2xs">
-                                        <Upload className="w-3 h-3" />
-                                        <span>Carregar</span>
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="flex items-center justify-between pt-1.5 border-t border-indigo-100/60 dark:border-indigo-900/40 text-[9.5px]">
-                            <span className="text-slate-500 dark:text-slate-400 font-medium truncate max-w-[170px]">
-                                {hasNf 
-                                    ? `${nfDocs[0].fileName} ${nfDocs[0].extractedData?.extractedAmount ? `(${formatCurrency(nfDocs[0].extractedData.extractedAmount, language)})` : ''}` 
-                                    : 'Clique ou arraste o arquivo aqui'}
-                            </span>
-                            {!readOnly && (
-                                <span className="font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-0.5 group-hover:underline shrink-0">
-                                    <Plus className="w-2.5 h-2.5" />
-                                    <span>{hasNf ? 'Anexar outro' : 'Upload NF'}</span>
-                                </span>
-                            )}
-                        </div>
+                            );
+                        })}
                     </div>
-
-                    {/* Slot 2: Boleto / Fatura */}
-                    <div 
-                        id="btn-role-fatura"
-                        onClick={() => {
-                            if (readOnly) return;
-                            triggerUploadForRole('fatura');
-                        }}
-                        onDragOver={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                        }}
-                        onDrop={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setSelectedRole('fatura');
-                            handleFileUpload(e.dataTransfer.files, 'fatura');
-                        }}
-                        className={`p-3 rounded-xl border transition-all duration-200 flex flex-col justify-between gap-2.5 cursor-pointer select-none group relative overflow-hidden ${
-                            hasInvoice
-                                ? 'bg-amber-50/60 dark:bg-amber-950/40 border-amber-400 dark:border-amber-700 shadow-xs ring-1 ring-amber-500/20'
-                                : 'bg-slate-50/80 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 hover:border-amber-400 hover:bg-amber-50/30 dark:hover:bg-amber-950/20 hover:shadow-xs'
-                        }`}
-                        title="Clique ou arraste para carregar Boleto ou Fatura (PDF ou Foto)"
-                    >
-                        <div className="flex items-start justify-between gap-2">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                                <div className={`p-2 rounded-xl shrink-0 transition-colors ${
-                                    hasInvoice 
-                                        ? 'bg-amber-600 text-white shadow-xs' 
-                                        : 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 group-hover:bg-amber-600 group-hover:text-white'
-                                }`}>
-                                    <FileText className="w-4 h-4" />
-                                </div>
-                                <div className="min-w-0">
-                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block truncate">
-                                        2. Boleto / Fatura
-                                    </span>
-                                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block truncate">
-                                        Cobrança / Contas
-                                    </span>
-                                </div>
-                            </div>
-                            
-                            <div className="shrink-0 flex items-center gap-1">
-                                {hasInvoice ? (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-600 text-white shadow-xs">
-                                        <Check className="w-2.5 h-2.5" /> Anexado
-                                    </span>
-                                ) : (
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/80 group-hover:bg-amber-600 group-hover:text-white transition-colors shadow-2xs">
-                                        <Upload className="w-3 h-3" />
-                                        <span>Carregar</span>
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="flex items-center justify-between pt-1.5 border-t border-amber-100/60 dark:border-amber-900/40 text-[9.5px]">
-                            <span className="text-slate-500 dark:text-slate-400 font-medium truncate max-w-[170px]">
-                                {hasInvoice 
-                                    ? `${invoiceDocs[0].fileName} ${invoiceDocs[0].extractedData?.extractedAmount ? `(${formatCurrency(invoiceDocs[0].extractedData.extractedAmount, language)})` : ''}` 
-                                    : 'Clique ou arraste o arquivo aqui'}
-                            </span>
-                            {!readOnly && (
-                                <span className="font-bold text-amber-600 dark:text-amber-400 flex items-center gap-0.5 group-hover:underline shrink-0">
-                                    <Plus className="w-2.5 h-2.5" />
-                                    <span>{hasInvoice ? 'Anexar outro' : 'Upload Boleto'}</span>
-                                </span>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Slot 3: Comprovante de Pagamento */}
-                    <div 
-                        id="btn-role-comprovante"
-                        onClick={() => {
-                            if (readOnly) return;
-                            triggerUploadForRole('comprovante');
-                        }}
-                        onDragOver={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                        }}
-                        onDrop={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setSelectedRole('comprovante');
-                            handleFileUpload(e.dataTransfer.files, 'comprovante');
-                        }}
-                        className={`p-3 rounded-xl border transition-all duration-200 flex flex-col justify-between gap-2.5 cursor-pointer select-none group relative overflow-hidden ${
-                            hasProof
-                                ? 'bg-emerald-50/60 dark:bg-emerald-950/40 border-emerald-400 dark:border-emerald-700 shadow-xs ring-1 ring-emerald-500/20'
-                                : 'bg-slate-50/80 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 hover:border-emerald-400 hover:bg-emerald-50/30 dark:hover:bg-emerald-950/20 hover:shadow-xs'
-                        }`}
-                        title="Clique ou arraste para carregar Comprovante de Pagamento (PIX, TED, Recibo)"
-                    >
-                        <div className="flex items-start justify-between gap-2">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                                <div className={`p-2 rounded-xl shrink-0 transition-colors ${
-                                    hasProof 
-                                        ? 'bg-emerald-600 text-white shadow-xs' 
-                                        : 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 group-hover:bg-emerald-600 group-hover:text-white'
-                                }`}>
-                                    <CreditCard className="w-4 h-4" />
-                                </div>
-                                <div className="min-w-0">
-                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block truncate">
-                                        3. Comprovante (Quitação)
-                                    </span>
-                                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block truncate">
-                                        PIX / TED / Recibo
-                                    </span>
-                                </div>
-                            </div>
-                            
-                            <div className="shrink-0 flex items-center gap-1">
-                                {hasProof ? (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-600 text-white shadow-xs">
-                                        <Check className="w-2.5 h-2.5" /> Quitado
-                                    </span>
-                                ) : (
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/80 group-hover:bg-emerald-600 group-hover:text-white transition-colors shadow-2xs">
-                                        <Upload className="w-3 h-3" />
-                                        <span>Carregar</span>
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="flex items-center justify-between pt-1.5 border-t border-emerald-100/60 dark:border-emerald-900/40 text-[9.5px]">
-                            <span className="text-slate-500 dark:text-slate-400 font-medium truncate max-w-[170px]">
-                                {hasProof 
-                                    ? `${proofDocs[0].fileName} ${proofDocs[0].extractedData?.extractedAmount ? `(${formatCurrency(proofDocs[0].extractedData.extractedAmount, language)})` : ''}` 
-                                    : 'Clique ou arraste o arquivo aqui'}
-                            </span>
-                            {!readOnly && (
-                                <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5 group-hover:underline shrink-0">
-                                    <Plus className="w-2.5 h-2.5" />
-                                    <span>{hasProof ? 'Anexar outro' : 'Upload Comprovante'}</span>
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                </div>
+                )}
             </div>
 
             {/* Banner de Leitura Óptica e OCR em Execução (Sem poluir a tela) */}

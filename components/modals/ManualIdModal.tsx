@@ -24,7 +24,7 @@ import {
     isDocumentTextLegible
 } from '../../utils/expenseDocumentParser';
 import { processImageAndExtractText, renderPdfFirstPageToImage } from '../../utils/imageOcrReader';
-import { getAttachmentsForTransaction } from '../../services/expenseAttachmentService';
+import { getAttachmentsForTransaction, saveAttachmentsForTransaction } from '../../services/expenseAttachmentService';
 
 const formatCpfCnpj = (value: string) => {
     const clean = value.replace(/\D/g, '');
@@ -614,12 +614,18 @@ export const ManualIdModal: React.FC = () => {
                 setAttachments(existingAtts);
                 if (tx.id && !tx.id.startsWith('ghost-') && existingAtts.some(a => !a.dataUrl)) {
                     getAttachmentsForTransaction(tx.id).then(loaded => {
-                        if (loaded && loaded.length > 0) setAttachments(loaded);
+                        if (loaded && loaded.length > 0) {
+                            setAttachments(loaded);
+                            tx.attachments = loaded;
+                        }
                     }).catch(() => {});
                 }
             } else if (tx.id && !tx.id.startsWith('ghost-')) {
                 getAttachmentsForTransaction(tx.id).then(loaded => {
                     setAttachments(loaded || []);
+                    if (loaded && loaded.length > 0) {
+                        tx.attachments = loaded;
+                    }
                 }).catch(() => setAttachments([]));
             } else {
                 setAttachments([]);
@@ -1051,7 +1057,18 @@ export const ManualIdModal: React.FC = () => {
                 validationStatus: 'validated'
             };
 
-            setAttachments(prev => [...prev, newAttachment]);
+            setAttachments(prev => {
+                const next = [...prev, newAttachment];
+                if (bulkIdentificationTxs && bulkIdentificationTxs[0]) {
+                    bulkIdentificationTxs[0].attachments = next;
+                }
+                if (activeTxId && !activeTxId.startsWith('ghost-manual-') && !activeTxId.startsWith('temp-')) {
+                    saveAttachmentsForTransaction(activeTxId, next).catch(attErr => {
+                        console.warn('[ManualIdModal] Erro ao persistir anexo em tempo real:', attErr);
+                    });
+                }
+                return next;
+            });
 
             // 🛡️ Preenche automaticamente os campos do formulário manual exclusivamente para o primeiro documento
             if (isFirstDocument) {
@@ -1345,7 +1362,20 @@ export const ManualIdModal: React.FC = () => {
                                                 </button>
                                                 <button
                                                     type="button"
-                                                    onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
+                                                    onClick={() => {
+                                                        setAttachments(prev => {
+                                                            const next = prev.filter((_, i) => i !== idx);
+                                                            if (bulkIdentificationTxs && bulkIdentificationTxs[0]) {
+                                                                bulkIdentificationTxs[0].attachments = next;
+                                                            }
+                                                            if (activeTxId && !activeTxId.startsWith('ghost-manual-') && !activeTxId.startsWith('temp-')) {
+                                                                saveAttachmentsForTransaction(activeTxId, next).catch(attErr => {
+                                                                    console.warn('[ManualIdModal] Erro ao persistir remoção de anexo em tempo real:', attErr);
+                                                                });
+                                                            }
+                                                            return next;
+                                                        });
+                                                    }}
                                                     className="text-orange-400 hover:text-rose-600 p-0.5 rounded cursor-pointer transition-colors ml-0.5"
                                                     title="Remover documento"
                                                 >

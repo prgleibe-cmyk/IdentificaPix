@@ -88,7 +88,8 @@ export async function saveAttachmentsForTransaction(
                     })
                 });
                 if (!response.ok) {
-                    console.warn(`[ExpenseAttachmentService] Aviso: status ${response.status} ao persistir anexos para tx ${txId}`);
+                    const errTxt = await response.text().catch(() => '');
+                    console.warn(`[ExpenseAttachmentService] Aviso: status ${response.status} ao persistir anexos para tx ${txId}: ${errTxt}`);
                 }
             } catch (cloudErr) {
                 console.warn(`[ExpenseAttachmentService] Aviso ao persistir anexos na nuvem para tx ${txId}:`, cloudErr);

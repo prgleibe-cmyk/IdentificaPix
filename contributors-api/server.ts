@@ -1114,19 +1114,21 @@ class SmartPool {
             const validContributorId = row.contributor_id && uuidRegex.test(row.contributor_id) ? row.contributor_id : null;
             const validContribReqId = row.contribution_request_id && uuidRegex.test(row.contribution_request_id) ? row.contribution_request_id : null;
             const splitsJson = row.splits ? (typeof row.splits === 'string' ? row.splits : JSON.stringify(row.splits)) : null;
+            const attachJson = row.attachments ? (typeof row.attachments === 'string' ? row.attachments : JSON.stringify(row.attachments)) : '[]';
 
             await client.query(`
               INSERT INTO consolidated_transactions (
                 id, amount, description, type, pix_key, source, user_id, status,
                 bank_id, row_hash, is_confirmed, transaction_date, reference_date,
                 church_id, contributor_id, report_id, payment_method, contribution_type,
-                contribution_request_id, splits, created_at, updated_at
+                contribution_request_id, splits, attachments, created_at, updated_at
               ) VALUES (
                 $1, $2, $3, $4, $5, $6, $7, $8,
                 $9, $10, $11, $12, $13,
                 $14, $15, $16, $17, $18,
-                $19, $20, $21, $22
-              ) ON CONFLICT (id) DO NOTHING;
+                $19, $20, $21, $22, $23
+              ) ON CONFLICT (id) DO UPDATE SET
+                attachments = CASE WHEN EXCLUDED.attachments IS NOT NULL AND EXCLUDED.attachments != '[]' THEN EXCLUDED.attachments ELSE consolidated_transactions.attachments END;
             `, [
               validId,
               Number(row.amount || 0),
@@ -1148,6 +1150,7 @@ class SmartPool {
               row.contribution_type || null,
               validContribReqId,
               splitsJson,
+              attachJson,
               row.created_at ? new Date(row.created_at) : new Date(),
               row.updated_at ? new Date(row.updated_at) : new Date()
             ]);
@@ -7664,7 +7667,7 @@ app.get('/api/v1/consolidated_transactions/:id/attachments', async (req: Request
   try {
     const { id } = req.params;
     const ctx = getTenantContext(req);
-    const txRes = await pool.query('SELECT attachments, church_id, user_id FROM consolidated_transactions WHERE id::text = $1 LIMIT 1', [id]);
+    const txRes = await pool.query('SELECT id, attachments, church_id, user_id, bank_id, status FROM consolidated_transactions WHERE id::text = $1 LIMIT 1', [id]);
     if (!txRes.rows || txRes.rows.length === 0) {
       return res.status(404).json({ error: 'NOT_FOUND' });
     }
@@ -7964,16 +7967,36 @@ async function isAuthorizedForTransaction(pool: any, ctx: TenantContext, oldTx: 
     return true;
   }
 
-  // 2. Se for usuário secundário: restringe às igrejas permitidas
+  // 1.1 Vínculo por IDs equivalentes da organização
+  if (oldTx.user_id && currentOwnerId) {
+    try {
+      const eqIds = await getEquivalentUserIds(String(currentOwnerId));
+      if (eqIds.includes(oldTx.user_id) || eqIds.includes(oldTx.user_id.toLowerCase())) {
+        return true;
+      }
+    } catch (_) {}
+  }
+
+  // 2. Se for usuário secundário: restringe às igrejas permitidas OU bancos permitidos para registros da lista viva
   if (ctx.isSecondaryUser) {
-    if (ctx.allowedChurchIds.length === 0) return false;
-    if (oldTx.church_id && ctx.allowedChurchIds.includes(oldTx.church_id)) return true;
+    if (oldTx.church_id && oldTx.church_id !== 'unidentified' && ctx.allowedChurchIds && ctx.allowedChurchIds.includes(oldTx.church_id)) {
+      return true;
+    }
+    // Registros pendentes/não identificados da lista viva: autoriza se o banco ou congregações permitidas coincidirem
+    if (!oldTx.church_id || oldTx.church_id === 'unidentified') {
+      if (oldTx.bank_id && ctx.allowedBankIds && ctx.allowedBankIds.includes(oldTx.bank_id)) {
+        return true;
+      }
+      if (ctx.allowedChurchIds && ctx.allowedChurchIds.length > 0) {
+        return true;
+      }
+    }
     return false;
   }
 
   // 3. Se for Proprietário / Administrador da conta (Owner):
   if (ctx.isOwner) {
-    if (oldTx.church_id) {
+    if (oldTx.church_id && oldTx.church_id !== 'unidentified') {
       if (ctx.allowedChurchIds && ctx.allowedChurchIds.includes(oldTx.church_id)) return true;
       const churchCheck = await pool.query(
         'SELECT id FROM churches WHERE id = $1 AND (user_id = $2 OR user_id = $3) LIMIT 1',
@@ -7996,7 +8019,8 @@ async function isAuthorizedForTransaction(pool: any, ctx: TenantContext, oldTx: 
       if (appUserCheck.rows.length > 0) return true;
     }
 
-    if (!oldTx.user_id && !oldTx.church_id) return true;
+    // Registros pendentes ou não identificados da conta pertencem à organização ativa
+    if (!oldTx.user_id || !oldTx.church_id || oldTx.church_id === 'unidentified') return true;
   }
 
   return false;
