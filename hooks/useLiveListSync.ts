@@ -3,6 +3,7 @@ import { Transaction } from '../types';
 import { consolidationService } from '../services/ConsolidationService';
 import { LaunchService } from '../services/LaunchService';
 import { useUI } from '../contexts/UIContext';
+import { syncAttachmentsToCache } from '../services/expenseAttachmentService';
 
 export const useLiveListSync = ({
     user,
@@ -62,6 +63,11 @@ export const useLiveListSync = ({
                 const rawContType = t.contribution_type?.trim();
                 const isGenericType = rawContType && ['ENTRADA', 'ENTRADAS', 'SAÍDA', 'SAIDA', 'SAIDAS', 'INCOME', 'EXPENSE'].includes(rawContType.toUpperCase());
 
+                const txAttachments = (t.attachments && Array.isArray(t.attachments) && t.attachments.length > 0) ? t.attachments : undefined;
+                if (txAttachments) {
+                    syncAttachmentsToCache(t.id, txAttachments);
+                }
+
                 const tx: Transaction = {
                     id: t.id,
                     date: t.transaction_date,
@@ -77,7 +83,8 @@ export const useLiveListSync = ({
                     isConfirmed: !!t.is_confirmed,
                     source: t.source,
                     pix_key: t.pix_key,
-                    row_hash: t.row_hash
+                    row_hash: t.row_hash,
+                    attachments: txAttachments
                 };
                 
                 if (!groupedByBank[finalBankId]) groupedByBank[finalBankId] = [];

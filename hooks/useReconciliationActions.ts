@@ -448,7 +448,8 @@ export const useReconciliationActions = ({
             contributionType,
             paymentMethod,
             finalRefDate,
-            finalAmount
+            finalAmount,
+            (attachments && attachments.length > 0) ? attachments : undefined
           );
         }
         affectedCount++;

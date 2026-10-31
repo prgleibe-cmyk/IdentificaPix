@@ -162,7 +162,7 @@ export const consolidationService = {
         }
     },
 
-    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string | null, bankId?: string, contributorId?: string | null, isConfirmed?: boolean, type?: string, pix_key?: string, contribution_type?: string, payment_method?: string, referenceDate?: string | null, amount?: number) => {
+    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string | null, bankId?: string, contributorId?: string | null, isConfirmed?: boolean, type?: string, pix_key?: string, contribution_type?: string, payment_method?: string, referenceDate?: string | null, amount?: number, attachments?: any[] | null) => {
         try {
             const session = await getAuthSession();
             const currentUserId = session?.user?.id;
@@ -186,6 +186,7 @@ export const consolidationService = {
             if (payment_method !== undefined) updateData.payment_method = payment_method;
             if (referenceDate !== undefined) updateData.reference_date = referenceDate;
             if (amount !== undefined) updateData.amount = amount;
+            if (attachments !== undefined) updateData.attachments = (attachments && attachments.length > 0) ? attachments : null;
 
             console.log('[ID:WRITE]', {
               userId: currentUserId,

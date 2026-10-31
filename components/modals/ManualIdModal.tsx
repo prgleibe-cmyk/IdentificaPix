@@ -612,6 +612,11 @@ export const ManualIdModal: React.FC = () => {
             const existingAtts = tx.attachments || (findMatchResult ? findMatchResult(tx.id)?.attachments : null);
             if (Array.isArray(existingAtts) && existingAtts.length > 0) {
                 setAttachments(existingAtts);
+                if (tx.id && !tx.id.startsWith('ghost-') && existingAtts.some(a => !a.dataUrl)) {
+                    getAttachmentsForTransaction(tx.id).then(loaded => {
+                        if (loaded && loaded.length > 0) setAttachments(loaded);
+                    }).catch(() => {});
+                }
             } else if (tx.id && !tx.id.startsWith('ghost-')) {
                 getAttachmentsForTransaction(tx.id).then(loaded => {
                     setAttachments(loaded || []);
@@ -2504,7 +2509,7 @@ export const ManualIdModal: React.FC = () => {
                                                     </span>
                                                     <button
                                                         type="button"
-                                                        onClick={() => setPreviewAttachment(att)}
+                                                        onClick={() => setPreviewAttachment({ ...att, txId: (att as any).txId || activeTxId })}
                                                         className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-orange-700 dark:text-orange-300 bg-orange-100 hover:bg-orange-200 dark:bg-orange-900/60 dark:hover:bg-orange-800/60 px-2 py-0.5 rounded-md cursor-pointer transition-colors"
                                                         title="Visualizar documento carregado"
                                                     >
