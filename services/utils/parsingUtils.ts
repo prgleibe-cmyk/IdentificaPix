@@ -211,6 +211,9 @@ export const isInvalidOrNumericName = (name: string | undefined | null, txDescri
  */
 export const cleanDisplayDescription = (text: string): string => {
     if (!text || typeof text !== 'string') return '';
+    if (text.startsWith('[FECHAMENTO]') || text.startsWith('[RECEBIMENTO]') || text.startsWith('[APORTE/FECHAMENTO]') || text.startsWith('[REPASSE/FECHAMENTO]')) {
+        return text;
+    }
     let t = text
         .replace(/^(?:sicredi\s*:\s*|sicoob\s*:\s*)?/gi, '')
         .replace(/^(?:sicredi\s+pix|sicoob\s+pix)\s*(?:\d{2}:\d{2})?\s*/gi, '')

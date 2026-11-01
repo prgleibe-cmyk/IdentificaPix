@@ -520,9 +520,13 @@ export const LivroCaixaView: React.FC = memo(() => {
                 const itemBankName = item.bankName;
                 const catStr = (item.category || item.categoria || item.contributionType || '').toString().toUpperCase();
                 const isClosing = item.source === 'closing' ||
+                    item.raw?.source === 'closing' ||
+                    item.raw?.transaction?.source === 'closing' ||
                     catStr.includes('SALDO TRANSPORTADO') ||
                     catStr.includes('DÉFICIT TRANSPORTADO') ||
-                    (typeof item.id === 'string' && item.id.startsWith('closing-'));
+                    catStr.includes('DEFICIT TRANSPORTADO') ||
+                    (typeof item.id === 'string' && item.id.startsWith('closing-')) ||
+                    (item.desc && (item.desc.startsWith('[FECHAMENTO]') || item.desc.startsWith('[RECEBIMENTO]') || item.desc.startsWith('[APORTE/FECHAMENTO]') || item.desc.startsWith('[REPASSE/FECHAMENTO]')));
                 const matchesAny = selectedBankIds.some(bId => {
                     if (itemBankId && itemBankId === bId) return true;
                     const bObj = banks.find((b: any) => b.id === bId);
@@ -2052,12 +2056,26 @@ export const LivroCaixaView: React.FC = memo(() => {
                                     </tr>
                                 ) : (
                                     paginatedReportData.map((tx: any, idx: number) => {
+                                        const isClosingTx = Boolean(
+                                            tx.source === 'closing' ||
+                                            tx.raw?.source === 'closing' ||
+                                            tx.raw?.transaction?.source === 'closing' ||
+                                            (tx.contributionType && (String(tx.contributionType).includes('SALDO TRANSPORTADO') || String(tx.contributionType).includes('DÉFICIT TRANSPORTADO') || String(tx.contributionType).includes('DEFICIT TRANSPORTADO'))) ||
+                                            (tx.category && (String(tx.category).includes('SALDO TRANSPORTADO') || String(tx.category).includes('DÉFICIT TRANSPORTADO') || String(tx.category).includes('DEFICIT TRANSPORTADO'))) ||
+                                            (typeof tx.id === 'string' && tx.id.startsWith('closing-')) ||
+                                            (tx.desc && (tx.desc.startsWith('[FECHAMENTO]') || tx.desc.startsWith('[RECEBIMENTO]') || tx.desc.startsWith('[APORTE/FECHAMENTO]') || tx.desc.startsWith('[REPASSE/FECHAMENTO]')))
+                                        );
                                         const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && (tx.category.toLowerCase().includes('saida') || tx.category.toLowerCase().includes('saída')));
                                         const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
-                                        const formaLabel = tx.paymentMethod || tx.forma || tx.formaPagamento || tx.payment_method || tx.raw?.payment_method || 'Pix';
-                                        const payerName = cleanDisplayDescription(tx.payer || tx.contribuinte || tx.nome || tx.title || 'Lançamento de Caixa');
-                                        const descText = cleanDisplayDescription(tx.desc || tx.description || tx.historico || '');
+                                        const formaLabel = isClosingTx ? 'Transferência' : (tx.paymentMethod || tx.forma || tx.formaPagamento || tx.payment_method || tx.raw?.payment_method || 'Pix');
+                                        const payerName = isClosingTx
+                                            ? (tx.desc || tx.description || tx.historico || 'Transporte de Fechamento')
+                                            : cleanDisplayDescription(tx.payer || tx.contribuinte || tx.nome || tx.title || 'Lançamento de Caixa');
+                                        const descText = isClosingTx ? '' : cleanDisplayDescription(tx.desc || tx.description || tx.historico || '');
                                         const descCatLabel = (() => {
+                                            if (isClosingTx) {
+                                                return tx.contributionType || (isExpense ? 'SALDO TRANSPORTADO' : 'SALDO RECEBIDO');
+                                            }
                                             const cat = (tx.category || tx.categoria || '').toString().trim();
                                             const type = (tx.contributionType || tx.tipo || '').toString().trim();
                                             const isGeneric = (str: string) => {
@@ -2087,7 +2105,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                                         const serviceReceiptAtt = txAttachments.find(a => a.documentRole === 'recibo' || a.extractedData?.documentType === 'recibo');
                                         const receiptAtt = txAttachments.find(a => a !== serviceReceiptAtt && (a.documentRole === 'comprovante' || (a.extractedData && (a.extractedData.documentType === 'comprovante_pix' || a.extractedData.documentType === 'comprovante_pagamento'))));
                                         const identifiedCount = (nfAtt ? 1 : 0) + (invoiceAtt ? 1 : 0) + (receiptAtt ? 1 : 0) + (serviceReceiptAtt ? 1 : 0);
-                                        const isManualRow = tx.isManual || 
+                                        const isManualRow = !isClosingTx && (tx.isManual || 
                                             tx.source === 'manual' || 
                                             tx.raw?.transaction?.source === 'manual' || 
                                             tx.raw?.transaction?.isManual === true || 
@@ -2095,7 +2113,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                                             String(tx.id).startsWith('ghost-manual-') || 
                                             String(tx.raw?.transaction?.id).startsWith('ghost-manual-') || 
                                             (tx.raw?.transaction?.row_hash && tx.raw?.transaction?.row_hash.includes('|bmanual|')) ||
-                                            (tx.row_hash && tx.row_hash.includes('|bmanual|'));
+                                            (tx.row_hash && tx.row_hash.includes('|bmanual|')));
 
                                         const isRowConfirmed = Boolean(
                                             tx.isConfirmed || 
@@ -2128,6 +2146,15 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                 <td className="px-4 py-2.5">
                                                     <div className="font-bold text-slate-800 dark:text-slate-100 uppercase flex items-center gap-1.5 flex-wrap">
                                                         <span>{payerName}</span>
+                                                        {isClosingTx && (
+                                                            <span 
+                                                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-black bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/80 shadow-2xs"
+                                                                title="Movimentação de Fechamento de Caixa / Transporte de Saldo"
+                                                            >
+                                                                <Building2 className="w-2.5 h-2.5 text-blue-600 dark:text-blue-400" />
+                                                                <span>{isExpense ? 'Transporte p/ Outro Caixa (Débito)' : 'Transporte Recebido (Crédito)'}</span>
+                                                            </span>
+                                                        )}
                                                         {isRowConfirmed && (
                                                             <span 
                                                                 className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/80 shadow-2xs"
@@ -2285,7 +2312,11 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                     </span>
                                                 </td>
                                                 <td className="px-4 py-2.5">
-                                                    {txSplits && txSplits.length > 0 ? (
+                                                    {isClosingTx ? (
+                                                        <span className="px-2.5 py-1 rounded-md text-[10px] font-black uppercase whitespace-nowrap bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/80 shadow-2xs">
+                                                            {descCatLabel}
+                                                        </span>
+                                                    ) : txSplits && txSplits.length > 0 ? (
                                                         <span className="px-2.5 py-1 rounded-md text-[10px] font-black uppercase whitespace-nowrap bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-900/30">
                                                             Rateado ({txSplits.length})
                                                         </span>
@@ -2304,7 +2335,11 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                         {formaLabel}
                                                     </span>
                                                 </td>
-                                                <td className={`px-4 py-2.5 text-right font-mono font-bold whitespace-nowrap ${isExpense ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                                <td className={`px-4 py-2.5 text-right font-mono font-bold whitespace-nowrap ${
+                                                    isClosingTx 
+                                                        ? (isExpense ? 'text-blue-700 dark:text-blue-300' : 'text-emerald-700 dark:text-emerald-300')
+                                                        : (isExpense ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400')
+                                                }`}>
                                                     {txSplits && txSplits.length > 0 ? (
                                                         <div className="flex flex-col items-end gap-0.5">
                                                             <span className="text-xs font-black">
@@ -2332,7 +2367,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                                 <tfoot className="bg-slate-50 dark:bg-slate-800/60 font-bold text-xs border-t-2 border-slate-200 dark:border-slate-700">
                                     <tr>
                                         <td colSpan={3} className="px-4 py-3 text-slate-500 uppercase text-[10px] tracking-wider">
-                                            Totais ({filteredReportData.length} registros no período)
+                                            Totais Operacionais ({filteredReportData.length} registros no período)
                                         </td>
                                         <td className="px-4 py-3 text-[10px] uppercase text-slate-500 whitespace-nowrap">
                                             <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">Entradas: {formatBRL(financialTotals.income)}</span>
@@ -2348,6 +2383,39 @@ export const LivroCaixaView: React.FC = memo(() => {
                                             {financialTotals.balance >= 0 ? `+ ${formatBRL(financialTotals.balance)}` : `- ${formatBRL(Math.abs(financialTotals.balance))}`}
                                         </td>
                                     </tr>
+                                    {(summaryBreakdown.saldosTransportadosEnviados > 0 || summaryBreakdown.totalTransportadoLiquido !== 0) && (
+                                        <tr className="bg-blue-50/70 dark:bg-blue-950/20 border-t border-blue-200/60 dark:border-blue-900/40 text-[11px]">
+                                            <td colSpan={3} className="px-4 py-2.5 text-blue-800 dark:text-blue-300 font-bold uppercase tracking-wider">
+                                                <div className="flex items-center gap-1.5">
+                                                    <Building2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                                                    <span>Transporte de Saldo de Fechamento:</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300 font-bold whitespace-nowrap">
+                                                {summaryBreakdown.saldosTransportadosEnviados > 0 && (
+                                                    <span className="text-blue-700 dark:text-blue-300 font-extrabold">
+                                                        Transporte p/ Outro Caixa: - {formatBRL(summaryBreakdown.saldosTransportadosEnviados)}
+                                                    </span>
+                                                )}
+                                                {summaryBreakdown.saldosTransportadosEnviados > 0 && summaryBreakdown.saldosTransportadosRecebidos > 0 && (
+                                                    <span className="mx-1.5 text-slate-400">|</span>
+                                                )}
+                                                {summaryBreakdown.saldosTransportadosRecebidos > 0 && (
+                                                    <span className="text-emerald-700 dark:text-emerald-300 font-extrabold">
+                                                        Transporte Recebido: + {formatBRL(summaryBreakdown.saldosTransportadosRecebidos)}
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-2.5 text-slate-700 dark:text-slate-300 uppercase font-black whitespace-nowrap">
+                                                Saldo Final Caixa:
+                                            </td>
+                                            <td className={`px-4 py-2.5 text-right font-mono font-black text-sm whitespace-nowrap ${
+                                                summaryBreakdown.saldoFinal >= 0 ? 'text-blue-800 dark:text-blue-300' : 'text-rose-600 dark:text-rose-400'
+                                            }`}>
+                                                {formatBRL(summaryBreakdown.saldoFinal)}
+                                            </td>
+                                        </tr>
+                                    )}
                                 </tfoot>
                             )}
                         </table>

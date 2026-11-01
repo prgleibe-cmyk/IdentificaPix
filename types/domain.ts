@@ -243,6 +243,7 @@ export interface MatchResult {
   launchedAt?: string;
   splits?: TransactionSplit[];
   attachments?: ExpenseAttachment[];
+  source?: string;
 }
 
 export interface LearnedAssociation {
