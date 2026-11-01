@@ -35,6 +35,21 @@ export interface ContributionType {
   bank_name?: string | null;
 }
 
+export type PaymentOperationType = 'recebimento' | 'pagamento' | 'ambos';
+
+export interface PaymentMethodItem {
+  id: string;
+  name: string;
+  type: PaymentOperationType;
+  category?: string | null;
+  bank_id?: string | null;
+  order?: number;
+  is_active?: boolean;
+  user_id?: string | null;
+  created_at?: string;
+  bank_name?: string | null;
+}
+
 export interface ChurchLeader {
   id?: string;
   name: string;

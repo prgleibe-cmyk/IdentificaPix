@@ -21,6 +21,8 @@ const STORAGE_KEY = 'identificapix_payment_methods_meta_v2';
 export const PaymentMethodsList: React.FC = () => {
     const { 
         paymentMethods, 
+        paymentMethodItems,
+        fetchPaymentMethods,
         addPaymentMethod, 
         removePaymentMethod, 
         updatePaymentMethod,
@@ -45,7 +47,14 @@ export const PaymentMethodsList: React.FC = () => {
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Persistent storage for rich details
+    // Fetch cloud payment methods on mount
+    useEffect(() => {
+        if (fetchPaymentMethods) {
+            fetchPaymentMethods();
+        }
+    }, [fetchPaymentMethods]);
+
+    // Persistent storage for rich details, backed by Cloud Database (paymentMethodItems)
     const [details, setDetails] = useState<PaymentMethodDetail[]>(() => {
         try {
             const saved = localStorage.getItem(STORAGE_KEY);
@@ -58,20 +67,28 @@ export const PaymentMethodsList: React.FC = () => {
         return [];
     });
 
-    // Sync `details` with `paymentMethods` string list from AppContext
+    // Synchronize `details` with `paymentMethodItems` from Cloud Database
     useEffect(() => {
+        if (paymentMethodItems && Array.isArray(paymentMethodItems) && paymentMethodItems.length > 0) {
+            setDetails(paymentMethodItems);
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(paymentMethodItems));
+            } catch (_) {}
+            return;
+        }
+
+        // Fallback sync with `paymentMethods` string list if cloud items not yet loaded
         if (!paymentMethods || paymentMethods.length === 0) return;
 
         let hasChanges = false;
         const updatedDetails = [...details];
 
-        paymentMethods.forEach((methodStr, index) => {
+        paymentMethods.forEach((methodStr: string, index: number) => {
             const upper = methodStr.trim().toUpperCase();
             const exists = updatedDetails.some(d => d.name.toUpperCase() === upper);
 
             if (!exists) {
                 hasChanges = true;
-                // Infer default operation type based on name
                 let defaultType: PaymentOperationType = 'ambos';
                 if (upper.includes('DÍZIMO') || upper.includes('OFERTA') || upper.includes('CRÉDITO') || upper.includes('DÉBITO')) {
                     defaultType = 'recebimento';
@@ -98,7 +115,7 @@ export const PaymentMethodsList: React.FC = () => {
                 console.error('Erro ao salvar metadados de formas de pagamento:', e);
             }
         }
-    }, [paymentMethods]);
+    }, [paymentMethodItems, paymentMethods]);
 
     const saveDetailsToStorage = (newDetails: PaymentMethodDetail[]) => {
         setDetails(newDetails);
@@ -122,8 +139,8 @@ export const PaymentMethodsList: React.FC = () => {
         setIsFormOpen(true);
     };
 
-    const handleOpenEdit = (methodName: string) => {
-        const existing = details.find(d => d.name.toUpperCase() === methodName.toUpperCase());
+    const handleOpenEdit = (methodNameOrId: string) => {
+        const existing = details.find(d => d.id === methodNameOrId || d.name.toUpperCase() === methodNameOrId.toUpperCase());
         if (existing) {
             setEditingDetail(existing);
             setType(existing.type || 'recebimento');
@@ -135,7 +152,7 @@ export const PaymentMethodsList: React.FC = () => {
         } else {
             setEditingDetail(null);
             setType('recebimento');
-            setName(methodName);
+            setName(methodNameOrId);
             setCategory('');
             setBankId('');
             setOrder(1);
@@ -163,6 +180,16 @@ export const PaymentMethodsList: React.FC = () => {
 
         setIsSubmitting(true);
         try {
+            const payload = {
+                name: cleanName,
+                type,
+                category: category.trim() || undefined,
+                bank_id: bankId || undefined,
+                order: Number(order) || 1,
+                is_active: isActive
+            };
+
+            let success = false;
             if (editingDetail) {
                 // Updating existing item
                 const oldName = editingDetail.name.toUpperCase();
@@ -172,27 +199,9 @@ export const PaymentMethodsList: React.FC = () => {
                     return;
                 }
 
-                // Update AppContext string array
                 if (updatePaymentMethod) {
-                    updatePaymentMethod(oldName, cleanName);
+                    success = await updatePaymentMethod(editingDetail.id, payload);
                 }
-
-                // Update local rich details
-                const updated = details.map(d => {
-                    if (d.id === editingDetail.id || d.name.toUpperCase() === oldName) {
-                        return {
-                            ...d,
-                            name: cleanName,
-                            type,
-                            category: category.trim() || undefined,
-                            bank_id: bankId || undefined,
-                            order: Number(order) || 1,
-                            is_active: isActive
-                        };
-                    }
-                    return d;
-                });
-                saveDetailsToStorage(updated);
             } else {
                 // Creating new item
                 if (paymentMethods.includes(cleanName)) {
@@ -201,23 +210,14 @@ export const PaymentMethodsList: React.FC = () => {
                     return;
                 }
 
-                // Add to AppContext
-                addPaymentMethod(cleanName);
-
-                // Add to rich details
-                const newDetail: PaymentMethodDetail = {
-                    id: `pm_${Date.now()}`,
-                    name: cleanName,
-                    type,
-                    category: category.trim() || undefined,
-                    bank_id: bankId || undefined,
-                    order: Number(order) || details.length + 1,
-                    is_active: isActive
-                };
-                saveDetailsToStorage([...details, newDetail]);
+                if (addPaymentMethod) {
+                    success = await addPaymentMethod(payload);
+                }
             }
 
-            handleCloseForm();
+            if (success) {
+                handleCloseForm();
+            }
         } catch (err: any) {
             console.error('Erro ao salvar forma de pagamento:', err);
             setErrorMsg('Erro ao salvar forma de pagamento.');
@@ -226,11 +226,12 @@ export const PaymentMethodsList: React.FC = () => {
         }
     };
 
-    const handleDelete = (methodName: string) => {
-        if (window.confirm(`Tem certeza que deseja excluir a forma "${methodName}"?`)) {
-            removePaymentMethod(methodName);
-            const filtered = details.filter(d => d.name.toUpperCase() !== methodName.toUpperCase());
-            saveDetailsToStorage(filtered);
+    const handleDelete = async (methodNameOrId: string) => {
+        const found = details.find(d => d.id === methodNameOrId || d.name.toUpperCase() === methodNameOrId.toUpperCase());
+        const displayLabel = found?.name || methodNameOrId;
+        const targetId = found?.id || methodNameOrId;
+        if (window.confirm(`Tem certeza que deseja excluir a forma "${displayLabel}"?`)) {
+            await removePaymentMethod(targetId);
         }
     };
 

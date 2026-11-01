@@ -249,6 +249,18 @@ class LocalSqliteEngine {
         created_at TEXT DEFAULT (now())
       );
 
+      CREATE TABLE IF NOT EXISTS payment_methods (
+        id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()),
+        name TEXT NOT NULL,
+        type TEXT DEFAULT 'ambos',
+        category TEXT,
+        bank_id TEXT,
+        "order" INTEGER DEFAULT 1,
+        is_active INTEGER DEFAULT 1,
+        user_id TEXT,
+        created_at TEXT DEFAULT (now())
+      );
+
       CREATE TABLE IF NOT EXISTS contributor_roles (
         id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()),
         name TEXT NOT NULL,
@@ -1936,6 +1948,34 @@ async function initializeDatabase() {
     await client.query('ALTER TABLE contribution_types ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();');
     await client.query("CREATE INDEX IF NOT EXISTS idx_contrib_types_bank ON contribution_types(bank_id);");
     console.log('[Contributors API] Table "contribution_types" verified or successfully created.');
+
+    // Create table payment_methods
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS payment_methods (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        type VARCHAR(50) NOT NULL DEFAULT 'ambos',
+        category VARCHAR(255),
+        bank_id VARCHAR(255),
+        "order" INT DEFAULT 1,
+        is_active BOOLEAN DEFAULT TRUE,
+        user_id VARCHAR(255),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+    await client.query('ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS name VARCHAR(255);');
+    await client.query("ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS type VARCHAR(50) DEFAULT 'ambos';");
+    await client.query('ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS category VARCHAR(255);');
+    await client.query('ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS bank_id VARCHAR(255);');
+    await client.query('ALTER TABLE payment_methods ALTER COLUMN bank_id TYPE VARCHAR(255) USING bank_id::varchar;');
+    await client.query('ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS "order" INT DEFAULT 1;');
+    await client.query('ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;');
+    await client.query('ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS user_id VARCHAR(255);');
+    await client.query('ALTER TABLE payment_methods ALTER COLUMN user_id TYPE VARCHAR(255) USING user_id::varchar;');
+    await client.query('ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();');
+    await client.query("CREATE INDEX IF NOT EXISTS idx_payment_methods_bank ON payment_methods(bank_id);");
+    await client.query("CREATE INDEX IF NOT EXISTS idx_payment_methods_user ON payment_methods(user_id);");
+    console.log('[Contributors API] Table "payment_methods" verified or successfully created.');
 
     // Create table contributor_roles
     await client.query(`
@@ -4381,6 +4421,217 @@ app.delete('/api/v1/contribution-types/:id', async (req: Request, res: Response)
     return res.status(500).json({
       error: 'INTERNAL_SERVER_ERROR',
       message: 'Erro ao excluir tipo de contribuição.'
+    });
+  }
+});
+
+// GET /api/v1/payment-methods
+app.get('/api/v1/payment-methods', async (req: Request, res: Response) => {
+  try {
+    const { user_id, type, is_active } = req.query;
+    const cleanUserId = (user_id && typeof user_id === 'string' && user_id.trim()) ? user_id.trim() : null;
+
+    let query = `
+      SELECT 
+        pm.id,
+        pm.name,
+        pm.type,
+        pm.category,
+        pm.bank_id,
+        pm."order",
+        pm.is_active,
+        pm.user_id,
+        pm.created_at,
+        b.name as bank_name
+      FROM payment_methods pm
+      LEFT JOIN banks b ON CAST(pm.bank_id AS VARCHAR) = CAST(b.id AS VARCHAR)
+      WHERE 1=1
+    `;
+    const params: any[] = [];
+
+    if (cleanUserId) {
+      params.push(cleanUserId);
+      query += ` AND (pm.user_id = $1 OR pm.user_id IS NULL OR pm.user_id = '00000000-0000-0000-0000-000000000001')`;
+    }
+
+    if (type && typeof type === 'string' && type !== 'todos') {
+      params.push(type.toLowerCase());
+      query += ` AND (LOWER(pm.type) = $${params.length} OR LOWER(pm.type) = 'ambos')`;
+    }
+
+    if (is_active !== undefined) {
+      params.push(String(is_active) === 'true');
+      query += ` AND pm.is_active = $${params.length}`;
+    }
+
+    query += ' ORDER BY pm."order" ASC, pm.name ASC';
+
+    let result = await pool.query(query, params);
+
+    if (result.rows && result.rows.length > 0) {
+      return res.json(result.rows);
+    }
+
+    // Auto-seed standard payment methods if none exist for this tenant
+    const defaultMethods = [
+      { name: 'PIX', type: 'ambos', order: 1 },
+      { name: 'DINHEIRO', type: 'ambos', order: 2 },
+      { name: 'CARTÃO DE CRÉDITO', type: 'ambos', order: 3 },
+      { name: 'CARTÃO DE DÉBITO', type: 'ambos', order: 4 },
+      { name: 'TRANSFERÊNCIA / TED', type: 'ambos', order: 5 },
+      { name: 'BOLETO BANCÁRIO', type: 'pagamento', order: 6 },
+      { name: 'CHEQUE', type: 'pagamento', order: 7 }
+    ];
+
+    for (const dm of defaultMethods) {
+      try {
+        const genId = crypto.randomUUID();
+        await pool.query(
+          `INSERT INTO payment_methods (id, name, type, category, "order", is_active, user_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [genId, dm.name, dm.type, 'Geral', dm.order, true, cleanUserId]
+        );
+      } catch (e) {
+        console.error('Error auto-seeding payment method:', e);
+      }
+    }
+
+    result = await pool.query(query, params);
+    return res.json(result.rows);
+  } catch (err: any) {
+    console.error('[Contributors API] Error listing payment methods:', err);
+    return res.status(500).json({
+      error: 'INTERNAL_SERVER_ERROR',
+      message: 'Erro ao listar formas de pagamento.'
+    });
+  }
+});
+
+// POST /api/v1/payment-methods
+app.post('/api/v1/payment-methods', async (req: Request, res: Response) => {
+  try {
+    const { name, type, category, bank_id, order, is_active, user_id } = req.body;
+
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: 'O nome da forma de pagamento é obrigatório.'
+      });
+    }
+
+    const normType = (type && typeof type === 'string') ? type.trim().toLowerCase() : 'ambos';
+    const cleanOrder = typeof order === 'number' ? order : 1;
+    const cleanIsActive = typeof is_active === 'boolean' ? is_active : true;
+    const cleanBankId = (bank_id && typeof bank_id === 'string' && bank_id.trim()) ? bank_id.trim() : null;
+    const cleanUserId = (user_id && typeof user_id === 'string' && user_id.trim()) ? user_id.trim() : null;
+    const genId = crypto.randomUUID();
+
+    const result = await pool.query(
+      `INSERT INTO payment_methods (id, name, type, category, bank_id, "order", is_active, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, name, type, category, bank_id, "order", is_active, user_id, created_at`,
+      [
+        genId,
+        name.trim().toUpperCase(),
+        normType,
+        category ? category.trim() : null,
+        cleanBankId,
+        cleanOrder,
+        cleanIsActive,
+        cleanUserId
+      ]
+    );
+
+    return res.status(201).json(result.rows[0]);
+  } catch (err: any) {
+    console.error('[Contributors API] Error creating payment method:', err);
+    return res.status(500).json({
+      error: 'INTERNAL_SERVER_ERROR',
+      message: 'Erro ao cadastrar forma de pagamento.'
+    });
+  }
+});
+
+// PUT /api/v1/payment-methods/:id
+app.put('/api/v1/payment-methods/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { name, type, category, bank_id, order, is_active } = req.body;
+
+    const cleanId = typeof id === 'string' ? id.trim() : '';
+    if (!cleanId) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: 'ID da forma de pagamento é obrigatório.'
+      });
+    }
+
+    const normType = (type && typeof type === 'string') ? type.trim().toLowerCase() : 'ambos';
+    const cleanBankId = (bank_id && typeof bank_id === 'string' && bank_id.trim()) ? bank_id.trim() : null;
+
+    const result = await pool.query(
+      `UPDATE payment_methods
+       SET name = $1,
+           type = $2,
+           category = $3,
+           bank_id = $4,
+           "order" = $5,
+           is_active = $6
+       WHERE id = $7
+       RETURNING id, name, type, category, bank_id, "order", is_active, user_id, created_at`,
+      [
+        name ? name.trim().toUpperCase() : 'Sem Nome',
+        normType,
+        category ? category.trim() : null,
+        cleanBankId,
+        typeof order === 'number' ? order : 1,
+        typeof is_active === 'boolean' ? is_active : true,
+        cleanId
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: 'NOT_FOUND',
+        message: 'Forma de pagamento não encontrada.'
+      });
+    }
+
+    return res.json(result.rows[0]);
+  } catch (err: any) {
+    console.error('[Contributors API] Error updating payment method:', err);
+    return res.status(500).json({
+      error: 'INTERNAL_SERVER_ERROR',
+      message: 'Erro ao atualizar forma de pagamento.'
+    });
+  }
+});
+
+// DELETE /api/v1/payment-methods/:id
+app.delete('/api/v1/payment-methods/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const cleanId = typeof id === 'string' ? id.trim() : '';
+    if (!cleanId) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: 'ID da forma de pagamento é obrigatório.'
+      });
+    }
+
+    // Try delete by ID, or if not UUID, delete by name
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    if (uuidRegex.test(cleanId)) {
+      await pool.query('DELETE FROM payment_methods WHERE id = $1', [cleanId]);
+    } else {
+      await pool.query('DELETE FROM payment_methods WHERE UPPER(name) = UPPER($1)', [cleanId]);
+    }
+    return res.json({ success: true, message: 'Forma de pagamento removida.' });
+  } catch (err: any) {
+    console.error('[Contributors API] Error deleting payment method:', err);
+    return res.status(500).json({
+      error: 'INTERNAL_SERVER_ERROR',
+      message: 'Erro ao excluir forma de pagamento.'
     });
   }
 });
