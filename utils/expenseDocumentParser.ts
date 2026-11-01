@@ -11,14 +11,17 @@ import {
 export * from './brazilianDocUtils';
 
 // Configuração resiliente do worker do pdfjs-dist
-if (typeof window !== 'undefined') {
-    try {
-        const version = pdfjsLib.version || '3.11.174';
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${version}/pdf.worker.min.js`;
-    } catch (e) {
-        console.warn('[PDF.js] Worker configuration fallback:', e);
+export function configurePdfWorker() {
+    if (typeof window !== 'undefined' && pdfjsLib?.GlobalWorkerOptions) {
+        try {
+            const version = pdfjsLib.version || '6.2.108';
+            pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${version}/build/pdf.worker.min.mjs`;
+        } catch (e) {
+            console.warn('[PDF.js] Worker configuration fallback:', e);
+        }
     }
 }
+configurePdfWorker();
 
 export type DocumentType = 
     | 'comprovante_pix'
@@ -210,11 +213,93 @@ export function parseBRLNumber(valStr: string): number | null {
 }
 
 /**
+ * Extrai texto diretamente dos streams do PDF como fallback resiliente sem dependência de worker.
+ * Lê sequências literais (texto) Tj / [(texto)] TJ e descomprime streams FlateDecode se necessário.
+ */
+export async function extractTextDirectFromPdfBytes(arrayBuffer: ArrayBuffer): Promise<string> {
+    try {
+        const bytes = new Uint8Array(arrayBuffer.slice(0));
+        const textDecoder = new TextDecoder('latin1');
+        const rawContent = textDecoder.decode(bytes);
+        const extractedParts: string[] = [];
+
+        // 1. Extração direta de strings em formato literal (texto) Tj / ' / "
+        const literalRegex = /\(([^)\\]*(?:\\.[^)\\]*)*)\)\s*(?:Tj|'|")/g;
+        let match: RegExpExecArray | null;
+        while ((match = literalRegex.exec(rawContent)) !== null) {
+            const rawStr = match[1]
+                .replace(/\\([0-7]{1,3})/g, (_, oct) => String.fromCharCode(parseInt(oct, 8)))
+                .replace(/\\n/g, '\n')
+                .replace(/\\r/g, '\r')
+                .replace(/\\t/g, '\t')
+                .replace(/\\([()])/g, '$1')
+                .replace(/\\\\/g, '\\');
+            if (rawStr.trim().length > 0) {
+                extractedParts.push(rawStr.trim());
+            }
+        }
+
+        // 2. Extrai streams comprimidos com FlateDecode via DecompressionStream caso disponível
+        if (extractedParts.join(' ').length < 25 && typeof DecompressionStream !== 'undefined') {
+            const streamRegex = /stream[\r\n]+([\s\S]*?)[\r\n]+endstream/g;
+            let streamMatch: RegExpExecArray | null;
+            let count = 0;
+
+            while ((streamMatch = streamRegex.exec(rawContent)) !== null && count < 8) {
+                count++;
+                const streamRaw = streamMatch[1];
+                if (!streamRaw || streamRaw.length < 15) continue;
+
+                try {
+                    const streamBytes = new Uint8Array(streamRaw.length);
+                    for (let i = 0; i < streamRaw.length; i++) {
+                        streamBytes[i] = streamRaw.charCodeAt(i) & 0xff;
+                    }
+
+                    const ds = new DecompressionStream('deflate');
+                    const writer = ds.writable.getWriter();
+                    writer.write(streamBytes);
+                    writer.close();
+
+                    const response = new Response(ds.readable);
+                    const decompressedBuffer = await response.arrayBuffer();
+                    const decompressedText = new TextDecoder('latin1').decode(decompressedBuffer);
+
+                    let subMatch: RegExpExecArray | null;
+                    literalRegex.lastIndex = 0;
+                    while ((subMatch = literalRegex.exec(decompressedText)) !== null) {
+                        const rawStr = subMatch[1]
+                            .replace(/\\([0-7]{1,3})/g, (_, oct) => String.fromCharCode(parseInt(oct, 8)))
+                            .replace(/\\n/g, '\n')
+                            .replace(/\\r/g, '\r')
+                            .replace(/\\t/g, '\t')
+                            .replace(/\\([()])/g, '$1')
+                            .replace(/\\\\/g, '\\');
+                        if (rawStr.trim().length > 0) {
+                            extractedParts.push(rawStr.trim());
+                        }
+                    }
+                } catch {
+                    // Ignora streams não compatíveis com deflate padrão
+                }
+            }
+        }
+
+        return extractedParts.join(' ').trim();
+    } catch {
+        return '';
+    }
+}
+
+/**
  * Extrai texto completo de um arquivo PDF via pdfjs-dist com fallback seguro
  */
 export async function extractTextFromPDF(arrayBuffer: ArrayBuffer): Promise<string> {
+    if (!arrayBuffer || arrayBuffer.byteLength === 0) return '';
+
     const parseWithLib = async (lib: any): Promise<string> => {
-        const loadingTask = lib.getDocument({ data: new Uint8Array(arrayBuffer) });
+        // 🛡️ CRUCIAL: Passa cópia Uint8Array para nunca destacar o ArrayBuffer original
+        const loadingTask = lib.getDocument({ data: new Uint8Array(arrayBuffer.slice(0)) });
         const pdf = await loadingTask.promise;
         let fullText = '';
 
@@ -252,40 +337,71 @@ export async function extractTextFromPDF(arrayBuffer: ArrayBuffer): Promise<stri
         return fullText;
     };
 
-    // 1. Tenta com pdfjs-dist local/empacotado
+    // 1. Tenta com pdfjs-dist empacotado (via CDN jsdelivr moderno)
     try {
+        configurePdfWorker();
         const text = await parseWithLib(pdfjsLib);
         if (text && text.trim().length > 0) {
             return text;
         }
     } catch (err) {
-        console.warn('[PDF Parser] Tentativa com pdfjs-dist empacotado falhou, tentando fallback cdnjs:', err);
+        console.warn('[PDF Parser] Tentativa com pdfjs-dist principal falhou, tentando fallback unpkg:', err);
     }
 
-    // 2. Fallback de alta confiabilidade via cdnjs (mesma infraestrutura do PDFRenderer e FileUploader)
+    // 1.1 Tenta fallback com worker unpkg
+    if (typeof window !== 'undefined') {
+        try {
+            const version = pdfjsLib.version || '6.2.108';
+            pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${version}/build/pdf.worker.min.mjs`;
+            const text = await parseWithLib(pdfjsLib);
+            if (text && text.trim().length > 0) {
+                return text;
+            }
+        } catch (unpkgErr) {
+            console.warn('[PDF Parser] Fallback unpkg falhou, tentando fallback cdnjs legacy:', unpkgErr);
+        }
+    }
+
+    // 2. Fallback de alta confiabilidade via cdnjs (mesma infraestrutura comprovada do PDFRenderer)
     if (typeof window !== 'undefined') {
         try {
             const PDFJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
             const WORKER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-            if (!(window as any).pdfjsLib) {
+            if (!(window as any).pdfjsLibLegacy) {
                 await new Promise<void>((resolve, reject) => {
                     const script = document.createElement('script');
                     script.src = PDFJS_URL;
-                    script.onload = () => resolve();
+                    script.onload = () => {
+                        (window as any).pdfjsLibLegacy = (window as any).pdfjsLib;
+                        resolve();
+                    };
                     script.onerror = (err) => reject(new Error('Failed to load fallback PDF.js'));
                     document.head.appendChild(script);
                 });
             }
 
-            const winPdf = (window as any).pdfjsLib;
+            const winPdf = (window as any).pdfjsLibLegacy || (window as any).pdfjsLib;
             if (winPdf) {
                 winPdf.GlobalWorkerOptions.workerSrc = WORKER_URL;
-                return await parseWithLib(winPdf);
+                const text = await parseWithLib(winPdf);
+                if (text && text.trim().length > 0) {
+                    return text;
+                }
             }
         } catch (fallbackErr) {
             console.error('[PDF Parser] Fallback cdnjs também falhou:', fallbackErr);
         }
+    }
+
+    // 3. Fallback nativo direto sobre os streams do PDF (sem rede, sem worker, 100% autônomo)
+    try {
+        const streamText = await extractTextDirectFromPdfBytes(arrayBuffer);
+        if (streamText && streamText.trim().length > 0) {
+            return streamText;
+        }
+    } catch (streamErr) {
+        console.warn('[PDF Parser] Fallback de extração direta de streams falhou:', streamErr);
     }
 
     return '';
@@ -716,7 +832,13 @@ export function isDocumentTextLegible(rawText: string, extractedDoc?: ExtractedE
         // 6. Possui tipo de documento financeiro reconhecido pelas palavras-chave (Boleto, Nota Fiscal, Recibo, Fatura, PIX)
         if (extractedDoc.documentType && extractedDoc.documentType !== 'outro') return true;
 
-        // Se nenhum dado contábil estruturado nem tipo de documento pôde ser extraído, o documento é ilegível
+        // 7. Possui texto contábil/financeiro autêntico com vocabulário contábil legível (evita rejeição de declarações/comprovantes autênticos)
+        const hasAccountingTerms = /(?:pagamento|pagto|pago|recebimento|despesa|compra|servi[cç]o|fornecedor|cliente|favorecido|benefici[aá]rio|banco|caixa|conta|transfer[eê]ncia|dep[oó]sito|tarifa|imposto|taxa|recibo|cupom|nota|fatura|boleto|d[eé]bito|cr[eé]dito|opera[cç][aã]o|documento|declara[cç][aã]o|autentica[cç][aã]o|protocolo|valor|total|saldo)/i.test(clean);
+        if (alphanumeric.length >= 25 && hasAccountingTerms) {
+            return true;
+        }
+
+        // Se nenhum dado contábil estruturado nem tipo de documento pôde ser extraído e não há vocabulário contábil, o documento é ilegível
         return false;
     }
 
