@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MatchResult, ReconciliationStatus, MatchMethod, Transaction, Contributor } from '../../types';
 import { PLACEHOLDER_CHURCH, strictNormalize, isInvalidOrNumericName } from '../../services/processingService';
@@ -423,7 +424,7 @@ export const useCloudSync = ({
                         row_hash: t.row_hash,
                         contributionType: savedContribType,
                         paymentMethod: savedPaymentMethod,
-                        attachments: parsedAttachments
+                        attachments: lightAttachments
                     };
 
                     const regName = t.contributor_id ? (contributorNameMap.get(t.contributor_id) || null) : null;
@@ -478,7 +479,7 @@ export const useCloudSync = ({
                             : (typeof t.splits === 'string' && t.splits.trim().startsWith('[')
                                 ? (() => { try { const p = JSON.parse(t.splits); return Array.isArray(p) && p.length > 0 ? p : undefined; } catch (_) { return undefined; } })()
                                 : undefined),
-                        attachments: parsedAttachments,
+                        attachments: lightAttachments,
                         updatedAt: t.updated_at
                     };
 
@@ -522,7 +523,8 @@ export const useCloudSync = ({
                             contributionType: r.contributionType || saved.contributionType,
                             paymentMethod: r.paymentMethod || saved.paymentMethod,
                             splits: (Array.isArray(r.splits) && r.splits.length > 0) ? r.splits : (Array.isArray(saved.splits) && saved.splits.length > 0 ? saved.splits : undefined),
-                            updatedAt: (rUpdatedTime >= savedUpdatedTime ? r.updatedAt : saved.updatedAt) || new Date().toISOString()
+                            updatedAt: (rUpdatedTime >= savedUpdatedTime ? r.updatedAt : saved.updatedAt) || new Date().toISOString(),
+                            attachments: r.attachments || saved.attachments
                         });
                     } else {
                         reconstructedMap.set(r.transaction.id, r);
