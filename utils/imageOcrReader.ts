@@ -162,9 +162,11 @@ export async function extractTextFromImageOcr(
  * Converte a primeira página de um PDF escaneado (sem texto digital) em imagem para passar no OCR
  */
 export async function renderPdfFirstPageToImage(arrayBuffer: ArrayBuffer): Promise<string | null> {
-    if (typeof window === 'undefined' || !arrayBuffer) return null;
-    try {
-        const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
+    if (typeof window === 'undefined' || !arrayBuffer || arrayBuffer.byteLength === 0) return null;
+
+    const renderWithLib = async (lib: any): Promise<string | null> => {
+        // 🛡️ Passa cópia do buffer para evitar que o arrayBuffer original seja destacado
+        const loadingTask = lib.getDocument({ data: new Uint8Array(arrayBuffer.slice(0)) });
         const pdf = await loadingTask.promise;
         if (pdf.numPages < 1) return null;
 
@@ -180,10 +182,48 @@ export async function renderPdfFirstPageToImage(arrayBuffer: ArrayBuffer): Promi
 
         await (page as any).render({ canvas, canvasContext: ctx, viewport }).promise;
         return canvas.toDataURL('image/jpeg', 0.85);
+    };
+
+    // 1. Tenta renderizar com pdfjs-dist configurado com worker moderno
+    try {
+        if (pdfjsLib?.GlobalWorkerOptions) {
+            const version = pdfjsLib.version || '6.2.108';
+            pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${version}/build/pdf.worker.min.mjs`;
+        }
+        const img = await renderWithLib(pdfjsLib);
+        if (img) return img;
     } catch (err) {
-        console.warn('[OCR] Falha ao renderizar página do PDF em canvas:', err);
-        return null;
+        console.warn('[OCR] Falha ao renderizar com pdfjs-dist principal, tentando fallback cdnjs:', err);
     }
+
+    // 2. Fallback de alta confiabilidade via cdnjs 3.11.174
+    try {
+        const PDFJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+        const WORKER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        if (!(window as any).pdfjsLibLegacy) {
+            await new Promise<void>((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = PDFJS_URL;
+                script.onload = () => {
+                    (window as any).pdfjsLibLegacy = (window as any).pdfjsLib;
+                    resolve();
+                };
+                script.onerror = (e) => reject(new Error('Failed to load fallback PDF.js'));
+                document.head.appendChild(script);
+            });
+        }
+
+        const winPdf = (window as any).pdfjsLibLegacy || (window as any).pdfjsLib;
+        if (winPdf) {
+            winPdf.GlobalWorkerOptions.workerSrc = WORKER_URL;
+            return await renderWithLib(winPdf);
+        }
+    } catch (fallbackErr) {
+        console.error('[OCR] Falha ao renderizar página do PDF em canvas (fallback cdnjs):', fallbackErr);
+    }
+
+    return null;
 }
 
 /**

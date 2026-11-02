@@ -249,6 +249,18 @@ class LocalSqliteEngine {
         created_at TEXT DEFAULT (now())
       );
 
+      CREATE TABLE IF NOT EXISTS payment_methods (
+        id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()),
+        name TEXT NOT NULL,
+        type TEXT DEFAULT 'ambos',
+        category TEXT,
+        bank_id TEXT,
+        "order" INTEGER DEFAULT 1,
+        is_active INTEGER DEFAULT 1,
+        user_id TEXT,
+        created_at TEXT DEFAULT (now())
+      );
+
       CREATE TABLE IF NOT EXISTS contributor_roles (
         id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()),
         name TEXT NOT NULL,
@@ -1910,6 +1922,10 @@ async function initializeDatabase() {
     await client.query("CREATE INDEX IF NOT EXISTS idx_church_pix_keys_church ON church_pix_keys(church_id);");
     console.log('[Contributors API] Table "church_pix_keys" verified or successfully created.');
 
+    // Ensure churches has both pix_key and "pixKey" columns in remote PostgreSQL
+    await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS pix_key TEXT;');
+    await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS "pixKey" TEXT;');
+
     // Create table contribution_types
     await client.query(`
       CREATE TABLE IF NOT EXISTS contribution_types (
@@ -1936,6 +1952,34 @@ async function initializeDatabase() {
     await client.query('ALTER TABLE contribution_types ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();');
     await client.query("CREATE INDEX IF NOT EXISTS idx_contrib_types_bank ON contribution_types(bank_id);");
     console.log('[Contributors API] Table "contribution_types" verified or successfully created.');
+
+    // Create table payment_methods
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS payment_methods (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        type VARCHAR(50) NOT NULL DEFAULT 'ambos',
+        category VARCHAR(255),
+        bank_id VARCHAR(255),
+        "order" INT DEFAULT 1,
+        is_active BOOLEAN DEFAULT TRUE,
+        user_id VARCHAR(255),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+    await client.query('ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS name VARCHAR(255);');
+    await client.query("ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS type VARCHAR(50) DEFAULT 'ambos';");
+    await client.query('ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS category VARCHAR(255);');
+    await client.query('ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS bank_id VARCHAR(255);');
+    await client.query('ALTER TABLE payment_methods ALTER COLUMN bank_id TYPE VARCHAR(255) USING bank_id::varchar;');
+    await client.query('ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS "order" INT DEFAULT 1;');
+    await client.query('ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;');
+    await client.query('ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS user_id VARCHAR(255);');
+    await client.query('ALTER TABLE payment_methods ALTER COLUMN user_id TYPE VARCHAR(255) USING user_id::varchar;');
+    await client.query('ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();');
+    await client.query("CREATE INDEX IF NOT EXISTS idx_payment_methods_bank ON payment_methods(bank_id);");
+    await client.query("CREATE INDEX IF NOT EXISTS idx_payment_methods_user ON payment_methods(user_id);");
+    console.log('[Contributors API] Table "payment_methods" verified or successfully created.');
 
     // Create table contributor_roles
     await client.query(`
@@ -2657,7 +2701,7 @@ app.get('/api/v1/contributors/roles', async (req: Request, res: Response) => {
     if (cleanUserId) {
       const userIds = await getEquivalentUserIds(cleanUserId);
       params.push(userIds);
-      query += ` AND (user_id = ANY($${params.length}) OR user_id IS NULL)`;
+      query += ` AND (user_id::text = ANY($${params.length}) OR user_id IS NULL)`;
     }
     query += " ORDER BY created_at ASC";
 
@@ -2747,7 +2791,7 @@ app.post('/api/v1/contributors/roles', async (req: Request, res: Response) => {
     const checkParams: any[] = [cleanName];
     if (userIds.length > 0) {
       checkParams.push(userIds);
-      checkQuery += ` AND (user_id = ANY($2) OR user_id IS NULL)`;
+      checkQuery += ` AND (user_id::text = ANY($2) OR user_id IS NULL)`;
     }
     const existingRes = await pool.query(checkQuery, checkParams);
 
@@ -2788,13 +2832,13 @@ app.put('/api/v1/contributors/roles', async (req: Request, res: Response) => {
 
     if (id) {
       if (userIds.length > 0) {
-        await pool.query("UPDATE contributor_roles SET name = $1 WHERE id = $2 AND (user_id = ANY($3) OR user_id IS NULL)", [cleanNew, id, userIds]);
+        await pool.query("UPDATE contributor_roles SET name = $1 WHERE id = $2 AND (user_id::text = ANY($3) OR user_id IS NULL)", [cleanNew, id, userIds]);
       } else {
         await pool.query("UPDATE contributor_roles SET name = $1 WHERE id = $2", [cleanNew, id]);
       }
     } else if (cleanOld) {
       if (userIds.length > 0) {
-        await pool.query("UPDATE contributor_roles SET name = $1 WHERE lower(trim(name)) = lower(trim($2)) AND (user_id = ANY($3) OR user_id IS NULL)", [cleanNew, cleanOld, userIds]);
+        await pool.query("UPDATE contributor_roles SET name = $1 WHERE lower(trim(name)) = lower(trim($2)) AND (user_id::text = ANY($3) OR user_id IS NULL)", [cleanNew, cleanOld, userIds]);
       } else {
         await pool.query("UPDATE contributor_roles SET name = $1 WHERE lower(trim(name)) = lower(trim($2))", [cleanNew, cleanOld]);
       }
@@ -2803,7 +2847,7 @@ app.put('/api/v1/contributors/roles', async (req: Request, res: Response) => {
     // Cascade rename to contributors table in database scoped to tenant
     if (cleanOld) {
       if (userIds.length > 0) {
-        await pool.query("UPDATE contributors SET role_position = $1 WHERE lower(trim(role_position)) = lower(trim($2)) AND (user_id = ANY($3) OR user_id IS NULL)", [cleanNew, cleanOld, userIds]);
+        await pool.query("UPDATE contributors SET role_position = $1 WHERE lower(trim(role_position)) = lower(trim($2)) AND (user_id::text = ANY($3) OR user_id IS NULL)", [cleanNew, cleanOld, userIds]);
       } else {
         await pool.query("UPDATE contributors SET role_position = $1 WHERE lower(trim(role_position)) = lower(trim($2))", [cleanNew, cleanOld]);
       }
@@ -2834,15 +2878,15 @@ app.delete('/api/v1/contributors/roles', async (req: Request, res: Response) => 
       const findParams: any[] = [roleId];
       if (userIds.length > 0) {
         findParams.push(userIds);
-        findQuery += ` AND (user_id = ANY($2) OR user_id IS NULL)`;
+        findQuery += ` AND (user_id::text = ANY($2) OR user_id IS NULL)`;
       }
       const existing = await pool.query(findQuery, findParams);
       const name = existing.rows[0]?.name;
 
       if (userIds.length > 0) {
-        await pool.query("DELETE FROM contributor_roles WHERE id = $1 AND (user_id = ANY($2) OR user_id IS NULL)", [roleId, userIds]);
+        await pool.query("DELETE FROM contributor_roles WHERE id = $1 AND (user_id::text = ANY($2) OR user_id IS NULL)", [roleId, userIds]);
         if (name) {
-          await pool.query("UPDATE contributors SET role_position = NULL WHERE lower(trim(role_position)) = lower(trim($1)) AND (user_id = ANY($2) OR user_id IS NULL)", [name, userIds]);
+          await pool.query("UPDATE contributors SET role_position = NULL WHERE lower(trim(role_position)) = lower(trim($1)) AND (user_id::text = ANY($2) OR user_id IS NULL)", [name, userIds]);
         }
       } else {
         await pool.query("DELETE FROM contributor_roles WHERE id = $1", [roleId]);
@@ -2853,8 +2897,8 @@ app.delete('/api/v1/contributors/roles', async (req: Request, res: Response) => 
     } else if (roleName && roleName.trim()) {
       const cleanName = roleName.trim();
       if (userIds.length > 0) {
-        await pool.query("DELETE FROM contributor_roles WHERE lower(trim(name)) = lower(trim($1)) AND (user_id = ANY($2) OR user_id IS NULL)", [cleanName, userIds]);
-        await pool.query("UPDATE contributors SET role_position = NULL WHERE lower(trim(role_position)) = lower(trim($1)) AND (user_id = ANY($2) OR user_id IS NULL)", [cleanName, userIds]);
+        await pool.query("DELETE FROM contributor_roles WHERE lower(trim(name)) = lower(trim($1)) AND (user_id::text = ANY($2) OR user_id IS NULL)", [cleanName, userIds]);
+        await pool.query("UPDATE contributors SET role_position = NULL WHERE lower(trim(role_position)) = lower(trim($1)) AND (user_id::text = ANY($2) OR user_id IS NULL)", [cleanName, userIds]);
       } else {
         await pool.query("DELETE FROM contributor_roles WHERE lower(trim(name)) = lower(trim($1))", [cleanName]);
         await pool.query("UPDATE contributors SET role_position = NULL WHERE lower(trim(role_position)) = lower(trim($1))", [cleanName]);
@@ -3812,7 +3856,7 @@ app.get('/api/v1/church-pix-keys/public', async (req: Request, res: Response) =>
 
     // Fallback 2: Check church direct pix_key, pixKey, or cnpj
     const churchRes = await pool.query(
-      'SELECT id, name, pix_key, "pixKey", cnpj FROM churches WHERE id = $1 LIMIT 1',
+      'SELECT * FROM churches WHERE id = $1 LIMIT 1',
       [church_id]
     );
     if (churchRes.rows.length > 0) {
@@ -3899,7 +3943,7 @@ app.get('/api/v1/church-banks/public', async (req: Request, res: Response) => {
     }
 
     // Retrieve default Pix key of church to guarantee all accounts have a valid Pix key
-    const churchRes = await pool.query('SELECT id, name, pix_key, "pixKey", cnpj FROM churches WHERE id = $1 LIMIT 1', [church_id]);
+    const churchRes = await pool.query('SELECT * FROM churches WHERE id = $1 LIMIT 1', [church_id]);
     const churchRow = (churchRes && churchRes.rows) ? churchRes.rows[0] : null;
     const defaultPix = churchRow?.pix_key || churchRow?.pixKey || churchRow?.cnpj || null;
 
@@ -4089,14 +4133,14 @@ app.get('/api/v1/contribution-types/public', async (req: Request, res: Response)
         b.name as bank_name
       FROM contribution_types ct
       LEFT JOIN banks b ON CAST(ct.bank_id AS VARCHAR) = CAST(b.id AS VARCHAR)
-      WHERE (ct.is_active = true OR ct.is_active = 1) AND LOWER(ct.type) = 'entrada'
+      WHERE (ct.is_active = true OR ct.is_active IS TRUE) AND LOWER(ct.type) = 'entrada'
     `;
     const params: any[] = [];
 
     if (bank_id && typeof bank_id === 'string' && bank_id !== 'default-church-account' && uuidRegex.test(bank_id)) {
       // Check if this bank has exclusive contribution types assigned
       const specificCheck = await pool.query(
-        `SELECT id FROM contribution_types WHERE (is_active = true OR is_active = 1) AND LOWER(type) = 'entrada' AND CAST(bank_id AS VARCHAR) = $1 LIMIT 1`,
+        `SELECT id FROM contribution_types WHERE (is_active = true OR is_active IS TRUE) AND LOWER(type) = 'entrada' AND CAST(bank_id AS VARCHAR) = $1 LIMIT 1`,
         [bank_id]
       );
       params.push(bank_id);
@@ -4133,7 +4177,7 @@ app.get('/api/v1/contribution-types/public', async (req: Request, res: Response)
           b.name as bank_name
         FROM contribution_types ct
         LEFT JOIN banks b ON CAST(ct.bank_id AS VARCHAR) = CAST(b.id AS VARCHAR)
-        WHERE (ct.is_active = true OR ct.is_active = 1) AND LOWER(ct.type) = 'entrada'
+        WHERE (ct.is_active = true OR ct.is_active IS TRUE) AND LOWER(ct.type) = 'entrada'
         ORDER BY ct."order" ASC, ct.name ASC
       `;
       const fallbackRes = await pool.query(fallbackQuery, []);
@@ -4381,6 +4425,217 @@ app.delete('/api/v1/contribution-types/:id', async (req: Request, res: Response)
     return res.status(500).json({
       error: 'INTERNAL_SERVER_ERROR',
       message: 'Erro ao excluir tipo de contribuição.'
+    });
+  }
+});
+
+// GET /api/v1/payment-methods
+app.get('/api/v1/payment-methods', async (req: Request, res: Response) => {
+  try {
+    const { user_id, type, is_active } = req.query;
+    const cleanUserId = (user_id && typeof user_id === 'string' && user_id.trim()) ? user_id.trim() : null;
+
+    let query = `
+      SELECT 
+        pm.id,
+        pm.name,
+        pm.type,
+        pm.category,
+        pm.bank_id,
+        pm."order",
+        pm.is_active,
+        pm.user_id,
+        pm.created_at,
+        b.name as bank_name
+      FROM payment_methods pm
+      LEFT JOIN banks b ON CAST(pm.bank_id AS VARCHAR) = CAST(b.id AS VARCHAR)
+      WHERE 1=1
+    `;
+    const params: any[] = [];
+
+    if (cleanUserId) {
+      params.push(cleanUserId);
+      query += ` AND (pm.user_id = $1 OR pm.user_id IS NULL OR pm.user_id = '00000000-0000-0000-0000-000000000001')`;
+    }
+
+    if (type && typeof type === 'string' && type !== 'todos') {
+      params.push(type.toLowerCase());
+      query += ` AND (LOWER(pm.type) = $${params.length} OR LOWER(pm.type) = 'ambos')`;
+    }
+
+    if (is_active !== undefined) {
+      params.push(String(is_active) === 'true');
+      query += ` AND pm.is_active = $${params.length}`;
+    }
+
+    query += ' ORDER BY pm."order" ASC, pm.name ASC';
+
+    let result = await pool.query(query, params);
+
+    if (result.rows && result.rows.length > 0) {
+      return res.json(result.rows);
+    }
+
+    // Auto-seed standard payment methods if none exist for this tenant
+    const defaultMethods = [
+      { name: 'PIX', type: 'ambos', order: 1 },
+      { name: 'DINHEIRO', type: 'ambos', order: 2 },
+      { name: 'CARTÃO DE CRÉDITO', type: 'ambos', order: 3 },
+      { name: 'CARTÃO DE DÉBITO', type: 'ambos', order: 4 },
+      { name: 'TRANSFERÊNCIA / TED', type: 'ambos', order: 5 },
+      { name: 'BOLETO BANCÁRIO', type: 'pagamento', order: 6 },
+      { name: 'CHEQUE', type: 'pagamento', order: 7 }
+    ];
+
+    for (const dm of defaultMethods) {
+      try {
+        const genId = crypto.randomUUID();
+        await pool.query(
+          `INSERT INTO payment_methods (id, name, type, category, "order", is_active, user_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [genId, dm.name, dm.type, 'Geral', dm.order, true, cleanUserId]
+        );
+      } catch (e) {
+        console.error('Error auto-seeding payment method:', e);
+      }
+    }
+
+    result = await pool.query(query, params);
+    return res.json(result.rows);
+  } catch (err: any) {
+    console.error('[Contributors API] Error listing payment methods:', err);
+    return res.status(500).json({
+      error: 'INTERNAL_SERVER_ERROR',
+      message: 'Erro ao listar formas de pagamento.'
+    });
+  }
+});
+
+// POST /api/v1/payment-methods
+app.post('/api/v1/payment-methods', async (req: Request, res: Response) => {
+  try {
+    const { name, type, category, bank_id, order, is_active, user_id } = req.body;
+
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: 'O nome da forma de pagamento é obrigatório.'
+      });
+    }
+
+    const normType = (type && typeof type === 'string') ? type.trim().toLowerCase() : 'ambos';
+    const cleanOrder = typeof order === 'number' ? order : 1;
+    const cleanIsActive = typeof is_active === 'boolean' ? is_active : true;
+    const cleanBankId = (bank_id && typeof bank_id === 'string' && bank_id.trim()) ? bank_id.trim() : null;
+    const cleanUserId = (user_id && typeof user_id === 'string' && user_id.trim()) ? user_id.trim() : null;
+    const genId = crypto.randomUUID();
+
+    const result = await pool.query(
+      `INSERT INTO payment_methods (id, name, type, category, bank_id, "order", is_active, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, name, type, category, bank_id, "order", is_active, user_id, created_at`,
+      [
+        genId,
+        name.trim().toUpperCase(),
+        normType,
+        category ? category.trim() : null,
+        cleanBankId,
+        cleanOrder,
+        cleanIsActive,
+        cleanUserId
+      ]
+    );
+
+    return res.status(201).json(result.rows[0]);
+  } catch (err: any) {
+    console.error('[Contributors API] Error creating payment method:', err);
+    return res.status(500).json({
+      error: 'INTERNAL_SERVER_ERROR',
+      message: 'Erro ao cadastrar forma de pagamento.'
+    });
+  }
+});
+
+// PUT /api/v1/payment-methods/:id
+app.put('/api/v1/payment-methods/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { name, type, category, bank_id, order, is_active } = req.body;
+
+    const cleanId = typeof id === 'string' ? id.trim() : '';
+    if (!cleanId) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: 'ID da forma de pagamento é obrigatório.'
+      });
+    }
+
+    const normType = (type && typeof type === 'string') ? type.trim().toLowerCase() : 'ambos';
+    const cleanBankId = (bank_id && typeof bank_id === 'string' && bank_id.trim()) ? bank_id.trim() : null;
+
+    const result = await pool.query(
+      `UPDATE payment_methods
+       SET name = $1,
+           type = $2,
+           category = $3,
+           bank_id = $4,
+           "order" = $5,
+           is_active = $6
+       WHERE id = $7
+       RETURNING id, name, type, category, bank_id, "order", is_active, user_id, created_at`,
+      [
+        name ? name.trim().toUpperCase() : 'Sem Nome',
+        normType,
+        category ? category.trim() : null,
+        cleanBankId,
+        typeof order === 'number' ? order : 1,
+        typeof is_active === 'boolean' ? is_active : true,
+        cleanId
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: 'NOT_FOUND',
+        message: 'Forma de pagamento não encontrada.'
+      });
+    }
+
+    return res.json(result.rows[0]);
+  } catch (err: any) {
+    console.error('[Contributors API] Error updating payment method:', err);
+    return res.status(500).json({
+      error: 'INTERNAL_SERVER_ERROR',
+      message: 'Erro ao atualizar forma de pagamento.'
+    });
+  }
+});
+
+// DELETE /api/v1/payment-methods/:id
+app.delete('/api/v1/payment-methods/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const cleanId = typeof id === 'string' ? id.trim() : '';
+    if (!cleanId) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: 'ID da forma de pagamento é obrigatório.'
+      });
+    }
+
+    // Try delete by ID, or if not UUID, delete by name
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    if (uuidRegex.test(cleanId)) {
+      await pool.query('DELETE FROM payment_methods WHERE id = $1', [cleanId]);
+    } else {
+      await pool.query('DELETE FROM payment_methods WHERE UPPER(name) = UPPER($1)', [cleanId]);
+    }
+    return res.json({ success: true, message: 'Forma de pagamento removida.' });
+  } catch (err: any) {
+    console.error('[Contributors API] Error deleting payment method:', err);
+    return res.status(500).json({
+      error: 'INTERNAL_SERVER_ERROR',
+      message: 'Erro ao excluir forma de pagamento.'
     });
   }
 });
@@ -4900,20 +5155,77 @@ async function getEquivalentUserIds(userId: string): Promise<string[]> {
 
   const idsSet = new Set<string>([cleanId]);
   try {
-    const q = `
-      SELECT id::text FROM app_users WHERE id::text = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
-      UNION
-      SELECT owner_id::text FROM app_users WHERE (id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)) AND owner_id IS NOT NULL
-      UNION
-      SELECT id::text FROM profiles WHERE id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
-      UNION
-      SELECT owner_id::text FROM profiles WHERE (id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)) AND owner_id IS NOT NULL
+    const isEmail = cleanId.includes('@');
+
+    // 1. Busca em app_users com ::text explícito em ambos os lados
+    let userQuery = `
+      SELECT id::text AS id, owner_id::text AS owner_id, email 
+      FROM app_users 
+      WHERE id::text = $1::text OR owner_id::text = $1::text
     `;
-    const res = await pool.query(q, [cleanId]);
-    for (const r of (res.rows || [])) {
-      if (r.id) idsSet.add(String(r.id));
-      if (r.owner_id) idsSet.add(String(r.owner_id));
+    if (isEmail) {
+      userQuery += ` OR LOWER(TRIM(email)) = LOWER(TRIM($1::text))`;
     }
+
+    const userRes = await pool.query(userQuery, [cleanId]);
+    const foundRows = userRes.rows || [];
+
+    let resolvedOwnerId: string | null = null;
+    let resolvedEmail: string | null = null;
+
+    for (const r of foundRows) {
+      if (r.id) idsSet.add(String(r.id));
+      if (r.owner_id) {
+        idsSet.add(String(r.owner_id));
+        if (!resolvedOwnerId) resolvedOwnerId = String(r.owner_id);
+      }
+      if (r.email && !resolvedEmail) {
+        resolvedEmail = String(r.email).trim().toLowerCase();
+      }
+      if (r.id && String(r.id) === cleanId && !r.owner_id) {
+        resolvedOwnerId = String(r.id);
+      }
+    }
+
+    // Se identificou um owner_id, traz todos os membros da mesma conta
+    if (resolvedOwnerId) {
+      const orgRes = await pool.query(
+        `SELECT id::text AS id FROM app_users WHERE owner_id::text = $1::text OR id::text = $1::text`,
+        [resolvedOwnerId]
+      );
+      for (const r of (orgRes.rows || [])) {
+        if (r.id) idsSet.add(String(r.id));
+      }
+    }
+
+    // Se identificou um email, sincroniza IDs vinculados a esse email
+    if (resolvedEmail) {
+      const emailRes = await pool.query(
+        `SELECT id::text AS id, owner_id::text AS owner_id FROM app_users WHERE LOWER(TRIM(email)) = $1::text`,
+        [resolvedEmail]
+      );
+      for (const r of (emailRes.rows || [])) {
+        if (r.id) idsSet.add(String(r.id));
+        if (r.owner_id) idsSet.add(String(r.owner_id));
+      }
+    }
+
+    // 2. Fallback resiliente para a tabela profiles
+    try {
+      let profQuery = `
+        SELECT id::text AS id, owner_id::text AS owner_id 
+        FROM profiles 
+        WHERE id::text = $1::text OR owner_id::text = $1::text
+      `;
+      if (isEmail) {
+        profQuery += ` OR LOWER(TRIM(email)) = LOWER(TRIM($1::text))`;
+      }
+      const profRes = await pool.query(profQuery, [cleanId]);
+      for (const r of (profRes.rows || [])) {
+        if (r.id) idsSet.add(String(r.id));
+        if (r.owner_id) idsSet.add(String(r.owner_id));
+      }
+    } catch (_) {}
   } catch (err) {
     console.warn('[getEquivalentUserIds] Erro ao resolver equivalência, usando ID direto:', err);
   }
@@ -4949,7 +5261,7 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
     const banksParams: any[] = [];
     if (equivalentIds.length > 0) {
       banksParams.push(equivalentIds);
-      banksQuery += ` AND user_id = ANY($1)`;
+      banksQuery += ` AND user_id::text = ANY($1)`;
     }
     banksQuery += ' ORDER BY created_at DESC';
 
@@ -4960,7 +5272,7 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
       churchesQuery = 'SELECT * FROM churches WHERE 1=1';
       if (equivalentIds.length > 0) {
         churchesParams.push(equivalentIds);
-        churchesQuery += ` AND user_id = ANY($1)`;
+        churchesQuery += ` AND user_id::text = ANY($1)`;
       }
       if (ctx.isSecondaryUser) {
         churchesParams.push(ctx.allowedChurchIds);
@@ -4976,7 +5288,7 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
       reportsQuery = 'SELECT id, name, user_id, church_id, record_count, created_at FROM saved_reports WHERE 1=1';
       if (equivalentIds.length > 0) {
         reportsParams.push(equivalentIds);
-        reportsQuery += ` AND (user_id = ANY($1) OR user_id IS NULL)`;
+        reportsQuery += ` AND (user_id::text = ANY($1) OR user_id IS NULL)`;
       }
       if (ctx.isSecondaryUser) {
         reportsParams.push(ctx.allowedChurchIds);
@@ -4990,7 +5302,7 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
     const assocParams: any[] = [];
     if (equivalentIds.length > 0) {
       assocParams.push(equivalentIds);
-      assocQuery += ` AND (user_id = ANY($1) OR user_id IS NULL)`;
+      assocQuery += ` AND (user_id::text = ANY($1) OR user_id IS NULL)`;
     }
     assocQuery += ' ORDER BY created_at DESC';
 
@@ -5046,7 +5358,7 @@ app.get('/api/v1/banks', async (req: Request, res: Response) => {
     if (cleanUserId) {
       const userIds = await getEquivalentUserIds(cleanUserId);
       params.push(userIds);
-      query += ` AND user_id = ANY($1)`;
+      query += ` AND user_id::text = ANY($1)`;
     }
     query += ' ORDER BY created_at DESC';
     const result = await pool.query(query, params);
@@ -5226,11 +5538,11 @@ app.get('/api/v1/churches', async (req: Request, res: Response) => {
     if (cleanUserId) {
       const userIds = await getEquivalentUserIds(cleanUserId);
       params.push(userIds);
-      query += ` AND (user_id = ANY($${params.length}) OR user_id IS NULL)`;
+      query += ` AND (user_id::text = ANY($${params.length}) OR user_id IS NULL)`;
     }
     if (ctx.isSecondaryUser) {
       params.push(ctx.allowedChurchIds);
-      query += ` AND id = ANY($${params.length})`;
+      query += ` AND id::text = ANY($${params.length})`;
     }
     query += ' ORDER BY created_at ASC';
     const result = await pool.query(query, params);
@@ -6379,7 +6691,7 @@ app.get('/api/v1/learned_associations', async (req: Request, res: Response) => {
     if (effectiveUserId) {
       const userIds = await getEquivalentUserIds(effectiveUserId);
       params.push(userIds);
-      query += ` AND (user_id = ANY($1) OR user_id IS NULL)`;
+      query += ` AND (user_id::text = ANY($1) OR user_id IS NULL)`;
     }
     const result = await pool.query(query, params);
     return res.json(result.rows);
@@ -6511,7 +6823,7 @@ app.get('/api/v1/saved_reports', async (req: Request, res: Response) => {
     if (effectiveUserId) {
       const userIds = await getEquivalentUserIds(effectiveUserId);
       params.push(userIds);
-      query += ` AND (user_id = ANY($1) OR user_id IS NULL)`;
+      query += ` AND (user_id::text = ANY($1) OR user_id IS NULL)`;
     }
 
     if (ctx.isSecondaryUser) {
@@ -7100,7 +7412,7 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
           if (!finalBankId && finalChurchId) {
             try {
               const pixKeyRes = await pool.query(
-                `SELECT bank_id FROM church_pix_keys WHERE church_id::text = $1 AND is_active = 1 AND bank_id IS NOT NULL AND bank_id != '' ORDER BY is_default DESC LIMIT 1`,
+                `SELECT bank_id FROM church_pix_keys WHERE church_id::text = $1 AND (is_active = true OR is_active IS TRUE) AND bank_id IS NOT NULL AND bank_id != '' ORDER BY is_default DESC LIMIT 1`,
                 [finalChurchId]
               );
               if (pixKeyRes.rows && pixKeyRes.rows.length > 0 && pixKeyRes.rows[0].bank_id) {
@@ -7504,7 +7816,7 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
 
     if (effectiveUserId) {
       const userIds = await getEquivalentUserIds(String(effectiveUserId));
-      query += ` AND (user_id = ANY($${counter}) OR user_id IS NULL)`;
+      query += ` AND (user_id::text = ANY($${counter}) OR user_id IS NULL)`;
       params.push(userIds);
       counter++;
     }
@@ -8006,17 +8318,21 @@ async function isAuthorizedForTransaction(pool: any, ctx: TenantContext, oldTx: 
     }
 
     if (oldTx.user_id) {
-      const userCheck = await pool.query(
-        'SELECT id FROM profiles WHERE id = $1 AND owner_id = $2 LIMIT 1',
-        [oldTx.user_id, currentOwnerId]
-      );
-      if (userCheck.rows.length > 0) return true;
+      try {
+        const userCheck = await pool.query(
+          'SELECT id FROM profiles WHERE id::text = $1 AND owner_id::text = $2 LIMIT 1',
+          [oldTx.user_id, currentOwnerId]
+        );
+        if (userCheck.rows.length > 0) return true;
+      } catch (_) {}
 
-      const appUserCheck = await pool.query(
-        'SELECT id FROM app_users WHERE id = $1 AND owner_id = $2 LIMIT 1',
-        [oldTx.user_id, currentOwnerId]
-      );
-      if (appUserCheck.rows.length > 0) return true;
+      try {
+        const appUserCheck = await pool.query(
+          'SELECT id FROM app_users WHERE id::text = $1 AND owner_id::text = $2 LIMIT 1',
+          [oldTx.user_id, currentOwnerId]
+        );
+        if (appUserCheck.rows.length > 0) return true;
+      } catch (_) {}
     }
 
     // Registros pendentes ou não identificados da conta pertencem à organização ativa
@@ -8054,17 +8370,21 @@ async function isAuthorizedForFinancialRecord(pool: any, ctx: TenantContext, old
     }
 
     if (oldRec.user_id) {
-      const userCheck = await pool.query(
-        'SELECT id FROM profiles WHERE id = $1 AND owner_id = $2 LIMIT 1',
-        [oldRec.user_id, currentOwnerId]
-      );
-      if (userCheck.rows.length > 0) return true;
+      try {
+        const userCheck = await pool.query(
+          'SELECT id FROM profiles WHERE id::text = $1 AND owner_id::text = $2 LIMIT 1',
+          [oldRec.user_id, currentOwnerId]
+        );
+        if (userCheck.rows.length > 0) return true;
+      } catch (_) {}
 
-      const appUserCheck = await pool.query(
-        'SELECT id FROM app_users WHERE id = $1 AND owner_id = $2 LIMIT 1',
-        [oldRec.user_id, currentOwnerId]
-      );
-      if (appUserCheck.rows.length > 0) return true;
+      try {
+        const appUserCheck = await pool.query(
+          'SELECT id FROM app_users WHERE id::text = $1 AND owner_id::text = $2 LIMIT 1',
+          [oldRec.user_id, currentOwnerId]
+        );
+        if (appUserCheck.rows.length > 0) return true;
+      } catch (_) {}
     }
 
     if (!oldRec.user_id && !oldRec.church_id) return true;
@@ -8445,7 +8765,7 @@ app.get('/api/v1/financial_records', async (req: Request, res: Response) => {
     const userIds = await getEquivalentUserIds(String(effectiveUserId));
     let query = `
       SELECT * FROM financial_records 
-      WHERE user_id = ANY($1)
+      WHERE user_id::text = ANY($1)
     `;
     const params: any[] = [userIds];
     let count = 2;

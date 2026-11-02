@@ -969,7 +969,7 @@ export const ManualIdModal: React.FC = () => {
                 // 🛡️ Clona o ArrayBuffer ANTES de passar para o worker do pdf.js para evitar que seja destacado (detached ArrayBuffer)
                 const arrayBufferForRender = arrayBuffer.slice(0);
                 try {
-                    rawText = await extractTextFromPDF(arrayBuffer);
+                    rawText = await extractTextFromPDF(arrayBuffer.slice(0));
                 } catch (pdfErr) {
                     console.warn('Falha na extração de texto digital do PDF:', pdfErr);
                     rawText = '';

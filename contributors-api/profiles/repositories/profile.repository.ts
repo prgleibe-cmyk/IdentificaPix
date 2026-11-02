@@ -94,7 +94,7 @@ export class ProfileRepository {
           COALESCE(p.created_at, u.created_at, NOW()) AS created_at,
           COALESCE(p.updated_at, u.updated_at, NOW()) AS updated_at
         FROM app_users u
-        LEFT JOIN profiles p ON (p.id = u.id::text OR (p.email IS NOT NULL AND u.email IS NOT NULL AND LOWER(TRIM(p.email)) = LOWER(TRIM(u.email))))
+        LEFT JOIN profiles p ON (p.id::text = u.id::text OR (p.email IS NOT NULL AND u.email IS NOT NULL AND LOWER(TRIM(p.email)) = LOWER(TRIM(u.email))))
         WHERE u.deleted_at IS NULL
 
         UNION ALL
@@ -121,7 +121,7 @@ export class ProfileRepository {
           COALESCE(p.created_at, NOW()) AS created_at,
           COALESCE(p.updated_at, NOW()) AS updated_at
         FROM profiles p
-        WHERE p.id NOT IN (SELECT u.id::text FROM app_users u WHERE u.deleted_at IS NULL)
+        WHERE p.id::text NOT IN (SELECT u.id::text FROM app_users u WHERE u.deleted_at IS NULL)
           AND (p.email IS NULL OR LOWER(TRIM(p.email)) NOT IN (SELECT LOWER(TRIM(u.email)) FROM app_users u WHERE u.deleted_at IS NULL))
       )
       SELECT DISTINCT ON (COALESCE(LOWER(TRIM(email)), id)) *
@@ -136,9 +136,9 @@ export class ProfileRepository {
     await this.ensureTableExists();
     const query = `
       SELECT * FROM profiles 
-      WHERE id = $1 
-         OR LOWER(email) = LOWER($1)
-         OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
+      WHERE id::text = $1::text 
+         OR LOWER(email) = LOWER($1::text)
+         OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1::text LIMIT 1)
       LIMIT 1
     `;
     const result = await this.pool.query(query, [id]);
@@ -263,14 +263,14 @@ export class ProfileRepository {
           COALESCE(p.created_at, u.created_at, NOW()) AS created_at,
           COALESCE(p.updated_at, u.updated_at, NOW()) AS updated_at
         FROM app_users u
-        LEFT JOIN profiles p ON (p.id = u.id::text OR (p.email IS NOT NULL AND u.email IS NOT NULL AND LOWER(TRIM(p.email)) = LOWER(TRIM(u.email))))
+        LEFT JOIN profiles p ON (p.id::text = u.id::text OR (p.email IS NOT NULL AND u.email IS NOT NULL AND LOWER(TRIM(p.email)) = LOWER(TRIM(u.email))))
         WHERE u.deleted_at IS NULL
           AND (
             u.owner_id::text IN (SELECT key_val FROM all_owner_keys WHERE key_val IS NOT NULL)
             OR LOWER(TRIM(u.owner_id::text)) IN (SELECT key_val FROM all_owner_keys WHERE key_val IS NOT NULL)
             OR (p.owner_id IS NOT NULL AND (
-                p.owner_id IN (SELECT key_val FROM all_owner_keys WHERE key_val IS NOT NULL)
-                OR LOWER(TRIM(p.owner_id)) IN (SELECT key_val FROM all_owner_keys WHERE key_val IS NOT NULL)
+                p.owner_id::text IN (SELECT key_val FROM all_owner_keys WHERE key_val IS NOT NULL)
+                OR LOWER(TRIM(p.owner_id::text)) IN (SELECT key_val FROM all_owner_keys WHERE key_val IS NOT NULL)
             ))
           )
 
@@ -299,10 +299,10 @@ export class ProfileRepository {
           p.updated_at
         FROM profiles p
         WHERE (
-          p.owner_id IN (SELECT key_val FROM all_owner_keys WHERE key_val IS NOT NULL)
-          OR LOWER(TRIM(p.owner_id)) IN (SELECT key_val FROM all_owner_keys WHERE key_val IS NOT NULL)
+          p.owner_id::text IN (SELECT key_val FROM all_owner_keys WHERE key_val IS NOT NULL)
+          OR LOWER(TRIM(p.owner_id::text)) IN (SELECT key_val FROM all_owner_keys WHERE key_val IS NOT NULL)
         )
-        AND p.id NOT IN (SELECT u.id::text FROM app_users u WHERE u.deleted_at IS NULL)
+        AND p.id::text NOT IN (SELECT u.id::text FROM app_users u WHERE u.deleted_at IS NULL)
         AND (p.email IS NULL OR LOWER(TRIM(p.email)) NOT IN (SELECT LOWER(TRIM(u.email)) FROM app_users u WHERE u.deleted_at IS NULL))
       )
       SELECT * FROM (
@@ -555,10 +555,10 @@ export class ProfileRepository {
 
     // 1. Remover da tabela profiles
     try {
-      let pQuery = 'DELETE FROM profiles WHERE id = $1';
+      let pQuery = 'DELETE FROM profiles WHERE id::text = $1::text';
       let pParams: any[] = [targetId];
       if (targetEmail) {
-        pQuery = 'DELETE FROM profiles WHERE id = $1 OR LOWER(TRIM(email)) = $2';
+        pQuery = 'DELETE FROM profiles WHERE id::text = $1::text OR LOWER(TRIM(email)) = $2';
         pParams = [targetId, targetEmail];
       }
       const pRes = await this.pool.query(pQuery, pParams);
