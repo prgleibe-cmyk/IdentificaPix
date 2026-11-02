@@ -67,18 +67,6 @@ export const ReportsView: React.FC = () => {
             isConfirmed: false
         };
 
-        const defaultChurch = churches[0] || { id: '', name: 'Sem Igreja', address: '', logoUrl: '' };
-
-        const newMatchResult: MatchResult = {
-            transaction: newTx,
-            contributor: null,
-            status: ReconciliationStatus.PENDING,
-            church: defaultChurch,
-            isConfirmed: false,
-            updatedAt: new Date().toISOString()
-        };
-
-        if (setMatchResults) setMatchResults((prev: any) => [...prev, newMatchResult]);
         if (setBulkIdentificationTxs) setBulkIdentificationTxs([newTx]);
         setActiveView('novo_lancamento');
     };

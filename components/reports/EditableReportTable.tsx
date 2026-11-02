@@ -1139,10 +1139,19 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
             if (isMounted) setAttachmentsMap(map);
         });
 
-        const handleAttUpdate = () => {
-            preloadAllAttachmentsMap().then(map => {
-                if (isMounted) setAttachmentsMap(map);
-            });
+        const handleAttUpdate = (e: any) => {
+            const detail = e?.detail;
+            if (detail?.txId && detail?.attachments) {
+                setAttachmentsMap(prev => {
+                    const next = new Map(prev);
+                    next.set(detail.txId, detail.attachments);
+                    return next;
+                });
+            } else {
+                preloadAllAttachmentsMap(true).then(map => {
+                    if (isMounted) setAttachmentsMap(new Map(map));
+                });
+            }
         };
 
         window.addEventListener('expense_attachments_updated', handleAttUpdate);
@@ -1977,7 +1986,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                         return next;
                     });
                     if (onRowChange) {
-                        const target = data.find(r => r.transaction.id === txId);
+                        const target = data.find(r => r.transaction?.id === txId || (r as any).id === txId || r.transaction.id === txId);
                         if (target) {
                             onRowChange({
                                 ...target,

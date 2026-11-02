@@ -1,6 +1,6 @@
 
 import React, { useState, useContext, useEffect, useMemo, useCallback } from 'react';
-import { Calendar, FileText, DollarSign, PlusCircle, ArrowLeft, ArrowUpRight, ArrowDownRight, CheckCircle2, Sparkles, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { Calendar, FileText, DollarSign, PlusCircle, ArrowLeft, ArrowUpRight, ArrowDownRight, CheckCircle2, Sparkles, X, ChevronUp, ChevronDown, Camera, Loader2, Eye } from 'lucide-react';
 import { AppContext } from '../../contexts/AppContext';
 import { useUI } from '../../contexts/UIContext';
 import { useTranslation } from '../../contexts/I18nContext';
@@ -12,9 +12,19 @@ import { extractNameAndCpf, findSimilarContributors } from '../../utils/contribu
 import { getStoredWhatsAppSettings } from './WhatsAppReceiptModal';
 import { getCachedContributors } from '../../services/contributorsCache';
 import { ExpenseDocumentUploader } from '../financial/ExpenseDocumentUploader';
+import { AttachmentPreviewModal } from '../financial/AttachmentPreviewModal';
 import { ExpenseAttachment } from '../../types/domain';
-import { ExtractedExpenseDoc } from '../../utils/expenseDocumentParser';
-import { getAttachmentsForTransaction } from '../../services/expenseAttachmentService';
+import { 
+    ExtractedExpenseDoc, 
+    extractTextFromPDF, 
+    analyzeExpenseDocumentText, 
+    compressImageIfNeeded, 
+    inferDocumentRole, 
+    DocumentRole,
+    isDocumentTextLegible
+} from '../../utils/expenseDocumentParser';
+import { processImageAndExtractText, renderPdfFirstPageToImage } from '../../utils/imageOcrReader';
+import { getAttachmentsForTransaction, saveAttachmentsForTransaction } from '../../services/expenseAttachmentService';
 
 const formatCpfCnpj = (value: string) => {
     const clean = value.replace(/\D/g, '');
@@ -33,6 +43,7 @@ export const ManualIdModal: React.FC = () => {
         setMatchResults,
         churches,
         banks,
+        activeBankFiles,
         confirmBulkManualIdentification,
         closeManualIdentify,
         findMatchResult,
@@ -48,7 +59,11 @@ export const ManualIdModal: React.FC = () => {
     const { subscription, user } = useAuth();
 
     const handleClose = () => {
+        isChurchManuallyChangedRef.current = false;
         closeManualIdentify();
+        if (setMatchResults) {
+            setMatchResults((prev: any) => prev.filter((r: any) => !r.transaction?.id?.startsWith('ghost-manual-')));
+        }
         if (activeView === 'novo_lancamento') {
             setActiveView('reports');
         }
@@ -86,6 +101,13 @@ export const ManualIdModal: React.FC = () => {
     } | null>(null);
     const [isBottomUploaderOpen, setIsBottomUploaderOpen] = useState(false);
     const [attachments, setAttachments] = useState<ExpenseAttachment[]>([]);
+    const [previewAttachment, setPreviewAttachment] = useState<ExpenseAttachment | null>(null);
+    const [selectedDocType, setSelectedDocType] = useState<string>('Boleto');
+    const [isReadingDocument, setIsReadingDocument] = useState<boolean>(false);
+    const [readingStatusText, setReadingStatusText] = useState<string>('');
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
+    const block2FileInputRef = React.useRef<HTMLInputElement>(null);
+
     const [isSaving, setIsSaving] = useState(false);
     const isSavingRef = React.useRef<boolean>(false);
 
@@ -99,6 +121,7 @@ export const ManualIdModal: React.FC = () => {
     const isDateManuallyChangedRef = React.useRef<boolean>(false);
     const isAmountManuallyChangedRef = React.useRef<boolean>(false);
     const isDescManuallyChangedRef = React.useRef<boolean>(false);
+    const isChurchManuallyChangedRef = React.useRef<boolean>(false);
 
     const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         isAmountManuallyChangedRef.current = true;
@@ -482,7 +505,7 @@ export const ManualIdModal: React.FC = () => {
         setManualDescription(chosenName);
         isDescManuallyChangedRef.current = true;
 
-        // Auto-preenche a igreja conforme o cadastro imediatamente
+        // Auto-preenche a igreja conforme o cadastro imediatamente se o usuário ainda não escolheu manualmente
         const targetChurch = (churches || []).find((ch: any) => 
             (col._churchId && ch.id === col._churchId) ||
             (col.church_id && ch.id === col.church_id) ||
@@ -492,7 +515,7 @@ export const ManualIdModal: React.FC = () => {
             (col.church_name && ch.name && ch.name.trim().toLowerCase() === col.church_name.trim().toLowerCase())
         ) || (col._churchId && churches.some(ch => ch.id === col._churchId) ? { id: col._churchId, name: col._churchName } : null) || (churches && churches.length === 1 ? churches[0] : null);
 
-        if (targetChurch?.id) {
+        if (!isChurchManuallyChangedRef.current && targetChurch?.id) {
             setSelectedChurchId(targetChurch.id);
         }
 
@@ -547,7 +570,7 @@ export const ManualIdModal: React.FC = () => {
                         setSelectedAssociationType('unify');
                         setSelectedUnifiedField(best.contributor.id);
                         const chId = best.contributor._churchId || best.contributor.church_id || best.church?.id;
-                        if (chId) {
+                        if (chId && !isChurchManuallyChangedRef.current) {
                             setSelectedChurchId(chId);
                         }
                     } else {
@@ -584,13 +607,25 @@ export const ManualIdModal: React.FC = () => {
             isDateManuallyChangedRef.current = false;
             isAmountManuallyChangedRef.current = false;
             isDescManuallyChangedRef.current = false;
+            isChurchManuallyChangedRef.current = false;
 
             const existingAtts = tx.attachments || (findMatchResult ? findMatchResult(tx.id)?.attachments : null);
             if (Array.isArray(existingAtts) && existingAtts.length > 0) {
                 setAttachments(existingAtts);
+                if (tx.id && !tx.id.startsWith('ghost-') && existingAtts.some(a => !a.dataUrl)) {
+                    getAttachmentsForTransaction(tx.id).then(loaded => {
+                        if (loaded && loaded.length > 0) {
+                            setAttachments(loaded);
+                            tx.attachments = loaded;
+                        }
+                    }).catch(() => {});
+                }
             } else if (tx.id && !tx.id.startsWith('ghost-')) {
                 getAttachmentsForTransaction(tx.id).then(loaded => {
                     setAttachments(loaded || []);
+                    if (loaded && loaded.length > 0) {
+                        tx.attachments = loaded;
+                    }
                 }).catch(() => setAttachments([]));
             } else {
                 setAttachments([]);
@@ -600,6 +635,12 @@ export const ManualIdModal: React.FC = () => {
         // Se já foi inicializado para a mesma transação, não sobreescreve escolhas do usuário
         if (initializedTxIdRef.current === activeTxId) return;
         initializedTxIdRef.current = activeTxId || null;
+
+        const isGenericOrInvalidType = (typeVal?: string | null) => {
+            if (!typeVal) return true;
+            const upper = typeVal.trim().toUpperCase();
+            return ['ENTRADA', 'ENTRADAS', 'SAÍDA', 'SAIDA', 'SAIDAS', 'INCOME', 'EXPENSE', '---', 'NONE', 'NULL', 'UNDEFINED'].includes(upper);
+        };
 
         if (isManual) {
             const matchedResult = findMatchResult ? findMatchResult(tx.id) : null;
@@ -636,10 +677,12 @@ export const ManualIdModal: React.FC = () => {
             }
 
             // 4. Church ID & Bank ID
-            if (matchedResult?.church?.id) {
-                setSelectedChurchId(matchedResult.church.id);
-            } else if (churches.length === 1) {
-                setSelectedChurchId(churches[0].id);
+            if (!isChurchManuallyChangedRef.current) {
+                if (matchedResult?.church?.id) {
+                    setSelectedChurchId(matchedResult.church.id);
+                } else if (churches.length === 1) {
+                    setSelectedChurchId(churches[0].id);
+                }
             }
 
             if (tx.bank_id) {
@@ -657,10 +700,12 @@ export const ManualIdModal: React.FC = () => {
             
             if (isExplicitSaida) {
                 setManualType('saida');
-                setSelectedType(matchedResult?.contributionType || '');
+                const candidate = matchedResult?.contributionType?.trim();
+                setSelectedType(candidate && !isGenericOrInvalidType(candidate) ? candidate : '');
             } else if (isExplicitEntrada) {
                 setManualType('entrada');
-                setSelectedType(matchedResult?.contributionType || '');
+                const candidate = matchedResult?.contributionType?.trim();
+                setSelectedType(candidate && !isGenericOrInvalidType(candidate) ? candidate : '');
             } else {
                 setManualType(null);
                 setSelectedType('');
@@ -715,43 +760,60 @@ export const ManualIdModal: React.FC = () => {
 
             if (isTxSaida) {
                 setManualType('saida');
-                if (matchedResult?.contributionType) {
-                    setSelectedType(matchedResult.contributionType);
-                } else {
-                    setSelectedType(defaultSaidaType);
-                }
+                const candidateSaida = matchedResult?.contributionType?.trim();
+                const registeredSaidas = (contributionTypes || [])
+                    .filter((ct: any) => ct.type === 'saida' && ct.is_active !== false)
+                    .map((ct: any) => ct.name?.toUpperCase());
+                const isRegisteredSaida = candidateSaida && (
+                    registeredSaidas.includes(candidateSaida.toUpperCase()) ||
+                    registeredSaidas.length === 0
+                );
+                const isValidSaida = candidateSaida && !isGenericOrInvalidType(candidateSaida) && isRegisteredSaida;
+                setSelectedType(isValidSaida ? candidateSaida : defaultSaidaType);
             } else {
                 setManualType('entrada');
-                if (matchedResult?.contributionType) {
-                    setSelectedType(matchedResult.contributionType);
-                } else {
-                    setSelectedType(defaultEntradaType);
-                }
+                const candidateEntrada = matchedResult?.contributionType?.trim();
+                const registeredEntradas = (contributionTypes || [])
+                    .filter((ct: any) => (ct.type === 'entrada' || !ct.type) && ct.is_active !== false)
+                    .map((ct: any) => ct.name?.toUpperCase());
+                const isRegisteredEntrada = candidateEntrada && (
+                    registeredEntradas.includes(candidateEntrada.toUpperCase()) ||
+                    (contributionKeywords || []).some((k: string) => k?.toUpperCase() === candidateEntrada.toUpperCase()) ||
+                    (registeredEntradas.length === 0 && (candidateEntrada === 'Dízimo' || candidateEntrada === 'Oferta'))
+                );
+                const isValidEntrada = candidateEntrada && !isGenericOrInvalidType(candidateEntrada) && isRegisteredEntrada;
+                setSelectedType(isValidEntrada ? candidateEntrada : defaultEntradaType);
             }
 
             // Inicializa a data de referência com a data da transação ou a reference_date existente
             const initialDate = matchedResult?.reference_date || tx.reference_date || tx.date || new Date().toISOString().split('T')[0];
             setSelectedDate(initialDate);
 
-            if (matchedResult?.church?.id && matchedResult.church.id !== 'unidentified') {
-                setSelectedChurchId(matchedResult.church.id);
-            } else if (matchedResult?._churchId && matchedResult._churchId !== 'unidentified') {
-                setSelectedChurchId(matchedResult._churchId);
-            } else if (churches.length === 1) {
-                setSelectedChurchId(churches[0].id);
-            } else {
-                setSelectedChurchId('');
+            if (!isChurchManuallyChangedRef.current) {
+                if (matchedResult?.church?.id && matchedResult.church.id !== 'unidentified') {
+                    setSelectedChurchId(matchedResult.church.id);
+                } else if (matchedResult?._churchId && matchedResult._churchId !== 'unidentified') {
+                    setSelectedChurchId(matchedResult._churchId);
+                } else if (churches.length === 1) {
+                    setSelectedChurchId(churches[0].id);
+                } else {
+                    setSelectedChurchId('');
+                }
             }
 
-            if (tx.bank_id) {
-                setSelectedBankId(tx.bank_id);
+            const txBankId = tx.bank_id || 
+                matchedResult?.transaction?.bank_id || 
+                (activeBankFiles || []).find((f: any) => (f.processedTransactions || []).some((pt: any) => pt.id === tx.id))?.bankId;
+
+            if (txBankId) {
+                setSelectedBankId(txBankId);
             } else if (matchedResult?.transaction?.bank_id) {
                 setSelectedBankId(matchedResult.transaction.bank_id);
             } else if (availableBanks.length === 1) {
                 setSelectedBankId(availableBanks[0].id);
             }
         }
-    }, [activeTxId, bulkIdentificationTxs, findMatchResult, churches, defaultEntradaType, defaultSaidaType, availableBanks]);
+    }, [activeTxId, bulkIdentificationTxs, findMatchResult, churches, defaultEntradaType, defaultSaidaType, availableBanks, activeBankFiles]);
 
     // --- ATALHOS DE TECLADO ---
     useEffect(() => {
@@ -803,7 +865,7 @@ export const ManualIdModal: React.FC = () => {
             if (matchedCol) {
                 setSelectedAssociationType('unify');
                 setSelectedUnifiedField(matchedCol.id);
-                if (matchedCol._churchId && !selectedChurchId) {
+                if (matchedCol._churchId && !selectedChurchId && !isChurchManuallyChangedRef.current) {
                     setSelectedChurchId(matchedCol._churchId);
                 }
             }
@@ -811,13 +873,17 @@ export const ManualIdModal: React.FC = () => {
 
         // 3. Data da Operação / Vencimento
         const docDate = extracted.extractedDueDate || extracted.extractedDate;
-        if (docDate) {
-            setSelectedDate(docDate);
-            isDateManuallyChangedRef.current = true;
-            if (bulkIdentificationTxs?.[0] && bulkIdentificationTxs[0].id?.startsWith('ghost-manual-')) {
-                bulkIdentificationTxs[0].date = docDate;
+        if (docDate && !isDateManuallyChangedRef.current) {
+            const docYear = parseInt(docDate.split('-')[0], 10);
+            const currentYear = new Date().getFullYear();
+            // Preserva a data atual se a data do documento for de anos anteriores distantes (ex: fotos de notas antigas para teste)
+            if (!isNaN(docYear) && Math.abs(docYear - currentYear) <= 1) {
+                setSelectedDate(docDate);
+                if (bulkIdentificationTxs?.[0] && bulkIdentificationTxs[0].id?.startsWith('ghost-manual-')) {
+                    bulkIdentificationTxs[0].date = docDate;
+                }
+                fieldsFilledCount++;
             }
-            fieldsFilledCount++;
         }
 
         // 4. Forma de Pagamento
@@ -883,6 +949,145 @@ export const ManualIdModal: React.FC = () => {
         }
     };
 
+    const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+        const file = files[0];
+        const isFirstDocument = attachments.length === 0;
+
+        setIsReadingDocument(true);
+        setReadingStatusText(isFirstDocument ? 'Processando e lendo documento...' : 'Anexando documento adicional...');
+
+        try {
+            let dataUrl = '';
+            let finalSize = file.size;
+            let rawText = '';
+
+            if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+                setReadingStatusText('Lendo texto digital do PDF...');
+                const arrayBuffer = await file.arrayBuffer();
+                // 🛡️ Clona o ArrayBuffer ANTES de passar para o worker do pdf.js para evitar que seja destacado (detached ArrayBuffer)
+                const arrayBufferForRender = arrayBuffer.slice(0);
+                try {
+                    rawText = await extractTextFromPDF(arrayBuffer.slice(0));
+                } catch (pdfErr) {
+                    console.warn('Falha na extração de texto digital do PDF:', pdfErr);
+                    rawText = '';
+                }
+
+                // Se o PDF não tiver camada de texto digital (escaneado), aciona OCR óptico
+                if (!rawText || rawText.trim().length < 20) {
+                    setReadingStatusText('Lendo OCR do PDF escaneado...');
+                    try {
+                        const pdfPageImage = await renderPdfFirstPageToImage(arrayBufferForRender);
+                        if (pdfPageImage) {
+                            rawText = await processImageAndExtractText(pdfPageImage, file.name);
+                        }
+                    } catch (ocrErr) {
+                        console.warn('Falha no OCR do PDF escaneado:', ocrErr);
+                    }
+                }
+
+                const reader = new FileReader();
+                dataUrl = await new Promise<string>((resolve) => {
+                    reader.onload = () => resolve(reader.result as string);
+                    reader.onerror = () => resolve('');
+                    reader.readAsDataURL(file);
+                });
+            } else if (file.type.startsWith('image/')) {
+                setReadingStatusText('Lendo foto via OCR óptico...');
+                const compressed = await compressImageIfNeeded(file);
+                dataUrl = compressed.dataUrl;
+                finalSize = compressed.size;
+                try {
+                    rawText = await processImageAndExtractText(dataUrl, file.name);
+                } catch (imgErr) {
+                    console.warn('Falha no OCR da imagem:', imgErr);
+                }
+            } else if (file.type === 'text/xml' || file.type === 'application/xml' || file.name.toLowerCase().endsWith('.xml')) {
+                setReadingStatusText('Lendo XML da Nota Fiscal...');
+                try {
+                    rawText = await file.text();
+                } catch (_) {
+                    rawText = '';
+                }
+                const reader = new FileReader();
+                dataUrl = await new Promise<string>((resolve) => {
+                    reader.onload = () => resolve(reader.result as string);
+                    reader.onerror = () => resolve('');
+                    reader.readAsDataURL(file);
+                });
+            } else {
+                const reader = new FileReader();
+                dataUrl = await new Promise<string>((resolve) => {
+                    reader.onload = () => resolve(reader.result as string);
+                    reader.onerror = () => resolve('');
+                    reader.readAsDataURL(file);
+                });
+            }
+
+            // Analisa e extrai dados (valor, favorecido, data, forma de pagamento, etc.)
+            const extractedData: ExtractedExpenseDoc = analyzeExpenseDocumentText(rawText);
+
+            // 🛡️ Validação de legibilidade obrigatória para TODOS os documentos: se não estiver legível, rejeita upload
+            if (!isDocumentTextLegible(rawText, extractedData)) {
+                showToast('Documento ilegível: Não foi possível realizar a leitura do arquivo para extração segura e correta dos dados. Para garantir a validade contábil, envie uma foto ou PDF nítido e legível.', 'error');
+                return;
+            }
+
+            const autoRole = inferDocumentRole(extractedData.documentType, file.name);
+
+            const roleMap: Record<string, DocumentRole> = {
+                'Boleto': 'fatura',
+                'Nota Fiscal': 'nota_fiscal',
+                'Recibo': 'recibo',
+                'Outro': 'outro'
+            };
+            const assignedRole: DocumentRole = roleMap[selectedDocType] || (autoRole === 'outro' ? 'comprovante' : autoRole);
+
+            const newAttachment: ExpenseAttachment = {
+                id: `att-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+                fileName: file.name || `${selectedDocType}.jpg`,
+                fileSize: finalSize,
+                fileType: file.type || 'image/jpeg',
+                dataUrl: dataUrl,
+                uploadedAt: new Date().toISOString(),
+                documentRole: assignedRole,
+                extractedData,
+                validationStatus: 'validated'
+            };
+
+            setAttachments(prev => {
+                const next = [...prev, newAttachment];
+                if (bulkIdentificationTxs && bulkIdentificationTxs[0]) {
+                    bulkIdentificationTxs[0].attachments = next;
+                }
+                if (activeTxId && !activeTxId.startsWith('ghost-manual-') && !activeTxId.startsWith('temp-')) {
+                    saveAttachmentsForTransaction(activeTxId, next).catch(attErr => {
+                        console.warn('[ManualIdModal] Erro ao persistir anexo em tempo real:', attErr);
+                    });
+                }
+                return next;
+            });
+
+            // 🛡️ Preenche automaticamente os campos do formulário manual exclusivamente para o primeiro documento
+            if (isFirstDocument) {
+                handleDocumentDataExtracted(extractedData, newAttachment);
+            } else {
+                showToast('Documento adicional verificado e anexado com sucesso.', 'success');
+            }
+        } catch (err) {
+            console.error('Erro ao ler e processar documento:', err);
+            showToast('Documento ilegível ou corrompido: Não foi possível processar o arquivo. Por favor, envie um documento legível.', 'error');
+        } finally {
+            setIsReadingDocument(false);
+            setReadingStatusText('');
+            if (e.target) e.target.value = '';
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            if (block2FileInputRef.current) block2FileInputRef.current.value = '';
+        }
+    };
+
     if (!isBulk) return null;
     
     const handleConfirm = async () => {
@@ -908,8 +1113,8 @@ export const ManualIdModal: React.FC = () => {
 
         const effectiveDateToCheck = selectedDate || bulkIdentificationTxs?.[0]?.date || new Date().toISOString().split('T')[0];
 
-        if (selectedChurchId && isPeriodClosed(effectiveDateToCheck, matchResults, selectedChurchId)) {
-            alert("PERÍODO CONGELADO: Este período contábil já teve seu Fechamento Final homologado para a congregação selecionada. Novos lançamentos ou alterações nesta congregação estão bloqueados.");
+        if (selectedChurchId && isPeriodClosed(effectiveDateToCheck, matchResults, selectedChurchId, selectedBankId)) {
+            alert("LANÇAMENTO BLOQUEADO: Esta data ou período contábil já possui Confirmação Final homologada para a congregação selecionada. Novos lançamentos ou alterações nesta data/congregação estão expressamente bloqueados.");
             return;
         }
 
@@ -964,8 +1169,8 @@ export const ManualIdModal: React.FC = () => {
         } catch (error: any) {
             console.error("[ManualIdModal] Error confirming identification:", error);
             const errMsg = error?.message || String(error);
-            if (errMsg.includes('PERIOD_CLOSED') || errMsg.includes('PERÍODO CONGELADO')) {
-                alert("OPERAÇÃO REJEITADA PELO SERVIDOR:\n\nEste período contábil já teve seu Fechamento Final homologado para a igreja. Não é permitido criar ou alterar lançamentos neste período.");
+            if (errMsg.includes('PERIOD_CLOSED') || errMsg.includes('PERÍODO CONGELADO') || errMsg.includes('DATA CONGELADA') || errMsg.includes('TRANSACTION_CONFIRMED')) {
+                alert(`OPERAÇÃO REJEITADA PELO SERVIDOR:\n\n${errMsg}`);
             } else {
                 alert(`Erro ao salvar lançamento: ${errMsg}`);
             }
@@ -1075,84 +1280,110 @@ export const ManualIdModal: React.FC = () => {
                         </div>
                     )}
 
-                    {/* Escolha Intuitiva de Modo para Saída (Despesa): Opção 1 */}
+                    {/* Botão Único para Upload ou Tirar Foto com Seleção do Documento (Boleto, Nota Fiscal, Recibo) */}
                     {manualType === 'saida' && (
-                        <div className="space-y-3 animate-fade-in">
-                            <div className="bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 shadow-xs">
-                                <div>
-                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                                        <Sparkles className="w-3.5 h-3.5 text-orange-500" />
-                                        Como você prefere lançar esta despesa?
+                        <div className="flex flex-wrap items-center justify-between gap-2.5 py-1 px-0.5 animate-fade-in">
+                            <div className="inline-flex items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/90 dark:bg-slate-800/80 p-1 shadow-xs hover:border-orange-400 dark:hover:border-orange-500/80 transition-all">
+                                {/* Opção integrada para selecionar o nome do documento se o usuário quiser */}
+                                <div className="flex items-center gap-1.5 px-2.5 py-1">
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                        Documento:
                                     </span>
-                                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
-                                        Escolha entre leitura automática por documento ou digitação manual.
-                                    </span>
-                                </div>
-                                <div className="grid grid-cols-2 gap-1.5 w-full sm:w-auto shrink-0">
-                                    <button
-                                        type="button"
-                                        onClick={() => setSaidaMode('upload')}
-                                        className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                                            saidaMode === 'upload'
-                                                ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-sm shadow-orange-500/20 ring-2 ring-orange-400/40'
-                                                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700'
-                                        }`}
+                                    <select
+                                        value={selectedDocType}
+                                        onChange={(e) => setSelectedDocType(e.target.value)}
+                                        className="bg-transparent text-xs font-black text-slate-800 dark:text-slate-100 outline-none cursor-pointer pr-1"
+                                        title="Selecione o tipo do documento (opcional)"
                                     >
-                                        <Sparkles className="w-3.5 h-3.5" />
-                                        <span>⚡ Carregar Documento</span>
-                                        <span className="text-[9px] bg-white/20 px-1 py-0.5 rounded font-normal">Recomendado</span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setSaidaMode('manual')}
-                                        className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                                            saidaMode === 'manual'
-                                                ? 'bg-rose-600 text-white shadow-sm shadow-rose-600/20 ring-2 ring-rose-400/40'
-                                                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700'
-                                        }`}
-                                    >
-                                        <FileText className="w-3.5 h-3.5" />
-                                        <span>✍️ Digitar Manual</span>
-                                    </button>
+                                        <option value="Boleto" className="text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800">Boleto / Fatura</option>
+                                        <option value="Nota Fiscal" className="text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800">Nota Fiscal</option>
+                                        <option value="Recibo" className="text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800">Comprovante</option>
+                                        <option value="Outro" className="text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800">Outro</option>
+                                    </select>
                                 </div>
+
+                                <div className="h-5 w-px bg-slate-200 dark:bg-slate-700 mx-0.5" />
+
+                                {/* O Único Botão de Upload ou Foto */}
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={isReadingDocument}
+                                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-black text-white bg-gradient-to-r from-orange-500 to-amber-600 hover:opacity-95 shadow-xs cursor-pointer transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+                                    title="Clique para anexar arquivo ou tirar foto com a câmera"
+                                >
+                                    {isReadingDocument ? (
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    ) : (
+                                        <Camera className="w-3.5 h-3.5" />
+                                    )}
+                                    <span>{isReadingDocument ? (readingStatusText || 'Lendo documento...') : 'Upload / Foto'}</span>
+                                </button>
                             </div>
 
-                            {/* No modo Upload: Uploader no topo para preenchimento imediato */}
-                            {saidaMode === 'upload' && (
-                                <div className="space-y-2">
-                                    <ExpenseDocumentUploader
-                                        attachments={attachments}
-                                        onChangeAttachments={setAttachments}
-                                        currentAmount={parsedCurrentAmount}
-                                        onApplyExtractedAmount={(val) => {
-                                            setManualAmount(val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-                                            isAmountManuallyChangedRef.current = true;
-                                        }}
-                                        onApplyExtractedRecipient={(recipient) => {
-                                            setManualDescription(recipient);
-                                            isDescManuallyChangedRef.current = true;
-                                        }}
-                                        onDocumentDataExtracted={handleDocumentDataExtracted}
-                                    />
+                            {/* Input oculto padrão para upload de arquivos ou foto da câmera */}
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*,application/pdf,application/xml,text/xml,.xml"
+                                className="hidden"
+                                onChange={handleFileSelected}
+                                disabled={isReadingDocument}
+                            />
 
-                                    {/* Feedback de sucesso e transparência */}
-                                    {lastAutoFilledDoc && (
-                                        <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-xl text-emerald-900 dark:text-emerald-200 flex items-center justify-between gap-2 animate-fade-in shadow-xs">
-                                            <div className="flex items-center gap-2 text-xs">
-                                                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                                                <span>
-                                                    <strong>Documento lido ({lastAutoFilledDoc.fileName}):</strong> {lastAutoFilledDoc.fieldsCount} dado(s) preenchido(s) automaticamente nos campos abaixo. Revise e clique em <strong>Salvar Lançamento</strong>.
-                                                </span>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => setLastAutoFilledDoc(null)}
-                                                className="text-emerald-700 hover:text-emerald-900 dark:text-emerald-300 p-0.5 rounded cursor-pointer"
+                            {/* Chips dos documentos anexados com visual enxuto e opção de visualização */}
+                            {attachments.length > 0 && (
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    {attachments.map((att, idx) => {
+                                        const docLabel = att.documentRole === 'nota_fiscal' 
+                                            ? 'Nota Fiscal' 
+                                            : att.documentRole === 'fatura' 
+                                                ? 'Boleto / Fatura' 
+                                                : att.documentRole === 'recibo' 
+                                                    ? 'Comprovante' 
+                                                    : 'Doc';
+                                        return (
+                                            <div
+                                                key={att.id || idx}
+                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800/60 text-xs font-bold text-orange-800 dark:text-orange-200 shadow-2xs animate-fade-in"
                                             >
-                                                <X className="w-3.5 h-3.5" />
-                                            </button>
-                                        </div>
-                                    )}
+                                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                                <span className="truncate max-w-[170px] font-semibold">
+                                                    {docLabel}: {att.fileName}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setPreviewAttachment(att)}
+                                                    className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-orange-700 dark:text-orange-300 bg-orange-100 hover:bg-orange-200 dark:bg-orange-900/60 dark:hover:bg-orange-800/60 px-2 py-0.5 rounded-md cursor-pointer transition-colors"
+                                                    title="Visualizar documento carregado"
+                                                >
+                                                    <Eye className="w-3 h-3" />
+                                                    <span>Ver</span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setAttachments(prev => {
+                                                            const next = prev.filter((_, i) => i !== idx);
+                                                            if (bulkIdentificationTxs && bulkIdentificationTxs[0]) {
+                                                                bulkIdentificationTxs[0].attachments = next;
+                                                            }
+                                                            if (activeTxId && !activeTxId.startsWith('ghost-manual-') && !activeTxId.startsWith('temp-')) {
+                                                                saveAttachmentsForTransaction(activeTxId, next).catch(attErr => {
+                                                                    console.warn('[ManualIdModal] Erro ao persistir remoção de anexo em tempo real:', attErr);
+                                                                });
+                                                            }
+                                                            return next;
+                                                        });
+                                                    }}
+                                                    className="text-orange-400 hover:text-rose-600 p-0.5 rounded cursor-pointer transition-colors ml-0.5"
+                                                    title="Remover documento"
+                                                >
+                                                    <X className="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>
@@ -1253,7 +1484,7 @@ export const ManualIdModal: React.FC = () => {
                                     if (exactMatch) {
                                         setSelectedAssociationType('unify');
                                         setSelectedUnifiedField(exactMatch.id);
-                                        if (exactMatch._churchId && churches.some(ch => ch.id === exactMatch._churchId)) {
+                                        if (!isChurchManuallyChangedRef.current && exactMatch._churchId && churches.some(ch => ch.id === exactMatch._churchId)) {
                                             setSelectedChurchId(exactMatch._churchId);
                                         }
                                     } else {
@@ -1385,10 +1616,12 @@ export const ManualIdModal: React.FC = () => {
                                         onClick={() => {
                                             setSelectedAssociationType('create_new');
                                             setSelectedUnifiedField('');
-                                            if (churches.length !== 1) {
-                                                setSelectedChurchId('');
-                                            } else {
-                                                setSelectedChurchId(churches[0].id);
+                                            if (!isChurchManuallyChangedRef.current) {
+                                                if (churches.length !== 1) {
+                                                    setSelectedChurchId('');
+                                                } else {
+                                                    setSelectedChurchId(churches[0].id);
+                                                }
                                             }
                                         }}
                                         className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
@@ -1407,7 +1640,7 @@ export const ManualIdModal: React.FC = () => {
                                                 const match = similarMatches[0];
                                                 setSelectedUnifiedField(match.contributor.id);
                                                 const chId = match.contributor._churchId || match.contributor.church_id || match.church?.id;
-                                                if (chId) setSelectedChurchId(chId);
+                                                if (chId && !isChurchManuallyChangedRef.current) setSelectedChurchId(chId);
                                             }
                                         }}
                                         className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
@@ -1436,7 +1669,7 @@ export const ManualIdModal: React.FC = () => {
                                                     type="button"
                                                     onClick={() => {
                                                         setSelectedUnifiedField(m.contributor.id);
-                                                        if (chId) setSelectedChurchId(chId);
+                                                        if (chId && !isChurchManuallyChangedRef.current) setSelectedChurchId(chId);
                                                     }}
                                                     className={`px-2 py-1 rounded-lg border text-left transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer text-[10px] ${
                                                         isSelected
@@ -1475,7 +1708,10 @@ export const ManualIdModal: React.FC = () => {
                                 <BuildingOfficeIcon className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-orange-500 transition-colors pointer-events-none" />
                                 <select
                                     value={selectedChurchId}
-                                    onChange={e => setSelectedChurchId(e.target.value)}
+                                    onChange={e => {
+                                        setSelectedChurchId(e.target.value);
+                                        isChurchManuallyChangedRef.current = true;
+                                    }}
                                     className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2.5 pl-10 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer"
                                 >
                                     <option value="">-- Clique para ver as igrejas --</option>
@@ -1671,40 +1907,6 @@ export const ManualIdModal: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Anexos Opcionais no Modo Digitação Manual */}
-                    {manualType === 'saida' && saidaMode === 'manual' && (
-                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 animate-fade-in">
-                            <button
-                                type="button"
-                                onClick={() => setIsBottomUploaderOpen(prev => !prev)}
-                                className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-orange-500 transition-colors cursor-pointer py-1"
-                            >
-                                <FileText className="w-3.5 h-3.5 text-orange-500" />
-                                <span>Anexar documento / comprovante (opcional)</span>
-                                {isBottomUploaderOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                            </button>
-                            {isBottomUploaderOpen && (
-                                <div className="mt-2.5">
-                                    <ExpenseDocumentUploader
-                                        attachments={attachments}
-                                        onChangeAttachments={setAttachments}
-                                        currentAmount={parsedCurrentAmount}
-                                        onApplyExtractedAmount={(val) => {
-                                            setManualAmount(val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-                                            isAmountManuallyChangedRef.current = true;
-                                        }}
-                                        onApplyExtractedRecipient={(recipient) => {
-                                            if (!manualDescription) {
-                                                setManualDescription(recipient);
-                                                isDescManuallyChangedRef.current = true;
-                                            }
-                                        }}
-                                        onDocumentDataExtracted={handleDocumentDataExtracted}
-                                    />
-                                </div>
-                            )}
-                        </div>
-                    )}
 
                     {/* Rodapé / Ações */}
                     <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2.5">
@@ -1732,6 +1934,13 @@ export const ManualIdModal: React.FC = () => {
                         </button>
                     </div>
                 </div>
+
+                {/* Modal de Pré-visualização do Documento (Foto / PDF) no Lançamento Manual */}
+                <AttachmentPreviewModal
+                    isOpen={!!previewAttachment}
+                    attachment={previewAttachment}
+                    onClose={() => setPreviewAttachment(null)}
+                />
             </div>
         );
     }
@@ -1755,7 +1964,7 @@ export const ManualIdModal: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2 self-end sm:self-auto">
                     <span className="text-[8px] font-black text-slate-400 uppercase border border-slate-200 dark:border-slate-800 px-1.5 py-0.5 rounded">Esc</span>
-                    <button type="button" onClick={closeManualIdentify} className="p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors">
+                    <button type="button" onClick={handleClose} className="p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors">
                         <XMarkIcon className="w-5 h-5" />
                     </button>
                 </div>
@@ -1873,7 +2082,7 @@ export const ManualIdModal: React.FC = () => {
                                             if (exactMatch) {
                                                 setSelectedAssociationType('unify');
                                                 setSelectedUnifiedField(exactMatch.id);
-                                                if (exactMatch._churchId && churches.some(ch => ch.id === exactMatch._churchId)) {
+                                                if (!isChurchManuallyChangedRef.current && exactMatch._churchId && churches.some(ch => ch.id === exactMatch._churchId)) {
                                                     setSelectedChurchId(exactMatch._churchId);
                                                 }
                                             } else {
@@ -1966,10 +2175,12 @@ export const ManualIdModal: React.FC = () => {
                                     type="button"
                                     onClick={() => {
                                         setSelectedAssociationType('create_new');
-                                        if (churches.length !== 1) {
-                                            setSelectedChurchId('');
-                                        } else {
-                                            setSelectedChurchId(churches[0].id);
+                                        if (!isChurchManuallyChangedRef.current) {
+                                            if (churches.length !== 1) {
+                                                setSelectedChurchId('');
+                                            } else {
+                                                setSelectedChurchId(churches[0].id);
+                                            }
                                         }
                                     }}
                                     className={`py-1.5 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${
@@ -1988,7 +2199,7 @@ export const ManualIdModal: React.FC = () => {
                                             const match = similarMatches[0];
                                             setSelectedUnifiedField(match.contributor.id);
                                             const chId = match.contributor._churchId || match.contributor.church_id || match.church?.id;
-                                            if (chId) setSelectedChurchId(chId);
+                                            if (chId && !isChurchManuallyChangedRef.current) setSelectedChurchId(chId);
                                         }
                                     }}
                                     className={`py-1.5 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${
@@ -2017,7 +2228,7 @@ export const ManualIdModal: React.FC = () => {
                                                     key={m.contributor.id || idx}
                                                     onClick={() => {
                                                         setSelectedUnifiedField(m.contributor.id);
-                                                        if (chId) setSelectedChurchId(chId);
+                                                        if (chId && !isChurchManuallyChangedRef.current) setSelectedChurchId(chId);
                                                     }}
                                                     className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
                                                         isSelected
@@ -2084,7 +2295,10 @@ export const ManualIdModal: React.FC = () => {
                                 <BuildingOfficeIcon className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
                                 <select
                                     value={selectedChurchId}
-                                    onChange={e => setSelectedChurchId(e.target.value)}
+                                    onChange={e => {
+                                        setSelectedChurchId(e.target.value);
+                                        isChurchManuallyChangedRef.current = true;
+                                    }}
                                     className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 pl-10 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer"
                                 >
                                     <option value="">-- Clique para ver as igrejas --</option>
@@ -2105,40 +2319,37 @@ export const ManualIdModal: React.FC = () => {
                         <div className="space-y-1.5">
                             <div className="flex items-center justify-between flex-wrap gap-1">
                                 <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-1">
-                                   Conta / Caixa de Destino {isManualLaunch && <span className="text-amber-500 font-bold">*</span>}
+                                   Conta / Caixa de Origem
                                 </label>
-                                {isManualLaunch && (
-                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border transition-colors ${
-                                        !selectedBankId 
-                                            ? 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 animate-pulse' 
-                                            : 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200/60 dark:border-emerald-800/60'
-                                    }`}>
-                                        {!selectedBankId ? '⚠️ Obrigatório' : '✓ Selecionado'}
-                                    </span>
-                                )}
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 flex items-center gap-1">
+                                    🔒 Origem Fixa
+                                </span>
                             </div>
                             <div className="relative group">
-                                <svg className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                                <svg className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                                 </svg>
                                 <select
+                                    disabled
                                     value={selectedBankId}
-                                    onChange={e => setSelectedBankId(e.target.value)}
-                                    className={`block w-full rounded-xl border ${
-                                        isManualLaunch && !selectedBankId 
-                                            ? 'border-amber-300/80 dark:border-amber-700/80 bg-amber-50/30 dark:bg-amber-950/20' 
-                                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'
-                                    } text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue py-2.5 pl-10 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer`}
+                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100/80 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 shadow-xs py-2.5 pl-10 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-not-allowed opacity-90"
                                 >
-                                    <option value="">{isManualLaunch ? '-- Selecione a Conta / Caixa (Obrigatório) --' : '-- Sem Conta / Caixa Principal --'}</option>
+                                    <option value="">-- Sem Conta / Caixa de Origem --</option>
                                     {availableBanks.map((bank: any) => (
                                         <option key={bank.id} value={bank.id}>
                                             {bank.account_name || bank.name || 'Conta Bancária / Caixa'}
                                         </option>
                                     ))}
+                                    {!availableBanks.some((b: any) => b.id === selectedBankId) && selectedBankId && (
+                                        <option value={selectedBankId}>
+                                            {(banks || []).find((b: any) => b.id === selectedBankId)?.account_name || (banks || []).find((b: any) => b.id === selectedBankId)?.name || 'Conta de Origem'}
+                                        </option>
+                                    )}
                                 </select>
                                 <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                    <ChevronDownIcon className="w-3.5 h-3.5" />
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                    </svg>
                                 </div>
                             </div>
                         </div>
@@ -2254,14 +2465,101 @@ export const ManualIdModal: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Comprovantes e Faturas para Saídas Bancárias */}
-                    {bulkIdentificationTxs.some(t => Number(t.amount) < 0 || t.type === 'expense') && (
+                    {/* Comprovantes e Documentos Fiscais */}
+                    {(bulkIdentificationTxs.some(t => Number(t.amount) < 0 || t.type === 'expense') || manualType === 'saida') && (
                         <div className="pt-2 border-t border-slate-100 dark:border-slate-800 animate-fade-in">
-                            <ExpenseDocumentUploader
-                                attachments={attachments}
-                                onChangeAttachments={setAttachments}
-                                currentAmount={Math.abs(bulkIdentificationTxs[0]?.amount || 0)}
-                            />
+                            <div className="flex flex-wrap items-center justify-between gap-2.5 py-1 px-0.5">
+                                <div className="inline-flex items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/90 dark:bg-slate-800/80 p-1 shadow-xs hover:border-brand-blue dark:hover:border-blue-500/80 transition-all">
+                                    {/* Opção integrada para selecionar o tipo do documento (opcional) */}
+                                    <div className="flex items-center gap-1.5 px-2.5 py-1">
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                            Documento:
+                                        </span>
+                                        <select
+                                            value={selectedDocType}
+                                            onChange={(e) => setSelectedDocType(e.target.value)}
+                                            className="bg-transparent text-xs font-black text-slate-800 dark:text-slate-100 outline-none cursor-pointer pr-1"
+                                            title="Selecione o tipo do documento (opcional)"
+                                        >
+                                            <option value="Boleto" className="text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800">Boleto / Fatura</option>
+                                            <option value="Nota Fiscal" className="text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800">Nota Fiscal</option>
+                                            <option value="Recibo" className="text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800">Comprovante</option>
+                                            <option value="Outro" className="text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800">Outro</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="h-5 w-px bg-slate-200 dark:bg-slate-700 mx-0.5" />
+
+                                    {/* O Único Botão de Upload ou Foto */}
+                                    <button
+                                        type="button"
+                                        onClick={() => block2FileInputRef.current?.click()}
+                                        disabled={isReadingDocument}
+                                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-black text-white bg-gradient-to-r from-orange-500 to-amber-600 hover:opacity-95 shadow-xs cursor-pointer transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+                                        title="Clique para anexar arquivo ou tirar foto com a câmera"
+                                    >
+                                        {isReadingDocument ? (
+                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                        ) : (
+                                            <Camera className="w-3.5 h-3.5" />
+                                        )}
+                                        <span>{isReadingDocument ? (readingStatusText || 'Lendo documento...') : 'Upload / Foto'}</span>
+                                    </button>
+                                </div>
+
+                                {/* Input oculto padrão para upload de arquivos ou foto da câmera */}
+                                <input
+                                    ref={block2FileInputRef}
+                                    type="file"
+                                    accept="image/*,application/pdf,application/xml,text/xml,.xml"
+                                    className="hidden"
+                                    onChange={handleFileSelected}
+                                    disabled={isReadingDocument}
+                                />
+
+                                {/* Chips dos documentos anexados com visual enxuto e opção de visualização */}
+                                {attachments.length > 0 && (
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        {attachments.map((att, idx) => {
+                                            const docLabel = att.documentRole === 'nota_fiscal' 
+                                                ? 'Nota Fiscal' 
+                                                : att.documentRole === 'fatura' 
+                                                    ? 'Boleto / Fatura' 
+                                                    : att.documentRole === 'recibo' 
+                                                        ? 'Comprovante' 
+                                                        : 'Doc';
+                                            return (
+                                                <div
+                                                    key={att.id || idx}
+                                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800/60 text-xs font-bold text-orange-800 dark:text-orange-200 shadow-2xs animate-fade-in"
+                                                >
+                                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                                    <span className="truncate max-w-[170px] font-semibold">
+                                                        {docLabel}: {att.fileName}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setPreviewAttachment({ ...att, txId: (att as any).txId || activeTxId })}
+                                                        className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-orange-700 dark:text-orange-300 bg-orange-100 hover:bg-orange-200 dark:bg-orange-900/60 dark:hover:bg-orange-800/60 px-2 py-0.5 rounded-md cursor-pointer transition-colors"
+                                                        title="Visualizar documento carregado"
+                                                    >
+                                                        <Eye className="w-3 h-3" />
+                                                        <span>Ver</span>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
+                                                        className="text-orange-400 hover:text-rose-600 p-0.5 rounded cursor-pointer transition-colors ml-0.5"
+                                                        title="Remover documento"
+                                                    >
+                                                        <X className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>
@@ -2271,7 +2569,7 @@ export const ManualIdModal: React.FC = () => {
             <div className="px-6 py-3.5 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-white/5 flex justify-end gap-3 shrink-0">
                 <button 
                     type="button" 
-                    onClick={closeManualIdentify} 
+                    onClick={handleClose} 
                     className="px-5 py-2 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-xl shadow-xs hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
                 >
                     {t('common.cancel')}
@@ -2286,6 +2584,13 @@ export const ManualIdModal: React.FC = () => {
                      {!isSaving && selectedChurchId && (!isManualLaunch || selectedBankId) && <span className="ml-1 text-[8px] opacity-70 bg-white/20 px-1 rounded">Enter</span>}
                 </button>
             </div>
+
+            {/* Modal de Pré-visualização do Documento (Foto / PDF) */}
+            <AttachmentPreviewModal
+                isOpen={!!previewAttachment}
+                attachment={previewAttachment}
+                onClose={() => setPreviewAttachment(null)}
+            />
         </div>
     );
 };

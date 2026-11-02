@@ -31,7 +31,14 @@ const getCachedChurches = (): PortalChurch[] => {
         if (raw) {
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed) && parsed.length > 0) {
-                return parsed;
+                const seen = new Set<string>();
+                return parsed.filter((c: any) => {
+                    const nameStr = String(c?.name || '').trim();
+                    const key = String(c?.id || nameStr).trim().toLowerCase();
+                    if (!key || !nameStr || nameStr.toLowerCase() === 'igreja' || seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                });
             }
         }
     } catch (_) {}
@@ -44,18 +51,27 @@ export const extractSlugFromLocation = (paramSlug?: string): string => {
     }
     if (typeof window === 'undefined') return '';
 
-    // 1. Query parameter (?church=... or ?igreja=... or ?c=...)
+    // 1. Query parameter (?church=... or ?igreja=... or ?c=... or ?slug=... or ?church_id=...)
     const urlParams = new URLSearchParams(window.location.search);
-    const querySlug = urlParams.get('church') || urlParams.get('igreja') || urlParams.get('c');
+    let querySlug = urlParams.get('church') || urlParams.get('igreja') || urlParams.get('c') || urlParams.get('slug') || urlParams.get('church_id') || urlParams.get('id');
+
+    // Also check query parameters inside hash (e.g., #/cadastro?church=... or #/portal?church=...)
+    if (!querySlug && window.location.hash.includes('?')) {
+        const hashQuery = window.location.hash.split('?')[1];
+        const hashParams = new URLSearchParams(hashQuery);
+        querySlug = hashParams.get('church') || hashParams.get('igreja') || hashParams.get('c') || hashParams.get('slug') || hashParams.get('church_id') || hashParams.get('id');
+    }
+
     if (querySlug && querySlug.trim()) {
         return querySlug.trim().toLowerCase();
     }
 
-    // 2. Hash or Pathname
+    // 2. Hash or Pathname (strip query parameters first)
     const hash = (window.location.hash || '').replace(/^#/, '');
     const path = window.location.pathname || '';
     const rawPath = (hash.startsWith('/portal') || hash.startsWith('/cadastro') || hash.startsWith('/church')) ? hash : path;
-    const cleanPath = (rawPath || '').toLowerCase().replace(/^\/portal/, '');
+    const pathWithoutQuery = (rawPath || '').split('?')[0];
+    const cleanPath = pathWithoutQuery.toLowerCase().replace(/^\/portal/, '');
     const parts = cleanPath.split('/').filter(Boolean);
 
     if (parts[0] === 'church' && parts[1]) {
@@ -85,6 +101,7 @@ export const resolveChurchFromList = (list: PortalChurch[], targetSlug?: string 
 
     const cleanTarget = targetSlug.trim().toLowerCase();
     const targetNorm = normalizeChurchSlug(cleanTarget);
+    const targetAlphaNum = cleanTarget.replace(/[^a-z0-9]/g, '');
 
     // 1. EXACT match by ID (UUID or database identifier)
     const byId = list.find(c => c.id && String(c.id).toLowerCase() === cleanTarget);
@@ -106,8 +123,22 @@ export const resolveChurchFromList = (list: PortalChurch[], targetSlug?: string 
     const byRawName = list.find(c => c.name && String(c.name).trim().toLowerCase() === cleanTarget);
     if (byRawName) return byRawName;
 
-    // STRICT: Absolutely NO substring or partial matching (.includes)!
-    // A substring match previously caused "PRIMAVERA III" to resolve to "PRIMAVERA II" because "primavera-ii" is a substring of "primavera-iii".
+    // 6. Alphanumeric match (handles differences in punctuation or hyphenation, e.g. "congregacao-b" vs "congregacaob")
+    if (targetAlphaNum) {
+        const byAlphaNum = list.find(c => {
+            const cAlphaNumSlug = normalizeChurchSlug(c.slug || '').replace(/[^a-z0-9]/g, '');
+            const cAlphaNumName = normalizeChurchSlug(c.name || '').replace(/[^a-z0-9]/g, '');
+            return cAlphaNumSlug === targetAlphaNum || cAlphaNumName === targetAlphaNum;
+        });
+        if (byAlphaNum) return byAlphaNum;
+    }
+
+    // 7. Sede keyword match fallback
+    if (cleanTarget === 'sede' || targetNorm === 'sede') {
+        const sedeChurch = list.find(c => c.name.toLowerCase().includes('sede'));
+        if (sedeChurch) return sedeChurch;
+    }
+
     return null;
 };
 
@@ -154,7 +185,9 @@ export const usePortalChurchResolver = (churchSlug?: string) => {
 
         const fetchChurches = async () => {
             try {
-                const response = await fetch('/api/v1/churches', { cache: 'no-store' });
+                const targetSlug = extractSlugFromLocation(churchSlug);
+                const queryParam = targetSlug ? `?church=${encodeURIComponent(targetSlug)}` : '';
+                const response = await fetch(`/api/v1/churches${queryParam}`, { cache: 'no-store' });
                 if (!response.ok) {
                     throw new Error(`Falha ao carregar dados das igrejas (${response.status})`);
                 }
@@ -163,45 +196,41 @@ export const usePortalChurchResolver = (churchSlug?: string) => {
                 if (!isMounted) return;
 
                 if (Array.isArray(data) && data.length > 0) {
-                    const formattedChurches: PortalChurch[] = data.map((c: any) => ({
+                    const validData = data.filter((c: any) => c.name && String(c.name).trim() !== '' && String(c.name).trim().toLowerCase() !== 'igreja');
+                    const formattedChurches: PortalChurch[] = validData.map((c: any) => ({
                         id: c.id,
-                        name: c.name || 'Igreja',
-                        slug: c.slug || normalizeChurchSlug(c.name) || 'igreja',
+                        name: String(c.name).trim(),
+                        slug: c.slug || normalizeChurchSlug(c.name),
                         address: c.address || '',
                         logoUrl: c.logoUrl || '',
                         pastor: c.pastor || '',
                         description: c.address ? `Endereço: ${c.address}` : 'Ambiente Oficial de Contribuição'
                     }));
 
-                    try {
-                        localStorage.setItem(CACHE_KEY, JSON.stringify(formattedChurches));
-                    } catch (_) {}
-
-                    setChurchesList(formattedChurches);
-
-                    const targetSlug = extractSlugFromLocation(churchSlug);
-                    const found = resolveChurchFromList(formattedChurches, targetSlug);
-                    const chosen = found || (targetSlug ? null : formattedChurches[0]) || formattedChurches[0] || DEFAULT_PORTAL_CHURCH;
-                    
-                    setChurch(chosen);
-
-                    if (chosen && chosen.slug && chosen.slug !== 'igreja') {
+                    if (formattedChurches.length > 0) {
                         try {
-                            localStorage.setItem(ACTIVE_CHURCH_SLUG_KEY, chosen.slug);
+                            localStorage.setItem(CACHE_KEY, JSON.stringify(formattedChurches));
                         } catch (_) {}
+
+                        setChurchesList(formattedChurches);
+
+                        const targetSlug = extractSlugFromLocation(churchSlug);
+                        const found = resolveChurchFromList(formattedChurches, targetSlug);
+                        const chosen = found || formattedChurches[0];
+                        
+                        setChurch(chosen);
+
+                        if (chosen && chosen.slug && chosen.slug !== 'igreja') {
+                            try {
+                                localStorage.setItem(ACTIVE_CHURCH_SLUG_KEY, chosen.slug);
+                            } catch (_) {}
+                        }
                     }
-                } else {
-                    setChurchesList([DEFAULT_PORTAL_CHURCH]);
-                    setChurch(DEFAULT_PORTAL_CHURCH);
                 }
             } catch (err: any) {
                 if (isMounted) {
                     console.error('[usePortalChurchResolver] Erro:', err);
                     setError(err.message || 'Erro ao carregar dados da igreja');
-                    if (!church) {
-                        setChurchesList([DEFAULT_PORTAL_CHURCH]);
-                        setChurch(DEFAULT_PORTAL_CHURCH);
-                    }
                 }
             } finally {
                 if (isMounted) {

@@ -57,15 +57,73 @@ export const isDateInClosedPeriods = (dateStr: string, closedPeriodsSet: Set<str
 };
 
 /**
- * 🛡️ Verifica de forma autoritativa se o período está fechado.
- * Respeita estritamente o estado real do fechamento (aberto vs reaberto vs fechado).
- * Quando o Usuário Principal desfaz o fechamento, o período é imediatamente liberado sem ressurreição.
+ * 🛡️ Verifica de forma autoritativa se o período ou data está fechado.
+ * Respeita estritamente o estado real do fechamento (aberto vs reaberto vs fechado)
+ * e o bloqueio por CONFIRMAR FINAL de lançamentos da mesma data e congregação.
  */
-export const isPeriodClosed = (dateStr: string, matchResults?: any[], churchId?: string): boolean => {
+// Helper local para normalizar datas para YYYY-MM-DD
+const normalizeDateToYMD = (d: any): string => {
+    if (!d) return '';
+    const str = String(d).split(/[T ]/)[0].trim();
+    if (str.includes('/')) {
+        const parts = str.split('/');
+        if (parts.length === 3 && parts[2].length === 4) {
+            return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        }
+    }
+    if (str.includes('-')) {
+        const parts = str.split('-');
+        if (parts.length === 3 && parts[0].length === 4) {
+            return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+        }
+    }
+    return str;
+};
+
+export const isPeriodClosed = (dateStr: string, matchResults?: any[], churchId?: string, bankId?: string): boolean => {
     if (!dateStr || !churchId || churchId === 'unidentified' || churchId === 'geral') return false;
 
-    // 🛡️ O Fechamento Final deve ser identificado e aplicado pela combinação IGREJA + PERÍODO, nunca apenas pelo período.
-    return isChurchPeriodClosedSync(churchId, dateStr);
+    // 1. Fechamento de mês homologado na tabela church_closings
+    if (isChurchPeriodClosedSync(churchId, dateStr, bankId)) {
+        return true;
+    }
+
+    // 2. Bloqueio por Confirmação Final de lançamentos da mesma data e congregação
+    if (matchResults && Array.isArray(matchResults) && matchResults.length > 0) {
+        const cleanDate = normalizeDateToYMD(dateStr);
+        if (!cleanDate) return false;
+
+        const hasConfirmedOnDate = matchResults.some((r: any) => {
+            if (!r) return false;
+            const rChurchId = r.church?.id || r._churchId || r.church_id;
+            if (!rChurchId || String(rChurchId) !== String(churchId)) return false;
+
+            const rDate = r.reference_date || r.contributor?.reference_date || r.transaction?.reference_date || r.transaction?.date || r.date || '';
+            const rCleanDate = normalizeDateToYMD(rDate);
+            if (!rCleanDate || rCleanDate !== cleanDate) return false;
+
+            if (bankId && bankId !== 'all') {
+                const rBankId = r.transaction?.bank_id || r.bank_id || r.bankId;
+                if (rBankId && String(rBankId) !== String(bankId)) return false;
+            }
+
+            return Boolean(
+                r.isConfirmed || 
+                r.transaction?.isConfirmed || 
+                r.is_confirmed || 
+                r.transaction?.is_confirmed || 
+                r.status === 'RESOLVED' || 
+                r.status === 'resolved' || 
+                r.transaction?.status === 'resolved'
+            );
+        });
+
+        if (hasConfirmedOnDate) {
+            return true;
+        }
+    }
+
+    return false;
 };
 
 /**

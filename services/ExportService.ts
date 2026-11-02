@@ -1988,6 +1988,16 @@ ${itemsOfx}
                                 <div class="resumo-row"><span>Saldo em Dinheiro:</span><strong style="color: ${breakdown.saldoDinheiro >= 0 ? '#047857' : '#b91c1c'};">${formatBRL(breakdown.saldoDinheiro)}</strong></div>
                                 <div class="resumo-row"><span>Saldo em Pix:</span><strong style="color: ${breakdown.saldoPix >= 0 ? '#047857' : '#b91c1c'};">${formatBRL(breakdown.saldoPix)}</strong></div>
                                 <div class="resumo-row" style="border-top: 1px solid #fde68a; padding-top: 4px; margin-top: 4px;"><span>Saldo Anterior:</span><strong>${formatBRL(breakdown.saldoAnterior)}</strong></div>
+                                ${breakdown.saldosTransportadosRecebidos > 0 ? `
+                                <div class="resumo-row" style="font-size: 8.5px; color: #047857;">
+                                    <span>(+) Saldos transportados recebidos:</span>
+                                    <strong>+ ${formatBRL(breakdown.saldosTransportadosRecebidos)}</strong>
+                                </div>` : ''}
+                                ${breakdown.deficitsTransportadosRecebidos > 0 ? `
+                                <div class="resumo-row" style="font-size: 8.5px; color: #b91c1c;">
+                                    <span>(-) Déficits transportados recebidos:</span>
+                                    <strong>- ${formatBRL(breakdown.deficitsTransportadosRecebidos)}</strong>
+                                </div>` : ''}
                                 ${closingRecord && closingRecord.status !== 'reopened' && closingRecord.transferredBalance !== undefined ? `
                                 <div class="resumo-row" style="font-size: 8.5px; border-top: 1px dashed #fde68a; padding-top: 2px;">
                                     <span>Saldo antes do fechamento:</span>
@@ -2064,6 +2074,41 @@ ${itemsOfx}
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                        ` : ''}
+
+                        ${(breakdown.transportedClosingsList && breakdown.transportedClosingsList.length > 0) ? `
+                        <div style="margin-top: 10px; border-top: 2px solid #93c5fd; padding-top: 8px; break-inside: avoid; page-break-inside: avoid;">
+                            <div style="font-size: 9.5px; font-weight: 800; text-transform: uppercase; color: #1e3a8a; margin-bottom: 5px; display: flex; justify-content: space-between;">
+                                <span>Saldos e Déficits Transportados Recebidos de Outros Caixas</span>
+                                <span>Total Líquido: ${formatBRL(breakdown.saldosTransportadosRecebidos - breakdown.deficitsTransportadosRecebidos)}</span>
+                            </div>
+                            <table style="width: 100%; border-collapse: collapse; font-size: 8px;">
+                                <thead>
+                                    <tr style="background: #eff6ff; color: #1e40af; border-bottom: 1px solid #bfdbfe; font-weight: 800; text-transform: uppercase;">
+                                        <th style="padding: 3px 5px; text-align: left;">Igreja de Origem</th>
+                                        <th style="padding: 3px 5px; text-align: left;">Conta / Banco Origem</th>
+                                        <th style="padding: 3px 5px; text-align: center;">Período</th>
+                                        <th style="padding: 3px 5px; text-align: center;">Data Fechamento</th>
+                                        <th style="padding: 3px 5px; text-align: right;">Saldo Origem Anterior</th>
+                                        <th style="padding: 3px 5px; text-align: right;">Valor Transportado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${breakdown.transportedClosingsList.map((item: any) => `
+                                        <tr style="border-bottom: 1px solid #f1f5f9;">
+                                            <td style="padding: 3px 5px; font-weight: 700;">${item.originChurchName}</td>
+                                            <td style="padding: 3px 5px; color: #64748b;">${item.originBankName}</td>
+                                            <td style="padding: 3px 5px; text-align: center; font-weight: 700;">${item.periodLabel}</td>
+                                            <td style="padding: 3px 5px; text-align: center; color: #64748b;">${item.closedAt ? new Date(item.closedAt).toLocaleDateString('pt-BR') : '-'}</td>
+                                            <td style="padding: 3px 5px; text-align: right;">${formatBRL(item.finalBalance)}</td>
+                                            <td style="padding: 3px 5px; text-align: right; font-weight: 700; color: ${item.transferredAmount < 0 ? '#b91c1c' : '#047857'};">
+                                                ${item.transferredAmount < 0 ? `- ${formatBRL(Math.abs(item.transferredAmount))}` : `+ ${formatBRL(item.transferredAmount)}`}
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
                         </div>
                         ` : ''}
                     </div>
