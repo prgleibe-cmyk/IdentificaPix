@@ -249,6 +249,25 @@ class LocalSqliteEngine {
         created_at TEXT DEFAULT (now())
       );
 
+      CREATE TABLE IF NOT EXISTS payment_methods (
+        id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()),
+        name TEXT NOT NULL,
+        type TEXT DEFAULT 'ambos',
+        category TEXT,
+        bank_id TEXT,
+        "order" INTEGER DEFAULT 1,
+        is_active INTEGER DEFAULT 1,
+        user_id TEXT,
+        created_at TEXT DEFAULT (now())
+      );
+
+      CREATE TABLE IF NOT EXISTS contributor_roles (
+        id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()),
+        name TEXT NOT NULL,
+        user_id TEXT,
+        created_at TEXT DEFAULT (now())
+      );
+
       CREATE TABLE IF NOT EXISTS church_closings (
         id TEXT PRIMARY KEY,
         church_id TEXT NOT NULL,
@@ -1107,19 +1126,21 @@ class SmartPool {
             const validContributorId = row.contributor_id && uuidRegex.test(row.contributor_id) ? row.contributor_id : null;
             const validContribReqId = row.contribution_request_id && uuidRegex.test(row.contribution_request_id) ? row.contribution_request_id : null;
             const splitsJson = row.splits ? (typeof row.splits === 'string' ? row.splits : JSON.stringify(row.splits)) : null;
+            const attachJson = row.attachments ? (typeof row.attachments === 'string' ? row.attachments : JSON.stringify(row.attachments)) : '[]';
 
             await client.query(`
               INSERT INTO consolidated_transactions (
                 id, amount, description, type, pix_key, source, user_id, status,
                 bank_id, row_hash, is_confirmed, transaction_date, reference_date,
                 church_id, contributor_id, report_id, payment_method, contribution_type,
-                contribution_request_id, splits, created_at, updated_at
+                contribution_request_id, splits, attachments, created_at, updated_at
               ) VALUES (
                 $1, $2, $3, $4, $5, $6, $7, $8,
                 $9, $10, $11, $12, $13,
                 $14, $15, $16, $17, $18,
-                $19, $20, $21, $22
-              ) ON CONFLICT (id) DO NOTHING;
+                $19, $20, $21, $22, $23
+              ) ON CONFLICT (id) DO UPDATE SET
+                attachments = CASE WHEN EXCLUDED.attachments IS NOT NULL AND EXCLUDED.attachments != '[]' THEN EXCLUDED.attachments ELSE consolidated_transactions.attachments END;
             `, [
               validId,
               Number(row.amount || 0),
@@ -1141,6 +1162,7 @@ class SmartPool {
               row.contribution_type || null,
               validContribReqId,
               splitsJson,
+              attachJson,
               row.created_at ? new Date(row.created_at) : new Date(),
               row.updated_at ? new Date(row.updated_at) : new Date()
             ]);
@@ -1900,6 +1922,10 @@ async function initializeDatabase() {
     await client.query("CREATE INDEX IF NOT EXISTS idx_church_pix_keys_church ON church_pix_keys(church_id);");
     console.log('[Contributors API] Table "church_pix_keys" verified or successfully created.');
 
+    // Ensure churches has both pix_key and "pixKey" columns in remote PostgreSQL
+    await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS pix_key TEXT;');
+    await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS "pixKey" TEXT;');
+
     // Create table contribution_types
     await client.query(`
       CREATE TABLE IF NOT EXISTS contribution_types (
@@ -1926,6 +1952,48 @@ async function initializeDatabase() {
     await client.query('ALTER TABLE contribution_types ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();');
     await client.query("CREATE INDEX IF NOT EXISTS idx_contrib_types_bank ON contribution_types(bank_id);");
     console.log('[Contributors API] Table "contribution_types" verified or successfully created.');
+
+    // Create table payment_methods
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS payment_methods (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        type VARCHAR(50) NOT NULL DEFAULT 'ambos',
+        category VARCHAR(255),
+        bank_id VARCHAR(255),
+        "order" INT DEFAULT 1,
+        is_active BOOLEAN DEFAULT TRUE,
+        user_id VARCHAR(255),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+    await client.query('ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS name VARCHAR(255);');
+    await client.query("ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS type VARCHAR(50) DEFAULT 'ambos';");
+    await client.query('ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS category VARCHAR(255);');
+    await client.query('ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS bank_id VARCHAR(255);');
+    await client.query('ALTER TABLE payment_methods ALTER COLUMN bank_id TYPE VARCHAR(255) USING bank_id::varchar;');
+    await client.query('ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS "order" INT DEFAULT 1;');
+    await client.query('ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;');
+    await client.query('ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS user_id VARCHAR(255);');
+    await client.query('ALTER TABLE payment_methods ALTER COLUMN user_id TYPE VARCHAR(255) USING user_id::varchar;');
+    await client.query('ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();');
+    await client.query("CREATE INDEX IF NOT EXISTS idx_payment_methods_bank ON payment_methods(bank_id);");
+    await client.query("CREATE INDEX IF NOT EXISTS idx_payment_methods_user ON payment_methods(user_id);");
+    console.log('[Contributors API] Table "payment_methods" verified or successfully created.');
+
+    // Create table contributor_roles
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS contributor_roles (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        user_id VARCHAR(255),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+    await client.query('ALTER TABLE contributor_roles ADD COLUMN IF NOT EXISTS name VARCHAR(255);');
+    await client.query('ALTER TABLE contributor_roles ADD COLUMN IF NOT EXISTS user_id VARCHAR(255);');
+    await client.query('ALTER TABLE contributor_roles ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();');
+    console.log('[Contributors API] Table "contributor_roles" verified or successfully created.');
 
     // Create table church_closings
     await client.query(`
@@ -2238,6 +2306,7 @@ export interface TenantContext {
   allowedChurchIds: string[];
   allowedBankIds: string[];
   role: string | null;
+  permissions: string[];
   isSuperAdmin: boolean;
   isOwner: boolean;
   isSecondaryUser: boolean;
@@ -2383,6 +2452,12 @@ export function getTenantContext(req: Request): TenantContext {
     const isSecondaryUser = !isSuperAdmin && (hasSeparateOwner || isSecondaryRole || Boolean(user.is_secondary));
     const isOwner = isSuperAdmin || (!isSecondaryUser && (role === 'owner' || role === 'principal' || !hasSeparateOwner));
 
+    const userPermissions: string[] = Array.isArray(user.permissions)
+      ? user.permissions
+      : (typeof req.headers['x-user-permissions'] === 'string'
+          ? (req.headers['x-user-permissions'] as string).split(',').map(s => s.trim()).filter(Boolean)
+          : []);
+
     return {
       userId,
       ownerId,
@@ -2390,6 +2465,7 @@ export function getTenantContext(req: Request): TenantContext {
       allowedChurchIds,
       allowedBankIds,
       role,
+      permissions: userPermissions,
       isSuperAdmin,
       isOwner,
       isSecondaryUser,
@@ -2400,6 +2476,9 @@ export function getTenantContext(req: Request): TenantContext {
   const fallbackHasSeparateOwner = Boolean(headerOwnerId && headerUserId && headerOwnerId !== headerUserId);
   const fallbackIsSecondary = headerRole ? (['secondary', 'member', 'operador', 'colaborador'].includes(headerRole) || (headerRole === 'user' && fallbackHasSeparateOwner)) : fallbackHasSeparateOwner;
   const fallbackAllowedChurchIds = headerAllowedChurchIds || (headerChurchId ? [headerChurchId] : []);
+  const fallbackPermissions: string[] = typeof req.headers['x-user-permissions'] === 'string'
+    ? (req.headers['x-user-permissions'] as string).split(',').map(s => s.trim()).filter(Boolean)
+    : [];
 
   return {
     userId: headerUserId,
@@ -2408,6 +2487,7 @@ export function getTenantContext(req: Request): TenantContext {
     allowedChurchIds: fallbackAllowedChurchIds,
     allowedBankIds: [],
     role: headerRole,
+    permissions: fallbackPermissions,
     isSuperAdmin: headerRole === 'superadmin',
     isOwner: !fallbackIsSecondary,
     isSecondaryUser: fallbackIsSecondary,
@@ -2592,63 +2672,243 @@ app.get('/api/v1/contributors', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/v1/contributors/roles (List of registered roles / cargos / funções)
+// GET /api/v1/contributors/roles (List of registered roles / cargos / funções in cloud)
 app.get('/api/v1/contributors/roles', async (req: Request, res: Response) => {
   try {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.set('Pragma', 'no-cache');
     res.set('Expires', '0');
 
-    const DEFAULT_ROLES = [
-      'Membro',
-      'Visitante',
-      'Pastor / Pastora',
-      'Diácono / Diaconisa',
-      'Presbítero / Evangelista',
-      'Obreiro / Obreira',
-      'Líder de Ministério / Célula',
-      'Voluntário',
-      'Dizimista',
-      'Músico / Louvor',
-      'Prestador de Serviços',
-      'Fornecedor / Empresa',
-      'Concessionária / Utilidades',
-      'Outro'
-    ];
+    const ctx = getTenantContext(req);
+    const { church_id, user_id } = req.query;
 
-    const rolesSet = new Set<string>(DEFAULT_ROLES);
-    try {
-      const dbRes = await pool.query(
-        `SELECT DISTINCT role_position FROM contributors WHERE role_position IS NOT NULL AND trim(role_position) != ''`
-      );
-      if (dbRes && dbRes.rows) {
-        for (const row of dbRes.rows) {
-          if (row.role_position && typeof row.role_position === 'string') {
-            const trimmed = row.role_position.trim();
-            if (trimmed) rolesSet.add(trimmed);
-          }
+    let cleanUserId = (typeof user_id === 'string' && user_id.trim())
+      ? user_id.trim()
+      : (ctx.ownerId || ctx.userId);
+
+    // If unauthenticated portal request, resolve tenant from church_id
+    if (!cleanUserId && church_id && typeof church_id === 'string') {
+      try {
+        const churchMatch = await pool.query("SELECT user_id FROM churches WHERE id = $1 LIMIT 1", [church_id.trim()]);
+        if (churchMatch.rows[0]?.user_id) {
+          cleanUserId = churchMatch.rows[0].user_id;
+        }
+      } catch (_) {}
+    }
+
+    let query = "SELECT id, name FROM contributor_roles WHERE name IS NOT NULL AND trim(name) != ''";
+    const params: any[] = [];
+    if (cleanUserId) {
+      const userIds = await getEquivalentUserIds(cleanUserId);
+      params.push(userIds);
+      query += ` AND (user_id::text = ANY($${params.length}) OR user_id IS NULL)`;
+    }
+    query += " ORDER BY created_at ASC";
+
+    let dbRes = await pool.query(query, params).catch(() => ({ rows: [] }));
+
+    // Auto-seed if contributor_roles table is completely empty for this tenant
+    if (!dbRes.rows || dbRes.rows.length === 0) {
+      const seedRoles: string[] = ['Membro', 'Congregado'];
+
+      for (const roleName of seedRoles) {
+        const roleId = crypto.randomUUID();
+        await pool.query(
+          "INSERT INTO contributor_roles (id, name, user_id, created_at) VALUES ($1, $2, $3, $4)",
+          [roleId, roleName, cleanUserId || null, new Date().toISOString()]
+        ).catch(() => {});
+      }
+
+      return res.json(seedRoles);
+    }
+
+    // Ensure baseline 'Congregado' exists if only 'Membro' was present
+    const hasCongregado = dbRes.rows.some((r: any) => String(r.name || '').trim().toLowerCase() === 'congregado');
+    if (!hasCongregado) {
+      const congId = crypto.randomUUID();
+      await pool.query(
+        "INSERT INTO contributor_roles (id, name, user_id, created_at) VALUES ($1, $2, $3, $4)",
+        [congId, 'Congregado', cleanUserId || null, new Date().toISOString()]
+      ).catch(() => {});
+      (dbRes.rows as any[]).push({ id: congId, name: 'Congregado' });
+    }
+
+    // Deduplicate case-insensitively and keep 'Membro' and 'Congregado' first
+    const distinctList: string[] = [];
+    const seen = new Set<string>();
+
+    // Prioritize 'Membro'
+    const membroRow = dbRes.rows.find((r: any) => String(r.name || '').trim().toLowerCase() === 'membro');
+    if (membroRow) {
+      const trimmed = String(membroRow.name).trim();
+      seen.add('membro');
+      distinctList.push(trimmed);
+    }
+
+    // Prioritize 'Congregado'
+    const congregadoRow = dbRes.rows.find((r: any) => String(r.name || '').trim().toLowerCase() === 'congregado');
+    if (congregadoRow) {
+      const trimmed = String(congregadoRow.name).trim();
+      seen.add('congregado');
+      distinctList.push(trimmed);
+    }
+
+    for (const row of dbRes.rows) {
+      const roleName = String(row.name || '').trim();
+      const norm = roleName.toLowerCase();
+      if (roleName && !seen.has(norm)) {
+        seen.add(norm);
+        distinctList.push(roleName);
+      }
+    }
+
+    return res.json(distinctList);
+  } catch (err: any) {
+    console.error('[Contributors API] Error GET roles:', err);
+    return res.json(['Membro', 'Congregado']);
+  }
+});
+
+// POST /api/v1/contributors/roles (Create new role in cloud - tenant scoped)
+app.post('/api/v1/contributors/roles', async (req: Request, res: Response) => {
+  try {
+    const ctx = getTenantContext(req);
+    const { name } = req.body;
+    const cleanName = typeof name === 'string' ? name.trim() : '';
+
+    if (!cleanName) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Nome do cargo/vínculo é obrigatório.' });
+    }
+
+    const cleanUserId = ctx.ownerId || ctx.userId || null;
+    let userIds: string[] = [];
+    if (cleanUserId) {
+      userIds = await getEquivalentUserIds(cleanUserId);
+    }
+
+    // Check if role already exists case-insensitively for this tenant
+    let checkQuery = "SELECT id, name FROM contributor_roles WHERE lower(trim(name)) = lower(trim($1))";
+    const checkParams: any[] = [cleanName];
+    if (userIds.length > 0) {
+      checkParams.push(userIds);
+      checkQuery += ` AND (user_id::text = ANY($2) OR user_id IS NULL)`;
+    }
+    const existingRes = await pool.query(checkQuery, checkParams);
+
+    if (existingRes.rows && existingRes.rows.length > 0) {
+      return res.status(200).json({ id: existingRes.rows[0].id, name: existingRes.rows[0].name, created: false });
+    }
+
+    const newId = crypto.randomUUID();
+    await pool.query(
+      "INSERT INTO contributor_roles (id, name, user_id, created_at) VALUES ($1, $2, $3, $4)",
+      [newId, cleanName, cleanUserId, new Date().toISOString()]
+    );
+
+    return res.status(201).json({ id: newId, name: cleanName, created: true });
+  } catch (err: any) {
+    console.error('[Contributors API] Error POST role:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// PUT /api/v1/contributors/roles (Rename role in cloud & cascade to contributors - tenant scoped)
+app.put('/api/v1/contributors/roles', async (req: Request, res: Response) => {
+  try {
+    const ctx = getTenantContext(req);
+    const { oldName, newName, id } = req.body;
+    const cleanOld = typeof oldName === 'string' ? oldName.trim() : '';
+    const cleanNew = typeof newName === 'string' ? newName.trim() : '';
+
+    if (!cleanNew) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Novo nome do cargo é obrigatório.' });
+    }
+
+    const cleanUserId = ctx.ownerId || ctx.userId || null;
+    let userIds: string[] = [];
+    if (cleanUserId) {
+      userIds = await getEquivalentUserIds(cleanUserId);
+    }
+
+    if (id) {
+      if (userIds.length > 0) {
+        await pool.query("UPDATE contributor_roles SET name = $1 WHERE id = $2 AND (user_id::text = ANY($3) OR user_id IS NULL)", [cleanNew, id, userIds]);
+      } else {
+        await pool.query("UPDATE contributor_roles SET name = $1 WHERE id = $2", [cleanNew, id]);
+      }
+    } else if (cleanOld) {
+      if (userIds.length > 0) {
+        await pool.query("UPDATE contributor_roles SET name = $1 WHERE lower(trim(name)) = lower(trim($2)) AND (user_id::text = ANY($3) OR user_id IS NULL)", [cleanNew, cleanOld, userIds]);
+      } else {
+        await pool.query("UPDATE contributor_roles SET name = $1 WHERE lower(trim(name)) = lower(trim($2))", [cleanNew, cleanOld]);
+      }
+    }
+
+    // Cascade rename to contributors table in database scoped to tenant
+    if (cleanOld) {
+      if (userIds.length > 0) {
+        await pool.query("UPDATE contributors SET role_position = $1 WHERE lower(trim(role_position)) = lower(trim($2)) AND (user_id::text = ANY($3) OR user_id IS NULL)", [cleanNew, cleanOld, userIds]);
+      } else {
+        await pool.query("UPDATE contributors SET role_position = $1 WHERE lower(trim(role_position)) = lower(trim($2))", [cleanNew, cleanOld]);
+      }
+    }
+
+    return res.json({ success: true, name: cleanNew });
+  } catch (err: any) {
+    console.error('[Contributors API] Error PUT role:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// DELETE /api/v1/contributors/roles (Delete role from cloud & disassociate - tenant scoped)
+app.delete('/api/v1/contributors/roles', async (req: Request, res: Response) => {
+  try {
+    const ctx = getTenantContext(req);
+    const roleName = (req.query.name || req.body.name) as string | undefined;
+    const roleId = (req.query.id || req.body.id) as string | undefined;
+
+    const cleanUserId = ctx.ownerId || ctx.userId || null;
+    let userIds: string[] = [];
+    if (cleanUserId) {
+      userIds = await getEquivalentUserIds(cleanUserId);
+    }
+
+    if (roleId) {
+      let findQuery = "SELECT name FROM contributor_roles WHERE id = $1";
+      const findParams: any[] = [roleId];
+      if (userIds.length > 0) {
+        findParams.push(userIds);
+        findQuery += ` AND (user_id::text = ANY($2) OR user_id IS NULL)`;
+      }
+      const existing = await pool.query(findQuery, findParams);
+      const name = existing.rows[0]?.name;
+
+      if (userIds.length > 0) {
+        await pool.query("DELETE FROM contributor_roles WHERE id = $1 AND (user_id::text = ANY($2) OR user_id IS NULL)", [roleId, userIds]);
+        if (name) {
+          await pool.query("UPDATE contributors SET role_position = NULL WHERE lower(trim(role_position)) = lower(trim($1)) AND (user_id::text = ANY($2) OR user_id IS NULL)", [name, userIds]);
+        }
+      } else {
+        await pool.query("DELETE FROM contributor_roles WHERE id = $1", [roleId]);
+        if (name) {
+          await pool.query("UPDATE contributors SET role_position = NULL WHERE lower(trim(role_position)) = lower(trim($1))", [name]);
         }
       }
-    } catch (_) {}
+    } else if (roleName && roleName.trim()) {
+      const cleanName = roleName.trim();
+      if (userIds.length > 0) {
+        await pool.query("DELETE FROM contributor_roles WHERE lower(trim(name)) = lower(trim($1)) AND (user_id::text = ANY($2) OR user_id IS NULL)", [cleanName, userIds]);
+        await pool.query("UPDATE contributors SET role_position = NULL WHERE lower(trim(role_position)) = lower(trim($1)) AND (user_id::text = ANY($2) OR user_id IS NULL)", [cleanName, userIds]);
+      } else {
+        await pool.query("DELETE FROM contributor_roles WHERE lower(trim(name)) = lower(trim($1))", [cleanName]);
+        await pool.query("UPDATE contributors SET role_position = NULL WHERE lower(trim(role_position)) = lower(trim($1))", [cleanName]);
+      }
+    }
 
-    return res.json(Array.from(rolesSet));
+    return res.json({ success: true });
   } catch (err: any) {
-    return res.json([
-      'Membro',
-      'Visitante',
-      'Pastor / Pastora',
-      'Diácono / Diaconisa',
-      'Presbítero / Evangelista',
-      'Obreiro / Obreira',
-      'Líder de Ministério / Célula',
-      'Voluntário',
-      'Dizimista',
-      'Músico / Louvor',
-      'Prestador de Serviços',
-      'Fornecedor / Empresa',
-      'Concessionária / Utilidades',
-      'Outro'
-    ]);
+    console.error('[Contributors API] Error DELETE role:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
   }
 });
 
@@ -3596,7 +3856,7 @@ app.get('/api/v1/church-pix-keys/public', async (req: Request, res: Response) =>
 
     // Fallback 2: Check church direct pix_key, pixKey, or cnpj
     const churchRes = await pool.query(
-      'SELECT id, name, pix_key, "pixKey", cnpj FROM churches WHERE id = $1 LIMIT 1',
+      'SELECT * FROM churches WHERE id = $1 LIMIT 1',
       [church_id]
     );
     if (churchRes.rows.length > 0) {
@@ -3683,7 +3943,7 @@ app.get('/api/v1/church-banks/public', async (req: Request, res: Response) => {
     }
 
     // Retrieve default Pix key of church to guarantee all accounts have a valid Pix key
-    const churchRes = await pool.query('SELECT id, name, pix_key, "pixKey", cnpj FROM churches WHERE id = $1 LIMIT 1', [church_id]);
+    const churchRes = await pool.query('SELECT * FROM churches WHERE id = $1 LIMIT 1', [church_id]);
     const churchRow = (churchRes && churchRes.rows) ? churchRes.rows[0] : null;
     const defaultPix = churchRow?.pix_key || churchRow?.pixKey || churchRow?.cnpj || null;
 
@@ -3873,14 +4133,14 @@ app.get('/api/v1/contribution-types/public', async (req: Request, res: Response)
         b.name as bank_name
       FROM contribution_types ct
       LEFT JOIN banks b ON CAST(ct.bank_id AS VARCHAR) = CAST(b.id AS VARCHAR)
-      WHERE (ct.is_active = true OR ct.is_active = 1) AND LOWER(ct.type) = 'entrada'
+      WHERE (ct.is_active = true OR ct.is_active IS TRUE) AND LOWER(ct.type) = 'entrada'
     `;
     const params: any[] = [];
 
     if (bank_id && typeof bank_id === 'string' && bank_id !== 'default-church-account' && uuidRegex.test(bank_id)) {
       // Check if this bank has exclusive contribution types assigned
       const specificCheck = await pool.query(
-        `SELECT id FROM contribution_types WHERE (is_active = true OR is_active = 1) AND LOWER(type) = 'entrada' AND CAST(bank_id AS VARCHAR) = $1 LIMIT 1`,
+        `SELECT id FROM contribution_types WHERE (is_active = true OR is_active IS TRUE) AND LOWER(type) = 'entrada' AND CAST(bank_id AS VARCHAR) = $1 LIMIT 1`,
         [bank_id]
       );
       params.push(bank_id);
@@ -3917,7 +4177,7 @@ app.get('/api/v1/contribution-types/public', async (req: Request, res: Response)
           b.name as bank_name
         FROM contribution_types ct
         LEFT JOIN banks b ON CAST(ct.bank_id AS VARCHAR) = CAST(b.id AS VARCHAR)
-        WHERE (ct.is_active = true OR ct.is_active = 1) AND LOWER(ct.type) = 'entrada'
+        WHERE (ct.is_active = true OR ct.is_active IS TRUE) AND LOWER(ct.type) = 'entrada'
         ORDER BY ct."order" ASC, ct.name ASC
       `;
       const fallbackRes = await pool.query(fallbackQuery, []);
@@ -4165,6 +4425,217 @@ app.delete('/api/v1/contribution-types/:id', async (req: Request, res: Response)
     return res.status(500).json({
       error: 'INTERNAL_SERVER_ERROR',
       message: 'Erro ao excluir tipo de contribuição.'
+    });
+  }
+});
+
+// GET /api/v1/payment-methods
+app.get('/api/v1/payment-methods', async (req: Request, res: Response) => {
+  try {
+    const { user_id, type, is_active } = req.query;
+    const cleanUserId = (user_id && typeof user_id === 'string' && user_id.trim()) ? user_id.trim() : null;
+
+    let query = `
+      SELECT 
+        pm.id,
+        pm.name,
+        pm.type,
+        pm.category,
+        pm.bank_id,
+        pm."order",
+        pm.is_active,
+        pm.user_id,
+        pm.created_at,
+        b.name as bank_name
+      FROM payment_methods pm
+      LEFT JOIN banks b ON CAST(pm.bank_id AS VARCHAR) = CAST(b.id AS VARCHAR)
+      WHERE 1=1
+    `;
+    const params: any[] = [];
+
+    if (cleanUserId) {
+      params.push(cleanUserId);
+      query += ` AND (pm.user_id = $1 OR pm.user_id IS NULL OR pm.user_id = '00000000-0000-0000-0000-000000000001')`;
+    }
+
+    if (type && typeof type === 'string' && type !== 'todos') {
+      params.push(type.toLowerCase());
+      query += ` AND (LOWER(pm.type) = $${params.length} OR LOWER(pm.type) = 'ambos')`;
+    }
+
+    if (is_active !== undefined) {
+      params.push(String(is_active) === 'true');
+      query += ` AND pm.is_active = $${params.length}`;
+    }
+
+    query += ' ORDER BY pm."order" ASC, pm.name ASC';
+
+    let result = await pool.query(query, params);
+
+    if (result.rows && result.rows.length > 0) {
+      return res.json(result.rows);
+    }
+
+    // Auto-seed standard payment methods if none exist for this tenant
+    const defaultMethods = [
+      { name: 'PIX', type: 'ambos', order: 1 },
+      { name: 'DINHEIRO', type: 'ambos', order: 2 },
+      { name: 'CARTÃO DE CRÉDITO', type: 'ambos', order: 3 },
+      { name: 'CARTÃO DE DÉBITO', type: 'ambos', order: 4 },
+      { name: 'TRANSFERÊNCIA / TED', type: 'ambos', order: 5 },
+      { name: 'BOLETO BANCÁRIO', type: 'pagamento', order: 6 },
+      { name: 'CHEQUE', type: 'pagamento', order: 7 }
+    ];
+
+    for (const dm of defaultMethods) {
+      try {
+        const genId = crypto.randomUUID();
+        await pool.query(
+          `INSERT INTO payment_methods (id, name, type, category, "order", is_active, user_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [genId, dm.name, dm.type, 'Geral', dm.order, true, cleanUserId]
+        );
+      } catch (e) {
+        console.error('Error auto-seeding payment method:', e);
+      }
+    }
+
+    result = await pool.query(query, params);
+    return res.json(result.rows);
+  } catch (err: any) {
+    console.error('[Contributors API] Error listing payment methods:', err);
+    return res.status(500).json({
+      error: 'INTERNAL_SERVER_ERROR',
+      message: 'Erro ao listar formas de pagamento.'
+    });
+  }
+});
+
+// POST /api/v1/payment-methods
+app.post('/api/v1/payment-methods', async (req: Request, res: Response) => {
+  try {
+    const { name, type, category, bank_id, order, is_active, user_id } = req.body;
+
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: 'O nome da forma de pagamento é obrigatório.'
+      });
+    }
+
+    const normType = (type && typeof type === 'string') ? type.trim().toLowerCase() : 'ambos';
+    const cleanOrder = typeof order === 'number' ? order : 1;
+    const cleanIsActive = typeof is_active === 'boolean' ? is_active : true;
+    const cleanBankId = (bank_id && typeof bank_id === 'string' && bank_id.trim()) ? bank_id.trim() : null;
+    const cleanUserId = (user_id && typeof user_id === 'string' && user_id.trim()) ? user_id.trim() : null;
+    const genId = crypto.randomUUID();
+
+    const result = await pool.query(
+      `INSERT INTO payment_methods (id, name, type, category, bank_id, "order", is_active, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, name, type, category, bank_id, "order", is_active, user_id, created_at`,
+      [
+        genId,
+        name.trim().toUpperCase(),
+        normType,
+        category ? category.trim() : null,
+        cleanBankId,
+        cleanOrder,
+        cleanIsActive,
+        cleanUserId
+      ]
+    );
+
+    return res.status(201).json(result.rows[0]);
+  } catch (err: any) {
+    console.error('[Contributors API] Error creating payment method:', err);
+    return res.status(500).json({
+      error: 'INTERNAL_SERVER_ERROR',
+      message: 'Erro ao cadastrar forma de pagamento.'
+    });
+  }
+});
+
+// PUT /api/v1/payment-methods/:id
+app.put('/api/v1/payment-methods/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { name, type, category, bank_id, order, is_active } = req.body;
+
+    const cleanId = typeof id === 'string' ? id.trim() : '';
+    if (!cleanId) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: 'ID da forma de pagamento é obrigatório.'
+      });
+    }
+
+    const normType = (type && typeof type === 'string') ? type.trim().toLowerCase() : 'ambos';
+    const cleanBankId = (bank_id && typeof bank_id === 'string' && bank_id.trim()) ? bank_id.trim() : null;
+
+    const result = await pool.query(
+      `UPDATE payment_methods
+       SET name = $1,
+           type = $2,
+           category = $3,
+           bank_id = $4,
+           "order" = $5,
+           is_active = $6
+       WHERE id = $7
+       RETURNING id, name, type, category, bank_id, "order", is_active, user_id, created_at`,
+      [
+        name ? name.trim().toUpperCase() : 'Sem Nome',
+        normType,
+        category ? category.trim() : null,
+        cleanBankId,
+        typeof order === 'number' ? order : 1,
+        typeof is_active === 'boolean' ? is_active : true,
+        cleanId
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: 'NOT_FOUND',
+        message: 'Forma de pagamento não encontrada.'
+      });
+    }
+
+    return res.json(result.rows[0]);
+  } catch (err: any) {
+    console.error('[Contributors API] Error updating payment method:', err);
+    return res.status(500).json({
+      error: 'INTERNAL_SERVER_ERROR',
+      message: 'Erro ao atualizar forma de pagamento.'
+    });
+  }
+});
+
+// DELETE /api/v1/payment-methods/:id
+app.delete('/api/v1/payment-methods/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const cleanId = typeof id === 'string' ? id.trim() : '';
+    if (!cleanId) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: 'ID da forma de pagamento é obrigatório.'
+      });
+    }
+
+    // Try delete by ID, or if not UUID, delete by name
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    if (uuidRegex.test(cleanId)) {
+      await pool.query('DELETE FROM payment_methods WHERE id = $1', [cleanId]);
+    } else {
+      await pool.query('DELETE FROM payment_methods WHERE UPPER(name) = UPPER($1)', [cleanId]);
+    }
+    return res.json({ success: true, message: 'Forma de pagamento removida.' });
+  } catch (err: any) {
+    console.error('[Contributors API] Error deleting payment method:', err);
+    return res.status(500).json({
+      error: 'INTERNAL_SERVER_ERROR',
+      message: 'Erro ao excluir forma de pagamento.'
     });
   }
 });
@@ -4685,13 +5156,13 @@ async function getEquivalentUserIds(userId: string): Promise<string[]> {
   const idsSet = new Set<string>([cleanId]);
   try {
     const q = `
-      SELECT id::text FROM app_users WHERE id::text = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
+      SELECT CAST(id AS TEXT) as id FROM app_users WHERE CAST(id AS TEXT) = $1 OR owner_id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE CAST(id AS TEXT) = $1 LIMIT 1)
       UNION
-      SELECT owner_id::text FROM app_users WHERE (id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)) AND owner_id IS NOT NULL
+      SELECT CAST(owner_id AS TEXT) as id FROM app_users WHERE (CAST(id AS TEXT) = $1 OR owner_id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE CAST(id AS TEXT) = $1 LIMIT 1)) AND owner_id IS NOT NULL
       UNION
-      SELECT id::text FROM profiles WHERE id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
+      SELECT id FROM profiles WHERE id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE CAST(id AS TEXT) = $1 LIMIT 1)
       UNION
-      SELECT owner_id::text FROM profiles WHERE (id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)) AND owner_id IS NOT NULL
+      SELECT owner_id as id FROM profiles WHERE (id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE CAST(id AS TEXT) = $1 LIMIT 1)) AND owner_id IS NOT NULL
     `;
     const res = await pool.query(q, [cleanId]);
     for (const r of (res.rows || [])) {
@@ -4733,7 +5204,7 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
     const banksParams: any[] = [];
     if (equivalentIds.length > 0) {
       banksParams.push(equivalentIds);
-      banksQuery += ` AND user_id = ANY($1)`;
+      banksQuery += ` AND user_id::text = ANY($1)`;
     }
     banksQuery += ' ORDER BY created_at DESC';
 
@@ -4744,7 +5215,7 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
       churchesQuery = 'SELECT * FROM churches WHERE 1=1';
       if (equivalentIds.length > 0) {
         churchesParams.push(equivalentIds);
-        churchesQuery += ` AND user_id = ANY($1)`;
+        churchesQuery += ` AND user_id::text = ANY($1)`;
       }
       if (ctx.isSecondaryUser) {
         churchesParams.push(ctx.allowedChurchIds);
@@ -4760,7 +5231,7 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
       reportsQuery = 'SELECT id, name, user_id, church_id, record_count, created_at FROM saved_reports WHERE 1=1';
       if (equivalentIds.length > 0) {
         reportsParams.push(equivalentIds);
-        reportsQuery += ` AND (user_id = ANY($1) OR user_id IS NULL)`;
+        reportsQuery += ` AND (user_id::text = ANY($1) OR user_id IS NULL)`;
       }
       if (ctx.isSecondaryUser) {
         reportsParams.push(ctx.allowedChurchIds);
@@ -4774,7 +5245,7 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
     const assocParams: any[] = [];
     if (equivalentIds.length > 0) {
       assocParams.push(equivalentIds);
-      assocQuery += ` AND (user_id = ANY($1) OR user_id IS NULL)`;
+      assocQuery += ` AND (user_id::text = ANY($1) OR user_id IS NULL)`;
     }
     assocQuery += ' ORDER BY created_at DESC';
 
@@ -4830,7 +5301,7 @@ app.get('/api/v1/banks', async (req: Request, res: Response) => {
     if (cleanUserId) {
       const userIds = await getEquivalentUserIds(cleanUserId);
       params.push(userIds);
-      query += ` AND user_id = ANY($1)`;
+      query += ` AND user_id::text = ANY($1)`;
     }
     query += ' ORDER BY created_at DESC';
     const result = await pool.query(query, params);
@@ -4959,7 +5430,7 @@ app.delete('/api/v1/banks/:id', async (req: Request, res: Response) => {
 app.get('/api/v1/churches', async (req: Request, res: Response) => {
   try {
     const ctx = getTenantContext(req);
-    const { user_id } = req.query;
+    const { user_id, church, slug, church_id } = req.query;
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
       if (user_id && user_id !== ctx.userId && user_id !== ctx.ownerId) {
@@ -4971,25 +5442,69 @@ app.get('/api/v1/churches', async (req: Request, res: Response) => {
       return res.json([]);
     }
 
-    const cleanUserId = (typeof user_id === 'string' && user_id.trim())
+    let cleanUserId = (typeof user_id === 'string' && user_id.trim())
       ? user_id.trim()
       : (ctx.ownerId || ctx.userId);
 
-    let query = 'SELECT * FROM churches WHERE 1=1';
+    const normalizeSlug = (text: string) => {
+      return String(text || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    };
+
+    // Se a requisição for pública/anônima, resolve o tenant (user_id) a partir da igreja/slug solicitada
+    if (!cleanUserId) {
+      const target = (church || slug || church_id);
+      if (typeof target === 'string' && target.trim()) {
+        const cleanTarget = target.trim();
+        const normTarget = normalizeSlug(cleanTarget);
+        const candidates = await pool.query(
+          `SELECT id, name, user_id FROM churches WHERE name IS NOT NULL AND trim(name) != '' AND lower(trim(name)) != 'igreja'`
+        );
+        const matched = (candidates.rows || []).find((c: any) => {
+          const cId = String(c.id || '').trim().toLowerCase();
+          const cName = String(c.name || '').trim().toLowerCase();
+          const cNorm = normalizeSlug(c.name);
+          return cId === cleanTarget.toLowerCase() || cName === cleanTarget.toLowerCase() || (normTarget && cNorm === normTarget);
+        });
+        if (matched && matched.user_id) {
+          cleanUserId = matched.user_id;
+        }
+      }
+    }
+
+    let query = "SELECT * FROM churches WHERE name IS NOT NULL AND trim(name) != '' AND lower(trim(name)) != 'igreja'";
     const params: any[] = [];
     if (cleanUserId) {
       const userIds = await getEquivalentUserIds(cleanUserId);
       params.push(userIds);
-      query += ` AND user_id = ANY($1)`;
+      query += ` AND (user_id::text = ANY($${params.length}) OR user_id IS NULL)`;
     }
     if (ctx.isSecondaryUser) {
       params.push(ctx.allowedChurchIds);
-      query += ` AND id = ANY($${params.length})`;
+      query += ` AND id::text = ANY($${params.length})`;
     }
-    query += ' ORDER BY name ASC';
+    query += ' ORDER BY created_at ASC';
     const result = await pool.query(query, params);
 
-    return res.json(result.rows || []);
+    // Desduplicação estrita por ID e Nome normalizado para garantir lista 100% limpa e sem repetições
+    const rawRows = result.rows || [];
+    const seenIds = new Set<string>();
+    const seenNames = new Set<string>();
+    const distinctChurches = rawRows.filter((c: any) => {
+      const idKey = String(c.id || '').trim().toLowerCase();
+      const nameKey = String(c.name || '').trim().toLowerCase();
+      if (!idKey || !nameKey || nameKey === 'igreja') return false;
+      if (seenIds.has(idKey) || seenNames.has(nameKey)) return false;
+      seenIds.add(idKey);
+      seenNames.add(nameKey);
+      return true;
+    });
+
+    return res.json(distinctChurches);
   } catch (err) {
     console.error('[Contributors API] Error GET churches:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
@@ -6119,7 +6634,7 @@ app.get('/api/v1/learned_associations', async (req: Request, res: Response) => {
     if (effectiveUserId) {
       const userIds = await getEquivalentUserIds(effectiveUserId);
       params.push(userIds);
-      query += ` AND (user_id = ANY($1) OR user_id IS NULL)`;
+      query += ` AND (user_id::text = ANY($1) OR user_id IS NULL)`;
     }
     const result = await pool.query(query, params);
     return res.json(result.rows);
@@ -6251,7 +6766,7 @@ app.get('/api/v1/saved_reports', async (req: Request, res: Response) => {
     if (effectiveUserId) {
       const userIds = await getEquivalentUserIds(effectiveUserId);
       params.push(userIds);
-      query += ` AND (user_id = ANY($1) OR user_id IS NULL)`;
+      query += ` AND (user_id::text = ANY($1) OR user_id IS NULL)`;
     }
 
     if (ctx.isSecondaryUser) {
@@ -6501,40 +7016,55 @@ async function isChurchPeriodClosed(
   if (isClosingTx) {
     return { isClosed: false };
   }
-  if (!churchId || !dateInput || churchId === 'unidentified' || churchId === 'geral') {
+  if (!churchId || !dateInput || churchId === "unidentified" || churchId === "geral") {
     return { isClosed: false };
   }
 
-  let dateStr = typeof dateInput === 'string' ? dateInput : (dateInput as Date).toISOString();
-  dateStr = dateStr.split(/[T ]/)[0];
-  const parts = dateStr.split('-');
-  if (parts.length < 2) {
-    return { isClosed: false };
+  let dateStr = typeof dateInput === "string" ? dateInput : (dateInput as Date).toISOString();
+  dateStr = dateStr.split(/[T ]/)[0].trim();
+  
+  let year: number;
+  let month: number;
+  let dayPart = "";
+
+  if (dateStr.includes("/")) {
+    const parts = dateStr.split("/");
+    if (parts.length < 3) return { isClosed: false };
+    dayPart = parts[0].padStart(2, "0");
+    month = parseInt(parts[1], 10);
+    year = parseInt(parts[2], 10);
+  } else {
+    const parts = dateStr.split("-");
+    if (parts.length < 2) return { isClosed: false };
+    year = parseInt(parts[0], 10);
+    month = parseInt(parts[1], 10);
+    if (parts.length >= 3) {
+      dayPart = String(parts[2]).slice(0, 2).padStart(2, "0");
+    }
   }
 
-  const year = parseInt(parts[0], 10);
-  const month = parseInt(parts[1], 10);
   if (isNaN(year) || isNaN(month)) {
     return { isClosed: false };
   }
 
   try {
+    // 1. Checagem de mês/período fechado em church_closings
     let query = `SELECT id, church_id, bank_id, year, month, status, closed_at 
        FROM church_closings 
        WHERE church_id::text = $1 AND year = $2 AND month = $3 AND status != 'reopened'`;
     const params: any[] = [String(churchId), year, month];
 
-    if (bankId && bankId !== 'all') {
+    if (bankId && bankId !== "all") {
       query += ` AND (bank_id IS NULL OR bank_id = '' OR bank_id = 'all' OR bank_id::text = $${params.length + 1})`;
       params.push(String(bankId));
     }
 
-    query += ' LIMIT 1';
+    query += " LIMIT 1";
 
     const res = await clientOrPool.query(query, params);
 
     if (res.rows && res.rows.length > 0) {
-      const mStr = String(month).padStart(2, '0');
+      const mStr = String(month).padStart(2, "0");
       return {
         isClosed: true,
         churchId: String(churchId),
@@ -6543,13 +7073,46 @@ async function isChurchPeriodClosed(
         message: `PERÍODO CONGELADO: O período ${mStr}/${year} desta congregação já teve seu Fechamento Final homologado. Novos lançamentos, alterações ou exclusões estão expressamente bloqueados.`
       };
     }
+
+    // 2. Checagem de data com lançamentos confirmados (CONFIRMAR FINAL)
+    if (dayPart && !isNaN(parseInt(dayPart, 10))) {
+      const dateYmd = `${year}-${String(month).padStart(2, "0")}-${dayPart}`;
+      let dateConfirmQuery = `
+        SELECT id, description, transaction_date, reference_date 
+        FROM consolidated_transactions 
+        WHERE church_id::text = $1 
+          AND (
+            transaction_date::text LIKE $2 
+            OR reference_date::text LIKE $2
+            OR substr(COALESCE(reference_date, transaction_date::text), 1, 10) = $3
+          )
+          AND (is_confirmed IS TRUE OR status = 'resolved')
+          AND (source IS NULL OR source != 'closing')
+      `;
+      const dateConfirmParams: any[] = [String(churchId), `${dateYmd}%`, dateYmd];
+      if (bankId && bankId !== "all") {
+        dateConfirmQuery += ` AND (bank_id IS NULL OR bank_id = '' OR bank_id = 'all' OR bank_id::text = $${dateConfirmParams.length + 1})`;
+        dateConfirmParams.push(String(bankId));
+      }
+      dateConfirmQuery += " LIMIT 1";
+      const dateRes = await clientOrPool.query(dateConfirmQuery, dateConfirmParams);
+      if (dateRes.rows && dateRes.rows.length > 0) {
+        const dStr = `${dayPart}/${String(month).padStart(2, "0")}/${year}`;
+        return {
+          isClosed: true,
+          churchId: String(churchId),
+          year,
+          month,
+          message: `DATA CONGELADA: A data ${dStr} desta congregação já possui lançamentos com Confirmação Final homologada. Novos lançamentos, alterações ou exclusões nesta data estão expressamente bloqueados.`
+        };
+      }
+    }
   } catch (err: any) {
-    console.error('[ChurchClosings] Erro ao consultar status do fechamento:', err?.message || err);
+    console.error("[ChurchClosings] Erro ao consultar status do fechamento:", err?.message || err);
   }
 
   return { isClosed: false };
 }
-
 // GET /api/v1/church-closings
 app.get('/api/v1/church-closings', async (req: Request, res: Response) => {
   try {
@@ -6712,13 +7275,13 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
     if (effStatus !== 'reopened' && effTransferred !== null && effTransferred !== 0) {
       const monthPrefix = `${effYear}-${String(effMonth).padStart(2, '0')}`;
       try {
-        // Limpa transações anteriores deste mesmo fechamento para evitar duplicidade
+        // Limpa transações anteriores estritamente deste fechamento para evitar duplicidade
         await pool.query(
           `DELETE FROM consolidated_transactions 
-           WHERE (church_id::text = $1 OR row_hash LIKE $2 OR (user_id = $3 AND (id LIKE 'closing-%' OR row_hash LIKE 'closing-%' OR source = 'closing')))
+           WHERE (church_id::text = $1 OR row_hash LIKE $2)
              AND (id LIKE 'closing-%' OR row_hash LIKE 'closing-%' OR source = 'closing')
-             AND (transaction_date::text LIKE $4 OR reference_date::text LIKE $4)`,
-          [effChurchId, `closing-%-${effChurchId}-%`, ctx.userId || '', `${monthPrefix}%`]
+             AND (transaction_date::text LIKE $3 OR reference_date::text LIKE $3)`,
+          [effChurchId, `closing-%-${effChurchId}-%`, `${monthPrefix}%`]
         );
 
         const providedTxs = Array.isArray(transferTransactions || transfer_transactions) 
@@ -6746,7 +7309,7 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
             amount: isNegative ? absAmt : -absAmt,
             type: isNegative ? 'income' : 'expense',
             description: isNegative 
-              ? `[APORTE/FECHAMENTO] ${memoPrefix} - COBERTURA DE SALDO PELO ${effTargetChurchName || 'DESTINO'}` 
+              ? `[APORTE/FECHAMENTO] ${memoPrefix} - COBERTURA DE DÉFICIT PELO ${effTargetChurchName || 'DESTINO'}` 
               : `[FECHAMENTO] ${memoPrefix} - TRANSP. SALDO PARA ${effTargetChurchName || 'DESTINO'}`,
             transaction_date: originDate,
             reference_date: originDate,
@@ -6754,7 +7317,7 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
             source: 'closing',
             status: 'identified',
             is_confirmed: true,
-            contribution_type: isNegative ? 'ENTRADA / TRANSFERÊNCIA' : 'SAÍDA / TRANSFERÊNCIA',
+            contribution_type: isNegative ? 'DÉFICIT TRANSPORTADO' : 'SALDO TRANSPORTADO',
             payment_method: 'TRANSFERÊNCIA'
           });
 
@@ -6776,7 +7339,7 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
               source: 'closing',
               status: 'identified',
               is_confirmed: true,
-              contribution_type: isNegative ? 'SAÍDA / TRANSFERÊNCIA' : 'ENTRADA / TRANSFERÊNCIA',
+              contribution_type: isNegative ? 'DÉFICIT TRANSPORTADO' : 'SALDO TRANSPORTADO',
               payment_method: 'TRANSFERÊNCIA'
             });
           });
@@ -6786,14 +7349,39 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
           const finalTxId = (tx.id && /^[0-9a-fA-F-]{36}$/.test(tx.id)) ? tx.id : crypto.randomUUID();
           const finalUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : (tx.user_id || ctx.userId || null);
           const finalChurchId = String(tx.church_id || tx.churchId || effChurchId);
-          const finalBankId = (tx.bank_id && tx.bank_id !== 'all') ? String(tx.bank_id) : null;
+          let finalBankId = (tx.bank_id && tx.bank_id !== 'all') ? String(tx.bank_id) : null;
+
+          // 🛡️ Auto-resolução da conta bancária da congregação de destino se não vier preenchida
+          if (!finalBankId && finalChurchId) {
+            try {
+              const pixKeyRes = await pool.query(
+                `SELECT bank_id FROM church_pix_keys WHERE church_id::text = $1 AND (is_active = true OR is_active IS TRUE) AND bank_id IS NOT NULL AND bank_id != '' ORDER BY is_default DESC LIMIT 1`,
+                [finalChurchId]
+              );
+              if (pixKeyRes.rows && pixKeyRes.rows.length > 0 && pixKeyRes.rows[0].bank_id) {
+                finalBankId = String(pixKeyRes.rows[0].bank_id);
+              } else {
+                const prevTxRes = await pool.query(
+                  `SELECT bank_id FROM consolidated_transactions WHERE church_id::text = $1 AND bank_id IS NOT NULL AND bank_id != '' LIMIT 1`,
+                  [finalChurchId]
+                );
+                if (prevTxRes.rows && prevTxRes.rows.length > 0 && prevTxRes.rows[0].bank_id) {
+                  finalBankId = String(prevTxRes.rows[0].bank_id);
+                }
+              }
+            } catch (_) {}
+          }
+
           const finalAmount = Number(tx.amount || 0);
           const finalType = tx.type || (finalAmount >= 0 ? 'income' : 'expense');
           const finalDesc = String(tx.description || tx.desc || 'Transporte de Fechamento');
           const finalDate = tx.transaction_date || tx.date || (effClosedAt ? String(effClosedAt).split('T')[0] : `${effYear}-${String(effMonth).padStart(2, '0')}-01`);
           const finalRefDate = tx.reference_date || finalDate;
           const finalRowHash = tx.row_hash || `closing-${finalTxId}`;
-          const finalContribType = tx.contribution_type || (finalType === 'expense' ? 'SAÍDA / TRANSFERÊNCIA' : 'ENTRADA / TRANSFERÊNCIA');
+          const isNegative = effTransferred < 0;
+          const finalContribType = tx.contribution_type && (tx.contribution_type.includes('SALDO') || tx.contribution_type.includes('DÉFICIT'))
+            ? tx.contribution_type
+            : (isNegative ? 'DÉFICIT TRANSPORTADO' : 'SALDO TRANSPORTADO');
           const finalPaymentMethod = tx.payment_method || 'TRANSFERÊNCIA';
 
           await pool.query(
@@ -6811,7 +7399,7 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
               row_hash = EXCLUDED.row_hash,
               source = 'closing',
               status = 'identified',
-              is_confirmed = 1,
+              is_confirmed = true,
               contribution_type = EXCLUDED.contribution_type,
               payment_method = EXCLUDED.payment_method,
               updated_at = NOW()`,
@@ -6825,6 +7413,34 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
         console.log(`[ChurchClosings] 💸 ${txsToInsert.length} transações financeiras reais de transporte gravadas em consolidated_transactions.`);
       } catch (txErr) {
         console.error('[ChurchClosings] Erro ao gravar transações de transporte no banco:', txErr);
+      }
+    }
+
+    // 🛡️ RECURSO ÚNICO "CONFIRMAR FINAL": Homologação atômica de todas as transações do período no PostgreSQL
+    if (effStatus !== 'reopened') {
+      try {
+        const monthPrefix = `${effYear}-${String(effMonth).padStart(2, '0')}`;
+        let confirmQuery = `
+          UPDATE consolidated_transactions 
+          SET is_confirmed = true, status = 'resolved', updated_at = NOW()
+          WHERE church_id::text = $1
+            AND (
+              transaction_date::text LIKE $2 
+              OR reference_date::text LIKE $2
+              OR substr(COALESCE(reference_date, transaction_date::text), 1, 7) = $3
+            )
+        `;
+        const confirmParams: any[] = [effChurchId, `${monthPrefix}%`, monthPrefix];
+
+        if (effBankId && effBankId !== 'all') {
+          confirmQuery += ` AND bank_id::text = $${confirmParams.length + 1}`;
+          confirmParams.push(effBankId);
+        }
+
+        const confirmRes = await pool.query(confirmQuery, confirmParams);
+        console.log(`[ChurchClosings] 🔒 Fechamento Final: ${confirmRes.rowCount || 0} transações marcadas como confirmadas/bloqueadas no PostgreSQL.`);
+      } catch (confirmErr) {
+        console.error('[ChurchClosings] Erro ao confirmar transações do período no banco:', confirmErr);
       }
     }
 
@@ -7143,7 +7759,7 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
 
     if (effectiveUserId) {
       const userIds = await getEquivalentUserIds(String(effectiveUserId));
-      query += ` AND (user_id = ANY($${counter}) OR user_id IS NULL)`;
+      query += ` AND (user_id::text = ANY($${counter}) OR user_id IS NULL)`;
       params.push(userIds);
       counter++;
     }
@@ -7306,7 +7922,7 @@ app.get('/api/v1/consolidated_transactions/:id/attachments', async (req: Request
   try {
     const { id } = req.params;
     const ctx = getTenantContext(req);
-    const txRes = await pool.query('SELECT attachments, church_id, user_id FROM consolidated_transactions WHERE id::text = $1 LIMIT 1', [id]);
+    const txRes = await pool.query('SELECT id, attachments, church_id, user_id, bank_id, status FROM consolidated_transactions WHERE id::text = $1 LIMIT 1', [id]);
     if (!txRes.rows || txRes.rows.length === 0) {
       return res.status(404).json({ error: 'NOT_FOUND' });
     }
@@ -7483,7 +8099,7 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
       // Prevenção cirúrgica contra duplicidades: se row_hash já existe para o usuário, reutiliza o registro existente
       // Lançamentos manuais são criados intencionalmente pelo usuário e não devem ser ignorados por colisão de hash
       if (row_hash && source !== 'manual') {
-        const dupCheck = await client.query(
+        const dupCheck = await pool.query(
           'SELECT * FROM consolidated_transactions WHERE user_id = $1 AND row_hash = $2 LIMIT 1',
           [effectiveUserId, row_hash]
         );
@@ -7496,7 +8112,7 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
 
       // 🛡️ Validação de Período Fechado (Congelamento)
       const isClosingTx = source === 'closing' || (tx.id && String(tx.id).startsWith('closing-')) || (row_hash && String(row_hash).startsWith('closing-'));
-      const closedCheck = await isChurchPeriodClosed(client, effectiveChurchId, transaction_date || reference_date, bank_id, isClosingTx);
+      const closedCheck = await isChurchPeriodClosed(pool, effectiveChurchId, transaction_date || reference_date, bank_id, isClosingTx);
       if (closedCheck.isClosed) {
         await client.query('ROLLBACK');
         return res.status(422).json({
@@ -7511,7 +8127,7 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
 
       const finalId = id || crypto.randomUUID();
 
-      const finalContribReqId = await matchAndLinkContributionRequest(client, {
+      const finalContribReqId = await matchAndLinkContributionRequest(pool, {
         id: finalId,
         church_id: effectiveChurchId,
         contributor_id,
@@ -7525,7 +8141,7 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
 
       if (finalContribReqId && !initialSplits) {
         try {
-          const reqCheck = await client.query('SELECT splits, description FROM contribution_requests WHERE id = $1 LIMIT 1', [finalContribReqId]);
+          const reqCheck = await pool.query('SELECT splits, description FROM contribution_requests WHERE id = $1 LIMIT 1', [finalContribReqId]);
           if (reqCheck.rows.length > 0 && reqCheck.rows[0].splits) {
             const reqSplits = reqCheck.rows[0].splits;
             initialSplits = typeof reqSplits === 'string' ? reqSplits : JSON.stringify(reqSplits);
@@ -7583,10 +8199,12 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
 
     await client.query('COMMIT');
     return res.status(201).json(inserted);
-  } catch (err) {
-    await client.query('ROLLBACK');
+  } catch (err: any) {
+    try {
+      await client.query('ROLLBACK');
+    } catch (_) {}
     console.error('[Contributors API] Error POST bulk consolidated_transactions:', err);
-    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: err?.message || 'Erro interno ao processar transações em lote' });
   } finally {
     client.release();
   }
@@ -7604,16 +8222,36 @@ async function isAuthorizedForTransaction(pool: any, ctx: TenantContext, oldTx: 
     return true;
   }
 
-  // 2. Se for usuário secundário: restringe às igrejas permitidas
+  // 1.1 Vínculo por IDs equivalentes da organização
+  if (oldTx.user_id && currentOwnerId) {
+    try {
+      const eqIds = await getEquivalentUserIds(String(currentOwnerId));
+      if (eqIds.includes(oldTx.user_id) || eqIds.includes(oldTx.user_id.toLowerCase())) {
+        return true;
+      }
+    } catch (_) {}
+  }
+
+  // 2. Se for usuário secundário: restringe às igrejas permitidas OU bancos permitidos para registros da lista viva
   if (ctx.isSecondaryUser) {
-    if (ctx.allowedChurchIds.length === 0) return false;
-    if (oldTx.church_id && ctx.allowedChurchIds.includes(oldTx.church_id)) return true;
+    if (oldTx.church_id && oldTx.church_id !== 'unidentified' && ctx.allowedChurchIds && ctx.allowedChurchIds.includes(oldTx.church_id)) {
+      return true;
+    }
+    // Registros pendentes/não identificados da lista viva: autoriza se o banco ou congregações permitidas coincidirem
+    if (!oldTx.church_id || oldTx.church_id === 'unidentified') {
+      if (oldTx.bank_id && ctx.allowedBankIds && ctx.allowedBankIds.includes(oldTx.bank_id)) {
+        return true;
+      }
+      if (ctx.allowedChurchIds && ctx.allowedChurchIds.length > 0) {
+        return true;
+      }
+    }
     return false;
   }
 
   // 3. Se for Proprietário / Administrador da conta (Owner):
   if (ctx.isOwner) {
-    if (oldTx.church_id) {
+    if (oldTx.church_id && oldTx.church_id !== 'unidentified') {
       if (ctx.allowedChurchIds && ctx.allowedChurchIds.includes(oldTx.church_id)) return true;
       const churchCheck = await pool.query(
         'SELECT id FROM churches WHERE id = $1 AND (user_id = $2 OR user_id = $3) LIMIT 1',
@@ -7623,20 +8261,25 @@ async function isAuthorizedForTransaction(pool: any, ctx: TenantContext, oldTx: 
     }
 
     if (oldTx.user_id) {
-      const userCheck = await pool.query(
-        'SELECT id FROM profiles WHERE id = $1 AND owner_id = $2 LIMIT 1',
-        [oldTx.user_id, currentOwnerId]
-      );
-      if (userCheck.rows.length > 0) return true;
+      try {
+        const userCheck = await pool.query(
+          'SELECT id FROM profiles WHERE id::text = $1 AND owner_id::text = $2 LIMIT 1',
+          [oldTx.user_id, currentOwnerId]
+        );
+        if (userCheck.rows.length > 0) return true;
+      } catch (_) {}
 
-      const appUserCheck = await pool.query(
-        'SELECT id FROM app_users WHERE id = $1 AND owner_id = $2 LIMIT 1',
-        [oldTx.user_id, currentOwnerId]
-      );
-      if (appUserCheck.rows.length > 0) return true;
+      try {
+        const appUserCheck = await pool.query(
+          'SELECT id FROM app_users WHERE id::text = $1 AND owner_id::text = $2 LIMIT 1',
+          [oldTx.user_id, currentOwnerId]
+        );
+        if (appUserCheck.rows.length > 0) return true;
+      } catch (_) {}
     }
 
-    if (!oldTx.user_id && !oldTx.church_id) return true;
+    // Registros pendentes ou não identificados da conta pertencem à organização ativa
+    if (!oldTx.user_id || !oldTx.church_id || oldTx.church_id === 'unidentified') return true;
   }
 
   return false;
@@ -7670,17 +8313,21 @@ async function isAuthorizedForFinancialRecord(pool: any, ctx: TenantContext, old
     }
 
     if (oldRec.user_id) {
-      const userCheck = await pool.query(
-        'SELECT id FROM profiles WHERE id = $1 AND owner_id = $2 LIMIT 1',
-        [oldRec.user_id, currentOwnerId]
-      );
-      if (userCheck.rows.length > 0) return true;
+      try {
+        const userCheck = await pool.query(
+          'SELECT id FROM profiles WHERE id::text = $1 AND owner_id::text = $2 LIMIT 1',
+          [oldRec.user_id, currentOwnerId]
+        );
+        if (userCheck.rows.length > 0) return true;
+      } catch (_) {}
 
-      const appUserCheck = await pool.query(
-        'SELECT id FROM app_users WHERE id = $1 AND owner_id = $2 LIMIT 1',
-        [oldRec.user_id, currentOwnerId]
-      );
-      if (appUserCheck.rows.length > 0) return true;
+      try {
+        const appUserCheck = await pool.query(
+          'SELECT id FROM app_users WHERE id::text = $1 AND owner_id::text = $2 LIMIT 1',
+          [oldRec.user_id, currentOwnerId]
+        );
+        if (appUserCheck.rows.length > 0) return true;
+      } catch (_) {}
     }
 
     if (!oldRec.user_id && !oldRec.church_id) return true;
@@ -7728,12 +8375,38 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
       }
     }
 
-    // 🛡️ Validação de Período Fechado (Congelamento)
-    // 1. Não permite alterar transação pertencente a um período já fechado (exceto se for item pendente de arquivo/SMS sendo identificado pela primeira vez)
+    // 🛡️ RECURSO ÚNICO "CONFIRMAR FINAL": Validação de Bloqueio e Período Fechado
+    const isFinancialDataModified = 
+      (amount !== undefined && Number(amount) !== Number(oldTx.amount)) ||
+      (type !== undefined && type !== oldTx.type) ||
+      (bank_id !== undefined && String(bank_id) !== String(oldTx.bank_id)) ||
+      (church_id !== undefined && String(church_id) !== String(oldTx.church_id)) ||
+      (transaction_date !== undefined && String(transaction_date) !== String(oldTx.transaction_date)) ||
+      (reference_date !== undefined && String(reference_date) !== String(oldTx.reference_date || oldTx.transaction_date));
+
+    const canConfirmFinal = ctx.isOwner || (Array.isArray(ctx.permissions) && (
+      ctx.permissions.includes('confirmar_final') ||
+      ctx.permissions.includes('confirm_final') ||
+      ctx.permissions.includes('financeiro') ||
+      ctx.permissions.includes('admin')
+    ));
+
+    const isOnlyConfirmationToggle = is_confirmed !== undefined && !isFinancialDataModified && canConfirmFinal;
+
+    // Se o lançamento já está confirmado e o usuário tenta alterar valores, bancos ou datas (sem destravá-lo antes com permissão):
+    const isCurrentlyConfirmed = Boolean(oldTx.is_confirmed);
+    if (isCurrentlyConfirmed && isFinancialDataModified && !isOnlyConfirmationToggle) {
+      return res.status(422).json({
+        error: 'TRANSACTION_CONFIRMED',
+        message: 'LANÇAMENTO CONFIRMADO: Esta transação já possui confirmação final homologada. Alterações em valores, contas ou datas estão bloqueadas.'
+      });
+    }
+
+    // 1. Não permite alterar transação pertencente a um período já fechado (exceto se for item pendente ou toggle autorizado de confirmação)
     const isUnconfirmedBankTx = (oldTx.source !== 'manual') && (!oldTx.is_confirmed || oldTx.status !== 'confirmed');
     const oldEffectiveDate = oldTx.reference_date || oldTx.transaction_date;
     const oldCheck = await isChurchPeriodClosed(pool, oldTx.church_id, oldEffectiveDate);
-    if (oldCheck.isClosed && !isUnconfirmedBankTx) {
+    if (oldCheck.isClosed && !isUnconfirmedBankTx && !isOnlyConfirmationToggle) {
       return res.status(422).json({
         error: 'PERIOD_CLOSED',
         message: `PERÍODO CONGELADO: Esta transação pertence ao período ${String(oldCheck.month).padStart(2, '0')}/${oldCheck.year}, que já teve seu Fechamento Final homologado. Alterações estão expressamente bloqueadas.`
@@ -7741,14 +8414,16 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
     }
 
     // 2. Não permite mover transação para uma congregação/data cujo período esteja fechado
-    const targetChurchId = church_id !== undefined ? church_id : oldTx.church_id;
-    const targetDate = (reference_date !== undefined && reference_date) ? reference_date : (transaction_date !== undefined ? transaction_date : (oldTx.reference_date || oldTx.transaction_date));
-    const newCheck = await isChurchPeriodClosed(pool, targetChurchId, targetDate);
-    if (newCheck.isClosed) {
-      return res.status(422).json({
-        error: 'PERIOD_CLOSED',
-        message: newCheck.message
-      });
+    if (isFinancialDataModified) {
+      const targetChurchId = church_id !== undefined ? church_id : oldTx.church_id;
+      const targetDate = (reference_date !== undefined && reference_date) ? reference_date : (transaction_date !== undefined ? transaction_date : (oldTx.reference_date || oldTx.transaction_date));
+      const newCheck = await isChurchPeriodClosed(pool, targetChurchId, targetDate);
+      if (newCheck.isClosed) {
+        return res.status(422).json({
+          error: 'PERIOD_CLOSED',
+          message: newCheck.message
+        });
+      }
     }
 
     let finalContribReqId = contribution_request_id;
@@ -7910,7 +8585,14 @@ app.delete('/api/v1/consolidated_transactions/:id', async (req: Request, res: Re
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: a transação pertence a outra organização.' });
     }
 
-    // 🛡️ Validação de Período Fechado (Congelamento)
+    // 🛡️ Validação de Bloqueio (Lançamento Confirmado) e Período Fechado
+    if (oldTx.is_confirmed) {
+      return res.status(422).json({
+        error: 'TRANSACTION_CONFIRMED',
+        message: 'LANÇAMENTO CONFIRMADO: Esta transação possui confirmação final homologada e está bloqueada contra exclusão.'
+      });
+    }
+
     const oldCheck = await isChurchPeriodClosed(pool, oldTx.church_id, oldTx.transaction_date || oldTx.reference_date);
     if (oldCheck.isClosed) {
       return res.status(422).json({
@@ -7959,7 +8641,14 @@ app.post('/api/v1/consolidated_transactions/bulk-delete', async (req: Request, r
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: uma ou mais transações pertencem a outra organização.' });
       }
 
-      // 🛡️ Validação de Período Fechado (Congelamento)
+      // 🛡️ Validação de Bloqueio (Lançamento Confirmado) e Período Fechado
+      if (oldTx.is_confirmed) {
+        return res.status(422).json({
+          error: 'TRANSACTION_CONFIRMED',
+          message: `LANÇAMENTO CONFIRMADO: A transação "${oldTx.description}" possui confirmação final homologada e está bloqueada contra exclusão.`
+        });
+      }
+
       const closedCheck = await isChurchPeriodClosed(pool, oldTx.church_id, oldTx.transaction_date || oldTx.reference_date);
       if (closedCheck.isClosed) {
         return res.status(422).json({
@@ -8019,7 +8708,7 @@ app.get('/api/v1/financial_records', async (req: Request, res: Response) => {
     const userIds = await getEquivalentUserIds(String(effectiveUserId));
     let query = `
       SELECT * FROM financial_records 
-      WHERE user_id = ANY($1)
+      WHERE user_id::text = ANY($1)
     `;
     const params: any[] = [userIds];
     let count = 2;

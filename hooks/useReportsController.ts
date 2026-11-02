@@ -178,7 +178,8 @@ export const useReportsController = () => {
         !prevResults || 
         filtersChanged || 
         Math.abs(currentResults.length - prevResults.length) > 1 ||
-        !lastRealtimeUpdate.txId;
+        !lastRealtimeUpdate.txId ||
+        Boolean(lastRealtimeUpdate.txId && !cacheRef.current.resultsMap.has(lastRealtimeUpdate.txId));
 
     if (needsFullRebuild) {
         // 1. Rebuild resultsMap

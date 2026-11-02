@@ -522,12 +522,15 @@ export const useCloudSync = ({
 
                 reportsMap.forEach((value, key) => {
                     if (!reconstructedMap.has(key)) {
-                        const isManual = value.transaction?.isManual || 
+                        const isGhost = typeof value.transaction?.id === 'string' && value.transaction.id.startsWith('ghost-manual-');
+                        const isManual = !isGhost && (
+                            value.transaction?.isManual || 
                             value.transaction?.source === 'manual' || 
                             value.matchMethod === MatchMethod.MANUAL ||
-                            (value.transaction?.id && typeof value.transaction.id === 'string' && (value.transaction.id.startsWith('ghost-manual-') || value.transaction.id.startsWith('manual-')));
+                            (value.transaction?.id && typeof value.transaction.id === 'string' && value.transaction.id.startsWith('manual-'))
+                        );
 
-                        if (activeReportId || isManual) {
+                        if (!isGhost && (activeReportId || isManual)) {
                             if (activeReportId) {
                                 const txDate = value.contributor?.reference_date || value.reference_date || value.transaction?.reference_date || value.transaction?.date || (value as any).date;
                                 if (txDate && (startStr || endStr)) {
@@ -612,11 +615,14 @@ export const useCloudSync = ({
 
                     // Preserva estritamente lançamentos manuais locais (persistidos ou temporários) que ainda não vieram na fatia atual do banco
                     prev.forEach(p => {
-                        const isManual = p.transaction?.isManual || 
+                        const isGhost = typeof p.transaction?.id === 'string' && p.transaction.id.startsWith('ghost-manual-');
+                        const isManual = !isGhost && (
+                            p.transaction?.isManual || 
                             p.transaction?.source === 'manual' || 
                             p.matchMethod === MatchMethod.MANUAL ||
-                            (p.transaction?.id && typeof p.transaction.id === 'string' && (p.transaction.id.startsWith('ghost-manual-') || p.transaction.id.startsWith('manual-')));
-                        if (!map.has(p.transaction.id) && isManual) {
+                            (p.transaction?.id && typeof p.transaction.id === 'string' && p.transaction.id.startsWith('manual-'))
+                        );
+                        if (!isGhost && !map.has(p.transaction.id) && isManual) {
                             map.set(p.transaction.id, p);
                             hasChanges = true;
                         }
