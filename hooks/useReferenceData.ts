@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { getAuthToken } from '../services/auth/authAdapter';
-import { Bank, Church, ChurchFormData, ContributionType, LearnedAssociation, MatchResult, PaymentMethodItem, PaymentOperationType } from '../types';
+import { Bank, Church, ChurchFormData, ContributionType, LearnedAssociation, MatchResult } from '../types';
 import { usePersistentState } from './usePersistentState';
 import { strictNormalize, DEFAULT_CONTRIBUTION_KEYWORDS, isInvalidOrNumericName, cleanBankDescription, normalizeString } from '../services/utils/parsingUtils';
 import { useAuth } from '../contexts/AuthContext';
@@ -16,14 +16,13 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const userSuffix = user ? `-${user.id}` : '-guest';
 
     const [banks, setBanks] = usePersistentState<Bank[]>(`identificapix-banks${userSuffix}`, []);
-    const [churches, setChurches] = usePersistentState<Church[]>(`identificapix-churches${userSuffix}`, [], true);
+    const [churches, setChurches] = usePersistentState<Church[]>(`identificapix-churches${userSuffix}`, []);
     const [reports, setReports] = useState<any[]>([]);
     const [similarityLevel, setSimilarityLevel] = usePersistentState<number>(`identificapix-similarity${userSuffix}`, 55);
     const [dayTolerance, setDayTolerance] = usePersistentState<number>(`identificapix-daytolerance${userSuffix}`, 2);
     
     const [contributionKeywords, setContributionKeywords] = usePersistentState<string[]>(`identificapix-contrib-keywords${userSuffix}`, DEFAULT_CONTRIBUTION_KEYWORDS);
     const [paymentMethods, setPaymentMethods] = usePersistentState<string[]>(`identificapix-payment-methods${userSuffix}`, DEFAULT_PAYMENT_METHODS);
-    const [paymentMethodItems, setPaymentMethodItems] = useState<PaymentMethodItem[]>([]);
     const [contributionTypes, setContributionTypes] = useState<ContributionType[]>([]);
 
     const fetchContributionTypes = useCallback(async (forceRefresh = false) => {
@@ -47,66 +46,18 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         fetchContributionTypes();
     }, [fetchContributionTypes]);
 
-    const fetchPaymentMethods = useCallback(async (forceRefresh = false) => {
-        try {
-            const url = effectiveUserId 
-                ? `/api/v1/payment-methods?user_id=${encodeURIComponent(effectiveUserId)}`
-                : '/api/v1/payment-methods';
-            const data = await fetchWithMemoryCache<PaymentMethodItem[]>(url, {}, {
-                ttlMs: 45000,
-                forceRefresh
-            });
-            if (Array.isArray(data) && data.length > 0) {
-                setPaymentMethodItems(data);
-                const activeNames = data.filter(d => d.is_active !== false).map(d => d.name.toUpperCase());
-                const combined = Array.from(new Set([...activeNames]));
-                if (!combined.some(m => m.toUpperCase() === 'DINHEIRO')) combined.unshift('DINHEIRO');
-                if (!combined.some(m => m.toUpperCase() === 'PIX')) combined.push('PIX');
-                setPaymentMethods(combined);
-            }
-        } catch (err) {
-            console.error('Erro ao buscar formas de pagamento:', err);
-        }
-    }, [effectiveUserId, setPaymentMethods]);
-
-    useEffect(() => {
-        fetchPaymentMethods();
-    }, [fetchPaymentMethods]);
-
-    // Realtime sync across tabs/windows
-    useEffect(() => {
-        const handleUpdated = () => {
-            fetchPaymentMethods(true);
-        };
-        window.addEventListener('payment_methods_updated', handleUpdated);
-        let bc: BroadcastChannel | null = null;
-        if (typeof BroadcastChannel !== 'undefined') {
-            try {
-                bc = new BroadcastChannel('identificapix_realtime_sync');
-                bc.onmessage = (ev) => {
-                    if (ev.data?.type === 'payment_methods_updated') {
-                        fetchPaymentMethods(true);
-                    }
-                };
-            } catch (_) {}
-        }
-        return () => {
-            window.removeEventListener('payment_methods_updated', handleUpdated);
-            if (bc) bc.close();
-        };
-    }, [fetchPaymentMethods]);
-
-    // ✅ MIGRATION/CLEANUP logic to ensure baseline contribution keywords
+    // ✅ MIGRATION/CLEANUP logic to ensure only 'DÍZIMO', 'OFERTA' for contribution types and 'PIX', 'DINHEIRO' for payment methods
     const hasMigratedRef = useRef(false);
 
     useEffect(() => {
         if (!userSuffix) return;
         if (hasMigratedRef.current) return;
         
-        if (!contributionKeywords) return;
+        if (!contributionKeywords || !paymentMethods) return;
 
         let changed = false;
         let nextKeywords = [...contributionKeywords];
+        let nextMethods = [...paymentMethods];
 
         // 1. Clean contribution keywords if they match the legacy defaults
         if (contributionKeywords.length === 10 && contributionKeywords.includes('COLETA')) {
@@ -123,14 +74,32 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             }
         }
 
+        // 2. Clean payment methods if they match legacy defaults
+        if (paymentMethods.length === 7 && paymentMethods.includes('TED')) {
+            nextMethods = ['PIX', 'DINHEIRO'];
+            changed = true;
+        } else if (paymentMethods.length > 2) {
+            const oldMethods = ['TED', 'BOLETO', 'CARTÃO', 'CHEQUE', 'DEPÓSITO'];
+            const filtered = paymentMethods.filter(pm => !oldMethods.includes(pm.toUpperCase()));
+            if (filtered.length !== paymentMethods.length) {
+                nextMethods = filtered;
+                if (!nextMethods.some(m => m.toUpperCase() === 'PIX')) nextMethods.push('PIX');
+                if (!nextMethods.some(m => m.toUpperCase() === 'DINHEIRO')) nextMethods.push('DINHEIRO');
+                changed = true;
+            }
+        }
+
         if (changed) {
             if (JSON.stringify(nextKeywords) !== JSON.stringify(contributionKeywords)) {
                 setContributionKeywords(nextKeywords);
             }
+            if (JSON.stringify(nextMethods) !== JSON.stringify(paymentMethods)) {
+                setPaymentMethods(nextMethods);
+            }
         }
         
         hasMigratedRef.current = true;
-    }, [contributionKeywords, userSuffix, setContributionKeywords]);
+    }, [contributionKeywords, paymentMethods, userSuffix, setContributionKeywords, setPaymentMethods]);
 
     const [learnedAssociations, setLearnedAssociations] = useState<LearnedAssociation[]>([]);
     const [editingBank, setEditingBank] = useState<Bank | null>(null);
@@ -247,9 +216,6 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                             filteredChurches = [];
                             fetchedReports = [];
                         }
-                    } else if (effectiveUserId || user?.id) {
-                        const myOwnerId = String(effectiveUserId || user?.id);
-                        filteredBanks = filteredBanks.filter((b: any) => !b.user_id || String(b.user_id) === myOwnerId || String(b.user_id) === String(user?.id));
                     }
                     
                     if (!ignore) {
@@ -524,142 +490,30 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         showToast("Palavra removida.", "success");
     }, [setContributionKeywords, showToast]);
 
-    const addPaymentMethod = useCallback(async (methodOrData: string | { name: string; type?: PaymentOperationType; category?: string; bank_id?: string; order?: number; is_active?: boolean }) => {
-        const payload = typeof methodOrData === 'string'
-            ? { name: methodOrData.trim().toUpperCase(), type: 'ambos' as PaymentOperationType, order: 1, is_active: true }
-            : { ...methodOrData, name: methodOrData.name.trim().toUpperCase() };
-
-        if (!payload.name) return false;
-
-        try {
-            const res = await fetch('/api/v1/payment-methods', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...payload, user_id: effectiveUserId })
-            });
-            if (res.ok) {
-                const newMethod = await res.json();
-                setPaymentMethodItems(prev => {
-                    const filtered = prev.filter(p => p.id !== newMethod.id && p.name.toUpperCase() !== newMethod.name.toUpperCase());
-                    return [...filtered, newMethod];
-                });
-                setPaymentMethods(prev => {
-                    if (!prev.includes(newMethod.name.toUpperCase())) {
-                        return [...prev, newMethod.name.toUpperCase()];
-                    }
-                    return prev;
-                });
-                showToast(`Forma "${newMethod.name}" adicionada.`, 'success');
-                window.dispatchEvent(new CustomEvent('payment_methods_updated', { detail: { action: 'create', method: newMethod } }));
-                if (typeof BroadcastChannel !== 'undefined') {
-                    try {
-                        const bc = new BroadcastChannel('identificapix_realtime_sync');
-                        bc.postMessage({ type: 'payment_methods_updated' });
-                        bc.close();
-                    } catch (_) {}
-                }
-                return newMethod;
-            } else {
-                const errJson = await res.json().catch(() => ({}));
-                showToast(errJson.message || 'Erro ao cadastrar forma.', 'error');
-                return false;
-            }
-        } catch (err: any) {
-            console.error('Erro ao cadastrar forma de pagamento:', err);
-            showToast('Erro ao comunicar com o servidor.', 'error');
-            return false;
+    const addPaymentMethod = useCallback((method: string) => {
+        const upper = method.trim().toUpperCase();
+        if (!paymentMethods.includes(upper)) {
+            setPaymentMethods(prev => [...prev, upper]);
+            showToast(`Forma "${upper}" adicionada.`, 'success');
         }
-    }, [effectiveUserId, showToast, setPaymentMethods]);
+    }, [paymentMethods, setPaymentMethods, showToast]);
 
-    const removePaymentMethod = useCallback(async (idOrName: string) => {
-        const cleanParam = idOrName.trim();
-        if (!cleanParam) return false;
+    const removePaymentMethod = useCallback((method: string) => {
+        setPaymentMethods(prev => prev.filter(m => m !== method));
+        showToast("Forma removida.", "success");
+    }, [setPaymentMethods, showToast]);
 
-        const found = paymentMethodItems.find(p => p.id === cleanParam || p.name.toUpperCase() === cleanParam.toUpperCase());
-        const idToDelete = found?.id || cleanParam;
-        const nameToRemove = (found?.name || cleanParam).toUpperCase();
-
-        try {
-            const res = await fetch(`/api/v1/payment-methods/${encodeURIComponent(idToDelete)}`, {
-                method: 'DELETE'
-            });
-            if (res.ok) {
-                setPaymentMethodItems(prev => prev.filter(p => p.id !== idToDelete && p.name.toUpperCase() !== nameToRemove));
-                setPaymentMethods(prev => prev.filter(m => m.toUpperCase() !== nameToRemove));
-                showToast(`Forma removida.`, 'success');
-                window.dispatchEvent(new CustomEvent('payment_methods_updated', { detail: { action: 'delete', id: idToDelete } }));
-                if (typeof BroadcastChannel !== 'undefined') {
-                    try {
-                        const bc = new BroadcastChannel('identificapix_realtime_sync');
-                        bc.postMessage({ type: 'payment_methods_updated' });
-                        bc.close();
-                    } catch (_) {}
-                }
-                return true;
-            } else {
-                showToast('Erro ao excluir forma de pagamento.', 'error');
-                return false;
-            }
-        } catch (err: any) {
-            console.error('Erro ao excluir forma de pagamento:', err);
-            showToast('Erro ao comunicar com o servidor.', 'error');
-            return false;
+    const updatePaymentMethod = useCallback((oldMethod: string, newMethod: string) => {
+        const upperOld = oldMethod.trim().toUpperCase();
+        const upperNew = newMethod.trim().toUpperCase();
+        if (!upperNew) return;
+        if (upperOld !== upperNew && paymentMethods.includes(upperNew)) {
+            showToast(`A forma "${upperNew}" já existe.`, 'error');
+            return;
         }
-    }, [paymentMethodItems, setPaymentMethods, showToast]);
-
-    const updatePaymentMethod = useCallback(async (idOrOldName: string, dataOrNewName: string | { name: string; type?: PaymentOperationType; category?: string; bank_id?: string; order?: number; is_active?: boolean }) => {
-        const found = paymentMethodItems.find(p => p.id === idOrOldName || p.name.toUpperCase() === idOrOldName.toUpperCase());
-        const targetId = found?.id || idOrOldName;
-        const oldName = (found?.name || idOrOldName).toUpperCase();
-
-        let payload: any;
-        if (typeof dataOrNewName === 'string') {
-            payload = {
-                name: dataOrNewName.trim().toUpperCase(),
-                type: found?.type || 'ambos',
-                category: found?.category,
-                bank_id: found?.bank_id,
-                order: found?.order ?? 1,
-                is_active: found?.is_active !== false
-            };
-        } else {
-            payload = {
-                ...dataOrNewName,
-                name: dataOrNewName.name.trim().toUpperCase()
-            };
-        }
-
-        try {
-            const res = await fetch(`/api/v1/payment-methods/${encodeURIComponent(targetId)}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            if (res.ok) {
-                const updated = await res.json();
-                setPaymentMethodItems(prev => prev.map(p => p.id === targetId ? updated : p));
-                setPaymentMethods(prev => prev.map(m => m === oldName ? updated.name.toUpperCase() : m));
-                showToast(`Forma "${updated.name}" atualizada.`, 'success');
-                window.dispatchEvent(new CustomEvent('payment_methods_updated', { detail: { action: 'update', method: updated } }));
-                if (typeof BroadcastChannel !== 'undefined') {
-                    try {
-                        const bc = new BroadcastChannel('identificapix_realtime_sync');
-                        bc.postMessage({ type: 'payment_methods_updated' });
-                        bc.close();
-                    } catch (_) {}
-                }
-                return updated;
-            } else {
-                const errJson = await res.json().catch(() => ({}));
-                showToast(errJson.message || 'Erro ao atualizar forma.', 'error');
-                return false;
-            }
-        } catch (err: any) {
-            console.error('Erro ao atualizar forma:', err);
-            showToast('Erro ao comunicar com o servidor.', 'error');
-            return false;
-        }
-    }, [paymentMethodItems, setPaymentMethods, showToast]);
+        setPaymentMethods(prev => prev.map(m => m === upperOld ? upperNew : m));
+        showToast(`Forma "${upperNew}" atualizada.`, 'success');
+    }, [paymentMethods, setPaymentMethods, showToast]);
 
     const addContributionType = useCallback(async (data: { name: string; type: 'entrada' | 'saida'; category?: string; bank_id?: string; order?: number; is_active?: boolean }) => {
         try {
@@ -756,7 +610,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     return useMemo(() => ({
         banks, churches, reports, isReady, similarityLevel, setSimilarityLevel, dayTolerance, setDayTolerance,
         contributionKeywords, addContributionKeyword, removeContributionKeyword,
-        paymentMethods, paymentMethodItems, fetchPaymentMethods, addPaymentMethod, removePaymentMethod, updatePaymentMethod,
+        paymentMethods, addPaymentMethod, removePaymentMethod, updatePaymentMethod,
         contributionTypes, fetchContributionTypes, addContributionType, updateContributionType, removeContributionType,
         learnedAssociations, learnAssociation,
         editingBank, openEditBank, closeEditBank, updateBank, addBank,
@@ -764,7 +618,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         setBanks, setChurches, setLearnedAssociations
     }), [
         banks, churches, reports, isReady, similarityLevel, dayTolerance, 
-        contributionKeywords, paymentMethods, paymentMethodItems, fetchPaymentMethods, contributionTypes, fetchContributionTypes, addContributionType, updateContributionType, removeContributionType, learnedAssociations, learnAssociation, 
+        contributionKeywords, paymentMethods, contributionTypes, fetchContributionTypes, addContributionType, updateContributionType, removeContributionType, learnedAssociations, learnAssociation, 
         editingBank, editingChurch, setBanks, setChurches, setSimilarityLevel, 
         setDayTolerance, openEditBank, closeEditBank, updateBank, addBank, 
         openEditChurch, closeEditChurch, updateChurch, addChurch,

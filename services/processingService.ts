@@ -150,7 +150,7 @@ export const processFileContent = async (
             amount: numAmount,
             originalAmount: rawAmt,
             cleanedDescription: cleanedDesc,
-            contributionType: undefined,
+            contributionType: numAmount >= 0 ? 'ENTRADA' : 'SAÍDA',
             paymentMethod: inferredMethod
         };
     });

@@ -115,35 +115,6 @@ Se uma alteração puder ser feita de duas formas, escolher a que **mexe menos n
 
 ---
 
-# 🛡️ PROTOCOLO PERMANENTE DE DESENVOLVIMENTO SEGURO E PROTEÇÃO CONTRA REGRESSÕES
-A fonte central e oficial de comportamentos protegidos e invariantes é o arquivo:
-`/PROTECTED_BEHAVIORS.md`
-
-### Diretrizes Obrigatórias:
-1. **Diferenciação Crítica:** Código pode ser refatorado; **COMPORTAMENTOS APROVADOS (PB-XXX)** e suas **INVARIANTES COMPORTAMENTAIS** são rigorosamente protegidos contra regressão.
-2. **Invariante Comportamental vs. Guarda Estrutural:**
-   - **Invariante Comportamental:** O que o usuário aprovou (regras funcionais e observáveis). Não pode sofrer regressão sem autorização.
-   - **Guarda Estrutural:** Soluções técnicas atuais (localização de JSX, nomes internos, classes CSS, chamadas específicas). Podem ser alteradas ou substituídas em refatorações futuras desde que a invariante comportamental permaneça satisfeita.
-3. **Regra para Refatorações Futuras:**
-   - Refatorações que preservam integralmente o comportamento funcional aprovado e mantêm proteção equivalente **NÃO exigem autorização de conflito**.
-   - A autorização de conflito é obrigatória apenas quando o **comportamento funcional aprovado** for alterado, degradado, substituído ou removido.
-4. **Consulta Prévia:** Antes de qualquer alteração futura, consulte `/PROTECTED_BEHAVIORS.md` para mapear potenciais impactos em PBs ativas.
-5. **Gate de Regressão e Homologação:**
-   - Durante desenvolvimento: novo requisito + suíte de regressão (`npm run test:regression`) + verificação de tipos (`npm run lint`).
-   - Um comportamento só pode se tornar PB após confirmação explícita do usuário: `"TESTADO E APROVADO"`. Candidatos permanecem candidatos até aprovação formal.
-6. **Fluxo Pós-Aprovação Completo:**
-   `CONFIRMAÇÃO DO USUÁRIO ("TESTADO E APROVADO")` → `REGISTRO DA PB` → `CRIAÇÃO/ATUALIZAÇÃO DE TESTES ESPECÍFICOS` → `EXECUÇÃO DOS TESTES ESPECÍFICOS DA NOVA PB` → `EXECUÇÃO DO GATE DE REGRESSÃO GERAL` → `LINT/VALIDAÇÃO ESTÁTICA` → `CONFIRMAÇÃO DE VALIDADE DAS PROTEÇÕES ANTERIORES` → `DECLARAÇÃO FORMAL DE STATUS (PROTEGIDA, PROTEÇÃO PARCIAL ou NÃO PROTEGIDA)`.
-7. **Distinção entre Harness e Testes de PB:**
-   - O harness de infraestrutura (`tests/regression/harness.test.ts`) valida contratos gerais e não serve isoladamente como comprovação de PB.
-   - Cada PB exige rastreabilidade: `PB-XXX → Comportamento → Invariantes → Teste específico → Resultado`.
-8. **Classificação de Status:**
-   - `PROTEGIDA`: Invariantes com testes automatizados executados e aprovados em sua totalidade.
-   - `PROTEÇÃO PARCIAL`: Dependência de validação manual ou cobertura técnica incompleta.
-   - `NÃO PROTEGIDA`: Sem mecanismo confiável de validação ou teste falhou.
-9. **Conflitos:** Se uma nova solicitação conflitar com uma PB-XXX existente, PARE imediatamente e apresente o relatório formal de conflito aguardando autorização.
-
----
-
 # 🛡️ REGISTRO DE FUNCIONALIDADES CONSOLIDADAS E BLINDADAS
 
 As seguintes funcionalidades e diretrizes foram validadas e estão **RIGOROSAMENTE BLINDADAS**:
