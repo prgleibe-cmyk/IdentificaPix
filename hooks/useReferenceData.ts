@@ -247,6 +247,9 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                             filteredChurches = [];
                             fetchedReports = [];
                         }
+                    } else if (effectiveUserId || user?.id) {
+                        const myOwnerId = String(effectiveUserId || user?.id);
+                        filteredBanks = filteredBanks.filter((b: any) => !b.user_id || String(b.user_id) === myOwnerId || String(b.user_id) === String(user?.id));
                     }
                     
                     if (!ignore) {

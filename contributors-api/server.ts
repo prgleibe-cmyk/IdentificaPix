@@ -5199,12 +5199,20 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
 
     const equivalentIds = cleanUserId ? await getEquivalentUserIds(cleanUserId) : [];
 
-    // 1. Fetch Banks
-    let banksQuery = 'SELECT id, name, user_id, bank_key, account_name, accepted_contribution_types, created_at FROM banks WHERE 1=1';
+    // 1. Fetch Banks - Isolamento estrito por tenant/usuário autenticado
+    let banksQuery = 'SELECT id, name, user_id, bank_key, account_name, accepted_contribution_types, created_at FROM banks WHERE user_id IS NOT NULL';
     const banksParams: any[] = [];
-    if (equivalentIds.length > 0) {
-      banksParams.push(equivalentIds);
-      banksQuery += ` AND user_id::text = ANY($1)`;
+    if (cleanUserId) {
+      banksParams.push(cleanUserId);
+      banksQuery += ` AND user_id::text = $1`;
+      if (ctx.isSecondaryUser && ctx.allowedBankIds && ctx.allowedBankIds.length > 0) {
+        banksParams.push(ctx.allowedBankIds);
+        banksQuery += ` AND id::text = ANY($${banksParams.length})`;
+      } else if (ctx.isSecondaryUser) {
+        banksQuery += ` AND 1=0`;
+      }
+    } else {
+      banksQuery += ` AND 1=0`;
     }
     banksQuery += ' ORDER BY created_at DESC';
 
@@ -5296,12 +5304,19 @@ app.get('/api/v1/banks', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'user_id é obrigatório para consultar bancos.' });
     }
 
-    let query = 'SELECT id, name, user_id, bank_key, account_name, accepted_contribution_types, created_at FROM banks WHERE 1=1';
+    let query = 'SELECT id, name, user_id, bank_key, account_name, accepted_contribution_types, created_at FROM banks WHERE user_id IS NOT NULL';
     const params: any[] = [];
     if (cleanUserId) {
-      const userIds = await getEquivalentUserIds(cleanUserId);
-      params.push(userIds);
-      query += ` AND user_id::text = ANY($1)`;
+      params.push(cleanUserId);
+      query += ` AND user_id::text = $1`;
+      if (ctx.isSecondaryUser && ctx.allowedBankIds && ctx.allowedBankIds.length > 0) {
+        params.push(ctx.allowedBankIds);
+        query += ` AND id::text = ANY($${params.length})`;
+      } else if (ctx.isSecondaryUser) {
+        query += ` AND 1=0`;
+      }
+    } else {
+      query += ` AND 1=0`;
     }
     query += ' ORDER BY created_at DESC';
     const result = await pool.query(query, params);

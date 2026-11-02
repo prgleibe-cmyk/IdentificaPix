@@ -419,7 +419,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const bankList = useMemo(() => {
         if (!referenceData.banks) return [];
-        let list = referenceData.banks.map((b: any) => ({ id: b.id, name: b.account_name ?? b.name }));
+        let list = referenceData.banks.map((b: any) => ({ id: b.id, name: b.account_name ?? b.name, user_id: b.user_id }));
 
         const isSecondary = (subscription.ownerId && subscription.ownerId !== user?.id) &&
             subscription.role !== 'owner' &&
@@ -430,6 +430,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (allowedIds.length > 0) {
                 list = list.filter((b: any) => allowedIds.includes(b.id));
             }
+        } else if (user?.id || subscription.ownerId) {
+            const myOwnerId = String(subscription.ownerId || user?.id);
+            list = list.filter((b: any) => !b.user_id || String(b.user_id) === myOwnerId || String(b.user_id) === String(user?.id));
         }
 
         return list.sort((a: any, b: any) => a.name.localeCompare(b.name));
