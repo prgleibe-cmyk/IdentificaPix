@@ -353,7 +353,29 @@ export const useTransactionMatcher = ({
             const hasActiveBankFiles = activeBankFilesRef.current.filter(f => selectedBankIdsRef.current.includes(String(f.bankId))).length > 0;
             if ((!hasActiveBankFiles || allTransactions.length === 0) && matchResultsRef.current.length > 0) {
                 console.log('[AutoProcess:USING_LIVE_LIST_SOURCE]');
-                allTransactions = matchResultsRef.current.map(r => r.transaction);
+                // 🎯 FILTRAGEM CIRÚRGICA: Seleciona exclusivamente transações pendentes de identificação
+                // Não reprocessa transações já identificadas, confirmadas ou com vínculo válido
+                allTransactions = matchResultsRef.current
+                    .filter(r => {
+                        if (r.isConfirmed || r.transaction?.isConfirmed) return false;
+                        if (r.status === ReconciliationStatus.IDENTIFIED || r.status === ReconciliationStatus.RESOLVED) return false;
+                        const hasValidChurch = Boolean(r.church?.id && r.church.id !== 'unidentified' && r.church.id !== PLACEHOLDER_CHURCH.id);
+                        if (hasValidChurch) return false;
+                        if (r.contributor?.id || r.contributor?.name) return false;
+                        return true;
+                    })
+                    .map(r => r.transaction);
+            } else if (hasActiveBankFiles && allTransactions.length > 0) {
+                allTransactions = allTransactions.filter(tx => {
+                    const existing = matchResultsRef.current.find(r => r.transaction.id === tx.id);
+                    if (!existing) return true;
+                    if (existing.isConfirmed || existing.transaction?.isConfirmed) return false;
+                    if (existing.status === ReconciliationStatus.IDENTIFIED || existing.status === ReconciliationStatus.RESOLVED) return false;
+                    const hasValidChurch = Boolean(existing.church?.id && existing.church.id !== 'unidentified' && existing.church.id !== PLACEHOLDER_CHURCH.id);
+                    if (hasValidChurch) return false;
+                    if (existing.contributor?.id || existing.contributor?.name) return false;
+                    return true;
+                });
             }
         }
 
