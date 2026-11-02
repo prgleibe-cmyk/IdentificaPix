@@ -490,7 +490,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
 
                     const originDescription = isNegative
                         ? `[APORTE/FECHAMENTO] ${memoText} - COBERTURA DE DÉFICIT PELO ${destChurch.name.toUpperCase()}`
-                        : `[FECHAMENTO] ${memoText} - TRANSPORTE DE SALDO PARA ${destChurch.name.toUpperCase()}`;
+                        : `[FECHAMENTO] ${memoText} - TRANSP. SALDO PARA ${destChurch.name.toUpperCase()}`;
 
                     const destDescription = isNegative
                         ? `[REPASSE/FECHAMENTO] ${memoText} - REPASSE DE COBERTURA PARA ${originChurch.name.toUpperCase()}`
@@ -500,8 +500,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                     const destBankId = (banks || []).find((b: any) => b.church_id === d.churchId)?.id
                         || (matchResults || []).find((r: any) => (r.church?.id === d.churchId || r._churchId === d.churchId) && (r.transaction?.bank_id || r.bank_id))?.transaction?.bank_id
                         || ((churches?.find((c: any) => c.id === d.churchId) as any)?.bankId)
-                        || (originBankId && originBankId !== 'all' ? originBankId : undefined)
-                        || (banks && banks.length > 0 ? banks[0].id : undefined);
+                        || (banks && banks.length === 1 ? banks[0].id : undefined);
 
                     const closingCategory = isNegative ? 'DÉFICIT TRANSPORTADO' : 'SALDO TRANSPORTADO';
 
@@ -531,7 +530,6 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                             pastor: originChurch.pastor || ''
                         },
                         _churchId: originChurch.id,
-                        source: 'closing',
                         isConfirmed: true,
                         contributionType: closingCategory,
                         paymentMethod: 'TRANSFERÊNCIA',
@@ -564,7 +562,6 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                             pastor: destChurch.pastor || ''
                         },
                         _churchId: destChurch.id,
-                        source: 'closing',
                         isConfirmed: true,
                         contributionType: closingCategory,
                         paymentMethod: 'TRANSFERÊNCIA',

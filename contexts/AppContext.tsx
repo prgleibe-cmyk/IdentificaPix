@@ -518,8 +518,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 type: isExpense ? 'expense' : 'income',
                 status: r.status,
                 isConfirmed: r.isConfirmed,
-                source: (r as any).source || tx.source || (tx.row_hash && String(tx.row_hash).startsWith('closing-') ? 'closing' : undefined),
-                isManual: isManual,
                 splits: (Array.isArray(r.splits) && r.splits.length > 0) ? r.splits : ((Array.isArray(tx.splits) && tx.splits.length > 0) ? tx.splits : null),
                 attachments: r.attachments || tx.attachments || null,
                 raw: r

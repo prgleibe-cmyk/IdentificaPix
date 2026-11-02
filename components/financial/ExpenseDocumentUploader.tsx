@@ -124,25 +124,15 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                 if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
                     setParsingStatusText('Lendo texto digital do PDF...');
                     const arrayBuffer = await file.arrayBuffer();
-                    const arrayBufferForRender = arrayBuffer.slice(0);
-                    try {
-                        rawText = await extractTextFromPDF(arrayBuffer.slice(0));
-                    } catch (pdfErr) {
-                        console.warn('Falha na extração de texto digital do PDF:', pdfErr);
-                        rawText = '';
-                    }
+                    rawText = await extractTextFromPDF(arrayBuffer);
                     
-                    // Se o PDF não tiver camada de texto digital suficiente (escaneado ou fotocopiado), aciona OCR óptico
+                    // Se o PDF não tiver camada de texto digital (escaneado ou fotocopiado), aciona OCR óptico
                     if (!rawText || rawText.trim().length < 20) {
                         setParsingStatusText('PDF escaneado detectado: renderizando página para leitura óptica (OCR)...');
-                        try {
-                            const pdfPageImage = await renderPdfFirstPageToImage(arrayBufferForRender);
-                            if (pdfPageImage) {
-                                setParsingStatusText('Executando OCR e detecção de código de barras no PDF escaneado...');
-                                rawText = await processImageAndExtractText(pdfPageImage, file.name, (p) => setOcrProgress(p));
-                            }
-                        } catch (ocrErr) {
-                            console.warn('Falha no OCR do PDF escaneado:', ocrErr);
+                        const pdfPageImage = await renderPdfFirstPageToImage(arrayBuffer);
+                        if (pdfPageImage) {
+                            setParsingStatusText('Executando OCR e detecção de código de barras no PDF escaneado...');
+                            rawText = await processImageAndExtractText(pdfPageImage, file.name, (p) => setOcrProgress(p));
                         }
                     }
 

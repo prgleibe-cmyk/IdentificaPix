@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Paperclip, CheckCircle2, DollarSign, Calendar, Building2, Save, FileSignature } from 'lucide-react';
 import { ExpenseAttachment } from '../../types/domain';
 import { ExpenseDocumentUploader } from '../financial/ExpenseDocumentUploader';
@@ -37,20 +37,12 @@ export const QuickAttachModal: React.FC<QuickAttachModalProps> = ({
     const [attachments, setAttachments] = useState<ExpenseAttachment[]>([]);
     const [isSaving, setIsSaving] = useState<boolean>(false);
     const [isReceiptModalOpen, setIsReceiptModalOpen] = useState<boolean>(false);
-    const loadedTxIdRef = useRef<string | null>(null);
 
     useEffect(() => {
         if (!isOpen || !transaction?.id) {
-            loadedTxIdRef.current = null;
             setAttachments([]);
             return;
         }
-
-        // Se já carregou para esta mesma transação enquanto o modal está aberto, NÃO sobreescreve o estado local
-        if (loadedTxIdRef.current === transaction.id) {
-            return;
-        }
-        loadedTxIdRef.current = transaction.id;
 
         let isMounted = true;
         getAttachmentsForTransaction(transaction.id).then(stored => {
@@ -67,7 +59,7 @@ export const QuickAttachModal: React.FC<QuickAttachModalProps> = ({
         return () => {
             isMounted = false;
         };
-    }, [isOpen, transaction?.id]);
+    }, [isOpen, transaction?.id, transaction?.attachments]);
 
     if (!isOpen || !transaction) return null;
 
@@ -166,14 +158,7 @@ export const QuickAttachModal: React.FC<QuickAttachModalProps> = ({
                 <div className="flex-1 overflow-y-auto p-5">
                     <ExpenseDocumentUploader
                         attachments={attachments}
-                        onChangeAttachments={(newAtts) => {
-                            setAttachments(newAtts);
-                            if (transaction?.id && !transaction.id.startsWith('temp-') && !transaction.id.startsWith('ghost-')) {
-                                saveAttachmentsForTransaction(transaction.id, newAtts).catch(err => {
-                                    console.warn('[QuickAttachModal] Erro ao auto-salvar anexos em tempo real:', err);
-                                });
-                            }
-                        }}
+                        onChangeAttachments={setAttachments}
                         currentAmount={txAmount}
                     />
                 </div>

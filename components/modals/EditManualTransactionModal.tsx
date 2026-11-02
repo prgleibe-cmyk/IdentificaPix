@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useContext, useEffect, useMemo } from 'react';
 import { 
     X, 
     Pencil, 
@@ -214,51 +214,40 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
         return parseFloat(sanitized) || 0;
     }, [amountStr]);
 
-    const initializedRowIdRef = useRef<string | null>(null);
-
     useEffect(() => {
-        if (!isOpen || !row) {
-            initializedRowIdRef.current = null;
-            return;
-        }
+        if (isOpen && row) {
+            const expense = isInitialExpense;
+            setType(expense ? 'saida' : 'entrada');
+            setAmountStr(initialAmount);
+            setDescription(initialDescription);
+            setDate(initialDate);
+            setChurchId(initialChurchId);
+            setBankId(initialBankId);
+            setContributionType(initialContributionType);
+            setPaymentMethod(initialPaymentMethod);
+            setErrorMessage(null);
+            setIsSaving(false);
 
-        const activeRowId = row.transaction?.id || (row as any).id;
-        if (initializedRowIdRef.current === activeRowId) {
-            return;
-        }
-        initializedRowIdRef.current = activeRowId;
+            const initContribId = row.contributor?.id || (row.transaction as any)?.contributor_id || null;
+            setSelectedContributorId(initContribId);
 
-        const expense = isInitialExpense;
-        setType(expense ? 'saida' : 'entrada');
-        setAmountStr(initialAmount);
-        setDescription(initialDescription);
-        setDate(initialDate);
-        setChurchId(initialChurchId);
-        setBankId(initialBankId);
-        setContributionType(initialContributionType);
-        setPaymentMethod(initialPaymentMethod);
-        setErrorMessage(null);
-        setIsSaving(false);
+            if (initialPaymentMethod && !paymentMethodsOptions.map(m => m.toUpperCase()).includes(initialPaymentMethod.toUpperCase())) {
+                setIsCustomPaymentMethod(true);
+            } else {
+                setIsCustomPaymentMethod(false);
+            }
 
-        const initContribId = row.contributor?.id || (row.transaction as any)?.contributor_id || null;
-        setSelectedContributorId(initContribId);
-
-        if (initialPaymentMethod && !paymentMethodsOptions.map(m => m.toUpperCase()).includes(initialPaymentMethod.toUpperCase())) {
-            setIsCustomPaymentMethod(true);
-        } else {
-            setIsCustomPaymentMethod(false);
-        }
-
-        // Carrega anexos da linha ou do IndexedDB
-        const existingAtts = row.attachments || row.transaction?.attachments;
-        if (Array.isArray(existingAtts) && existingAtts.length > 0) {
-            setAttachments(existingAtts);
-        } else if (row.transaction?.id) {
-            getAttachmentsForTransaction(row.transaction.id).then(loaded => {
-                setAttachments(loaded || []);
-            }).catch(() => setAttachments([]));
-        } else {
-            setAttachments([]);
+            // Carrega anexos da linha ou do IndexedDB
+            const existingAtts = row.attachments || row.transaction?.attachments;
+            if (Array.isArray(existingAtts) && existingAtts.length > 0) {
+                setAttachments(existingAtts);
+            } else if (row.transaction?.id) {
+                getAttachmentsForTransaction(row.transaction.id).then(loaded => {
+                    setAttachments(loaded || []);
+                }).catch(() => setAttachments([]));
+            } else {
+                setAttachments([]);
+            }
         }
     }, [isOpen, row, isInitialExpense, initialAmount, initialDescription, initialDate, initialChurchId, initialBankId, initialContributionType, initialPaymentMethod, paymentMethodsOptions]);
 
@@ -904,15 +893,7 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
                 <div className="pt-3 border-t border-slate-100 dark:border-slate-800 animate-fade-in">
                     <ExpenseDocumentUploader
                         attachments={attachments}
-                        onChangeAttachments={(newAtts) => {
-                            setAttachments(newAtts);
-                            const activeTxId = row.transaction?.id || (row as any).id;
-                            if (activeTxId && !String(activeTxId).startsWith('temp-') && !String(activeTxId).startsWith('ghost-')) {
-                                saveAttachmentsForTransaction(activeTxId, newAtts).catch(err => {
-                                    console.warn('[EditManualTransactionModal] Erro ao persistir anexos em tempo real:', err);
-                                });
-                            }
-                        }}
+                        onChangeAttachments={setAttachments}
                         currentAmount={parsedCurrentAmount}
                         onApplyExtractedAmount={(val) => {
                             setAmountStr(val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
