@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef } from 'react';
 import { MatchResult, ReconciliationStatus, GroupedReportData, Transaction } from '../../types';
 import { matchTransactions, groupResultsByChurch, PLACEHOLDER_CHURCH } from '../../services/processingService';
 import { batchState, lastRealtimeUpdate } from './useCloudSync';
-import { getAuthToken } from '../../services/auth/authAdapter';
 
 interface UseTransactionMatcherProps {
     subscription: any;
@@ -504,7 +503,7 @@ export const useTransactionMatcher = ({
         // 🛡️ PERSISTÊNCIA DIRETA NA TABELA DE TRANSAÇÕES CONSOLIDADAS (SALVAMENTO EM NUVEM)
         if (isRealDbTx) {
             try {
-                const token = await getAuthToken() || (typeof window !== 'undefined' ? (localStorage.getItem('iggestor_vps_access_token') || localStorage.getItem('auth_token') || localStorage.getItem('token') || sessionStorage.getItem('auth_token')) : null);
+                const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
                 const headers: Record<string, string> = { 'Content-Type': 'application/json' };
                 if (token) headers['Authorization'] = `Bearer ${token}`;
 
@@ -605,8 +604,7 @@ export const useTransactionMatcher = ({
 
     const closeManualIdentify = useCallback(() => {
         setBulkIdentificationTxs([]);
-        setMatchResults(prev => prev.filter(r => !r.transaction?.id?.startsWith('ghost-manual-')));
-    }, [setBulkIdentificationTxs, setMatchResults]);
+    }, [setBulkIdentificationTxs]);
 
     const removeTransaction = useCallback((id: string) => {
         batchState.isAtomicUpdate = true;

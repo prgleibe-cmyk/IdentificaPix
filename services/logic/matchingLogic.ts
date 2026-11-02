@@ -199,8 +199,6 @@ export const matchTransactions = (
             ? (churches.find(c => c.id === txChurchId) || existingMatch?.church || PLACEHOLDER_CHURCH)
             : PLACEHOLDER_CHURCH;
 
-        const effectiveAttachments = tx.attachments || (tx as any).attachments || existingMatch?.attachments || existingMatch?.transaction?.attachments;
-
         let matchResult: MatchResult = {
             transaction: tx,
             contributor: null,
@@ -209,8 +207,7 @@ export const matchTransactions = (
             _churchId: txChurch.id !== PLACEHOLDER_CHURCH.id ? txChurch.id : undefined,
             similarity: 0,
             contributionType: tx.contributionType,
-            paymentMethod: tx.paymentMethod,
-            attachments: effectiveAttachments
+            paymentMethod: tx.paymentMethod
         };
 
         // PRIORIDADE 1: Aprendizado Manual (Usa a descrição exata como DNA ou variações limpas)

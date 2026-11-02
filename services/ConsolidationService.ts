@@ -97,7 +97,7 @@ export const consolidationService = {
                         source: t.source || 'file',
                         user_id: effectiveUserId || t.user_id,
                         church_id: isUuid((t as any).church_id) ? (t as any).church_id : null,
-                        bank_id: t.bank_id && t.bank_id !== 'virtual' ? t.bank_id : null,
+                        bank_id: isUuid(t.bank_id) ? t.bank_id : null,
                         status: t.status || 'pending',
                         row_hash: t.row_hash,
                         is_confirmed: typeof t.is_confirmed === 'boolean' ? t.is_confirmed : false,
@@ -162,7 +162,7 @@ export const consolidationService = {
         }
     },
 
-    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string | null, bankId?: string, contributorId?: string | null, isConfirmed?: boolean, type?: string, pix_key?: string, contribution_type?: string, payment_method?: string, referenceDate?: string | null, amount?: number, attachments?: any[] | null) => {
+    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string | null, bankId?: string, contributorId?: string | null, isConfirmed?: boolean, type?: string, pix_key?: string, contribution_type?: string, payment_method?: string, referenceDate?: string | null, amount?: number) => {
         try {
             const session = await getAuthSession();
             const currentUserId = session?.user?.id;
@@ -186,7 +186,6 @@ export const consolidationService = {
             if (payment_method !== undefined) updateData.payment_method = payment_method;
             if (referenceDate !== undefined) updateData.reference_date = referenceDate;
             if (amount !== undefined) updateData.amount = amount;
-            if (attachments !== undefined) updateData.attachments = (attachments && attachments.length > 0) ? attachments : null;
 
             console.log('[ID:WRITE]', {
               userId: currentUserId,
@@ -250,7 +249,8 @@ export const consolidationService = {
                 console.warn(`[Consolidation] contributor_id não é UUID válido (${safeUpdateData.contributor_id}), sanitizando para null.`);
                 safeUpdateData.contributor_id = null;
             }
-            if (safeUpdateData.bank_id !== undefined && (safeUpdateData.bank_id === 'virtual' || !safeUpdateData.bank_id)) {
+            if (safeUpdateData.bank_id !== undefined && !isUuid(safeUpdateData.bank_id)) {
+                console.warn(`[Consolidation] bank_id não é UUID válido (${safeUpdateData.bank_id}), sanitizando para null.`);
                 safeUpdateData.bank_id = null;
             }
 
@@ -462,7 +462,9 @@ export const consolidationService = {
                     bankId === 'virtual' ||
                     bankId === 'gmail-virtual-bank';
 
-                if (isVirtual) {
+                const isUuid = /^[0-9a-fA-F-]{36}$/.test(bankId);
+
+                if (isVirtual || !isUuid) {
                     toDelete = pendingTxs.filter(tx => !tx.bank_id);
                 } else {
                     toDelete = pendingTxs.filter(tx => tx.bank_id === bankId);

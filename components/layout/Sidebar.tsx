@@ -74,6 +74,18 @@ export const Sidebar: React.FC = memo(() => {
             isConfirmed: false
         };
 
+        const defaultChurch = churches[0] || { id: '', name: 'Sem Igreja', address: '', logoUrl: '' };
+
+        const newMatchResult: MatchResult = {
+            transaction: newTx,
+            contributor: null,
+            status: ReconciliationStatus.PENDING,
+            church: defaultChurch,
+            isConfirmed: false,
+            updatedAt: new Date().toISOString()
+        };
+
+        setMatchResults((prev: any) => [...prev, newMatchResult]);
         setBulkIdentificationTxs([newTx]);
         setActiveView('novo_lancamento');
     };

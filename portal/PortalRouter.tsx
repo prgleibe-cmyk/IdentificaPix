@@ -19,23 +19,16 @@ export const parsePortalLocation = (): { route: PortalRoute; slug?: string } => 
 
     // Normalize path & hash
     let clean = hash.startsWith('#') ? hash.slice(1) : path;
-    const pathWithoutQuery = clean.split('?')[0]; // strip query parameters
-    let cleanPath = pathWithoutQuery;
-    if (cleanPath.startsWith('/portal')) {
-        cleanPath = cleanPath.replace(/^\/portal/, '');
+    clean = clean.split('?')[0]; // strip query parameters
+    if (clean.startsWith('/portal')) {
+        clean = clean.replace(/^\/portal/, '');
     }
 
-    const parts = cleanPath.split('/').filter(Boolean);
+    const parts = clean.split('/').filter(Boolean);
 
-    // Query params from search AND hash fallback
+    // Query params fallback
     const urlParams = new URLSearchParams(window.location.search);
-    let querySlug = urlParams.get('church') || urlParams.get('igreja') || urlParams.get('c') || urlParams.get('slug') || urlParams.get('church_id') || urlParams.get('id') || undefined;
-
-    if (!querySlug && hash.includes('?')) {
-        const hashQuery = hash.split('?')[1];
-        const hashParams = new URLSearchParams(hashQuery);
-        querySlug = hashParams.get('church') || hashParams.get('igreja') || hashParams.get('c') || hashParams.get('slug') || hashParams.get('church_id') || hashParams.get('id') || undefined;
-    }
+    const querySlug = urlParams.get('church') || urlParams.get('igreja') || urlParams.get('c') || undefined;
 
     if (parts.length === 0) {
         return { route: 'home', slug: querySlug };

@@ -39,9 +39,7 @@ export const PortalContributorStep: React.FC<PortalContributorStepProps> = ({
         let isMounted = true;
         const fetchChurches = async () => {
             try {
-                const targetSlug = church?.slug || church?.id;
-                const queryParam = targetSlug ? `?church=${encodeURIComponent(targetSlug)}` : '';
-                const res = await fetch(`/api/v1/churches${queryParam}`, { cache: 'no-store' });
+                const res = await fetch('/api/v1/churches', { cache: 'no-store' });
                 if (res.ok) {
                     const data = await res.json();
                     if (isMounted && Array.isArray(data) && data.length > 0) {
@@ -61,15 +59,13 @@ export const PortalContributorStep: React.FC<PortalContributorStepProps> = ({
         };
         fetchChurches();
         return () => { isMounted = false; };
-    }, [church?.id, church?.slug]);
+    }, []);
 
     // Ensure congregation defaults to church from portal link
     useEffect(() => {
-        if (!contributor.congregation) {
-            const defaultChurchName = (church?.name && church.name !== 'Igreja') ? church.name : (churchesList[0]?.name || '');
-            if (defaultChurchName) {
-                onUpdateContributor({ congregation: defaultChurchName, church_id: church?.id || churchesList[0]?.id });
-            }
+        if (!contributor.congregation || contributor.congregation === 'Sede Central') {
+            const defaultChurchName = (church?.name && church.name !== 'Igreja') ? church.name : (churchesList[0]?.name || 'Igreja Sede / Matriz');
+            onUpdateContributor({ congregation: defaultChurchName, church_id: church?.id || churchesList[0]?.id });
         }
     }, [church, churchesList.length]);
 
