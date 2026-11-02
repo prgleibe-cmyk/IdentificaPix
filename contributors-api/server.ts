@@ -1922,6 +1922,10 @@ async function initializeDatabase() {
     await client.query("CREATE INDEX IF NOT EXISTS idx_church_pix_keys_church ON church_pix_keys(church_id);");
     console.log('[Contributors API] Table "church_pix_keys" verified or successfully created.');
 
+    // Ensure churches has both pix_key and "pixKey" columns in remote PostgreSQL
+    await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS pix_key TEXT;');
+    await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS "pixKey" TEXT;');
+
     // Create table contribution_types
     await client.query(`
       CREATE TABLE IF NOT EXISTS contribution_types (
@@ -3852,7 +3856,7 @@ app.get('/api/v1/church-pix-keys/public', async (req: Request, res: Response) =>
 
     // Fallback 2: Check church direct pix_key, pixKey, or cnpj
     const churchRes = await pool.query(
-      'SELECT id, name, pix_key, "pixKey", cnpj FROM churches WHERE id = $1 LIMIT 1',
+      'SELECT * FROM churches WHERE id = $1 LIMIT 1',
       [church_id]
     );
     if (churchRes.rows.length > 0) {
@@ -3939,7 +3943,7 @@ app.get('/api/v1/church-banks/public', async (req: Request, res: Response) => {
     }
 
     // Retrieve default Pix key of church to guarantee all accounts have a valid Pix key
-    const churchRes = await pool.query('SELECT id, name, pix_key, "pixKey", cnpj FROM churches WHERE id = $1 LIMIT 1', [church_id]);
+    const churchRes = await pool.query('SELECT * FROM churches WHERE id = $1 LIMIT 1', [church_id]);
     const churchRow = (churchRes && churchRes.rows) ? churchRes.rows[0] : null;
     const defaultPix = churchRow?.pix_key || churchRow?.pixKey || churchRow?.cnpj || null;
 
@@ -4129,14 +4133,14 @@ app.get('/api/v1/contribution-types/public', async (req: Request, res: Response)
         b.name as bank_name
       FROM contribution_types ct
       LEFT JOIN banks b ON CAST(ct.bank_id AS VARCHAR) = CAST(b.id AS VARCHAR)
-      WHERE (ct.is_active = true OR ct.is_active = 1) AND LOWER(ct.type) = 'entrada'
+      WHERE (ct.is_active = true OR ct.is_active IS TRUE) AND LOWER(ct.type) = 'entrada'
     `;
     const params: any[] = [];
 
     if (bank_id && typeof bank_id === 'string' && bank_id !== 'default-church-account' && uuidRegex.test(bank_id)) {
       // Check if this bank has exclusive contribution types assigned
       const specificCheck = await pool.query(
-        `SELECT id FROM contribution_types WHERE (is_active = true OR is_active = 1) AND LOWER(type) = 'entrada' AND CAST(bank_id AS VARCHAR) = $1 LIMIT 1`,
+        `SELECT id FROM contribution_types WHERE (is_active = true OR is_active IS TRUE) AND LOWER(type) = 'entrada' AND CAST(bank_id AS VARCHAR) = $1 LIMIT 1`,
         [bank_id]
       );
       params.push(bank_id);
@@ -4173,7 +4177,7 @@ app.get('/api/v1/contribution-types/public', async (req: Request, res: Response)
           b.name as bank_name
         FROM contribution_types ct
         LEFT JOIN banks b ON CAST(ct.bank_id AS VARCHAR) = CAST(b.id AS VARCHAR)
-        WHERE (ct.is_active = true OR ct.is_active = 1) AND LOWER(ct.type) = 'entrada'
+        WHERE (ct.is_active = true OR ct.is_active IS TRUE) AND LOWER(ct.type) = 'entrada'
         ORDER BY ct."order" ASC, ct.name ASC
       `;
       const fallbackRes = await pool.query(fallbackQuery, []);
@@ -5152,13 +5156,13 @@ async function getEquivalentUserIds(userId: string): Promise<string[]> {
   const idsSet = new Set<string>([cleanId]);
   try {
     const q = `
-      SELECT id::text FROM app_users WHERE id::text = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
+      SELECT CAST(id AS TEXT) as id FROM app_users WHERE CAST(id AS TEXT) = $1 OR CAST(owner_id AS TEXT) = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE CAST(id AS TEXT) = $1 LIMIT 1)
       UNION
-      SELECT owner_id::text FROM app_users WHERE (id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)) AND owner_id IS NOT NULL
+      SELECT CAST(owner_id AS TEXT) as id FROM app_users WHERE (CAST(id AS TEXT) = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE CAST(id AS TEXT) = $1 LIMIT 1)) AND owner_id IS NOT NULL
       UNION
-      SELECT id::text FROM profiles WHERE id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)
+      SELECT CAST(id AS TEXT) as id FROM profiles WHERE CAST(id AS TEXT) = $1 OR CAST(owner_id AS TEXT) = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE CAST(id AS TEXT) = $1 LIMIT 1)
       UNION
-      SELECT owner_id::text FROM profiles WHERE (id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id::text = $1 LIMIT 1)) AND owner_id IS NOT NULL
+      SELECT CAST(owner_id AS TEXT) as id FROM profiles WHERE (CAST(id AS TEXT) = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE CAST(id AS TEXT) = $1 LIMIT 1)) AND owner_id IS NOT NULL
     `;
     const res = await pool.query(q, [cleanId]);
     for (const r of (res.rows || [])) {
@@ -7351,7 +7355,7 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
           if (!finalBankId && finalChurchId) {
             try {
               const pixKeyRes = await pool.query(
-                `SELECT bank_id FROM church_pix_keys WHERE church_id::text = $1 AND is_active = 1 AND bank_id IS NOT NULL AND bank_id != '' ORDER BY is_default DESC LIMIT 1`,
+                `SELECT bank_id FROM church_pix_keys WHERE church_id::text = $1 AND (is_active = true OR is_active IS TRUE) AND bank_id IS NOT NULL AND bank_id != '' ORDER BY is_default DESC LIMIT 1`,
                 [finalChurchId]
               );
               if (pixKeyRes.rows && pixKeyRes.rows.length > 0 && pixKeyRes.rows[0].bank_id) {
