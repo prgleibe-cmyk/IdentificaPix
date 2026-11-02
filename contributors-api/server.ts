@@ -5155,77 +5155,20 @@ async function getEquivalentUserIds(userId: string): Promise<string[]> {
 
   const idsSet = new Set<string>([cleanId]);
   try {
-    const isEmail = cleanId.includes('@');
-
-    // 1. Busca em app_users com ::text explícito em ambos os lados
-    let userQuery = `
-      SELECT id::text AS id, owner_id::text AS owner_id, email 
-      FROM app_users 
-      WHERE id::text = $1::text OR owner_id::text = $1::text
+    const q = `
+      SELECT CAST(id AS TEXT) as id FROM app_users WHERE CAST(id AS TEXT) = $1 OR owner_id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE CAST(id AS TEXT) = $1 LIMIT 1)
+      UNION
+      SELECT CAST(owner_id AS TEXT) as id FROM app_users WHERE (CAST(id AS TEXT) = $1 OR owner_id::text = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE CAST(id AS TEXT) = $1 LIMIT 1)) AND owner_id IS NOT NULL
+      UNION
+      SELECT id FROM profiles WHERE id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE CAST(id AS TEXT) = $1 LIMIT 1)
+      UNION
+      SELECT owner_id as id FROM profiles WHERE (id = $1 OR owner_id = $1 OR LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE CAST(id AS TEXT) = $1 LIMIT 1)) AND owner_id IS NOT NULL
     `;
-    if (isEmail) {
-      userQuery += ` OR LOWER(TRIM(email)) = LOWER(TRIM($1::text))`;
-    }
-
-    const userRes = await pool.query(userQuery, [cleanId]);
-    const foundRows = userRes.rows || [];
-
-    let resolvedOwnerId: string | null = null;
-    let resolvedEmail: string | null = null;
-
-    for (const r of foundRows) {
+    const res = await pool.query(q, [cleanId]);
+    for (const r of (res.rows || [])) {
       if (r.id) idsSet.add(String(r.id));
-      if (r.owner_id) {
-        idsSet.add(String(r.owner_id));
-        if (!resolvedOwnerId) resolvedOwnerId = String(r.owner_id);
-      }
-      if (r.email && !resolvedEmail) {
-        resolvedEmail = String(r.email).trim().toLowerCase();
-      }
-      if (r.id && String(r.id) === cleanId && !r.owner_id) {
-        resolvedOwnerId = String(r.id);
-      }
+      if (r.owner_id) idsSet.add(String(r.owner_id));
     }
-
-    // Se identificou um owner_id, traz todos os membros da mesma conta
-    if (resolvedOwnerId) {
-      const orgRes = await pool.query(
-        `SELECT id::text AS id FROM app_users WHERE owner_id::text = $1::text OR id::text = $1::text`,
-        [resolvedOwnerId]
-      );
-      for (const r of (orgRes.rows || [])) {
-        if (r.id) idsSet.add(String(r.id));
-      }
-    }
-
-    // Se identificou um email, sincroniza IDs vinculados a esse email
-    if (resolvedEmail) {
-      const emailRes = await pool.query(
-        `SELECT id::text AS id, owner_id::text AS owner_id FROM app_users WHERE LOWER(TRIM(email)) = $1::text`,
-        [resolvedEmail]
-      );
-      for (const r of (emailRes.rows || [])) {
-        if (r.id) idsSet.add(String(r.id));
-        if (r.owner_id) idsSet.add(String(r.owner_id));
-      }
-    }
-
-    // 2. Fallback resiliente para a tabela profiles
-    try {
-      let profQuery = `
-        SELECT id::text AS id, owner_id::text AS owner_id 
-        FROM profiles 
-        WHERE id::text = $1::text OR owner_id::text = $1::text
-      `;
-      if (isEmail) {
-        profQuery += ` OR LOWER(TRIM(email)) = LOWER(TRIM($1::text))`;
-      }
-      const profRes = await pool.query(profQuery, [cleanId]);
-      for (const r of (profRes.rows || [])) {
-        if (r.id) idsSet.add(String(r.id));
-        if (r.owner_id) idsSet.add(String(r.owner_id));
-      }
-    } catch (_) {}
   } catch (err) {
     console.warn('[getEquivalentUserIds] Erro ao resolver equivalência, usando ID direto:', err);
   }
