@@ -123,10 +123,14 @@ export const useCloudSync = ({
 
     const getRegisteredContributorName = (contributorId: string | null | undefined): string | null => {
         if (!contributorId || !contributorFilesRef.current) return null;
-        const found = contributorFilesRef.current
-            .flatMap((f: any) => f.contributors || [])
-            .find((c: any) => c.id === contributorId);
-        return found ? (found.name || found.cleanedName || found.canonical_name || null) : null;
+        for (const f of contributorFilesRef.current) {
+            for (const c of (f.contributors || [])) {
+                if (c && c.id === contributorId) {
+                    return c.name || c.cleanedName || c.canonical_name || null;
+                }
+            }
+        }
+        return null;
     };
 
     // 🚀 CONTROLE DE PRONTIDÃO PARA HIDRATAÇÃO
@@ -333,6 +337,16 @@ export const useCloudSync = ({
                     }
                 });
 
+                const contributorNameMap = new Map<string, string>();
+                (contributorFilesData || contributorFilesRef.current || []).forEach((f: any) => {
+                    (f.contributors || []).forEach((c: any) => {
+                        if (c?.id) {
+                            const name = c.name || c.cleanedName || c.canonical_name || null;
+                            if (name) contributorNameMap.set(c.id, name);
+                        }
+                    });
+                });
+
                 const txResults: MatchResult[] = txs.map((t: any) => {
                     const normalizedDesc = strictNormalize(t.description);
                     const assoc = assocMap.get(normalizedDesc);
@@ -412,7 +426,7 @@ export const useCloudSync = ({
                         attachments: parsedAttachments
                     };
 
-                    const regName = t.contributor_id ? getRegisteredContributorName(t.contributor_id) : null;
+                    const regName = t.contributor_id ? (contributorNameMap.get(t.contributor_id) || null) : null;
                     const rawNameCandidate = regName || assoc?.contributorNormalizedName;
                     const validContribName = (rawNameCandidate && !isInvalidOrNumericName(rawNameCandidate, t.description)) ? rawNameCandidate : null;
 
