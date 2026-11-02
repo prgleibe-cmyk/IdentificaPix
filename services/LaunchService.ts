@@ -116,7 +116,8 @@ export const LaunchService = {
         }
 
         const totalReceived = transactions.length;
-        const currentBankId = bankId && bankId !== 'virtual' ? bankId : null;
+        const isUuid = /^[0-9a-fA-F-]{36}$/.test(bankId);
+        const currentBankId = isUuid ? bankId : null;
 
         try {
             // Busca todos os registros existentes no banco para este usuário

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef } from 'react';
 import { MatchResult, ReconciliationStatus, GroupedReportData, Transaction } from '../../types';
 import { matchTransactions, groupResultsByChurch, PLACEHOLDER_CHURCH } from '../../services/processingService';
 import { batchState, lastRealtimeUpdate } from './useCloudSync';
-import { getAuthToken } from '../../services/auth/authAdapter';
 
 interface UseTransactionMatcherProps {
     subscription: any;
@@ -350,30 +349,10 @@ export const useTransactionMatcher = ({
         ].filter(tx => Number(tx.amount) !== 0);
 
         if (isAuto) {
-            const hasNewBankUploads = activeBankFilesRef.current.some(f => !f.isRestored && (!selectedBankIdsRef.current.length || selectedBankIdsRef.current.includes(String(f.bankId))));
-
-            if (!hasNewBankUploads) {
-                // Durante restauração/abertura de sessão sem novos extratos físicos carregados,
-                // não há novos lançamentos para processamento automático pesado na thread principal
-                allTransactions = [];
-            } else {
-                const existingMap = new Map(matchResultsRef.current.map(r => [r.transaction.id, r]));
-                // Com novos extratos carregados na sessão atual, seleciona exclusivamente receitas de arquivos novos
-                allTransactions = activeBankFilesRef.current
-                    .filter(f => !f.isRestored && (!selectedBankIdsRef.current.length || selectedBankIdsRef.current.includes(String(f.bankId))))
-                    .flatMap(f => f.processedTransactions || [])
-                    .filter(tx => {
-                        if (tx.type === 'expense') return false;
-                        if (Number(tx.amount) === 0) return false;
-                        const existing = existingMap.get(tx.id);
-                        if (!existing) return true;
-                        if (existing.isConfirmed || existing.transaction?.isConfirmed) return false;
-                        if (existing.status === ReconciliationStatus.IDENTIFIED || existing.status === ReconciliationStatus.RESOLVED) return false;
-                        const hasValidChurch = Boolean(existing.church?.id && existing.church.id !== 'unidentified' && existing.church.id !== PLACEHOLDER_CHURCH.id);
-                        if (hasValidChurch) return false;
-                        if (existing.contributor?.id || existing.contributor?.name) return false;
-                        return true;
-                    });
+            const hasActiveBankFiles = activeBankFilesRef.current.filter(f => selectedBankIdsRef.current.includes(String(f.bankId))).length > 0;
+            if ((!hasActiveBankFiles || allTransactions.length === 0) && matchResultsRef.current.length > 0) {
+                console.log('[AutoProcess:USING_LIVE_LIST_SOURCE]');
+                allTransactions = matchResultsRef.current.map(r => r.transaction);
             }
         }
 
@@ -524,7 +503,7 @@ export const useTransactionMatcher = ({
         // 🛡️ PERSISTÊNCIA DIRETA NA TABELA DE TRANSAÇÕES CONSOLIDADAS (SALVAMENTO EM NUVEM)
         if (isRealDbTx) {
             try {
-                const token = await getAuthToken() || (typeof window !== 'undefined' ? (localStorage.getItem('iggestor_vps_access_token') || localStorage.getItem('auth_token') || localStorage.getItem('token') || sessionStorage.getItem('auth_token')) : null);
+                const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
                 const headers: Record<string, string> = { 'Content-Type': 'application/json' };
                 if (token) headers['Authorization'] = `Bearer ${token}`;
 
@@ -625,8 +604,7 @@ export const useTransactionMatcher = ({
 
     const closeManualIdentify = useCallback(() => {
         setBulkIdentificationTxs([]);
-        setMatchResults(prev => prev.filter(r => !r.transaction?.id?.startsWith('ghost-manual-')));
-    }, [setBulkIdentificationTxs, setMatchResults]);
+    }, [setBulkIdentificationTxs]);
 
     const removeTransaction = useCallback((id: string) => {
         batchState.isAtomicUpdate = true;
