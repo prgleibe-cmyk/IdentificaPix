@@ -9,7 +9,6 @@ import { extractNameAndCpf } from '../utils/contributorHelper';
 import { CommunicationEventService } from '../services/CommunicationEventService';
 import { ExpenseAttachment } from '../types/domain';
 import { saveAttachmentsForTransaction } from '../services/expenseAttachmentService';
-import { isPeriodClosed } from '../utils/formatters';
 
 interface UseReconciliationActionsProps {
   reconciliation: any;
@@ -122,9 +121,8 @@ export const useReconciliationActions = ({
     selectedBankId?: string,
     attachments?: ExpenseAttachment[]
   ) => {
-    const church = referenceData.churches.find((c: Church) => c.id === churchId) || 
-      (referenceData.churches && referenceData.churches.length > 0 ? referenceData.churches[0] : null) || 
-      { id: churchId || '', name: 'Igreja', address: '', logoUrl: '' };
+    const church = referenceData.churches.find((c: Church) => c.id === churchId);
+    if (!church) return;
 
     let affectedCount = 0;
     const isManualLaunch = txIds.some(id => id.startsWith('ghost-manual-'));
@@ -162,12 +160,6 @@ export const useReconciliationActions = ({
 
         const finalDescription = manualDescription ? manualDescription.trim() : (isEntrada ? 'Lançamento Manual Entrada' : 'Lançamento Manual Saída');
         const finalDate = selectedDate || new Date().toISOString().split('T')[0];
-
-        // 🛡️ Validação de Período ou Data Congelada
-        const churchIdToCheck = (churchId && churchId !== 'unidentified') ? churchId : null;
-        if (churchIdToCheck && isPeriodClosed(finalDate, reconciliation.fullMatchResults, churchIdToCheck, selectedBankId)) {
-          throw new Error(`DATA OU PERÍODO CONGELADO: A congregação já possui Confirmação Final homologada para esta data (${finalDate}). Novos lançamentos ou alterações estão expressamente bloqueados.`);
-        }
 
         // Geração de hash robusto e de acordo com o sistema
         const stableRaw = finalDescription.replace(/\r\n/g, '\n').trim();
@@ -345,16 +337,17 @@ export const useReconciliationActions = ({
 
         // Substitui o ghost-manual pelo MatchResult com ID real no estado da UI, preservando todos os itens existentes
         batchState.isAtomicUpdate = true;
-        const currentList = (reconciliation.fullMatchResults && reconciliation.fullMatchResults.length > 0)
-          ? reconciliation.fullMatchResults
-          : (reconciliation.matchResults || []);
-        const withoutGhostsAndReal = currentList.filter(r => !txIds.includes(r.transaction.id) && r.transaction.id !== realId);
-        const finalManualList = [...withoutGhostsAndReal, updatedMatchResult];
-        reconciliation.setMatchResults(finalManualList);
+        let finalManualList: MatchResult[] = [];
+        reconciliation.setMatchResults((prev: MatchResult[]) => {
+          const withoutGhostsAndReal = prev.filter(r => !txIds.includes(r.transaction.id) && r.transaction.id !== realId);
+          finalManualList = [...withoutGhostsAndReal, updatedMatchResult];
+          return finalManualList;
+        });
 
-        // 🛡️ PERSISTÊNCIA UNIFICADA GARANTIDA:
-        // onAfterAction (persistActiveReport) persiste o relatório ativo na VPS/nuvem
-        if (onAfterAction) {
+        // 🛡️ CORREÇÃO CIRÚRGICA DE DUPLO SALVAMENTO:
+        // A persistência unificada (onAfterAction -> persistActiveReport) já sincroniza o relatório ativo ou a nuvem.
+        // O bloco redundante que chamava reportManager.overwriteSavedReport diretamente uma segunda vez foi eliminado.
+        if (onAfterAction && finalManualList.length > 0) {
           onAfterAction(finalManualList);
         }
 
@@ -448,8 +441,7 @@ export const useReconciliationActions = ({
             contributionType,
             paymentMethod,
             finalRefDate,
-            finalAmount,
-            (attachments && attachments.length > 0) ? attachments : undefined
+            finalAmount
           );
         }
         affectedCount++;

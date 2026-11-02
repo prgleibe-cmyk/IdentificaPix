@@ -123,14 +123,10 @@ export const useCloudSync = ({
 
     const getRegisteredContributorName = (contributorId: string | null | undefined): string | null => {
         if (!contributorId || !contributorFilesRef.current) return null;
-        for (const f of contributorFilesRef.current) {
-            for (const c of (f.contributors || [])) {
-                if (c && c.id === contributorId) {
-                    return c.name || c.cleanedName || c.canonical_name || null;
-                }
-            }
-        }
-        return null;
+        const found = contributorFilesRef.current
+            .flatMap((f: any) => f.contributors || [])
+            .find((c: any) => c.id === contributorId);
+        return found ? (found.name || found.cleanedName || found.canonical_name || null) : null;
     };
 
     // 🚀 CONTROLE DE PRONTIDÃO PARA HIDRATAÇÃO
@@ -337,16 +333,6 @@ export const useCloudSync = ({
                     }
                 });
 
-                const contributorNameMap = new Map<string, string>();
-                (contributorFilesData || contributorFilesRef.current || []).forEach((f: any) => {
-                    (f.contributors || []).forEach((c: any) => {
-                        if (c?.id) {
-                            const name = c.name || c.cleanedName || c.canonical_name || null;
-                            if (name) contributorNameMap.set(c.id, name);
-                        }
-                    });
-                });
-
                 const txResults: MatchResult[] = txs.map((t: any) => {
                     const normalizedDesc = strictNormalize(t.description);
                     const assoc = assocMap.get(normalizedDesc);
@@ -426,7 +412,7 @@ export const useCloudSync = ({
                         attachments: parsedAttachments
                     };
 
-                    const regName = t.contributor_id ? (contributorNameMap.get(t.contributor_id) || null) : null;
+                    const regName = t.contributor_id ? getRegisteredContributorName(t.contributor_id) : null;
                     const rawNameCandidate = regName || assoc?.contributorNormalizedName;
                     const validContribName = (rawNameCandidate && !isInvalidOrNumericName(rawNameCandidate, t.description)) ? rawNameCandidate : null;
 
@@ -536,15 +522,12 @@ export const useCloudSync = ({
 
                 reportsMap.forEach((value, key) => {
                     if (!reconstructedMap.has(key)) {
-                        const isGhost = typeof value.transaction?.id === 'string' && value.transaction.id.startsWith('ghost-manual-');
-                        const isManual = !isGhost && (
-                            value.transaction?.isManual || 
+                        const isManual = value.transaction?.isManual || 
                             value.transaction?.source === 'manual' || 
                             value.matchMethod === MatchMethod.MANUAL ||
-                            (value.transaction?.id && typeof value.transaction.id === 'string' && value.transaction.id.startsWith('manual-'))
-                        );
+                            (value.transaction?.id && typeof value.transaction.id === 'string' && (value.transaction.id.startsWith('ghost-manual-') || value.transaction.id.startsWith('manual-')));
 
-                        if (!isGhost && (activeReportId || isManual)) {
+                        if (activeReportId || isManual) {
                             if (activeReportId) {
                                 const txDate = value.contributor?.reference_date || value.reference_date || value.transaction?.reference_date || value.transaction?.date || (value as any).date;
                                 if (txDate && (startStr || endStr)) {
@@ -629,14 +612,11 @@ export const useCloudSync = ({
 
                     // Preserva estritamente lançamentos manuais locais (persistidos ou temporários) que ainda não vieram na fatia atual do banco
                     prev.forEach(p => {
-                        const isGhost = typeof p.transaction?.id === 'string' && p.transaction.id.startsWith('ghost-manual-');
-                        const isManual = !isGhost && (
-                            p.transaction?.isManual || 
+                        const isManual = p.transaction?.isManual || 
                             p.transaction?.source === 'manual' || 
                             p.matchMethod === MatchMethod.MANUAL ||
-                            (p.transaction?.id && typeof p.transaction.id === 'string' && p.transaction.id.startsWith('manual-'))
-                        );
-                        if (!isGhost && !map.has(p.transaction.id) && isManual) {
+                            (p.transaction?.id && typeof p.transaction.id === 'string' && (p.transaction.id.startsWith('ghost-manual-') || p.transaction.id.startsWith('manual-')));
+                        if (!map.has(p.transaction.id) && isManual) {
                             map.set(p.transaction.id, p);
                             hasChanges = true;
                         }

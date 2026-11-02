@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef } from 'react';
 import { MatchResult, ReconciliationStatus, GroupedReportData, Transaction } from '../../types';
 import { matchTransactions, groupResultsByChurch, PLACEHOLDER_CHURCH } from '../../services/processingService';
 import { batchState, lastRealtimeUpdate } from './useCloudSync';
-import { getAuthToken } from '../../services/auth/authAdapter';
 
 interface UseTransactionMatcherProps {
     subscription: any;
@@ -353,29 +352,7 @@ export const useTransactionMatcher = ({
             const hasActiveBankFiles = activeBankFilesRef.current.filter(f => selectedBankIdsRef.current.includes(String(f.bankId))).length > 0;
             if ((!hasActiveBankFiles || allTransactions.length === 0) && matchResultsRef.current.length > 0) {
                 console.log('[AutoProcess:USING_LIVE_LIST_SOURCE]');
-                // 🎯 FILTRAGEM CIRÚRGICA: Seleciona exclusivamente transações pendentes de identificação
-                // Não reprocessa transações já identificadas, confirmadas ou com vínculo válido
-                allTransactions = matchResultsRef.current
-                    .filter(r => {
-                        if (r.isConfirmed || r.transaction?.isConfirmed) return false;
-                        if (r.status === ReconciliationStatus.IDENTIFIED || r.status === ReconciliationStatus.RESOLVED) return false;
-                        const hasValidChurch = Boolean(r.church?.id && r.church.id !== 'unidentified' && r.church.id !== PLACEHOLDER_CHURCH.id);
-                        if (hasValidChurch) return false;
-                        if (r.contributor?.id || r.contributor?.name) return false;
-                        return true;
-                    })
-                    .map(r => r.transaction);
-            } else if (hasActiveBankFiles && allTransactions.length > 0) {
-                allTransactions = allTransactions.filter(tx => {
-                    const existing = matchResultsRef.current.find(r => r.transaction.id === tx.id);
-                    if (!existing) return true;
-                    if (existing.isConfirmed || existing.transaction?.isConfirmed) return false;
-                    if (existing.status === ReconciliationStatus.IDENTIFIED || existing.status === ReconciliationStatus.RESOLVED) return false;
-                    const hasValidChurch = Boolean(existing.church?.id && existing.church.id !== 'unidentified' && existing.church.id !== PLACEHOLDER_CHURCH.id);
-                    if (hasValidChurch) return false;
-                    if (existing.contributor?.id || existing.contributor?.name) return false;
-                    return true;
-                });
+                allTransactions = matchResultsRef.current.map(r => r.transaction);
             }
         }
 
@@ -526,7 +503,7 @@ export const useTransactionMatcher = ({
         // 🛡️ PERSISTÊNCIA DIRETA NA TABELA DE TRANSAÇÕES CONSOLIDADAS (SALVAMENTO EM NUVEM)
         if (isRealDbTx) {
             try {
-                const token = await getAuthToken() || (typeof window !== 'undefined' ? (localStorage.getItem('iggestor_vps_access_token') || localStorage.getItem('auth_token') || localStorage.getItem('token') || sessionStorage.getItem('auth_token')) : null);
+                const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
                 const headers: Record<string, string> = { 'Content-Type': 'application/json' };
                 if (token) headers['Authorization'] = `Bearer ${token}`;
 
@@ -627,8 +604,7 @@ export const useTransactionMatcher = ({
 
     const closeManualIdentify = useCallback(() => {
         setBulkIdentificationTxs([]);
-        setMatchResults(prev => prev.filter(r => !r.transaction?.id?.startsWith('ghost-manual-')));
-    }, [setBulkIdentificationTxs, setMatchResults]);
+    }, [setBulkIdentificationTxs]);
 
     const removeTransaction = useCallback((id: string) => {
         batchState.isAtomicUpdate = true;
