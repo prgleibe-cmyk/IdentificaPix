@@ -419,7 +419,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const bankList = useMemo(() => {
         if (!referenceData.banks) return [];
-        let list = referenceData.banks.map((b: any) => ({ id: b.id, name: b.account_name ?? b.name }));
+        let list = referenceData.banks.map((b: any) => ({ 
+            id: b.id, 
+            name: b.account_name ?? b.name,
+            account_name: b.account_name,
+            rawName: b.name
+        }));
 
         const isSecondary = (subscription.ownerId && subscription.ownerId !== user?.id) &&
             subscription.role !== 'owner' &&
@@ -432,8 +437,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
         }
 
-        return list.sort((a: any, b: any) => a.name.localeCompare(b.name));
-    }, [referenceData.banks, subscription, user?.id]);
+        // 🛡️ Filtra para exibir apenas os bancos que o usuário realizou o cadastro ou que possuem lançamentos vinculados
+        // Evita exibir bancos de catálogo genérico não cadastrados/utilizados
+        const GENERIC_CATALOG_NAMES = new Set([
+            'banco do brasil', 'banco inter', 'inter', 'bradesco', 'banco bradesco',
+            'caixa', 'caixa economica federal', 'caixa econômica federal',
+            'itau', 'itaú', 'itau unibanco', 'itaú unibanco',
+            'nubank', 'nubank (nu pagamentos)', 'santander', 'banco santander',
+            'sicoob', 'sicredi', 'mercado pago', 'c6 bank', 'c6', 'pagbank', 'pagbank / pagseguro', 'pagseguro'
+        ]);
+
+        const usedBankIds = new Set<string>();
+        const results = reconciliation.matchResults || [];
+        for (let i = 0; i < results.length; i++) {
+            const r: any = results[i];
+            const tx: any = r.transaction || {};
+            const bId = tx.bank_id || tx.bankId || r.bank_id || r.bankId || r._bankId || r.bank?.id;
+            if (bId) usedBankIds.add(String(bId).trim());
+        }
+
+        const filtered = list.filter((b: any) => {
+            if (usedBankIds.has(String(b.id).trim())) return true;
+            const nameClean = (b.name || '').trim().toLowerCase();
+            const accClean = (b.account_name || '').trim().toLowerCase();
+            if (accClean && !GENERIC_CATALOG_NAMES.has(accClean)) return true;
+            if (nameClean && !GENERIC_CATALOG_NAMES.has(nameClean)) return true;
+            return false;
+        });
+
+        const finalList = filtered.length > 0 ? filtered : list;
+        return finalList.map((b: any) => ({ id: b.id, name: b.name })).sort((a: any, b: any) => a.name.localeCompare(b.name));
+    }, [referenceData.banks, subscription, user?.id, reconciliation.matchResults]);
 
     // 📊 DADOS CONSOLIDADOS PARA RELATÓRIOS E LIVRO CAIXA
     const reportData = useMemo(() => {
