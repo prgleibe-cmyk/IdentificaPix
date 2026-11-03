@@ -2528,9 +2528,13 @@ export const LivroCaixaView: React.FC = memo(() => {
                 transaction={quickAttachTx}
                 onClose={() => setQuickAttachTx(null)}
                 onSaved={(txId, atts) => {
+                    const lightAtts = (atts || []).map((a: any) => {
+                        const { dataUrl, ...rest } = a;
+                        return { ...rest, txId, hasDataUrl: true };
+                    });
                     setAttachmentsMap(prev => {
                         const next = new Map(prev);
-                        next.set(txId, atts);
+                        next.set(txId, lightAtts);
                         return next;
                     });
                     showToast('Comprovante(s) salvo(s) com sucesso!', 'success');
@@ -2544,10 +2548,12 @@ export const LivroCaixaView: React.FC = memo(() => {
                 onClose={() => setServiceReceiptTx(null)}
                 onReceiptGenerated={(att) => {
                     if (serviceReceiptTx?.id) {
+                        const { dataUrl, ...lightAtt } = att as any;
+                        const finalLightAtt = { ...lightAtt, txId: serviceReceiptTx.id, hasDataUrl: true };
                         setAttachmentsMap(prev => {
                             const next = new Map(prev);
                             const currentList = next.get(serviceReceiptTx.id) || [];
-                            next.set(serviceReceiptTx.id, [...currentList, att]);
+                            next.set(serviceReceiptTx.id, [...currentList, finalLightAtt]);
                             return next;
                         });
                         showToast('Recibo assinado e anexado com sucesso ao Livro Caixa!', 'success');

@@ -17,6 +17,12 @@ export const AttachmentPreviewModal: React.FC<AttachmentPreviewModalProps> = ({
 }) => {
     const [loadedDataUrl, setLoadedDataUrl] = useState<string>('');
     const [isLoadingData, setIsLoadingData] = useState<boolean>(false);
+    const [pdfBlobUrl, setPdfBlobUrl] = useState<string>('');
+
+    const effectiveDataUrl = attachment?.dataUrl || loadedDataUrl;
+    const fileName = attachment?.fileName || 'documento';
+    const fileType = attachment?.fileType || '';
+    const isPdf = fileType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf');
 
     useEffect(() => {
         if (!isOpen || !attachment) {
@@ -54,26 +60,6 @@ export const AttachmentPreviewModal: React.FC<AttachmentPreviewModalProps> = ({
         };
     }, [isOpen, attachment]);
 
-    if (!isOpen || !attachment) return null;
-
-    const fileName = attachment.fileName || 'documento';
-    const fileType = attachment.fileType || '';
-    const isPdf = fileType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf');
-    const isImage = fileType.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif)$/i.test(fileName);
-    const isNf = attachment.documentRole === 'nota_fiscal';
-    const isInvoice = attachment.documentRole === 'fatura';
-    const isProof = attachment.documentRole === 'comprovante';
-    const roleLabel = isNf 
-        ? 'Nota Fiscal / Cupom' 
-        : isInvoice 
-        ? 'Fatura / Boleto' 
-        : isProof 
-        ? 'Comprovante de Pagamento' 
-        : 'Documento';
-
-    const effectiveDataUrl = attachment.dataUrl || loadedDataUrl;
-    const [pdfBlobUrl, setPdfBlobUrl] = useState<string>('');
-
     useEffect(() => {
         if (!isOpen || !isPdf || !effectiveDataUrl) {
             setPdfBlobUrl('');
@@ -109,6 +95,20 @@ export const AttachmentPreviewModal: React.FC<AttachmentPreviewModalProps> = ({
             setPdfBlobUrl('');
         };
     }, [isOpen, isPdf, effectiveDataUrl]);
+
+    if (!isOpen || !attachment) return null;
+
+    const isImage = fileType.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif)$/i.test(fileName);
+    const isNf = attachment.documentRole === 'nota_fiscal';
+    const isInvoice = attachment.documentRole === 'fatura';
+    const isProof = attachment.documentRole === 'comprovante';
+    const roleLabel = isNf 
+        ? 'Nota Fiscal / Cupom' 
+        : isInvoice 
+        ? 'Fatura / Boleto' 
+        : isProof 
+        ? 'Comprovante de Pagamento' 
+        : 'Documento';
 
     const handleDownload = () => {
         if (!effectiveDataUrl) return;
