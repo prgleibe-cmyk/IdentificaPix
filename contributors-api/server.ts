@@ -5614,8 +5614,9 @@ export async function recoverAbandonedProcessingQueueItems(pool: pg.Pool, church
     recoveryQuery += " ORDER BY updated_at ASC LIMIT 50 FOR UPDATE SKIP LOCKED";
 
     const selectedStale = await client.query(recoveryQuery, recoveryParams);
-    if (selectedStale.rows.length > 0) {
-      for (const staleItem of selectedStale.rows) {
+    const staleRows = selectedStale?.rows || [];
+    if (staleRows.length > 0) {
+      for (const staleItem of staleRows) {
         const attempts = staleItem.attempts || 0;
         const maxAttempts = staleItem.max_attempts || 3;
         const isMaxed = attempts >= maxAttempts;
@@ -5680,7 +5681,7 @@ async function runCommunicationProcessor(churchIdFilter?: string) {
       eventQuery += " ORDER BY created_at ASC LIMIT 50 FOR UPDATE SKIP LOCKED";
 
       const pendingEvents = await client1.query(eventQuery, eventParams);
-      eventsToProcess = pendingEvents.rows;
+      eventsToProcess = pendingEvents?.rows || [];
 
       for (const ev of eventsToProcess) {
         const payload = typeof ev.payload === 'object' ? ev.payload : (JSON.parse(ev.payload || '{}'));

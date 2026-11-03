@@ -671,6 +671,10 @@ export const useCloudSync = ({
                                     console.warn(`[CloudSync] Falha na auto-promoção do lançamento ${failedItem.id}:`, res.reason);
                                 }
                             });
+                            // 🛡️ Alívio de thread e I/O para evitar sobrecarga de memória e conexões
+                            if (i + BATCH_SIZE < pendingPromotions.length) {
+                                await new Promise(res => setTimeout(res, 50));
+                            }
                         }
                         if (failedIds.size > 0) {
                             console.warn(`[CloudSync] ${failedIds.size} lançamento(s) tiveram sua persistência rejeitada. Revertendo estado local para pendente.`);
@@ -790,7 +794,7 @@ export const useCloudSync = ({
             return;
         }
 
-        const currentIdsHash = matchResults.map(r => r.transaction.id).sort().join(',');
+        const currentIdsHash = `${matchResults.length}:${matchResults[0]?.transaction?.id || ''}:${matchResults[matchResults.length - 1]?.transaction?.id || ''}`;
         if (currentIdsHash === lastValidatedHash.current) return;
 
         const cleanStaleCache = async () => {
@@ -826,7 +830,7 @@ export const useCloudSync = ({
                         
                         if (!hasChanges) return prev;
                         
-                        lastValidatedHash.current = updated.map(r => r.transaction.id).sort().join(',');
+                        lastValidatedHash.current = `${updated.length}:${updated[0]?.transaction?.id || ''}:${updated[updated.length - 1]?.transaction?.id || ''}`;
                         return updated;
                     });
                 } else {
@@ -878,8 +882,23 @@ export const useCloudSync = ({
             return;
         }
 
-        // Se o conteúdo mudou, resetamos o timer de estabilidade
-        const currentSignature = matchResults.map(item => `${item.transaction.id}-${item.status}-${item.isConfirmed}-${item.updatedAt}`).join('|');
+        // 🛡️ OTIMIZAÇÃO CIRÚRGICA ANTI-OOM: Assinatura compacta O(N) sem alocação de megastrings
+        let confirmedCount = 0;
+        let identifiedCount = 0;
+        let pendingCount = 0;
+        let maxUpdatedAt = 0;
+        const totalItems = matchResults.length;
+        for (let i = 0; i < totalItems; i++) {
+            const item = matchResults[i];
+            if (item.isConfirmed) confirmedCount++;
+            if (item.status === ReconciliationStatus.IDENTIFIED) identifiedCount++;
+            else if (item.status === ReconciliationStatus.PENDING) pendingCount++;
+            if (item.updatedAt) {
+                const ts = new Date(item.updatedAt).getTime();
+                if (ts > maxUpdatedAt) maxUpdatedAt = ts;
+            }
+        }
+        const currentSignature = `${totalItems}:${confirmedCount}:${identifiedCount}:${pendingCount}:${maxUpdatedAt}`;
 
         if (currentSignature !== postProcessingSignatureRef.current) {
             console.log('[PostReconstruct:WAIT_STABLE]', { signatureChanged: true });
@@ -906,19 +925,11 @@ export const useCloudSync = ({
                 lastProcessedLength.current = matchResults.length;
                 
                 if (!isSecondaryUser && typeof handleCompareRef.current === 'function') {
-                    // 🛡️ CORREÇÃO CIRÚRGICA GARGALO 2: Assinatura calculada sob demanda (lazy)
-                    // apenas quando o auto-process vai de fato executar, eliminando JSON.stringify,
-                    // alocação de objetos e localeCompare síncronos na thread principal a cada edição.
-                    const stableSignature = (matchResults || [])
-                        .map(r => `${r.transaction.id}:${r.status}:${r.isConfirmed ? 1 : 0}`)
-                        .sort()
-                        .join(';');
-
-                    if (lastAutoProcessSignatureRef.current === stableSignature) {
+                    if (lastAutoProcessSignatureRef.current === currentSignature) {
                         return;
                     }
  
-                    lastAutoProcessSignatureRef.current = stableSignature;
+                    lastAutoProcessSignatureRef.current = currentSignature;
                     lastAutoProcessTimeRef.current = now;
                     isAutoProcessingRef.current = true;
  

@@ -39,6 +39,11 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // Ignora esquemas não suportados pelo CacheStorage (ex: chrome-extension://, moz-extension://)
+  if (!event.request.url.startsWith('http://') && !event.request.url.startsWith('https://')) {
+    return;
+  }
+
   // API calls & non-GET
   if (event.request.url.includes('/api/') || event.request.method !== 'GET') {
     return event.respondWith(fetch(event.request));

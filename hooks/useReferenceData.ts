@@ -16,7 +16,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const userSuffix = user ? `-${user.id}` : '-guest';
 
     const [banks, setBanks] = usePersistentState<Bank[]>(`identificapix-banks${userSuffix}`, []);
-    const [churches, setChurches] = usePersistentState<Church[]>(`identificapix-churches${userSuffix}`, []);
+    const [churches, setChurches] = usePersistentState<Church[]>(`identificapix-churches${userSuffix}`, [], true);
     const [reports, setReports] = useState<any[]>([]);
     const [similarityLevel, setSimilarityLevel] = usePersistentState<number>(`identificapix-similarity${userSuffix}`, 55);
     const [dayTolerance, setDayTolerance] = usePersistentState<number>(`identificapix-daytolerance${userSuffix}`, 2);

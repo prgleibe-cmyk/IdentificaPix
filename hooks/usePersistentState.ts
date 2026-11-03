@@ -61,8 +61,17 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
             if (!isHeavy) {
                 try {
                     if (typeof window !== 'undefined') {
-                        const item = window.localStorage.getItem(key);
-                        const value = parseRaw(item);
+                        let item = window.localStorage.getItem(key);
+                        let value = parseRaw(item);
+                        // Se não encontrou no localStorage, tenta buscar no IndexedDB caso tenha sofrido fallback de cota
+                        if ((!item || (isArrayExpected && Array.isArray(value) && value.length === 0))) {
+                            try {
+                                const idbVal = await get(key);
+                                if (idbVal !== undefined && idbVal !== null) {
+                                    value = sanitize(idbVal);
+                                }
+                            } catch (_) {}
+                        }
                         if (isMounted.current) {
                             if (!hasExternalUpdateRef.current) {
                                 setState(value);
@@ -116,14 +125,28 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
                     // Evita escritas desnecessárias se o dado não mudou
                     if (serialized === lastSavedValue.current) return;
 
-                    if (isHeavy) {
-                        await set(key, state);
-                    } else {
-                        window.localStorage.setItem(key, serialized);
+                    try {
+                        if (isHeavy) {
+                            await set(key, state);
+                        } else {
+                            window.localStorage.setItem(key, serialized);
+                        }
+                        lastSavedValue.current = serialized;
+                    } catch (error: any) {
+                        // Se excedeu a cota do localStorage, salva no IndexedDB de forma resiliente
+                        if (!isHeavy && (error?.name === 'QuotaExceededError' || error?.code === 22)) {
+                            try {
+                                await set(key, state);
+                                lastSavedValue.current = serialized;
+                                return;
+                            } catch (_) {}
+                        }
+                        // Previne loop infinito marcando como avaliado
+                        lastSavedValue.current = serialized;
+                        console.error(`Erro salvamento ${key}:`, error);
                     }
-                    lastSavedValue.current = serialized;
-                } catch (error) {
-                    console.error(`Erro salvamento ${key}:`, error);
+                } catch (err) {
+                    console.error(`Erro ao salvar ${key}:`, err);
                 }
             };
 
