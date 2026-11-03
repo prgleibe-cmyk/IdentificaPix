@@ -351,8 +351,21 @@ export const useTransactionMatcher = ({
         if (isAuto) {
             const hasActiveBankFiles = activeBankFilesRef.current.filter(f => selectedBankIdsRef.current.includes(String(f.bankId))).length > 0;
             if ((!hasActiveBankFiles || allTransactions.length === 0) && matchResultsRef.current.length > 0) {
-                console.log('[AutoProcess:USING_LIVE_LIST_SOURCE]');
-                allTransactions = matchResultsRef.current.map(r => r.transaction);
+                // 🛡️ Live list source: conciliação incremental apenas de itens genuinamente pendentes
+                const pendingItems = matchResultsRef.current.filter(r => 
+                    !r.isConfirmed && 
+                    r.status !== ReconciliationStatus.IDENTIFIED && 
+                    r.status !== ReconciliationStatus.RESOLVED
+                );
+
+                if (pendingItems.length === 0) {
+                    console.log('[AutoProcess:SKIPPED_NO_PENDING_ITEMS]');
+                    if (showLoading) setIsLoading(false);
+                    return;
+                }
+
+                console.log('[AutoProcess:USING_LIVE_LIST_SOURCE]', pendingItems.length);
+                allTransactions = pendingItems.map(r => r.transaction);
             }
         }
 

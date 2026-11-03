@@ -926,6 +926,14 @@ export const useCloudSync = ({
                     if (hasRunInitialAutoProcessRef.current || lastAutoProcessSignatureRef.current === currentSignature) {
                         return;
                     }
+
+                    // 🛡️ Se não há itens pendentes, pula AutoProcess na lista já conciliada
+                    if (pendingCount === 0) {
+                        console.log('[PostReconstruct:SKIPPED_NO_PENDING]', { total: totalItems });
+                        hasRunInitialAutoProcessRef.current = true;
+                        lastAutoProcessSignatureRef.current = currentSignature;
+                        return;
+                    }
  
                     hasRunInitialAutoProcessRef.current = true;
                     lastAutoProcessSignatureRef.current = currentSignature;

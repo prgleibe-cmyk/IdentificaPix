@@ -39,6 +39,7 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
     const isMounted = useRef(false);
     const timeoutRef = useRef<any>(null);
     const lastSavedValue = useRef<string>('');
+    const lastSavedStateRef = useRef<any>(state);
     const currentKeyRef = useRef(key);
 
     // 🛡️ BLINDAGEM DE ISOLAMENTO: Redefine imediatamente o estado se a chave do usuário mudar
@@ -75,6 +76,7 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
                         if (isMounted.current) {
                             if (!hasExternalUpdateRef.current) {
                                 setState(value);
+                                lastSavedStateRef.current = value;
                                 lastSavedValue.current = JSON.stringify(value);
                             }
                         }
@@ -95,6 +97,7 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
                 if (isMounted.current && value !== undefined && value !== null) {
                     if (!hasExternalUpdateRef.current) {
                         setState(value);
+                        lastSavedStateRef.current = value;
                         lastSavedValue.current = JSON.stringify(value);
                     }
                 }
@@ -111,6 +114,7 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
 
     useEffect(() => {
         if (!isHydrated.current || !isMounted.current) return;
+        if (lastSavedStateRef.current === state) return;
 
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
@@ -123,7 +127,10 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
                 try {
                     const serialized = JSON.stringify(state);
                     // Evita escritas desnecessárias se o dado não mudou
-                    if (serialized === lastSavedValue.current) return;
+                    if (serialized === lastSavedValue.current) {
+                        lastSavedStateRef.current = state;
+                        return;
+                    }
 
                     try {
                         if (isHeavy) {
@@ -132,17 +139,20 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
                             window.localStorage.setItem(key, serialized);
                         }
                         lastSavedValue.current = serialized;
+                        lastSavedStateRef.current = state;
                     } catch (error: any) {
                         // Se excedeu a cota do localStorage, salva no IndexedDB de forma resiliente
                         if (!isHeavy && (error?.name === 'QuotaExceededError' || error?.code === 22)) {
                             try {
                                 await set(key, state);
                                 lastSavedValue.current = serialized;
+                                lastSavedStateRef.current = state;
                                 return;
                             } catch (_) {}
                         }
                         // Previne loop infinito marcando como avaliado
                         lastSavedValue.current = serialized;
+                        lastSavedStateRef.current = state;
                         console.error(`Erro salvamento ${key}:`, error);
                     }
                 } catch (err) {

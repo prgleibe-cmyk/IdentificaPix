@@ -162,6 +162,34 @@ export const matchTransactions = (
     const finalResults: MatchResult[] = [];
     const usedContributors = new Set<string>();
 
+    // 🚀 OTIMIZAÇÃO CRÍTICA O(1): Indexação direta via Map para eliminar 25 milhões de buscas lineares
+    const existingMap = new Map<string, MatchResult>();
+    if (existingResults && existingResults.length > 0) {
+        for (let i = 0; i < existingResults.length; i++) {
+            const r = existingResults[i];
+            if (r?.transaction?.id) existingMap.set(r.transaction.id, r);
+        }
+    }
+
+    const learnedMap = new Map<string, any>();
+    if (learnedAssociations && learnedAssociations.length > 0) {
+        for (let i = 0; i < learnedAssociations.length; i++) {
+            const la = learnedAssociations[i];
+            if (la?.normalizedDescription) {
+                learnedMap.set(la.normalizedDescription, la);
+            }
+        }
+    }
+
+    const contribByNameMap = new Map<string, any>();
+    const contribByIdMap = new Map<string, any>();
+    for (let i = 0; i < allContributorsFlat.length; i++) {
+        const c = allContributorsFlat[i];
+        const norm = normalizeString(c.canonical_name || c.name || '');
+        if (norm && !contribByNameMap.has(norm)) contribByNameMap.set(norm, c);
+        if (c.id && !contribByIdMap.has(c.id)) contribByIdMap.set(c.id, c);
+    }
+
     transactions.forEach(tx => {
         const txSig = `${tx.id}-${tx.description || ''}-${tx.amount || 0}-${tx.contributionType || ''}-${tx.paymentMethod || ''}`;
         
@@ -175,8 +203,8 @@ export const matchTransactions = (
             return;
         }
 
-        const existingMatch = existingResults.find(r => r.transaction.id === tx.id);
-        if (existingMatch && (existingMatch.status === ReconciliationStatus.IDENTIFIED || existingMatch.status === ReconciliationStatus.RESOLVED)) {
+        const existingMatch = existingMap.get(tx.id);
+        if (existingMatch && (existingMatch.isConfirmed || existingMatch.status === ReconciliationStatus.IDENTIFIED || existingMatch.status === ReconciliationStatus.RESOLVED)) {
             transactionMatchCache.set(tx.id, {
                 txSignature: txSig,
                 result: existingMatch
@@ -210,28 +238,22 @@ export const matchTransactions = (
             paymentMethod: tx.paymentMethod
         };
 
-        // PRIORIDADE 1: Aprendizado Manual (Usa a descrição exata como DNA ou variações limpas)
-        const learned = learnedAssociations.find((la: any) => {
-            const laDesc = la.normalizedDescription;
-            return laDesc && (
-                laDesc === txDescStrict || 
-                (txRawStrict && laDesc === txRawStrict) ||
-                (txCleanStrict && laDesc === txCleanStrict) ||
-                (txCleanRawStrict && laDesc === txCleanRawStrict)
-            );
-        });
+        // PRIORIDADE 1: Aprendizado Manual O(1) via Map
+        const learned = learnedMap.get(txDescStrict) || 
+            (txRawStrict ? learnedMap.get(txRawStrict) : null) || 
+            (txCleanStrict ? learnedMap.get(txCleanStrict) : null) || 
+            (txCleanRawStrict ? learnedMap.get(txCleanRawStrict) : null);
 
         if (learned) {
             const validName = (learned.contributorNormalizedName && !isInvalidOrNumericName(learned.contributorNormalizedName, tx.description))
                 ? learned.contributorNormalizedName
                 : null;
 
-            // 🛡️ Busca o cadastro oficial do contribuinte para preservar a igreja original de cadastro e dados completos (ID, CPF)
-            const registeredContrib = validName ? allContributorsFlat.find((c: any) => {
-                const cNorm = normalizeString(c.canonical_name || c.name || '');
-                const targetNorm = normalizeString(validName);
-                return cNorm === targetNorm || (c.id && c.id === (learned as any).contributorId);
-            }) : null;
+            // 🛡️ Busca o cadastro oficial do contribuinte em O(1)
+            const registeredContrib = validName ? (
+                contribByNameMap.get(normalizeString(validName)) || 
+                ((learned as any).contributorId ? contribByIdMap.get((learned as any).contributorId) : null)
+            ) : null;
 
             // Prioriza congregação da transação se já existir; caso contrário congregação de cadastro do contribuinte
             const effectiveChurch = (txChurch && txChurch.id !== PLACEHOLDER_CHURCH.id)
