@@ -87,6 +87,13 @@ const fullRebuild = (
     const resultsMap = new Map<string, any>();
     const filteredMap = new Map<string, any>();
     const churchMap = new Map<string, number>();
+    const churchNameMap = new Map<string, string>();
+    if (Array.isArray(churches)) {
+        for (let i = 0; i < churches.length; i++) {
+            const c = churches[i];
+            if (c?.id && c.name) churchNameMap.set(c.id, c.name);
+        }
+    }
     
     let identifiedCount = 0;
     let unidentifiedCount = 0;
@@ -121,14 +128,8 @@ const fullRebuild = (
                 methodBreakdown[method] = (methodBreakdown[method] || 0) + 1;
 
                 let churchName = r.church?.name;
-                if (!churchName && churches) {
-                    const churchId = r.church?.id || r._churchId;
-                    if (churchId && churchId !== 'unidentified') {
-                        const found = churches.find((c: any) => c.id === churchId);
-                        if (found) {
-                            churchName = found.name;
-                        }
-                    }
+                if (!churchName && (r.church?.id || r._churchId)) {
+                    churchName = churchNameMap.get(r.church?.id || r._churchId);
                 }
                 if (!churchName) churchName = 'Desconhecida';
                 churchMap.set(churchName, (churchMap.get(churchName) || 0) + val);

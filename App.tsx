@@ -33,10 +33,6 @@ const MainLayout: React.FC = () => {
     const scrollContainerRef = React.useRef<HTMLDivElement>(null);
     const pinchState = usePinchZoom(scrollContainerRef);
 
-    const context = React.useContext(AppContext);
-    const bulkIdentificationTxs = context?.bulkIdentificationTxs;
-    const isManualLaunch = bulkIdentificationTxs?.some((tx: any) => tx.id.startsWith('ghost-manual-'));
-
     if (!initialDataLoaded) {
         return (
             <div className="h-[100dvh] w-screen flex items-center justify-center bg-brand-deep">

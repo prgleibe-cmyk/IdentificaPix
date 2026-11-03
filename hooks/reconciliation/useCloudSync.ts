@@ -629,15 +629,10 @@ export const useCloudSync = ({
                     return hasChanges ? final : prev;
                 });
 
-                // 🆕 Persistência automática após reconstrução inicial
+                // 🆕 Persistência automática apenas se houver relatório salvo explicitamente ativo
                 if (activeReportId && reconstructed.length > 0) {
-                    console.log('[AutoSave:RECONSTRUCT] Atualizando relatório automaticamente após hidratação');
+                    console.log('[AutoSave:RECONSTRUCT] Atualizando relatório salvo explicitamente após hidratação');
                     overwriteSavedReport(activeReportId, reconstructed);
-                } else if (!activeReportId) {
-                    const liveReport = (savedReports || []).find((r: any) => r.name === '[SESSÃO_ATIVA]');
-                    if (liveReport && overwriteSavedReport) {
-                        overwriteSavedReport(liveReport.id, reconstructed);
-                    }
                 }
 
                 setHasActiveSession(true);

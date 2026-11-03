@@ -125,6 +125,16 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
             // Executa em idle para não bloquear a UI
             const performSave = async () => {
                 try {
+                    if (isHeavy) {
+                        try {
+                            await set(key, state);
+                            lastSavedStateRef.current = state;
+                        } catch (e) {
+                            console.error(`Erro salvamento IDB ${key}:`, e);
+                        }
+                        return;
+                    }
+
                     const serialized = JSON.stringify(state);
                     // Evita escritas desnecessárias se o dado não mudou
                     if (serialized === lastSavedValue.current) {
@@ -133,16 +143,12 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
                     }
 
                     try {
-                        if (isHeavy) {
-                            await set(key, state);
-                        } else {
-                            window.localStorage.setItem(key, serialized);
-                        }
+                        window.localStorage.setItem(key, serialized);
                         lastSavedValue.current = serialized;
                         lastSavedStateRef.current = state;
                     } catch (error: any) {
                         // Se excedeu a cota do localStorage, salva no IndexedDB de forma resiliente
-                        if (!isHeavy && (error?.name === 'QuotaExceededError' || error?.code === 22)) {
+                        if (error?.name === 'QuotaExceededError' || error?.code === 22) {
                             try {
                                 await set(key, state);
                                 lastSavedValue.current = serialized;
