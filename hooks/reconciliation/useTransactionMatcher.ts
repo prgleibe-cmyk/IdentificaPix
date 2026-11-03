@@ -565,23 +565,44 @@ export const useTransactionMatcher = ({
             }
         }
 
+        // 🛡️ Anti-OOM: O estado global em memória React retém apenas metadados leves (sem dataUrl Base64)
+        const rawAtts = updatedRow.attachments || updatedRow.transaction.attachments;
+        const lightAttachments = (Array.isArray(rawAtts) && rawAtts.length > 0)
+            ? rawAtts.map((att: any) => {
+                if (att && att.dataUrl) {
+                    const { dataUrl, ...rest } = att;
+                    return { ...rest, txId: updatedRow.transaction.id, hasDataUrl: true };
+                }
+                return { ...att, txId: updatedRow.transaction.id, hasDataUrl: Boolean((att as any).hasDataUrl || att.dataUrl) };
+            })
+            : (rawAtts || undefined);
+
+        const sanitizedRow: MatchResult = {
+            ...updatedRow,
+            attachments: lightAttachments,
+            transaction: {
+                ...updatedRow.transaction,
+                attachments: lightAttachments
+            }
+        };
+
         // Se a persistência teve sucesso (ou for item temporário de memória), atualiza o estado local e relatório
         let nextResults: MatchResult[] = [];
         batchState.isAtomicUpdate = true;
-        lastRealtimeUpdate.txId = updatedRow.transaction.id;
+        lastRealtimeUpdate.txId = sanitizedRow.transaction.id;
         lastRealtimeUpdate.timestamp = Date.now();
         setMatchResults(prev => {
             const next = [...prev];
-            const idx = next.findIndex(r => r.transaction.id === updatedRow.transaction.id);
-            if (idx !== -1) next[idx] = updatedRow;
-            else next.push(updatedRow);
+            const idx = next.findIndex(r => r.transaction.id === sanitizedRow.transaction.id);
+            if (idx !== -1) next[idx] = sanitizedRow;
+            else next.push(sanitizedRow);
             nextResults = next;
             return next;
         });
 
         // 📡 SINCRONIZAÇÃO GLOBAL EM TEMPO REAL
         if (triggerSync) {
-            triggerSync(updatedRow);
+            triggerSync(sanitizedRow);
         }
 
         // 🛡️ PERSISTÊNCIA EM RELATÓRIOS SALVOS (SESSÃO ATIVA OU RELATÓRIO ABERTO)

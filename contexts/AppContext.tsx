@@ -366,11 +366,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             return;
         }
 
-        // Se o tamanho é igual, checamos diferenças de conteúdo (Tipo, Forma, Status, Confirmação, Splits)
-        const cloudSample = cloudResults.slice(0, 500).map((r: any) => `${r.status}-${r.isConfirmed}-${r.contributionType || ''}-${r.paymentMethod || ''}-${r.church?.id || r._churchId}-${r.splits ? JSON.stringify(r.splits) : ''}`).join('|');
-        const localSample = localResults.slice(0, 500).map((r: any) => `${r.status}-${r.isConfirmed}-${r.contributionType || ''}-${r.paymentMethod || ''}-${r.church?.id || r._churchId}-${r.splits ? JSON.stringify(r.splits) : ''}`).join('|');
+        // Se o tamanho é igual, checamos diferenças de conteúdo (Tipo, Forma, Status, Confirmação, Splits) sem alocar mega-strings
+        let hasDiff = false;
+        const checkLimit = Math.min(cloudTotal, 500);
+        for (let i = 0; i < checkLimit; i++) {
+            const c = cloudResults[i];
+            const l = localResults[i];
+            if (!c || !l) {
+                hasDiff = true;
+                break;
+            }
+            if (
+                c.status !== l.status ||
+                c.isConfirmed !== l.isConfirmed ||
+                (c.contributionType || '') !== (l.contributionType || '') ||
+                (c.paymentMethod || '') !== (l.paymentMethod || '') ||
+                (c.church?.id || c._churchId) !== (l.church?.id || l._churchId)
+            ) {
+                hasDiff = true;
+                break;
+            }
+            const cSplitsLen = Array.isArray(c.splits) ? c.splits.length : 0;
+            const lSplitsLen = Array.isArray(l.splits) ? l.splits.length : 0;
+            if (cSplitsLen !== lSplitsLen) {
+                hasDiff = true;
+                break;
+            }
+        }
 
-        if (cloudSample !== localSample && localTotal > 0) {
+        if (hasDiff && localTotal > 0) {
             console.log("[AppContext] Aplicando sincronização passiva de banco.");
             const hydrated = cloudResults.map((r: any) => ({
                 ...r,

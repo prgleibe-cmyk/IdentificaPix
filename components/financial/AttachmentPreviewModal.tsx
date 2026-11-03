@@ -72,11 +72,48 @@ export const AttachmentPreviewModal: React.FC<AttachmentPreviewModalProps> = ({
         : 'Documento';
 
     const effectiveDataUrl = attachment.dataUrl || loadedDataUrl;
+    const [pdfBlobUrl, setPdfBlobUrl] = useState<string>('');
+
+    useEffect(() => {
+        if (!isOpen || !isPdf || !effectiveDataUrl) {
+            setPdfBlobUrl('');
+            return;
+        }
+
+        let blobUrl = '';
+        try {
+            if (effectiveDataUrl.startsWith('data:')) {
+                const parts = effectiveDataUrl.split(',');
+                const byteString = atob(parts[1]);
+                const mimeMatch = parts[0].match(/:(.*?);/);
+                const mimeType = mimeMatch ? mimeMatch[1] : 'application/pdf';
+                const ab = new ArrayBuffer(byteString.length);
+                const ia = new Uint8Array(ab);
+                for (let i = 0; i < byteString.length; i++) {
+                    ia[i] = byteString.charCodeAt(i);
+                }
+                const blob = new Blob([ab], { type: mimeType });
+                blobUrl = URL.createObjectURL(blob);
+                setPdfBlobUrl(blobUrl);
+            } else {
+                setPdfBlobUrl(effectiveDataUrl);
+            }
+        } catch (_) {
+            setPdfBlobUrl(effectiveDataUrl);
+        }
+
+        return () => {
+            if (blobUrl) {
+                try { URL.revokeObjectURL(blobUrl); } catch (_) {}
+            }
+            setPdfBlobUrl('');
+        };
+    }, [isOpen, isPdf, effectiveDataUrl]);
 
     const handleDownload = () => {
         if (!effectiveDataUrl) return;
         const link = document.createElement('a');
-        link.href = effectiveDataUrl;
+        link.href = pdfBlobUrl || effectiveDataUrl;
         link.download = fileName;
         document.body.appendChild(link);
         link.click();
@@ -185,7 +222,7 @@ export const AttachmentPreviewModal: React.FC<AttachmentPreviewModalProps> = ({
                         />
                     ) : isPdf && effectiveDataUrl ? (
                         <iframe
-                            src={effectiveDataUrl}
+                            src={pdfBlobUrl || effectiveDataUrl}
                             title={fileName}
                             className="w-full h-[70vh] rounded-lg border border-slate-200 dark:border-slate-800 shadow-md bg-white"
                         />

@@ -111,6 +111,11 @@ export const ServiceReceiptModal: React.FC<ServiceReceiptModalProps> = ({
             setTimeout(() => {
                 setupCanvas();
             }, 120);
+        } else {
+            if (canvasRef.current) {
+                canvasRef.current.width = 0;
+                canvasRef.current.height = 0;
+            }
         }
     }, [isOpen, transaction, effectiveChurch]);
 
@@ -296,6 +301,9 @@ export const ServiceReceiptModal: React.FC<ServiceReceiptModalProps> = ({
         pdfDoc.autoPrint();
         const blobUrl = pdfDoc.output('bloburl');
         window.open(blobUrl, '_blank');
+        setTimeout(() => {
+            try { URL.revokeObjectURL(blobUrl); } catch (_) {}
+        }, 60000);
     };
 
     // Envio pelo WhatsApp

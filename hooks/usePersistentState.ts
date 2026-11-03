@@ -98,7 +98,9 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
                     if (!hasExternalUpdateRef.current) {
                         setState(value);
                         lastSavedStateRef.current = value;
-                        lastSavedValue.current = JSON.stringify(value);
+                        if (!isHeavy) {
+                            lastSavedValue.current = JSON.stringify(value);
+                        }
                     }
                 }
             } catch (error) {

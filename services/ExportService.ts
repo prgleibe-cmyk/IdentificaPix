@@ -8,6 +8,20 @@ import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+// 🛡️ Helper anti-vazamento de memória: dispara download e revoga o Object URL do Blob após 1s
+function triggerDownloadBlob(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => {
+        try { URL.revokeObjectURL(url); } catch (_) {}
+    }, 1000);
+}
+
 // Helpers para cabeçalho com Logo/Igreja e rodapé com assinaturas do Pastor e Tesoureiro
 const resolveChurch = (churchesOrChurch?: any, selectedChurchId?: string, data?: any[]): any => {
     if (!churchesOrChurch) return null;
@@ -382,13 +396,7 @@ export const ExportService = {
         ].join("\n");
 
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", filename);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        triggerDownloadBlob(blob, filename);
     },
 
     /**
@@ -783,13 +791,7 @@ ${transactionsOfx}
 </OFX>`;
 
         const blob = new Blob([ofxContent], { type: 'application/x-ofx;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", filename);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        triggerDownloadBlob(blob, filename);
     },
 
     /**
@@ -920,13 +922,7 @@ ${transactionsOfx}
         ].join("\n");
 
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", filename);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        triggerDownloadBlob(blob, filename);
     },
 
     /**
@@ -1249,13 +1245,7 @@ ${itemsOfx}
 </OFX>`;
 
         const blob = new Blob([ofxContent], { type: 'application/x-ofx;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", filename);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        triggerDownloadBlob(blob, filename);
     },
 
     /**
@@ -2156,13 +2146,7 @@ ${itemsOfx}
 
         const csvContent = ['\uFEFF' + headers.join(';'), ...csvRows].join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", filename);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        triggerDownloadBlob(blob, filename);
     },
 
     /**
@@ -2239,13 +2223,7 @@ ${ofxTrns}
 </OFX>`;
 
         const blob = new Blob([ofxContent], { type: 'application/x-ofx;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", filename);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        triggerDownloadBlob(blob, filename);
     },
 
     /**
@@ -2544,13 +2522,7 @@ ${ofxTrns}
 
         const csvContent = '\uFEFF' + lines.join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", filename);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        triggerDownloadBlob(blob, filename);
     },
 
     /**
@@ -2614,13 +2586,7 @@ ${itemsOfx}
 </OFX>`;
 
         const blob = new Blob([ofxContent], { type: 'application/x-ofx;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", filename);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        triggerDownloadBlob(blob, filename);
     },
 
     /**

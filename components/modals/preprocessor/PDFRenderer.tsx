@@ -54,6 +54,14 @@ export const PDFRenderer: React.FC<{ file?: File }> = ({ file }) => {
         loadPDF();
     }, [file]);
 
+    useEffect(() => {
+        return () => {
+            if (pdfInstance) {
+                try { pdfInstance.destroy(); } catch (_) {}
+            }
+        };
+    }, [pdfInstance]);
+
     return (
         <div className="absolute inset-0 bg-slate-200 dark:bg-slate-950 flex flex-col">
             {/* Header de Status */}
@@ -114,39 +122,67 @@ const PDFPage: React.FC<{ pdf: any, pageNum: number, containerWidth: number }> =
 
     useEffect(() => {
         if (!pdf || !canvasRef.current) return;
+        let isCancelled = false;
+        let pageInstance: any = null;
+        let renderTask: any = null;
 
         const renderPage = async () => {
-            const page = await pdf.getPage(pageNum);
-            const canvas = canvasRef.current;
-            if (!canvas) return;
+            try {
+                const page = await pdf.getPage(pageNum);
+                pageInstance = page;
+                if (isCancelled) return;
+                const canvas = canvasRef.current;
+                if (!canvas) return;
 
-            const context = canvas.getContext('2d');
-            if (!context) return;
+                const context = canvas.getContext('2d');
+                if (!context) return;
 
-            // Escala para ocupar a largura do container mantendo proporção
-            const unscaledViewport = page.getViewport({ scale: 1 });
-            const targetWidth = Math.min(containerWidth - 64, 1000); // Max 1000px, 64px padding
-            const scale = targetWidth / unscaledViewport.width;
-            
-            const outputScale = window.devicePixelRatio || 1;
-            const viewport = page.getViewport({ scale: scale * outputScale });
+                // Escala para ocupar a largura do container mantendo proporção
+                const unscaledViewport = page.getViewport({ scale: 1 });
+                const targetWidth = Math.min(containerWidth - 64, 1000); // Max 1000px, 64px padding
+                const scale = targetWidth / unscaledViewport.width;
+                
+                const outputScale = window.devicePixelRatio || 1;
+                const viewport = page.getViewport({ scale: scale * outputScale });
 
-            canvas.width = viewport.width;
-            canvas.height = viewport.height;
-            
-            canvas.style.width = `${viewport.width / outputScale}px`;
-            canvas.style.height = `${viewport.height / outputScale}px`;
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+                
+                canvas.style.width = `${viewport.width / outputScale}px`;
+                canvas.style.height = `${viewport.height / outputScale}px`;
 
-            const renderContext = {
-                canvasContext: context,
-                viewport: viewport,
-            };
+                const renderContext = {
+                    canvasContext: context,
+                    viewport: viewport,
+                };
 
-            await page.render(renderContext).promise;
-            setIsRendered(true);
+                renderTask = page.render(renderContext);
+                await renderTask.promise;
+                if (!isCancelled) {
+                    setIsRendered(true);
+                }
+            } catch (renderErr: any) {
+                if (renderErr?.name !== 'RenderingCancelledException') {
+                    console.warn('[PDFPage] Erro ao renderizar página:', renderErr);
+                }
+            }
         };
 
         renderPage();
+
+        return () => {
+            isCancelled = true;
+            if (renderTask) {
+                try { renderTask.cancel(); } catch (_) {}
+            }
+            if (pageInstance) {
+                try { pageInstance.cleanup(); } catch (_) {}
+            }
+            if (canvasRef.current) {
+                canvasRef.current.width = 0;
+                canvasRef.current.height = 0;
+            }
+        };
     }, [pdf, pageNum, containerWidth]);
 
     return (

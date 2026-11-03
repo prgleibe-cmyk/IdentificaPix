@@ -1971,9 +1971,13 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                 } : null}
                 onClose={() => setQuickAttachTx(null)}
                 onSaved={(txId, atts) => {
+                    const lightAtts = (atts || []).map((a: any) => {
+                        const { dataUrl, ...rest } = a;
+                        return { ...rest, txId, hasDataUrl: true };
+                    });
                     setAttachmentsMap(prev => {
                         const next = new Map(prev);
-                        next.set(txId, atts);
+                        next.set(txId, lightAtts);
                         return next;
                     });
                     if (onRowChange) {
@@ -1981,10 +1985,10 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                         if (target) {
                             onRowChange({
                                 ...target,
-                                attachments: atts,
+                                attachments: lightAtts,
                                 transaction: {
                                     ...target.transaction,
-                                    attachments: atts
+                                    attachments: lightAtts
                                 }
                             });
                         }
@@ -2010,18 +2014,23 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                 onReceiptGenerated={(att) => {
                     const txId = serviceReceiptTx?.transaction?.id || serviceReceiptTx?.id;
                     if (txId) {
+                        const { dataUrl, ...lightAtt } = att as any;
+                        const finalLightAtt = { ...lightAtt, txId, hasDataUrl: true };
                         setAttachmentsMap(prev => {
                             const next = new Map(prev);
                             const currentList = next.get(txId) || [];
-                            const nextList = [...currentList, att];
+                            const nextList = [...currentList, finalLightAtt];
                             next.set(txId, nextList);
                             return next;
                         });
                         if (onRowChange) {
                             const target = data.find(r => r.transaction.id === txId);
                             if (target) {
-                                const currentList = target.attachments || target.transaction.attachments || [];
-                                const nextList = [...currentList, att];
+                                const currentList = (target.attachments || target.transaction.attachments || []).map((a: any) => {
+                                    const { dataUrl: _d, ...rest } = a;
+                                    return { ...rest, txId, hasDataUrl: true };
+                                });
+                                const nextList = [...currentList, finalLightAtt];
                                 onRowChange({
                                     ...target,
                                     attachments: nextList,

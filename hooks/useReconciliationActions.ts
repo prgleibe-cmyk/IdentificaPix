@@ -296,6 +296,17 @@ export const useReconciliationActions = ({
           }
         }
 
+        // 🛡️ Anti-OOM: O estado global em memória React retém apenas metadados leves (sem dataUrl Base64)
+        const lightManualAttachments = (attachments && attachments.length > 0)
+          ? attachments.map(att => {
+              if (att && att.dataUrl) {
+                const { dataUrl, ...rest } = att;
+                return { ...rest, txId: realId, hasDataUrl: true };
+              }
+              return { ...att, txId: realId, hasDataUrl: Boolean((att as any).hasDataUrl || att.dataUrl) };
+            })
+          : undefined;
+
         // 4. Registrar o aprendizado (Association) usando o ID real
         const updatedMatchResult: MatchResult = {
           ...tempOriginal,
@@ -306,9 +317,9 @@ export const useReconciliationActions = ({
             reference_date: finalDate,
             type: txType,
             bank_id: selectedBankId || undefined,
-            attachments: attachments && attachments.length > 0 ? attachments : undefined
+            attachments: lightManualAttachments
           },
-          attachments: attachments && attachments.length > 0 ? attachments : undefined,
+          attachments: lightManualAttachments,
           status: ReconciliationStatus.IDENTIFIED,
           isConfirmed: false,
           contributor: contributor ? {
@@ -536,6 +547,18 @@ export const useReconciliationActions = ({
 
           const finalRefDate = selectedDate || r.reference_date || r.transaction.reference_date || null;
 
+          // 🛡️ Anti-OOM: Sanitiza anexos para memória React mantendo apenas metadados leves
+          const rawAtts = (attachments && attachments.length > 0) ? attachments : (r.attachments || r.transaction.attachments);
+          const lightAttachments = (rawAtts && rawAtts.length > 0)
+            ? rawAtts.map(att => {
+                if (att && att.dataUrl) {
+                  const { dataUrl, ...rest } = att;
+                  return { ...rest, txId: r.transaction.id, hasDataUrl: true };
+                }
+                return { ...att, txId: r.transaction.id, hasDataUrl: Boolean((att as any).hasDataUrl || att.dataUrl) };
+              })
+            : undefined;
+
           const updated: MatchResult = {
             ...r,
             status: ReconciliationStatus.IDENTIFIED,
@@ -556,9 +579,9 @@ export const useReconciliationActions = ({
               contributionType: contributor.contributionType,
               reference_date: finalRefDate,
               isConfirmed: false,
-              attachments: (attachments && attachments.length > 0) ? attachments : r.transaction.attachments
+              attachments: lightAttachments
             },
-            attachments: (attachments && attachments.length > 0) ? attachments : r.attachments,
+            attachments: lightAttachments,
             updatedAt: new Date().toISOString()
           };
 

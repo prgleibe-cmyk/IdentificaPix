@@ -57,9 +57,7 @@ export async function saveAttachmentsForTransaction(
             }
         } else {
             await set(key, attachments);
-            if (memoryAttachmentsCache) {
-                memoryAttachmentsCache.set(txId, attachments);
-            }
+            syncAttachmentsToCache(txId, attachments);
         }
         if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('expense_attachments_updated', { detail: { txId } }));

@@ -131,67 +131,95 @@ export async function compressImageIfNeeded(
             return;
         }
 
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const initialDataUrl = e.target?.result as string;
-            if (!initialDataUrl) {
-                resolve({ dataUrl: '', size: file.size });
-                return;
-            }
+        // Se o arquivo for menor que 600KB, não necessita de re-compressão
+        if (file.size < 600 * 1024) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const initialDataUrl = e.target?.result as string;
+                resolve({ dataUrl: initialDataUrl || '', size: file.size });
+            };
+            reader.onerror = () => resolve({ dataUrl: '', size: file.size });
+            reader.readAsDataURL(file);
+            return;
+        }
 
-            // Se o arquivo for menor que 600KB, não necessita de re-compressão
-            if (file.size < 600 * 1024) {
-                resolve({ dataUrl: initialDataUrl, size: file.size });
-                return;
-            }
+        // Para fotos grandes, carrega via ObjectURL sem inflar Base64 na memória antes do canvas
+        let objectUrl = '';
+        try {
+            objectUrl = URL.createObjectURL(file);
+        } catch (_) {
+            const reader = new FileReader();
+            reader.onload = () => resolve({ dataUrl: reader.result as string, size: file.size });
+            reader.onerror = () => resolve({ dataUrl: '', size: file.size });
+            reader.readAsDataURL(file);
+            return;
+        }
 
+        const img = new Image();
+        img.onload = () => {
+            if (objectUrl) {
+                try { URL.revokeObjectURL(objectUrl); } catch (_) {}
+            }
             try {
-                const img = new Image();
-                img.onload = () => {
-                    let width = img.width;
-                    let height = img.height;
+                let width = img.width;
+                let height = img.height;
 
-                    if (width > maxDimension || height > maxDimension) {
-                        if (width > height) {
-                            height = Math.round((height * maxDimension) / width);
-                            width = maxDimension;
-                        } else {
-                            width = Math.round((width * maxDimension) / height);
-                            height = maxDimension;
-                        }
+                if (width > maxDimension || height > maxDimension) {
+                    if (width > height) {
+                        height = Math.round((height * maxDimension) / width);
+                        width = maxDimension;
+                    } else {
+                        width = Math.round((width * maxDimension) / height);
+                        height = maxDimension;
                     }
+                }
 
-                    const canvas = document.createElement('canvas');
-                    canvas.width = width;
-                    canvas.height = height;
-                    const ctx = canvas.getContext('2d');
-                    if (!ctx) {
-                        resolve({ dataUrl: initialDataUrl, size: file.size });
-                        return;
-                    }
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    const fallbackReader = new FileReader();
+                    fallbackReader.onload = () => resolve({ dataUrl: fallbackReader.result as string, size: file.size });
+                    fallbackReader.onerror = () => resolve({ dataUrl: '', size: file.size });
+                    fallbackReader.readAsDataURL(file);
+                    return;
+                }
 
-                    ctx.fillStyle = '#FFFFFF';
-                    ctx.fillRect(0, 0, width, height);
-                    ctx.drawImage(img, 0, 0, width, height);
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, width, height);
+                ctx.drawImage(img, 0, 0, width, height);
 
-                    const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
-                    const approxSize = Math.round((compressedDataUrl.length - 22) * 3 / 4);
-                    resolve({ 
-                        dataUrl: compressedDataUrl, 
-                        size: approxSize > 0 ? approxSize : file.size 
-                    });
-                };
-                img.onerror = () => {
-                    resolve({ dataUrl: initialDataUrl, size: file.size });
-                };
-                img.src = initialDataUrl;
-            } catch (err) {
-                console.warn('[ImageCompressor] Fallback para original:', err);
-                resolve({ dataUrl: initialDataUrl, size: file.size });
+                const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+                const approxSize = Math.round((compressedDataUrl.length - 22) * 3 / 4);
+
+                // Libera recursos gráficos imediatamente
+                canvas.width = 0;
+                canvas.height = 0;
+                img.src = '';
+
+                resolve({ 
+                    dataUrl: compressedDataUrl, 
+                    size: approxSize > 0 ? approxSize : file.size 
+                });
+            } catch (canvasErr) {
+                console.warn('[ImageCompressor] Erro no canvas, usando fallback:', canvasErr);
+                const fallbackReader = new FileReader();
+                fallbackReader.onload = () => resolve({ dataUrl: fallbackReader.result as string, size: file.size });
+                fallbackReader.onerror = () => resolve({ dataUrl: '', size: file.size });
+                fallbackReader.readAsDataURL(file);
             }
         };
-        reader.onerror = () => resolve({ dataUrl: '', size: file.size });
-        reader.readAsDataURL(file);
+        img.onerror = () => {
+            if (objectUrl) {
+                try { URL.revokeObjectURL(objectUrl); } catch (_) {}
+            }
+            const fallbackReader = new FileReader();
+            fallbackReader.onload = () => resolve({ dataUrl: fallbackReader.result as string, size: file.size });
+            fallbackReader.onerror = () => resolve({ dataUrl: '', size: file.size });
+            fallbackReader.readAsDataURL(file);
+        };
+        img.src = objectUrl;
     });
 }
 
@@ -222,41 +250,55 @@ export function parseBRLNumber(valStr: string): number | null {
 export async function extractTextFromPDF(arrayBuffer: ArrayBuffer): Promise<string> {
     const parseWithLib = async (lib: any): Promise<string> => {
         const loadingTask = lib.getDocument({ data: new Uint8Array(arrayBuffer) });
-        const pdf = await loadingTask.promise;
-        let fullText = '';
+        let pdf: any = null;
+        try {
+            pdf = await loadingTask.promise;
+            let fullText = '';
 
-        for (let pageNum = 1; pageNum <= Math.min(pdf.numPages, 5); pageNum++) {
-            const page = await pdf.getPage(pageNum);
-            const textContent = await page.getTextContent();
-            
-            let lastY: number | null = null;
-            const pageLines: string[] = [];
-            let currentLine = '';
+            for (let pageNum = 1; pageNum <= Math.min(pdf.numPages, 5); pageNum++) {
+                let page: any = null;
+                try {
+                    page = await pdf.getPage(pageNum);
+                    const textContent = await page.getTextContent();
+                    
+                    let lastY: number | null = null;
+                    const pageLines: string[] = [];
+                    let currentLine = '';
 
-            for (const item of (textContent.items as any[])) {
-                if (item && typeof item.str === 'string') {
-                    const itemY = Array.isArray(item.transform) ? item.transform[5] : null;
-                    if (lastY !== null && itemY !== null && Math.abs(itemY - lastY) > 4) {
-                        if (currentLine.trim()) {
-                            pageLines.push(currentLine.trim());
+                    for (const item of (textContent.items as any[])) {
+                        if (item && typeof item.str === 'string') {
+                            const itemY = Array.isArray(item.transform) ? item.transform[5] : null;
+                            if (lastY !== null && itemY !== null && Math.abs(itemY - lastY) > 4) {
+                                if (currentLine.trim()) {
+                                    pageLines.push(currentLine.trim());
+                                }
+                                currentLine = item.str;
+                            } else {
+                                currentLine += (currentLine ? ' ' : '') + item.str;
+                            }
+                            if (itemY !== null) {
+                                lastY = itemY;
+                            }
                         }
-                        currentLine = item.str;
-                    } else {
-                        currentLine += (currentLine ? ' ' : '') + item.str;
                     }
-                    if (itemY !== null) {
-                        lastY = itemY;
+                    if (currentLine.trim()) {
+                        pageLines.push(currentLine.trim());
+                    }
+
+                    fullText += pageLines.join('\n') + '\n';
+                } finally {
+                    if (page) {
+                        try { page.cleanup(); } catch (_) {}
                     }
                 }
             }
-            if (currentLine.trim()) {
-                pageLines.push(currentLine.trim());
+
+            return fullText;
+        } finally {
+            if (pdf) {
+                try { pdf.destroy(); } catch (_) {}
             }
-
-            fullText += pageLines.join('\n') + '\n';
         }
-
-        return fullText;
     };
 
     // 1. Tenta com pdfjs-dist local/empacotado

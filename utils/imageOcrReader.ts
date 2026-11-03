@@ -163,26 +163,41 @@ export async function extractTextFromImageOcr(
  */
 export async function renderPdfFirstPageToImage(arrayBuffer: ArrayBuffer): Promise<string | null> {
     if (typeof window === 'undefined' || !arrayBuffer) return null;
+    let pdf: any = null;
+    let page: any = null;
+    let canvas: HTMLCanvasElement | null = null;
     try {
         const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
-        const pdf = await loadingTask.promise;
+        pdf = await loadingTask.promise;
         if (pdf.numPages < 1) return null;
 
-        const page = await pdf.getPage(1);
+        page = await pdf.getPage(1);
         // Escala 1.8x para manter alta densidade de pixels (equivalente a ~300 DPI) para máxima precisão no OCR
         const viewport = page.getViewport({ scale: 1.8 });
 
-        const canvas = document.createElement('canvas');
+        canvas = document.createElement('canvas');
         canvas.width = viewport.width;
         canvas.height = viewport.height;
         const ctx = canvas.getContext('2d');
         if (!ctx) return null;
 
         await (page as any).render({ canvas, canvasContext: ctx, viewport }).promise;
-        return canvas.toDataURL('image/jpeg', 0.85);
+        const result = canvas.toDataURL('image/jpeg', 0.85);
+        return result;
     } catch (err) {
         console.warn('[OCR] Falha ao renderizar página do PDF em canvas:', err);
         return null;
+    } finally {
+        if (canvas) {
+            canvas.width = 0;
+            canvas.height = 0;
+        }
+        if (page) {
+            try { page.cleanup(); } catch (_) {}
+        }
+        if (pdf) {
+            try { pdf.destroy(); } catch (_) {}
+        }
     }
 }
 
