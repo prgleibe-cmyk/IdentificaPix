@@ -99,6 +99,7 @@ export const useCloudSync = ({
     const lastAutoProcessSignatureRef = useRef<string | null>(null);
     const isAutoProcessingRef = useRef<boolean>(false);
     const lastAutoProcessTimeRef = useRef<number>(0);
+    const hasRunInitialAutoProcessRef = useRef<boolean>(false);
 
     const churchesRef = useRef(churches);
     const learnedAssociationsRef = useRef(learnedAssociations);
@@ -143,11 +144,12 @@ export const useCloudSync = ({
     const lastDataReadyKeyRef = useRef<string>('');
 
     useEffect(() => {
-        if (realtimeRefreshKey && realtimeRefreshKey > 0) {
+        // Apenas reseta para reconstrução se a hidratação inicial ainda não concluiu
+        if (!hasCompletedInitialHydration && realtimeRefreshKey && realtimeRefreshKey > 0) {
             lastDataReadyKeyRef.current = '';
             lastSignatureRef.current = null;
         }
-    }, [realtimeRefreshKey]);
+    }, [realtimeRefreshKey, hasCompletedInitialHydration]);
 
     // ☁️ SINCRONIZAÇÃO COM A NUVEM (Trabalho Vivo)
     // Desativado o "blocão" JSON para sessões ativas para favorecer a atomização
@@ -168,9 +170,9 @@ export const useCloudSync = ({
     const reconstructSession = useCallback(async () => {
         if (!effectiveUserId) return;
 
-        // Se já estamos hidratando, marcamos que precisamos de outra rodada ao terminar
+        // Se já estamos hidratando, ignoramos chamadas concorrentes para evitar sobrecarga e vazamento de memória
         if (isHydratingFromCloud.current) {
-            needsRetry.current = true;
+            console.log("[CloudSync:BUSY] Hidratação já em andamento, ignorando chamada concorrente.");
             return;
         }
 
@@ -180,6 +182,7 @@ export const useCloudSync = ({
         setIsHydrating(true);
         if (setIsLoading && !hasDataAlready) setIsLoading(true);
         needsRetry.current = false;
+        hasRunInitialAutoProcessRef.current = false;
 
         try {
             const pendingPromotions: { id: string; churchId: string; bankId: string }[] = [];
@@ -409,7 +412,7 @@ export const useCloudSync = ({
                         row_hash: t.row_hash,
                         contributionType: savedContribType,
                         paymentMethod: savedPaymentMethod,
-                        attachments: parsedAttachments
+                        attachments: lightAttachments
                     };
 
                     const regName = t.contributor_id ? getRegisteredContributorName(t.contributor_id) : null;
@@ -464,7 +467,7 @@ export const useCloudSync = ({
                             : (typeof t.splits === 'string' && t.splits.trim().startsWith('[')
                                 ? (() => { try { const p = JSON.parse(t.splits); return Array.isArray(p) && p.length > 0 ? p : undefined; } catch (_) { return undefined; } })()
                                 : undefined),
-                        attachments: parsedAttachments,
+                        attachments: lightAttachments,
                         updatedAt: t.updated_at
                     };
 
@@ -704,15 +707,10 @@ export const useCloudSync = ({
                 setIsHydrating(false);
                 setHasCompletedInitialHydration(true);
                 if (setIsLoading) setIsLoading(false);
+                needsRetry.current = false;
                 setTimeout(() => {
                     console.log('[Hydration:FINISHED]');
                 }, 0);
-                if (needsRetry.current) {
-                    needsRetry.current = false;
-                    setTimeout(() => {
-                        reconstructSessionRef.current?.();
-                    }, 150);
-                }
             }
         }, [
             effectiveUserId,
@@ -925,10 +923,11 @@ export const useCloudSync = ({
                 lastProcessedLength.current = matchResults.length;
                 
                 if (!isSecondaryUser && typeof handleCompareRef.current === 'function') {
-                    if (lastAutoProcessSignatureRef.current === currentSignature) {
+                    if (hasRunInitialAutoProcessRef.current || lastAutoProcessSignatureRef.current === currentSignature) {
                         return;
                     }
  
+                    hasRunInitialAutoProcessRef.current = true;
                     lastAutoProcessSignatureRef.current = currentSignature;
                     lastAutoProcessTimeRef.current = now;
                     isAutoProcessingRef.current = true;

@@ -39,14 +39,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
 
     const [realtimeRefreshKey, setRealtimeRefreshKey] = useState(0);
+    const lastTriggerTimeRef = useRef(Date.now());
 
     // 📡 ESCUTA DE SINCRONIZAÇÃO EM TEMPO REAL (Multi-dispositivos, abas e reconexão)
     useEffect(() => {
-        let lastTriggerTime = 0;
         const triggerRefresh = () => {
             const now = Date.now();
-            if (now - lastTriggerTime < 4000) return; // debounce de 4s
-            lastTriggerTime = now;
+            if (now - lastTriggerTimeRef.current < 15000) return; // debounce seguro de 15s
+            lastTriggerTimeRef.current = now;
             
             console.log("[AppContext:RealtimeRefresh] Sincronização em tempo real acionada.");
             syncAllChurchClosings().catch(() => {});
@@ -68,7 +68,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (document.visibilityState === 'visible' && user?.id) {
                 triggerRefresh();
             }
-        }, 15000);
+        }, 30000);
 
         // BroadcastChannel para sincronização instantânea entre abas no mesmo navegador
         let bc: BroadcastChannel | null = null;
