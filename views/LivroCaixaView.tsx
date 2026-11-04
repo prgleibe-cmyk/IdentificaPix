@@ -653,173 +653,336 @@ export const LivroCaixaView: React.FC = memo(() => {
             ? customStartDate
             : (selectedYear && selectedMonth ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01` : '');
 
-        // Cálculo do Saldo Anterior (respeitando rigorosamente os filtros de igreja e banco ativos)
+        // Cálculo do Saldo Anterior (respeitando rigorosamente fechamentos homologados com transporte e filtros ativos)
         if (effectiveStartDate) {
-            reportData.forEach((item: any) => {
-                const itemId = String(item.id || item.raw?.transaction?.id || '');
-                const isClosingTx = itemId.startsWith('closing-') || item.source === 'closing' || item.raw?.transaction?.source === 'closing' || String(item.row_hash || item.raw?.transaction?.row_hash || '').startsWith('closing-');
-                if (isClosingTx) return;
+            // Identifica o período imediatamente anterior
+            const startParts = effectiveStartDate.split('-');
+            const curY = parseInt(startParts[0], 10);
+            const curM = parseInt(startParts[1], 10);
+            const prevM = curM === 1 ? 12 : curM - 1;
+            const prevY = curM === 1 ? curY - 1 : curY;
 
+            // Busca fechamentos homologados e ativos do período imediatamente anterior que atendem aos filtros
+            const relevantPrevClosings = (pastClosings || []).filter((closing: MonthClosingRecord) => {
+                if (!closing || closing.status === 'reopened') return false;
+                if (closing.year !== prevY || closing.month !== prevM) return false;
+
+                // Validação de permissões para usuário secundário
                 if (isSecondaryUser && allowedChurchIds && allowedChurchIds.length > 0) {
-                    const itemChurchId = item.churchId;
-                    const itemChurchName = item.church;
-                    const itemSplits = (Array.isArray(item.splits) && item.splits.length > 0)
-                        ? item.splits
-                        : (Array.isArray(item.raw?.splits) && item.raw.splits.length > 0)
-                            ? item.raw.splits
-                            : null;
-
                     const matchesAllowed = allowedChurchIds.some(cId => {
-                        if (itemChurchId && itemChurchId === cId) return true;
+                        if (closing.churchId && closing.churchId === cId) return true;
                         const chObj = (context?.churches || churches).find((c: any) => c.id === cId);
-                        if (chObj && (itemChurchName === chObj.name || itemChurchId === chObj.id)) return true;
-                        if (itemSplits && itemSplits.length > 0) {
-                            return itemSplits.some((s: any) => s.churchId === cId || (chObj && s.churchName === chObj.name));
-                        }
-                        return false;
+                        return chObj && (closing.churchName === chObj.name || closing.churchId === chObj.id);
                     });
-                    if (!matchesAllowed) return;
+                    if (!matchesAllowed) return false;
                 }
 
+                // Filtro de congregações selecionadas
                 if (selectedChurchIds.length > 0) {
-                    const itemChurchId = item.churchId;
-                    const itemChurchName = item.church;
-                    const matchesAny = selectedChurchIds.some(cId => {
-                        if (itemChurchId && itemChurchId === cId) return true;
+                    const matchesSelected = selectedChurchIds.some(cId => {
+                        if (closing.churchId && closing.churchId === cId) return true;
                         const chObj = churches.find((c: any) => c.id === cId);
-                        return chObj && (itemChurchName === chObj.name || itemChurchId === chObj.id);
+                        return chObj && (closing.churchName === chObj.name || closing.churchId === chObj.id);
                     });
-                    if (!matchesAny) return;
+                    if (!matchesSelected) return false;
                 }
 
+                // Filtro de banco selecionado
                 if (selectedBankIds.length > 0) {
-                    const itemBankId = item.bankId || item.raw?.transaction?.bank_id || item.raw?.bankId;
-                    const itemBankName = item.bankName;
-                    const matchesAny = selectedBankIds.some(bId => {
-                        if (itemBankId && itemBankId === bId) return true;
-                        const bObj = banks.find((b: any) => b.id === bId);
-                        if (!bObj) return false;
-                        const bName = (bObj.account_name || bObj.name || '').toLowerCase();
-                        if (itemBankName && itemBankName.toLowerCase() === bName) return true;
-                        return false;
-                    });
-                    if (!matchesAny) return;
-                }
-
-                const itemDate = item.date ? (item.date.includes('T') ? item.date.split('T')[0] : item.date) : '';
-                if (itemDate && itemDate < effectiveStartDate) {
-                    const amt = Math.abs(Number(item.amount) || Number(item.val) || 0);
-                    const isExp = item.type === 'expense' || Number(item.amount) < 0 || (item.category && item.category.toLowerCase().includes('saida'));
-                    if (isExp) {
-                        saldoAnterior -= amt;
-                    } else {
-                        saldoAnterior += amt;
+                    if (closing.bankId && closing.bankId !== 'all') {
+                        return selectedBankIds.includes(closing.bankId);
                     }
                 }
+
+                return true;
             });
 
-            // 🛡️ CORREÇÃO CIRÚRGICA — SALDO JÁ TRANSFERIDO NO FECHAMENTO DE PERÍODOS ANTERIORES
-            // Se houve fechamento com transferência em período anterior, o valor transferido pertence
-            // à conta de destino e não pode continuar compondo o saldo anterior da conta de origem.
-            if (pastClosings && pastClosings.length > 0) {
-                const currentPeriodKey = selectionMode === 'month' && selectedYear && selectedMonth
-                    ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`
-                    : (customStartDate ? customStartDate.slice(0, 7) : '');
+            // Se o período anterior possui fechamento homologado, o saldo transportado é a base contábil exata
+            if (relevantPrevClosings.length > 0) {
+                const closedChurchIds = new Set(relevantPrevClosings.map(c => c.churchId).filter(Boolean));
+                const allSystemChurchesClosed = selectedChurchIds.length > 0 
+                    || (churches.length > 0 && churches.every((ch: any) => closedChurchIds.has(ch.id)));
 
-                pastClosings.forEach((closing: MonthClosingRecord) => {
-                    if (!closing || closing.status === 'reopened') return;
-                    const transferred = Number(closing.transferredBalance) || 0;
-                    if (transferred === 0) return;
+                relevantPrevClosings.forEach((c: MonthClosingRecord) => {
+                    const finalBal = Number(c.finalBalance) || 0;
+                    const transferred = Number(c.transferredBalance) || 0;
+                    // Se foi transportado 100%, o saldo que passa para o novo período é exatamente R$ 0,00
+                    saldoAnterior += (finalBal - transferred);
+                });
 
-                    // O fechamento deve ser de um período estritamente anterior ao período visualizado
-                    const closingPeriodKey = `${closing.year}-${String(closing.month).padStart(2, '0')}`;
-                    if (currentPeriodKey && closingPeriodKey >= currentPeriodKey) return;
-                    if (!currentPeriodKey && effectiveStartDate) {
-                        const closingEndDay = new Date(closing.year, closing.month, 0).getDate();
-                        const closingEndDate = `${closing.year}-${String(closing.month).padStart(2, '0')}-${String(closingEndDay).padStart(2, '0')}`;
-                        if (closingEndDate >= effectiveStartDate) return;
-                    }
+                // Se houver congregações NÃO fechadas na visão consolidada, acumula o histórico apenas delas
+                if (!allSystemChurchesClosed && selectedChurchIds.length === 0) {
+                    reportData.forEach((item: any) => {
+                        const itemChurchId = item.churchId || item.raw?.churchId;
+                        if (itemChurchId && closedChurchIds.has(itemChurchId)) return; // Já coberto pelo fechamento
 
-                    // Checa pertinência da congregação e conta de origem
-                    let matchesOrigin = false;
-                    if (selectedChurchIds.length > 0) {
-                        matchesOrigin = selectedChurchIds.some(cId => {
-                            if (closing.churchId && closing.churchId === cId) return true;
-                            const chObj = churches.find((c: any) => c.id === cId);
-                            return chObj && (closing.churchName === chObj.name || closing.churchId === chObj.id);
+                        const itemId = String(item.id || item.raw?.transaction?.id || '');
+                        const isClosingTx = itemId.startsWith('closing-') || item.source === 'closing' || item.raw?.transaction?.source === 'closing' || String(item.row_hash || item.raw?.transaction?.row_hash || '').startsWith('closing-');
+                        if (isClosingTx) return;
+
+                        if (isSecondaryUser && allowedChurchIds && allowedChurchIds.length > 0) {
+                            if (!itemChurchId || !allowedChurchIds.includes(itemChurchId)) return;
+                        }
+
+                        if (selectedBankIds.length > 0) {
+                            const itemBankId = item.bankId || item.raw?.transaction?.bank_id || item.raw?.bankId;
+                            const itemBankName = item.bankName;
+                            const matchesAny = selectedBankIds.some(bId => {
+                                if (itemBankId && itemBankId === bId) return true;
+                                const bObj = banks.find((b: any) => b.id === bId);
+                                if (!bObj) return false;
+                                const bName = (bObj.account_name || bObj.name || '').toLowerCase();
+                                if (itemBankName && itemBankName.toLowerCase() === bName) return true;
+                                return false;
+                            });
+                            if (!matchesAny) return;
+                        }
+
+                        const itemDate = item.date ? (item.date.includes('T') ? item.date.split('T')[0] : item.date) : '';
+                        if (itemDate && itemDate < effectiveStartDate) {
+                            const amt = Math.abs(Number(item.amount) || Number(item.val) || 0);
+                            const isExp = item.type === 'expense' || Number(item.amount) < 0 || (item.category && item.category.toLowerCase().includes('saida'));
+                            if (isExp) {
+                                saldoAnterior -= amt;
+                            } else {
+                                saldoAnterior += amt;
+                            }
+                        }
+                    });
+                }
+
+                // Se a data inicial for posterior ao término do mês anterior (ex: período customizado a partir do dia 10)
+                const prevLastDay = new Date(prevY, prevM, 0).getDate();
+                const prevClosingEndDate = `${prevY}-${String(prevM).padStart(2, '0')}-${String(prevLastDay).padStart(2, '0')}`;
+
+                if (effectiveStartDate > prevClosingEndDate) {
+                    reportData.forEach((item: any) => {
+                        const itemDate = item.date ? (item.date.includes('T') ? item.date.split('T')[0] : item.date) : '';
+                        if (itemDate > prevClosingEndDate && itemDate < effectiveStartDate) {
+                            const itemId = String(item.id || item.raw?.transaction?.id || '');
+                            const isClosingTx = itemId.startsWith('closing-') || item.source === 'closing' || item.raw?.transaction?.source === 'closing' || String(item.row_hash || item.raw?.transaction?.row_hash || '').startsWith('closing-');
+                            if (isClosingTx) return;
+
+                            if (isSecondaryUser && allowedChurchIds && allowedChurchIds.length > 0) {
+                                const itemChurchId = item.churchId;
+                                const itemChurchName = item.church;
+                                const itemSplits = (Array.isArray(item.splits) && item.splits.length > 0)
+                                    ? item.splits
+                                    : (Array.isArray(item.raw?.splits) && item.raw.splits.length > 0)
+                                        ? item.raw.splits
+                                        : null;
+
+                                const matchesAllowed = allowedChurchIds.some(cId => {
+                                    if (itemChurchId && itemChurchId === cId) return true;
+                                    const chObj = (context?.churches || churches).find((c: any) => c.id === cId);
+                                    if (chObj && (itemChurchName === chObj.name || itemChurchId === chObj.id)) return true;
+                                    if (itemSplits && itemSplits.length > 0) {
+                                        return itemSplits.some((s: any) => s.churchId === cId || (chObj && s.churchName === chObj.name));
+                                    }
+                                    return false;
+                                });
+                                if (!matchesAllowed) return;
+                            }
+
+                            if (selectedChurchIds.length > 0) {
+                                const itemChurchId = item.churchId;
+                                const itemChurchName = item.church;
+                                const matchesAny = selectedChurchIds.some(cId => {
+                                    if (itemChurchId && itemChurchId === cId) return true;
+                                    const chObj = churches.find((c: any) => c.id === cId);
+                                    return chObj && (itemChurchName === chObj.name || itemChurchId === chObj.id);
+                                });
+                                if (!matchesAny) return;
+                            }
+
+                            if (selectedBankIds.length > 0) {
+                                const itemBankId = item.bankId || item.raw?.transaction?.bank_id || item.raw?.bankId;
+                                const itemBankName = item.bankName;
+                                const matchesAny = selectedBankIds.some(bId => {
+                                    if (itemBankId && itemBankId === bId) return true;
+                                    const bObj = banks.find((b: any) => b.id === bId);
+                                    if (!bObj) return false;
+                                    const bName = (bObj.account_name || bObj.name || '').toLowerCase();
+                                    if (itemBankName && itemBankName.toLowerCase() === bName) return true;
+                                    return false;
+                                });
+                                if (!matchesAny) return;
+                            }
+
+                            const amt = Math.abs(Number(item.amount) || Number(item.val) || 0);
+                            const isExp = item.type === 'expense' || Number(item.amount) < 0 || (item.category && item.category.toLowerCase().includes('saida'));
+                            if (isExp) {
+                                saldoAnterior -= amt;
+                            } else {
+                                saldoAnterior += amt;
+                            }
+                        }
+                    });
+                }
+            } else {
+                // Fallback seguro: caso o período anterior NÃO tenha fechamento homologado, utiliza o cálculo acumulativo histórico
+                reportData.forEach((item: any) => {
+                    const itemId = String(item.id || item.raw?.transaction?.id || '');
+                    const isClosingTx = itemId.startsWith('closing-') || item.source === 'closing' || item.raw?.transaction?.source === 'closing' || String(item.row_hash || item.raw?.transaction?.row_hash || '').startsWith('closing-');
+                    if (isClosingTx) return;
+
+                    if (isSecondaryUser && allowedChurchIds && allowedChurchIds.length > 0) {
+                        const itemChurchId = item.churchId;
+                        const itemChurchName = item.church;
+                        const itemSplits = (Array.isArray(item.splits) && item.splits.length > 0)
+                            ? item.splits
+                            : (Array.isArray(item.raw?.splits) && item.raw.splits.length > 0)
+                                ? item.raw.splits
+                                : null;
+
+                        const matchesAllowed = allowedChurchIds.some(cId => {
+                            if (itemChurchId && itemChurchId === cId) return true;
+                            const chObj = (context?.churches || churches).find((c: any) => c.id === cId);
+                            if (chObj && (itemChurchName === chObj.name || itemChurchId === chObj.id)) return true;
+                            if (itemSplits && itemSplits.length > 0) {
+                                return itemSplits.some((s: any) => s.churchId === cId || (chObj && s.churchName === chObj.name));
+                            }
+                            return false;
                         });
-                    } else {
-                        matchesOrigin = true; // Visão consolidada
+                        if (!matchesAllowed) return;
                     }
 
-                    if (matchesOrigin && selectedBankIds.length > 0) {
-                        if (closing.bankId && closing.bankId !== 'all') {
-                            matchesOrigin = selectedBankIds.includes(closing.bankId);
+                    if (selectedChurchIds.length > 0) {
+                        const itemChurchId = item.churchId;
+                        const itemChurchName = item.church;
+                        const matchesAny = selectedChurchIds.some(cId => {
+                            if (itemChurchId && itemChurchId === cId) return true;
+                            const chObj = churches.find((c: any) => c.id === cId);
+                            return chObj && (itemChurchName === chObj.name || itemChurchId === chObj.id);
+                        });
+                        if (!matchesAny) return;
+                    }
+
+                    if (selectedBankIds.length > 0) {
+                        const itemBankId = item.bankId || item.raw?.transaction?.bank_id || item.raw?.bankId;
+                        const itemBankName = item.bankName;
+                        const matchesAny = selectedBankIds.some(bId => {
+                            if (itemBankId && itemBankId === bId) return true;
+                            const bObj = banks.find((b: any) => b.id === bId);
+                            if (!bObj) return false;
+                            const bName = (bObj.account_name || bObj.name || '').toLowerCase();
+                            if (itemBankName && itemBankName.toLowerCase() === bName) return true;
+                            return false;
+                        });
+                        if (!matchesAny) return;
+                    }
+
+                    const itemDate = item.date ? (item.date.includes('T') ? item.date.split('T')[0] : item.date) : '';
+                    if (itemDate && itemDate < effectiveStartDate) {
+                        const amt = Math.abs(Number(item.amount) || Number(item.val) || 0);
+                        const isExp = item.type === 'expense' || Number(item.amount) < 0 || (item.category && item.category.toLowerCase().includes('saida'));
+                        if (isExp) {
+                            saldoAnterior -= amt;
+                        } else {
+                            saldoAnterior += amt;
                         }
                     }
+                });
 
-                    // Checa pertinência da congregação de destino
-                    const destIds = (closing.targetChurchId || '').split(',').map((s: string) => s.trim()).filter(Boolean);
-                    let matchesDest = false;
-                    if (selectedChurchIds.length > 0) {
-                        matchesDest = selectedChurchIds.some(cId => {
-                            return destIds.some((dId: string) => {
-                                if (dId === cId) return true;
+                // Se houver fechamentos de períodos anteriores com transporte, ajusta
+                if (pastClosings && pastClosings.length > 0) {
+                    const currentPeriodKey = selectionMode === 'month' && selectedYear && selectedMonth
+                        ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`
+                        : (customStartDate ? customStartDate.slice(0, 7) : '');
+
+                    pastClosings.forEach((closing: MonthClosingRecord) => {
+                        if (!closing || closing.status === 'reopened') return;
+                        const transferred = Number(closing.transferredBalance) || 0;
+                        if (transferred === 0) return;
+
+                        // O fechamento deve ser de um período estritamente anterior ao período visualizado
+                        const closingPeriodKey = `${closing.year}-${String(closing.month).padStart(2, '0')}`;
+                        if (currentPeriodKey && closingPeriodKey >= currentPeriodKey) return;
+                        if (!currentPeriodKey && effectiveStartDate) {
+                            const closingEndDay = new Date(closing.year, closing.month, 0).getDate();
+                            const closingEndDate = `${closing.year}-${String(closing.month).padStart(2, '0')}-${String(closingEndDay).padStart(2, '0')}`;
+                            if (closingEndDate >= effectiveStartDate) return;
+                        }
+
+                        // Checa pertinência da congregação e conta de origem
+                        let matchesOrigin = false;
+                        if (selectedChurchIds.length > 0) {
+                            matchesOrigin = selectedChurchIds.some(cId => {
+                                if (closing.churchId && closing.churchId === cId) return true;
                                 const chObj = churches.find((c: any) => c.id === cId);
-                                return chObj && (dId === chObj.id || dId === chObj.name);
+                                return chObj && (closing.churchName === chObj.name || closing.churchId === chObj.id);
                             });
-                        });
-                    } else {
-                        // Na visão consolidada, o destino é interno se pertencer a qualquer igreja cadastrada
-                        matchesDest = destIds.length > 0 && destIds.some((dId: string) => {
-                            return churches.some((c: any) => c.id === dId || c.name === dId);
-                        });
-                    }
-
-                    // Se a conta atual era origem e não era destino, subtrai o saldo transferido
-                    if (matchesOrigin && !matchesDest) {
-                        saldoAnterior -= transferred;
-                    }
-                    // Se a conta atual era destino e não era origem, soma o saldo transferido recebido
-                    else if (!matchesOrigin && matchesDest) {
-                        let destAmount = 0;
-                        if (destIds.length <= 1) {
-                            destAmount = transferred;
                         } else {
-                            destIds.forEach(dId => {
-                                const isThisDest = selectedChurchIds.some(cId => {
+                            matchesOrigin = true;
+                        }
+
+                        if (matchesOrigin && selectedBankIds.length > 0) {
+                            if (closing.bankId && closing.bankId !== 'all') {
+                                matchesOrigin = selectedBankIds.includes(closing.bankId);
+                            }
+                        }
+
+                        // Checa pertinência da congregação de destino
+                        const destIds = (closing.targetChurchId || '').split(',').map((s: string) => s.trim()).filter(Boolean);
+                        let matchesDest = false;
+                        if (selectedChurchIds.length > 0) {
+                            matchesDest = selectedChurchIds.some(cId => {
+                                return destIds.some((dId: string) => {
                                     if (dId === cId) return true;
-                                    const ch = churches.find((c: any) => c.id === cId);
-                                    return ch && (dId === ch.id || dId === ch.name);
+                                    const chObj = churches.find((c: any) => c.id === cId);
+                                    return chObj && (dId === chObj.id || dId === chObj.name);
                                 });
-                                if (isThisDest) {
-                                    let parsedAmt = 0;
-                                    if (closing.targetChurchName) {
-                                        const ch = churches.find((c: any) => c.id === dId);
-                                        const nameToFind = ch ? ch.name : dId;
-                                        const parts = closing.targetChurchName.split(',');
-                                        for (const p of parts) {
-                                            if (p.toLowerCase().includes(nameToFind.toLowerCase())) {
-                                                const match = p.match(/R\$\s*([\d.,]+)/);
-                                                if (match && match[1]) {
-                                                    const clean = match[1].replace(/\./g, '').replace(',', '.');
-                                                    const val = parseFloat(clean);
-                                                    if (!isNaN(val) && val > 0) {
-                                                        parsedAmt = val;
-                                                        break;
+                            });
+                        } else {
+                            matchesDest = destIds.length > 0 && destIds.some((dId: string) => {
+                                return churches.some((c: any) => c.id === dId || c.name === dId);
+                            });
+                        }
+
+                        // Se a conta atual era origem e não era destino, subtrai o saldo transferido
+                        if (matchesOrigin && !matchesDest) {
+                            saldoAnterior -= transferred;
+                        }
+                        // Se a conta atual era destino e não era origem, soma o saldo transferido recebido
+                        else if (!matchesOrigin && matchesDest) {
+                            let destAmount = 0;
+                            if (destIds.length <= 1) {
+                                destAmount = transferred;
+                            } else {
+                                destIds.forEach(dId => {
+                                    const isThisDest = selectedChurchIds.some(cId => {
+                                        if (dId === cId) return true;
+                                        const ch = churches.find((c: any) => c.id === cId);
+                                        return ch && (dId === ch.id || dId === ch.name);
+                                    });
+                                    if (isThisDest) {
+                                        let parsedAmt = 0;
+                                        if (closing.targetChurchName) {
+                                            const ch = churches.find((c: any) => c.id === dId);
+                                            const nameToFind = ch ? ch.name : dId;
+                                            const parts = closing.targetChurchName.split(',');
+                                            for (const p of parts) {
+                                                if (p.toLowerCase().includes(nameToFind.toLowerCase())) {
+                                                    const match = p.match(/R\$\s*([\d.,]+)/);
+                                                    if (match && match[1]) {
+                                                        const clean = match[1].replace(/\./g, '').replace(',', '.');
+                                                        const val = parseFloat(clean);
+                                                        if (!isNaN(val) && val > 0) {
+                                                            parsedAmt = val;
+                                                            break;
+                                                        }
                                                     }
                                                 }
                                             }
                                         }
+                                        destAmount += parsedAmt > 0 ? parsedAmt : (transferred / destIds.length);
                                     }
-                                    destAmount += parsedAmt > 0 ? parsedAmt : (transferred / destIds.length);
-                                }
-                            });
+                                });
+                            }
+                            saldoAnterior += destAmount;
                         }
-                        saldoAnterior += destAmount;
-                    }
-                    // Se for consolidado (ambas no escopo da visão), o débito e o crédito se anulam internamente
-                });
+                    });
+                }
             }
         }
 
