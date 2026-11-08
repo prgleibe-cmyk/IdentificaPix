@@ -14,7 +14,7 @@ import { getCachedContributors } from '../../services/contributorsCache';
 import { ExpenseDocumentUploader } from '../financial/ExpenseDocumentUploader';
 import { ExpenseAttachment } from '../../types/domain';
 import { ExtractedExpenseDoc } from '../../utils/expenseDocumentParser';
-import { getAttachmentsForTransaction } from '../../services/expenseAttachmentService';
+import { getAttachmentsForTransaction, saveAttachmentsForTransaction } from '../../services/expenseAttachmentService';
 
 const formatCpfCnpj = (value: string) => {
     const clean = value.replace(/\D/g, '');
@@ -88,6 +88,18 @@ export const ManualIdModal: React.FC = () => {
     const [attachments, setAttachments] = useState<ExpenseAttachment[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     const isSavingRef = React.useRef<boolean>(false);
+
+    const handleAttachmentsChange = (next: ExpenseAttachment[]) => {
+        setAttachments(next);
+        const activeTx = bulkIdentificationTxs && bulkIdentificationTxs[0];
+        const activeTxId = activeTx?.id;
+        if (activeTxId && !activeTxId.startsWith('ghost-')) {
+            saveAttachmentsForTransaction(activeTxId, next).catch(console.error);
+        }
+        if (activeTx) {
+            activeTx.attachments = next;
+        }
+    };
 
     const parsedCurrentAmount = useMemo(() => {
         if (!manualAmount) return 0;
@@ -1122,7 +1134,7 @@ export const ManualIdModal: React.FC = () => {
                                 <div className="space-y-2">
                                     <ExpenseDocumentUploader
                                         attachments={attachments}
-                                        onChangeAttachments={setAttachments}
+                                        onChangeAttachments={handleAttachmentsChange}
                                         currentAmount={parsedCurrentAmount}
                                         onApplyExtractedAmount={(val) => {
                                             setManualAmount(val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
@@ -1687,7 +1699,7 @@ export const ManualIdModal: React.FC = () => {
                                 <div className="mt-2.5">
                                     <ExpenseDocumentUploader
                                         attachments={attachments}
-                                        onChangeAttachments={setAttachments}
+                                        onChangeAttachments={handleAttachmentsChange}
                                         currentAmount={parsedCurrentAmount}
                                         onApplyExtractedAmount={(val) => {
                                             setManualAmount(val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
@@ -2259,7 +2271,7 @@ export const ManualIdModal: React.FC = () => {
                         <div className="pt-2 border-t border-slate-100 dark:border-slate-800 animate-fade-in">
                             <ExpenseDocumentUploader
                                 attachments={attachments}
-                                onChangeAttachments={setAttachments}
+                                onChangeAttachments={handleAttachmentsChange}
                                 currentAmount={Math.abs(bulkIdentificationTxs[0]?.amount || 0)}
                             />
                         </div>

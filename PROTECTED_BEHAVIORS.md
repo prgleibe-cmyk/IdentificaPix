@@ -502,6 +502,73 @@ Cada entrada homologada deve seguir obrigatoriamente a estrutura:
 
 ---
 
+### [PB-008] Isolamento e Autorização da Consulta de Logs de Auditoria
+- **ID:** PB-008
+- **Status da Proteção:** PROTEGIDA
+- **Data de Aprovação:** 2026-11-06
+- **Problema Originalmente Corrigido:**
+  1. A rota `GET /api/v1/audit-logs` não exigia autenticação mandatória (`ctx.isAuthenticated`), permitindo que requisições anônimas informando um `church_id` na URL obtivessem acesso irrestrito aos logs e metadados de auditoria.
+  2. Para titulares autenticados, a rota não verificava a propriedade da congregação no banco de dados contra os IDs equivalentes do titular (`ownerUserIds`), possibilitando a consulta cruzada de congregações pertencentes a outros titulares (*cross-tenant*).
+  3. No fallback legado de compatibilidade, a rota utilizava `id::text = ANY($2)` e `ownerUserIds.includes(targetChurchId)`, aceitando indevidamente UUIDs de operadores secundários como se fossem identificadores de congregação.
+  4. Para usuários secundários, a consulta validava apenas contra o campo singular `ctx.churchId` em vez do conjunto de permissões `ctx.allowedChurchIds`, bloqueando o acesso legítimo a congregações autorizadas secundárias e aceitando o header inseguro `x-church-id`.
+- **Comportamento Aprovado:**
+  1. A consulta à rota `GET /api/v1/audit-logs` exige autenticação válida de forma estrita (`Deny-by-Default`). Qualquer requisição anônima ou sem token válido resulta imediatamente em `HTTP 401 UNAUTHORIZED`.
+  2. Titulares somente podem consultar logs de congregações cuja propriedade seja comprovada através de `churches.user_id = ANY(ownerUserIds)` ou no fallback legado estrito onde `churches.id` seja o próprio `ownerId` canônico do titular autenticado.
+  3. Identificadores de operadores secundários nunca podem ser aceitos ou confundidos como identificadores de congregação no fallback de titularidade (retornando `HTTP 403 FORBIDDEN`).
+  4. Usuários secundários são autorizados exclusivamente para congregações contidas em `ctx.allowedChurchIds`. Congregações fora desse conjunto são terminantemente rejeitadas com `HTTP 403 FORBIDDEN`.
+  5. O cabeçalho `x-church-id` é expressamente ignorado, não podendo contornar a autenticação nem ampliar congregações autorizadas.
+  6. Superadministradores autenticados mantêm acesso administrativo a qualquer congregação ou geral conforme as regras de negócio existentes.
+  7. Parâmetros malformados ou ambíguos de `church_id` (como arrays duplicados ou strings vazias) são rejeitados com `HTTP 400 BAD_REQUEST`.
+  8. Filtros adicionais (`user_id`, `entity`, `action`, `startDate`, `endDate`) e paginação (`limit`, `offset`) permanecem plenamente operacionais sob isolamento estrito.
+
+#### A) Invariantes Comportamentais (Regras Funcionais Protegidas - Não podem sofrer regressão)
+- **IC-1 (Autenticação Mandatória sem Exceção):** A rota `GET /api/v1/audit-logs` deve rejeitar qualquer requisição sem token JWT válido ou com token expirado/inválido com `401 UNAUTHORIZED`, mesmo que um `church_id` válido seja informado.
+- **IC-2 (Comprovação Estrita de Titularidade e Isolamento Cross-Tenant):** O titular só pode acessar logs de uma congregação cuja propriedade esteja comprovada no banco por `churches.user_id = ANY(ownerUserIds)`. Acesso a congregações de outros titulares deve ser bloqueado com `403 FORBIDDEN`.
+- **IC-3 (Restrição do Fallback Legado ao Titular Canônico):** O fallback legado de compatibilidade de chave primária (`churches.id = targetChurchId`) só é válido se `targetChurchId === ownerId` (o ID canônico do titular).
+- **IC-4 (Não-Aceitação de IDs Secundários como Congregação):** UUIDs de operadores secundários vinculados ao titular nunca podem ser aceitos como congregações pelo fallback, resultando obrigatoriamente em `403 FORBIDDEN`.
+- **IC-5 (Autorização Fiel de Operadores Secundários via `allowedChurchIds`):** Usuários secundários só podem consultar logs de congregações presentes em sua lista de congregações autorizadas (`ctx.allowedChurchIds`), com bloqueio `403 FORBIDDEN` para qualquer congregação não autorizada.
+- **IC-6 (Descarte de Headers Não-Confiáveis):** O header `x-church-id` não deve ser utilizado para definir ou ampliar o escopo de autorização.
+- **IC-7 (Preservação de Superadministradores, Filtros e Paginação):** Superadministradores autenticados mantêm acesso legítimo, e os filtros analíticos de auditoria operam preservando o isolamento multilocatário.
+
+#### B) Guardas Estruturais / Implementação Atual (Técnicas Atuais de Proteção - Substituíveis em Refatoração)
+- **GE-1:** Bloqueio `if (!ctx.isAuthenticated) return res.status(401).json(...)` no início do handler de `GET /api/v1/audit-logs` em `contributors-api/server.ts`.
+- **GE-2:** Validação de formato `if (church_id !== undefined && (typeof church_id !== 'string' || Array.isArray(church_id) || !church_id.trim())) return res.status(400).json(...)`.
+- **GE-3:** Checagem para secundários `if (!ctx.allowedChurchIds.includes(targetChurchId)) return res.status(403).json(...)`.
+- **GE-4:** Query de titularidade `SELECT id FROM churches WHERE id = $1 AND (user_id = ANY($2) OR id::text = $3)` onde `$2 = ownerUserIds` e `$3 = ownerId`.
+- **GE-5:** Verificação `const isDirectOwnerMatch = targetChurchId === ownerId` e bloqueio `if (chCheck.rows.length === 0 && !isDirectOwnerMatch) return res.status(403).json(...)`.
+- **GE-6:** Bateria de testes automatizados com 12 cenários em `contributors-api/tests/test_audit_route_authorization_etapa5_1.ts`.
+
+#### C) Diretrizes para Refatorações Futuras
+- **Permitido sem autorização de conflito:** Refatorar o middleware de autorização, extrair guardas de rota para middleware dedicado Express, otimizar consultas SQL de titularidade ou integrar com novos serviços de auditoria, desde que as invariantes comportamentais IC-1 a IC-7 continuem integralmente satisfeitas e os testes correspondentes sejam legitimamente adaptados.
+- **Obrigatoriedade de autorização:** Apenas se a refatoração implicar flexibilização de autenticação, reintrodução de headers não-confiáveis, reabertura de consultas cross-tenant ou quebra no acesso de secundários autorizados.
+
+#### D) Rastreabilidade Técnica & Escopo Real de Verificação
+- **Rastreabilidade:** `PB-008` → Isolamento e Autorização de Auditoria → IC-1 a IC-7 + GE-1 a GE-6 → `contributors-api/tests/test_audit_route_authorization_etapa5_1.ts` (12 cenários) + `tests/regression/pb005_attachment_persistence_and_anti_wipeout.test.ts` (6/6) → Aprovado.
+- **Escopo Automatizado (Node.js Test Runner / HTTP Real):**
+  - Validação dos 12 cenários de controle de acesso (anônimo, titular próprio, titular cross-tenant, secundário autorizado 1, secundário autorizado 2, secundário não autorizado, superadministrador, tentativa de bypass por header x-church-id, parâmetros malformados, filtros de entidade/ação/data/paginação e tentativa de uso de ID de secundário como congregação).
+  - Verificação de não-regressão de PB-005 (6/6).
+- **Arquivos Relacionados:**
+  - `/contributors-api/server.ts`
+  - `/contributors-api/services/audit.service.ts`
+  - `/contributors-api/auth/utils/jwt.utils.ts`
+- **Funções / Componentes Relacionados:**
+  - Handler `app.get('/api/v1/audit-logs')` em `contributors-api/server.ts`
+  - `getTenantContext` em `contributors-api/server.ts`
+  - `getEquivalentUserIds` em `contributors-api/server.ts`
+  - `queryAuditLogs` em `contributors-api/services/audit.service.ts`
+- **Endpoints & Banco de Dados:**
+  - `GET /api/v1/audit-logs`
+  - Tabelas `audit_logs`, `churches`, `app_users`
+- **Testes Responsáveis:**
+  - `contributors-api/tests/test_audit_route_authorization_etapa5_1.ts`
+  - `tests/regression/pb005_attachment_persistence_and_anti_wipeout.test.ts`
+- **Pontos Críticos de Regressão:**
+  - Reintrodução de fallback de congregação baseado em `ownerUserIds` em vez de `ownerId`.
+  - Reintrodução de leitura do cabeçalho `x-church-id`.
+  - Omissão de `ctx.isAuthenticated` permitindo consultas anônimas.
+
+---
+
 ## 5. Candidatos a Proteção (Aguardando Aprovação Formal)
 
 Os itens abaixo representam funcionalidades críticas e estabilizadas identificadas no sistema que se beneficiarão de registro como PB assim que forem formalmente homologadas pelo usuário:

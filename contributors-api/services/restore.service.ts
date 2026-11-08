@@ -36,7 +36,9 @@ const CRITICAL_TABLES = [
   'saved_reports',
   'banks',
   'pastoral_messages',
-  'learned_associations'
+  'learned_associations',
+  'church_closings',
+  'church_pix_keys'
 ];
 
 /**

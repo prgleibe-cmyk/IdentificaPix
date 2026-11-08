@@ -113,7 +113,8 @@ export const processFileContent = async (
     // Conversor/Adaptador de TransactionDraft[] em Transaction[]
     const transactions: Transaction[] = drafts.map((draft, index) => {
         const rawAmt = draft.rawAmount || '0';
-        const numAmount = parseFloat(rawAmt.replace(',', '.'));
+        const parsed = parseFloat(rawAmt.replace(',', '.'));
+        const numAmount = isNaN(parsed) ? 0 : parsed;
         
         // Format OFX date (YYYYMMDD to YYYY-MM-DD) if format is standard
         let finalDate = draft.rawDate;

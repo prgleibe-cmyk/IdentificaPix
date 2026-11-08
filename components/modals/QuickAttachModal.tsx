@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Paperclip, CheckCircle2, DollarSign, Calendar, Building2, Save, FileSignature } from 'lucide-react';
 import { ExpenseAttachment } from '../../types/domain';
 import { ExpenseDocumentUploader } from '../financial/ExpenseDocumentUploader';
@@ -37,16 +37,23 @@ export const QuickAttachModal: React.FC<QuickAttachModalProps> = ({
     const [attachments, setAttachments] = useState<ExpenseAttachment[]>([]);
     const [isSaving, setIsSaving] = useState<boolean>(false);
     const [isReceiptModalOpen, setIsReceiptModalOpen] = useState<boolean>(false);
+    const loadedTxIdRef = useRef<string | null>(null);
 
     useEffect(() => {
         if (!isOpen || !transaction?.id) {
             setAttachments([]);
+            loadedTxIdRef.current = null;
+            return;
+        }
+
+        if (loadedTxIdRef.current === transaction.id) {
             return;
         }
 
         let isMounted = true;
         getAttachmentsForTransaction(transaction.id).then(stored => {
             if (!isMounted) return;
+            loadedTxIdRef.current = transaction.id;
             if (stored && stored.length > 0) {
                 setAttachments(stored);
             } else if (transaction.attachments && transaction.attachments.length > 0) {
@@ -59,7 +66,7 @@ export const QuickAttachModal: React.FC<QuickAttachModalProps> = ({
         return () => {
             isMounted = false;
         };
-    }, [isOpen, transaction?.id, transaction?.attachments]);
+    }, [isOpen, transaction?.id]);
 
     if (!isOpen || !transaction) return null;
 
@@ -82,6 +89,13 @@ export const QuickAttachModal: React.FC<QuickAttachModalProps> = ({
             console.error('Erro ao salvar anexos:', err);
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    const handleAttachmentsChange = (newAtts: ExpenseAttachment[]) => {
+        setAttachments(newAtts);
+        if (transaction?.id) {
+            saveAttachmentsForTransaction(transaction.id, newAtts).catch(console.error);
         }
     };
 
@@ -158,7 +172,7 @@ export const QuickAttachModal: React.FC<QuickAttachModalProps> = ({
                 <div className="flex-1 overflow-y-auto p-5">
                     <ExpenseDocumentUploader
                         attachments={attachments}
-                        onChangeAttachments={setAttachments}
+                        onChangeAttachments={handleAttachmentsChange}
                         currentAmount={txAmount}
                     />
                 </div>

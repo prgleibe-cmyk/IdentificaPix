@@ -33,7 +33,7 @@ export function createProfileRouter(pool: any): Router {
 
   const repo = new ProfileRepository(pool);
   const service = new ProfileService(repo);
-  const controller = new ProfileController(service);
+  const controller = new ProfileController(service, pool);
 
   const authMiddleware = optionalOrJwtAuth(pool);
 

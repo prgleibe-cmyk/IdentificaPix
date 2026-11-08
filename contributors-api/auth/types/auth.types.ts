@@ -50,6 +50,8 @@ export interface JwtPayload {
   church_id?: string | null;
   congregation_ids?: string[];
   allowed_church_ids?: string[];
+  bank_ids?: string[];
+  allowed_bank_ids?: string[];
   role: string;
   permissions: string[];
   iss: string;

@@ -275,8 +275,26 @@ export async function queryAuditLogs(pool: pg.Pool, filter: AuditQueryFilter): P
 
   const logsRes = await pool.query(querySql, values);
 
+  const safeParseField = (val: any) => {
+    if (typeof val === 'string' && (val.startsWith('{') || val.startsWith('['))) {
+      try {
+        return JSON.parse(val);
+      } catch (_) {
+        return val;
+      }
+    }
+    return val;
+  };
+
+  const normalizedLogs = logsRes.rows.map((row: any) => ({
+    ...row,
+    old_values: safeParseField(row.old_values),
+    new_values: safeParseField(row.new_values),
+    metadata: safeParseField(row.metadata)
+  }));
+
   return {
-    logs: logsRes.rows,
+    logs: normalizedLogs,
     total
   };
 }

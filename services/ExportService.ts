@@ -22,6 +22,31 @@ function triggerDownloadBlob(blob: Blob, filename: string): void {
     }, 1000);
 }
 
+// 🛡️ Helper de conversão numérica segura contra NaN e formatações brasileiras
+export function parseAmountSafely(val: any): number {
+    if (typeof val === 'number') {
+        return isNaN(val) || !isFinite(val) ? 0 : val;
+    }
+    if (!val) return 0;
+    const str = String(val).trim().replace(/^R\$\s*/i, '').replace(/\s+/g, '');
+    if (!str) return 0;
+    if (str.includes(',') && !str.includes('.')) {
+        const n = parseFloat(str.replace(',', '.'));
+        return isNaN(n) ? 0 : n;
+    }
+    if (str.includes(',') && str.includes('.')) {
+        if (str.lastIndexOf(',') > str.lastIndexOf('.')) {
+            const n = parseFloat(str.replace(/\./g, '').replace(',', '.'));
+            return isNaN(n) ? 0 : n;
+        } else {
+            const n = parseFloat(str.replace(/,/g, ''));
+            return isNaN(n) ? 0 : n;
+        }
+    }
+    const n = parseFloat(str);
+    return isNaN(n) ? 0 : n;
+}
+
 // Helpers para cabeçalho com Logo/Igreja e rodapé com assinaturas do Pastor e Tesoureiro
 const resolveChurch = (churchesOrChurch?: any, selectedChurchId?: string, data?: any[]): any => {
     if (!churchesOrChurch) return null;
@@ -1257,7 +1282,8 @@ ${itemsOfx}
         const excelRows: any[] = [];
         transactions.forEach(tx => {
             const isManual = tx.isManual || tx.source === 'manual' || tx.raw?.transaction?.source === 'manual' || tx.raw?.transaction?.isManual === true || (tx.raw as any)?.isManual === true || String(tx.id).startsWith('ghost-manual-') || (tx.row_hash && tx.row_hash.includes('|bmanual|'));
-            const isBaseExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
+            const parsedTxAmt = parseAmountSafely(tx.amount ?? tx.val);
+            const isBaseExpense = tx.type === 'expense' || parsedTxAmt < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
             const dateStr = tx.date || '---';
             const bankDateStr = isManual ? '---' : (tx.bank_date || tx.bankDate || tx.date || '---');
             const baseDesc = (tx.desc || tx.description || tx.historico || 'Lançamento').toUpperCase();
@@ -1271,8 +1297,8 @@ ${itemsOfx}
 
             if (txSplits && txSplits.length > 0) {
                 txSplits.forEach((s: any, idx: number) => {
-                    const splitAmt = Math.abs(Number(s.amount) || 0);
-                    const isSplitExpense = s.amount < 0 || isBaseExpense;
+                    const splitAmt = Math.abs(parseAmountSafely(s.amount));
+                    const isSplitExpense = parseAmountSafely(s.amount) < 0 || isBaseExpense;
                     const cat = s.contributionType || s.category || s.categoria || s.destino || tx.category || 'Rateio';
                     const church = s.churchName || (s.churchId ? churches.find(c => c.id === s.churchId)?.name : null) || getChurchName(tx);
 
@@ -1288,7 +1314,7 @@ ${itemsOfx}
                     });
                 });
             } else {
-                const amount = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
+                const amount = Math.abs(parsedTxAmt);
                 const cat = (tx.category || tx.categoria || tx.contributionType || tx.tipo || (isBaseExpense ? 'Despesa Geral' : 'Entrada')).toString().trim();
                 const forma = tx.paymentMethod || tx.forma || 'Pix';
                 excelRows.push({
@@ -1330,8 +1356,9 @@ ${itemsOfx}
             allReportData.forEach((item: any) => {
                 const itemDate = item.date ? (item.date.includes('T') ? item.date.split('T')[0] : item.date) : '';
                 if (itemDate && itemDate < customStartDate) {
-                    const amt = Math.abs(Number(item.amount) || Number(item.val) || 0);
-                    const isExp = item.type === 'expense' || Number(item.amount) < 0 || (item.category && item.category.toLowerCase().includes('saida'));
+                    const parsedItemAmt = parseAmountSafely(item.amount ?? item.val);
+                    const amt = Math.abs(parsedItemAmt);
+                    const isExp = item.type === 'expense' || parsedItemAmt < 0 || (item.category && item.category.toLowerCase().includes('saida'));
                     if (isExp) {
                         saldoAnterior -= amt;
                     } else {
@@ -1348,17 +1375,19 @@ ${itemsOfx}
                     ? item.raw.splits
                     : null;
 
-            const isBaseExp = item.type === 'expense' || Number(item.amount) < 0 || (item.category && (item.category.toLowerCase().includes('saida') || item.category.toLowerCase().includes('saída')));
+            const parsedItemAmt = parseAmountSafely(item.amount ?? item.val);
+            const isBaseExp = item.type === 'expense' || parsedItemAmt < 0 || (item.category && (item.category.toLowerCase().includes('saida') || item.category.toLowerCase().includes('saída')));
 
             if (itemSplits && itemSplits.length > 0) {
                 itemSplits.forEach((s: any) => {
-                    const splitAmt = Math.abs(Number(s.amount) || 0);
+                    const parsedSplitAmt = parseAmountSafely(s.amount);
+                    const splitAmt = Math.abs(parsedSplitAmt);
                     if (splitAmt <= 0) return;
 
                     const pm = (s.paymentMethod || item.paymentMethod || item.forma || '').toString().toUpperCase();
                     const cat = (s.contributionType || s.category || item.category || item.categoria || '').toString().toUpperCase();
                     const desc = (s.description || item.desc || item.description || item.historico || '').toString().toUpperCase();
-                    const isExp = s.amount < 0 || isBaseExp || cat.includes('SAIDA') || cat.includes('SAÍDA');
+                    const isExp = parsedSplitAmt < 0 || isBaseExp || cat.includes('SAIDA') || cat.includes('SAÍDA');
                     const isTransf = pm.includes('TRANSFER') || pm.includes('TED') || pm.includes('DOC') || cat.includes('TRANSFER') || desc.includes('TRANSFER');
 
                     if (isExp) {
@@ -1386,7 +1415,7 @@ ${itemsOfx}
                     }
                 });
             } else {
-                const amt = Math.abs(Number(item.amount) || Number(item.val) || 0);
+                const amt = Math.abs(parsedItemAmt);
                 const pm = (item.paymentMethod || item.forma || '').toString().toUpperCase();
                 const cat = (item.category || item.categoria || '').toString().toUpperCase();
                 const desc = (item.desc || item.description || item.historico || '').toString().toUpperCase();

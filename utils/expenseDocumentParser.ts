@@ -717,3 +717,100 @@ export function validateExpenseAgainstDocument(
         diff
     };
 }
+
+/**
+ * Extrai texto diretamente de streams literais de um PDF em formato ArrayBuffer
+ * sem destruir ou desanexar o buffer original.
+ */
+export async function extractTextDirectFromPdfBytes(arrayBuffer: ArrayBuffer): Promise<string> {
+    if (!arrayBuffer || arrayBuffer.byteLength === 0) return '';
+    try {
+        const uint8 = new Uint8Array(arrayBuffer);
+        const decoder = new TextDecoder('latin1');
+        const rawString = decoder.decode(uint8);
+        
+        const textParts: string[] = [];
+        const tjRegex = /\(([^)]+)\)\s*(?:Tj|'|")/g;
+        let match;
+        while ((match = tjRegex.exec(rawString)) !== null) {
+            if (match[1]) {
+                textParts.push(match[1]);
+            }
+        }
+        
+        const arrayTjRegex = /\[([^\]]+)\]\s*TJ/g;
+        while ((match = arrayTjRegex.exec(rawString)) !== null) {
+            const inner = match[1];
+            const innerParts = inner.match(/\(([^)]+)\)/g);
+            if (innerParts) {
+                for (const part of innerParts) {
+                    textParts.push(part.replace(/[()]/g, ''));
+                }
+            }
+        }
+        
+        return textParts.join(' ');
+    } catch {
+        return '';
+    }
+}
+
+/**
+ * Validação rigorosa de legibilidade de documentos contábeis (PB-003).
+ * Rejeita textos vazios, strings curtas, ruídos de símbolos/OCR de câmera desfocada,
+ * e strings compostas apenas por nomes sintéticos de arquivo.
+ */
+export function isDocumentTextLegible(rawText: string, extractedData?: ExtractedExpenseDoc | null): boolean {
+    if (!rawText || typeof rawText !== 'string') return false;
+    const clean = rawText.trim();
+    if (clean.length < 15) return false;
+
+    // Remove espaços e pontuação para contar caracteres alfanuméricos reais
+    const alnum = clean.replace(/[^a-zA-Z0-9]/g, '');
+    if (alnum.length < 10) return false;
+
+    // Rejeita texto que seja puramente o nome sintético de arquivo
+    const isSyntheticFileNameOnly = /^ARQUIVO:\s*(?:WhatsApp Image|IMG_|DSC_|Foto|Scan|Documento|[a-zA-Z0-9_.\-\s]+)\.(?:jpeg|jpg|png|pdf|xml)\s*$/i.test(clean);
+    if (isSyntheticFileNameOnly) return false;
+
+    // Verifica vocabulário contábil e estrutural autêntico
+    const accountingKeywords = /(?:danfe|nota fiscal|comprovante|recibo|boleto|fatura|pagamento|recebi|favorecido|beneficiario|cedente|sacado|cnpj|cpf|valor|total|vencimento|liquidacao|autenticacao|chave pix|codigo de barras|declaracao|prestacao de servicos|banco)/i;
+    const hasAccountingKeywords = accountingKeywords.test(clean);
+
+    // Se temos dados estruturados extraídos
+    if (extractedData) {
+        const hasValidAmount = typeof extractedData.extractedAmount === 'number' && extractedData.extractedAmount > 0;
+        const hasRecipient = !!(extractedData.extractedRecipient && extractedData.extractedRecipient.trim().length > 2);
+        const hasCnpjCpf = !!(extractedData.extractedRecipientCnpjCpf || extractedData.extractedPayerCnpjCpf);
+        const hasDocType = extractedData.documentType && extractedData.documentType !== 'outro';
+        const hasBarcodeOrAuth = !!extractedData.barcodeOrAuth;
+
+        // Se tiver dados contábeis claros
+        if (hasValidAmount || hasRecipient || hasCnpjCpf || (hasDocType && hasAccountingKeywords) || hasBarcodeOrAuth) {
+            return true;
+        }
+
+        // Se não tem nenhum dado contábil extraído, mas tem vocabulário contábil consistente
+        if (hasAccountingKeywords && alnum.length >= 25) {
+            const words = clean.split(/\s+/).filter(w => w.length > 0);
+            const avgWordLen = words.reduce((acc, w) => acc + w.length, 0) / (words.length || 1);
+            if (avgWordLen >= 3) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Sem extractedData fornecido: validação direta baseada em vocabulário e densidade textual
+    if (hasAccountingKeywords) {
+        const words = clean.split(/\s+/).filter(w => w.length > 0);
+        const avgWordLen = words.reduce((acc, w) => acc + w.length, 0) / (words.length || 1);
+        if (avgWordLen >= 3) {
+            return true;
+        }
+    }
+
+    return false;
+}
+

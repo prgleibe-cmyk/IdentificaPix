@@ -4,11 +4,16 @@
  */
 
 import { fetchWithMemoryCache, invalidateClientCache } from './clientDataCache';
+import { getAuthToken } from './auth/authAdapter';
 
 const CONTRIBUTORS_SYNC_CHANNEL = 'iggestor_contributors_sync';
 
 export const getCachedContributors = async (forceRefresh = false): Promise<any[]> => {
-    const list = await fetchWithMemoryCache<any[]>('/api/v1/contributors', {}, {
+    const token = await getAuthToken();
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const list = await fetchWithMemoryCache<any[]>('/api/v1/contributors', { headers }, {
         ttlMs: forceRefresh ? 0 : 30000,
         forceRefresh
     });

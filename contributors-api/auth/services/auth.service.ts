@@ -442,6 +442,9 @@ export class AuthService {
     }
 
     const existing = await this.repo.findUserByEmail(email);
+    if (existing && existing.password_hash) {
+      throw new Error('E-mail já cadastrado. Efetue login ou utilize a recuperação de senha.');
+    }
     const passwordHash = await hashPassword(passwordRaw);
 
     let userToAuth = existing;

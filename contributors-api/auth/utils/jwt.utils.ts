@@ -20,6 +20,8 @@ export function generateAccessToken(payload: {
   permissions: string[];
   congregationIds?: string[];
   allowedChurchIds?: string[];
+  bankIds?: string[];
+  allowedBankIds?: string[];
 }): { token: string; jti: string; expiresIn: number } {
   const jti = crypto.randomUUID();
   const claims: Omit<JwtPayload, 'iat' | 'exp'> = {
@@ -29,6 +31,8 @@ export function generateAccessToken(payload: {
     church_id: payload.churchId || null,
     congregation_ids: payload.congregationIds || payload.allowedChurchIds || [],
     allowed_church_ids: payload.allowedChurchIds || payload.congregationIds || [],
+    bank_ids: payload.bankIds || payload.allowedBankIds || [],
+    allowed_bank_ids: payload.allowedBankIds || payload.bankIds || [],
     role: payload.role,
     permissions: payload.permissions || [],
     iss: ISSUER,

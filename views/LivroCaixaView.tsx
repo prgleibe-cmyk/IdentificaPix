@@ -237,9 +237,48 @@ export const LivroCaixaView: React.FC = memo(() => {
 
     const banks = useMemo(() => {
         const raw = context?.banks || [];
-        if (!isSecondaryUser || !allowedBankIds || allowedBankIds.length === 0) return raw;
-        return raw.filter((b: any) => allowedBankIds.includes(b.id));
-    }, [context?.banks, isSecondaryUser, allowedBankIds]);
+        let list = raw;
+
+        if (isSecondaryUser && allowedBankIds && allowedBankIds.length > 0) {
+            list = list.filter((b: any) => allowedBankIds.includes(b.id));
+        }
+
+        // 🛡️ Filtra para exibir apenas os bancos que o usuário cadastrou ou que possuem lançamentos vinculados
+        if (context?.bankList && context.bankList.length > 0) {
+            const validBankIds = new Set(context.bankList.map((b: any) => b.id));
+            const filteredByRegistered = list.filter((b: any) => validBankIds.has(b.id));
+            if (filteredByRegistered.length > 0) {
+                return filteredByRegistered;
+            }
+        }
+
+        const GENERIC_CATALOG_NAMES = new Set([
+            'banco do brasil', 'banco inter', 'inter', 'bradesco', 'banco bradesco',
+            'caixa', 'caixa economica federal', 'caixa econômica federal',
+            'itau', 'itaú', 'itau unibanco', 'itaú unibanco',
+            'nubank', 'nubank (nu pagamentos)', 'santander', 'banco santander',
+            'sicoob', 'sicredi', 'mercado pago', 'c6 bank', 'c6', 'pagbank', 'pagbank / pagseguro', 'pagseguro'
+        ]);
+
+        const usedBankIds = new Set<string>();
+        const rData = context?.reportData || [];
+        for (let i = 0; i < rData.length; i++) {
+            const item = rData[i];
+            const bId = item.bankId || item.raw?.transaction?.bank_id || item.raw?.bankId;
+            if (bId) usedBankIds.add(String(bId).trim());
+        }
+
+        const filtered = list.filter((b: any) => {
+            if (usedBankIds.has(String(b.id).trim())) return true;
+            const nameClean = (b.name || '').trim().toLowerCase();
+            const accClean = (b.account_name || '').trim().toLowerCase();
+            if (accClean && !GENERIC_CATALOG_NAMES.has(accClean)) return true;
+            if (nameClean && !GENERIC_CATALOG_NAMES.has(nameClean)) return true;
+            return false;
+        });
+
+        return filtered.length > 0 ? filtered : list;
+    }, [context?.banks, context?.bankList, context?.reportData, isSecondaryUser, allowedBankIds]);
 
     const reportData = useMemo(() => {
         const raw = context?.reportData || [];

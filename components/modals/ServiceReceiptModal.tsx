@@ -302,7 +302,7 @@ export const ServiceReceiptModal: React.FC<ServiceReceiptModalProps> = ({
         const blobUrl = pdfDoc.output('bloburl');
         window.open(blobUrl, '_blank');
         setTimeout(() => {
-            try { URL.revokeObjectURL(blobUrl); } catch (_) {}
+            try { URL.revokeObjectURL(String(blobUrl)); } catch (_) {}
         }, 60000);
     };
 

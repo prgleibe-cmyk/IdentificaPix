@@ -1,4 +1,5 @@
 import { CommunicationQueueItem } from '../types';
+import { getAuthToken } from './auth/authAdapter';
 
 export const CommunicationQueueService = {
   /**
@@ -10,8 +11,12 @@ export const CommunicationQueueService = {
       if (params?.church_id) queryParams.append('church_id', params.church_id);
       if (params?.status) queryParams.append('status', params.status);
 
+      const token = await getAuthToken();
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       const url = `/api/v1/communication_queue?${queryParams.toString()}`;
-      const res = await fetch(url);
+      const res = await fetch(url, { headers });
       if (!res.ok) return [];
       return await res.json();
     } catch (err) {
@@ -25,9 +30,13 @@ export const CommunicationQueueService = {
    */
   async triggerProcessing(churchId?: string): Promise<{ processed_events: number; queued_items: number } | null> {
     try {
+      const token = await getAuthToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       const res = await fetch('/api/v1/communication_queue/process', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ church_id: churchId })
       });
       if (!res.ok) return null;
@@ -43,8 +52,13 @@ export const CommunicationQueueService = {
    */
   async retryItem(id: string): Promise<boolean> {
     try {
+      const token = await getAuthToken();
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       const res = await fetch(`/api/v1/communication_queue/${id}/retry`, {
-        method: 'POST'
+        method: 'POST',
+        headers
       });
       return res.ok;
     } catch (err) {

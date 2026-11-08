@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect, useMemo } from 'react';
+import React, { useState, useContext, useEffect, useMemo, useRef } from 'react';
 import { 
     X, 
     Pencil, 
@@ -142,6 +142,7 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
     const [attachments, setAttachments] = useState<ExpenseAttachment[]>([]);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+    const initializedRowIdRef = useRef<string | null>(null);
 
     // Contributor suggestions
     const [dbContributors, setDbContributors] = useState<any[]>([]);
@@ -238,11 +239,13 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
             }
 
             // Carrega anexos da linha ou do IndexedDB
+            const activeTxId = row.transaction?.id || (row as any)?.id;
+            initializedRowIdRef.current = activeTxId || null;
             const existingAtts = row.attachments || row.transaction?.attachments;
             if (Array.isArray(existingAtts) && existingAtts.length > 0) {
                 setAttachments(existingAtts);
-            } else if (row.transaction?.id) {
-                getAttachmentsForTransaction(row.transaction.id).then(loaded => {
+            } else if (activeTxId) {
+                getAttachmentsForTransaction(activeTxId).then(loaded => {
                     setAttachments(loaded || []);
                 }).catch(() => setAttachments([]));
             } else {
@@ -880,7 +883,13 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
                 <div className="pt-3 border-t border-slate-100 dark:border-slate-800 animate-fade-in">
                     <ExpenseDocumentUploader
                         attachments={attachments}
-                        onChangeAttachments={setAttachments}
+                        onChangeAttachments={(newAtts) => {
+                            setAttachments(newAtts);
+                            const activeTxId = row?.transaction?.id || (row as any)?.id;
+                            if (activeTxId) {
+                                saveAttachmentsForTransaction(activeTxId, newAtts).catch(console.error);
+                            }
+                        }}
                         currentAmount={parsedCurrentAmount}
                         onApplyExtractedAmount={(val) => {
                             setAmountStr(val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));

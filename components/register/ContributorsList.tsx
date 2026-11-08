@@ -8,6 +8,7 @@ import { UsersIcon, PlusCircleIcon, SearchIcon, XMarkIcon } from '../Icons';
 import { Camera, Trash2, Edit2, Loader2, Upload, Check, AlertTriangle, FileUp, Sparkles, User, Building2, Landmark, MapPin, Phone, Mail, FileText, Tag, Calendar, ShieldCheck, Globe, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { InlineRoleSelector } from './InlineRoleSelector';
+import { getAuthToken } from '../../services/auth/authAdapter';
 
 const formatCpfCnpj = (value: string) => {
     const clean = value.replace(/\D/g, '');
@@ -17,6 +18,15 @@ const formatCpfCnpj = (value: string) => {
         return clean.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
     }
     return value;
+};
+
+const authFetch = async (url: string, init: RequestInit = {}) => {
+    const token = await getAuthToken();
+    const headers: Record<string, string> = {
+        ...(init.headers as Record<string, string> || {})
+    };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return fetch(url, { ...init, headers });
 };
 
 export const ContributorsList: React.FC = () => {
@@ -524,7 +534,7 @@ export const ContributorsList: React.FC = () => {
                     status: 'active'
                 };
 
-                const response = await fetch('/api/v1/contributors', {
+                const response = await authFetch('/api/v1/contributors', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -699,7 +709,7 @@ export const ContributorsList: React.FC = () => {
             return;
         }
         try {
-            const response = await fetch(`/api/v1/contributors/${id}`, {
+            const response = await authFetch(`/api/v1/contributors/${id}`, {
                 method: 'DELETE'
             });
             if (response.ok) {
@@ -722,7 +732,7 @@ export const ContributorsList: React.FC = () => {
         }
         try {
             // Clear from the contributors table on VPS (which now internally unlinks transactions and deletes learned associations)
-            const response = await fetch(`/api/v1/contributors/${id}?hard=true`, {
+            const response = await authFetch(`/api/v1/contributors/${id}?hard=true`, {
                 method: 'DELETE'
             });
             if (response.ok) {
@@ -870,7 +880,7 @@ export const ContributorsList: React.FC = () => {
 
             let response;
             if (editingContributor) {
-                response = await fetch(`/api/v1/contributors/${editingContributor.id}`, {
+                response = await authFetch(`/api/v1/contributors/${editingContributor.id}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json'
@@ -878,7 +888,7 @@ export const ContributorsList: React.FC = () => {
                     body: JSON.stringify(payload)
                 });
             } else {
-                response = await fetch('/api/v1/contributors', {
+                response = await authFetch('/api/v1/contributors', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -2084,7 +2094,7 @@ export const ContributorsList: React.FC = () => {
                                                 ) : (
                                                     <button 
                                                         onClick={() => {
-                                                            fetch(`/api/v1/contributors/${c.id}`, {
+                                                            authFetch(`/api/v1/contributors/${c.id}`, {
                                                                 method: 'PUT',
                                                                 headers: { 'Content-Type': 'application/json' },
                                                                 body: JSON.stringify({ status: 'active' })
