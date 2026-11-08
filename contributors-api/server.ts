@@ -1355,51 +1355,102 @@ class SmartPool {
             const validId = uuidRegex.test(row.id) ? row.id : null;
             if (!validId) continue;
             const validUserId = row.user_id && uuidRegex.test(row.user_id) ? row.user_id : null;
-            await client.query(`
-              INSERT INTO churches (
-                id, name, address, "logoUrl", pastor, cnpj, phone, email, "pixKey",
-                cep, city, state, treasurer, pastors, treasurers, whatsapp_official,
-                whatsapp_responsible, auto_comm_enabled, auto_send_on_confirmation, user_id, updated_at
-              ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9,
-                $10, $11, $12, $13, $14, $15, $16,
-                $17, $18, $19, $20, NOW()
-              ) ON CONFLICT (id) DO UPDATE SET
-                name = EXCLUDED.name,
-                address = EXCLUDED.address,
-                "logoUrl" = EXCLUDED."logoUrl",
-                pastor = EXCLUDED.pastor,
-                cnpj = EXCLUDED.cnpj,
-                phone = EXCLUDED.phone,
-                email = EXCLUDED.email,
-                "pixKey" = EXCLUDED."pixKey",
-                cep = EXCLUDED.cep,
-                city = EXCLUDED.city,
-                state = EXCLUDED.state,
-                treasurer = EXCLUDED.treasurer,
-                updated_at = NOW();
-            `, [
-              validId,
-              row.name,
-              row.address || '',
-              row.logoUrl || '',
-              row.pastor || '',
-              row.cnpj || '',
-              row.phone || '',
-              row.email || '',
-              row.pixKey || '',
-              row.cep || '',
-              row.city || '',
-              row.state || '',
-              row.treasurer || '',
-              row.pastors || null,
-              row.treasurers || null,
-              row.whatsapp_official || null,
-              row.whatsapp_responsible || 'tesouraria',
-              row.auto_comm_enabled !== undefined ? Boolean(row.auto_comm_enabled) : true,
-              row.auto_send_on_confirmation !== undefined ? Boolean(row.auto_send_on_confirmation) : true,
-              validUserId
-            ]);
+            try {
+              await client.query(`
+                INSERT INTO churches (
+                  id, name, address, "logoUrl", pastor, cnpj, phone, email, "pixKey",
+                  cep, city, state, treasurer, pastors, treasurers, whatsapp_official,
+                  whatsapp_responsible, auto_comm_enabled, auto_send_on_confirmation, user_id, updated_at
+                ) VALUES (
+                  $1, $2, $3, $4, $5, $6, $7, $8, $9,
+                  $10, $11, $12, $13, $14, $15, $16,
+                  $17, $18, $19, $20, NOW()
+                ) ON CONFLICT (id) DO UPDATE SET
+                  name = EXCLUDED.name,
+                  address = EXCLUDED.address,
+                  "logoUrl" = EXCLUDED."logoUrl",
+                  pastor = EXCLUDED.pastor,
+                  cnpj = EXCLUDED.cnpj,
+                  phone = EXCLUDED.phone,
+                  email = EXCLUDED.email,
+                  "pixKey" = EXCLUDED."pixKey",
+                  cep = EXCLUDED.cep,
+                  city = EXCLUDED.city,
+                  state = EXCLUDED.state,
+                  treasurer = EXCLUDED.treasurer,
+                  updated_at = NOW();
+              `, [
+                validId,
+                row.name,
+                row.address || '',
+                row.logoUrl || '',
+                row.pastor || '',
+                row.cnpj || '',
+                row.phone || '',
+                row.email || '',
+                row.pixKey || '',
+                row.cep || '',
+                row.city || '',
+                row.state || '',
+                row.treasurer || '',
+                row.pastors || null,
+                row.treasurers || null,
+                row.whatsapp_official || null,
+                row.whatsapp_responsible || 'tesouraria',
+                row.auto_comm_enabled !== undefined ? Boolean(row.auto_comm_enabled) : true,
+                row.auto_send_on_confirmation !== undefined ? Boolean(row.auto_send_on_confirmation) : true,
+                validUserId
+              ]);
+            } catch (chSyncErr: any) {
+              if (String(chSyncErr?.message || '').includes('updated_at')) {
+                await client.query(`
+                  INSERT INTO churches (
+                    id, name, address, "logoUrl", pastor, cnpj, phone, email, "pixKey",
+                    cep, city, state, treasurer, pastors, treasurers, whatsapp_official,
+                    whatsapp_responsible, auto_comm_enabled, auto_send_on_confirmation, user_id
+                  ) VALUES (
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9,
+                    $10, $11, $12, $13, $14, $15, $16,
+                    $17, $18, $19, $20
+                  ) ON CONFLICT (id) DO UPDATE SET
+                    name = EXCLUDED.name,
+                    address = EXCLUDED.address,
+                    "logoUrl" = EXCLUDED."logoUrl",
+                    pastor = EXCLUDED.pastor,
+                    cnpj = EXCLUDED.cnpj,
+                    phone = EXCLUDED.phone,
+                    email = EXCLUDED.email,
+                    "pixKey" = EXCLUDED."pixKey",
+                    cep = EXCLUDED.cep,
+                    city = EXCLUDED.city,
+                    state = EXCLUDED.state,
+                    treasurer = EXCLUDED.treasurer;
+                `, [
+                  validId,
+                  row.name,
+                  row.address || '',
+                  row.logoUrl || '',
+                  row.pastor || '',
+                  row.cnpj || '',
+                  row.phone || '',
+                  row.email || '',
+                  row.pixKey || '',
+                  row.cep || '',
+                  row.city || '',
+                  row.state || '',
+                  row.treasurer || '',
+                  row.pastors || null,
+                  row.treasurers || null,
+                  row.whatsapp_official || null,
+                  row.whatsapp_responsible || 'tesouraria',
+                  row.auto_comm_enabled !== undefined ? Boolean(row.auto_comm_enabled) : true,
+                  row.auto_send_on_confirmation !== undefined ? Boolean(row.auto_send_on_confirmation) : true,
+                  validUserId
+                ]);
+              } else {
+                throw chSyncErr;
+              }
+            }
           }
         }
 
@@ -1792,6 +1843,7 @@ async function initializeDatabase() {
     await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS auto_comm_enabled BOOLEAN DEFAULT true;');
     await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS auto_send_on_confirmation BOOLEAN DEFAULT true;');
     await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();');
+    await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();');
     console.log('[Contributors API] Table "churches" verified or successfully created.');
 
     // Create table pastoral_messages
@@ -2598,7 +2650,7 @@ app.get('/api/v1/audit-logs', async (req: Request, res: Response) => {
       const ownerUserIds = await getEquivalentUserIds(ownerId);
 
       const chCheck = await pool.query(
-        'SELECT id FROM churches WHERE id = $1 AND (user_id = ANY($2) OR id::text = $3) LIMIT 1',
+        'SELECT id FROM churches WHERE id::text = $1 AND (user_id::text = ANY($2) OR id::text = $3) LIMIT 1',
         [targetChurchId, ownerUserIds, ownerId]
       );
 
@@ -2669,26 +2721,26 @@ app.get('/api/v1/contributors', async (req: Request, res: Response) => {
 
     if (ctx.isSecondaryUser) {
       if (requestedChurchId && requestedChurchId !== 'all' && requestedChurchId !== 'undefined' && requestedChurchId !== 'null') {
-        query += ` AND church_id = $${paramCounter}`;
+        query += ` AND church_id::text = $${paramCounter}`;
         params.push(requestedChurchId);
         paramCounter++;
       } else {
-        query += ` AND church_id = ANY($${paramCounter})`;
+        query += ` AND church_id::text = ANY($${paramCounter})`;
         params.push(ctx.allowedChurchIds);
         paramCounter++;
       }
     } else if (!ctx.isSuperAdmin) {
       if (requestedChurchId && requestedChurchId !== 'all' && requestedChurchId !== 'undefined' && requestedChurchId !== 'null') {
-        query += ` AND church_id = $${paramCounter} AND (church_id IN (SELECT id::text FROM churches WHERE user_id = ANY($${paramCounter + 1})) OR church_id = ANY($${paramCounter + 1}))`;
+        query += ` AND church_id::text = $${paramCounter} AND (church_id::text IN (SELECT id::text FROM churches WHERE user_id::text = ANY($${paramCounter + 1})) OR church_id::text = ANY($${paramCounter + 1}))`;
         params.push(requestedChurchId, ownerUserIds);
         paramCounter += 2;
       } else {
-        query += ` AND (church_id IN (SELECT id::text FROM churches WHERE user_id = ANY($${paramCounter})) OR church_id = ANY($${paramCounter}))`;
+        query += ` AND (church_id::text IN (SELECT id::text FROM churches WHERE user_id::text = ANY($${paramCounter})) OR church_id::text = ANY($${paramCounter}))`;
         params.push(ownerUserIds);
         paramCounter++;
       }
     } else if (requestedChurchId && requestedChurchId !== 'all' && requestedChurchId !== 'undefined' && requestedChurchId !== 'null') {
-      query += ` AND church_id = $${paramCounter}`;
+      query += ` AND church_id::text = $${paramCounter}`;
       params.push(requestedChurchId);
       paramCounter++;
     }
@@ -4417,7 +4469,7 @@ app.post('/api/v1/contributors', async (req: Request, res: Response) => {
       }
     } else if (!ctx.isSuperAdmin) {
       const ownerUserIds = await getEquivalentUserIds(ctx.ownerId || ctx.userId || '');
-      const chCheck = await pool.query('SELECT id FROM churches WHERE id = $1 AND user_id = ANY($2)', [cleanChurchId, ownerUserIds]);
+      const chCheck = await pool.query('SELECT id FROM churches WHERE id::text = $1 AND user_id::text = ANY($2)', [cleanChurchId, ownerUserIds]);
       if (chCheck.rows.length === 0) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para esta congregação.' });
       }
@@ -4645,7 +4697,7 @@ app.post('/api/v1/contributors/:id/photo', async (req: Request, res: Response) =
     } else if (!ctx.isSuperAdmin) {
       const ownerUserIds = await getEquivalentUserIds(ctx.ownerId || ctx.userId || '');
       if (contribChurchId && contribChurchId !== '00000000-0000-0000-0000-000000000001') {
-        const chCheck = await pool.query('SELECT id FROM churches WHERE id = $1 AND user_id = ANY($2)', [contribChurchId, ownerUserIds]);
+        const chCheck = await pool.query('SELECT id FROM churches WHERE id::text = $1 AND user_id::text = ANY($2)', [contribChurchId, ownerUserIds]);
         if (chCheck.rows.length === 0) {
           return res.status(403).json({ error: 'FORBIDDEN' });
         }
@@ -4703,7 +4755,7 @@ app.put('/api/v1/contributors/:id', async (req: Request, res: Response) => {
     } else if (!ctx.isSuperAdmin) {
       const ownerUserIds = await getEquivalentUserIds(ctx.ownerId || ctx.userId || '');
       if (oldContrib.church_id && oldContrib.church_id !== '00000000-0000-0000-0000-000000000001') {
-        const chCheck = await pool.query('SELECT id FROM churches WHERE id = $1 AND user_id = ANY($2)', [oldContrib.church_id, ownerUserIds]);
+        const chCheck = await pool.query('SELECT id FROM churches WHERE id::text = $1 AND user_id::text = ANY($2)', [oldContrib.church_id, ownerUserIds]);
         if (chCheck.rows.length === 0) {
           return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para o cadastro desta congregação.' });
         }
@@ -4869,7 +4921,7 @@ app.delete('/api/v1/contributors/:id', async (req: Request, res: Response) => {
     } else if (!ctx.isSuperAdmin) {
       const ownerUserIds = await getEquivalentUserIds(ctx.ownerId || ctx.userId || '');
       if (oldContrib.church_id && oldContrib.church_id !== '00000000-0000-0000-0000-000000000001') {
-        const chCheck = await pool.query('SELECT id FROM churches WHERE id = $1 AND user_id = ANY($2)', [oldContrib.church_id, ownerUserIds]);
+        const chCheck = await pool.query('SELECT id FROM churches WHERE id::text = $1 AND user_id::text = ANY($2)', [oldContrib.church_id, ownerUserIds]);
         if (chCheck.rows.length === 0) {
           return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para o cadastro desta congregação.' });
         }
@@ -4880,7 +4932,7 @@ app.delete('/api/v1/contributors/:id', async (req: Request, res: Response) => {
     if (hardDelete) {
       // 1. Unlink in consolidated_transactions inside PostgreSQL VPS
       await pool.query(
-        "UPDATE consolidated_transactions SET contributor_id = NULL WHERE contributor_id = $1",
+        "UPDATE consolidated_transactions SET contributor_id = NULL WHERE contributor_id::text = $1",
         [id]
       );
 
@@ -5027,7 +5079,7 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
     const banksParams: any[] = [];
     if (equivalentIds.length > 0) {
       banksParams.push(equivalentIds);
-      banksQuery += ` AND user_id = ANY($1)`;
+      banksQuery += ` AND user_id::text = ANY($1)`;
     }
     banksQuery += ' ORDER BY created_at DESC';
 
@@ -5038,11 +5090,11 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
       churchesQuery = 'SELECT * FROM churches WHERE 1=1';
       if (equivalentIds.length > 0) {
         churchesParams.push(equivalentIds);
-        churchesQuery += ` AND user_id = ANY($1)`;
+        churchesQuery += ` AND user_id::text = ANY($1)`;
       }
       if (ctx.isSecondaryUser) {
         churchesParams.push(ctx.allowedChurchIds);
-        churchesQuery += ` AND id = ANY($${churchesParams.length})`;
+        churchesQuery += ` AND id::text = ANY($${churchesParams.length})`;
       }
       churchesQuery += ' ORDER BY name ASC';
     }
@@ -5054,11 +5106,11 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
       reportsQuery = 'SELECT id, name, user_id, church_id, record_count, created_at FROM saved_reports WHERE 1=1';
       if (equivalentIds.length > 0) {
         reportsParams.push(equivalentIds);
-        reportsQuery += ` AND (user_id = ANY($1) OR user_id IS NULL)`;
+        reportsQuery += ` AND (user_id::text = ANY($1) OR user_id IS NULL)`;
       }
       if (ctx.isSecondaryUser) {
         reportsParams.push(ctx.allowedChurchIds);
-        reportsQuery += ` AND church_id = ANY($${reportsParams.length})`;
+        reportsQuery += ` AND church_id::text = ANY($${reportsParams.length})`;
       }
       reportsQuery += ' ORDER BY created_at DESC';
     }
@@ -5068,7 +5120,7 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
     const assocParams: any[] = [];
     if (equivalentIds.length > 0) {
       assocParams.push(equivalentIds);
-      assocQuery += ` AND (user_id = ANY($1) OR user_id IS NULL)`;
+      assocQuery += ` AND (user_id::text = ANY($1) OR user_id IS NULL)`;
     }
     assocQuery += ' ORDER BY created_at DESC';
 
@@ -5128,7 +5180,7 @@ app.get('/api/v1/banks', async (req: Request, res: Response) => {
     if (cleanUserId && !ctx.isSuperAdmin) {
       const userIds = await getEquivalentUserIds(cleanUserId);
       params.push(userIds);
-      query += ` AND user_id = ANY($1)`;
+      query += ` AND user_id::text = ANY($1)`;
     }
     query += ' ORDER BY created_at DESC';
     const result = await pool.query(query, params);
@@ -5312,11 +5364,11 @@ app.get('/api/v1/churches', async (req: Request, res: Response) => {
     if (cleanUserId && !ctx.isSuperAdmin) {
       const userIds = await getEquivalentUserIds(cleanUserId);
       params.push(userIds);
-      query += ` AND user_id = ANY($1)`;
+      query += ` AND user_id::text = ANY($1)`;
     }
     if (ctx.isSecondaryUser) {
       params.push(ctx.allowedChurchIds);
-      query += ` AND id = ANY($${params.length})`;
+      query += ` AND id::text = ANY($${params.length})`;
     }
     query += ' ORDER BY name ASC';
     const result = await pool.query(query, params);
@@ -5515,19 +5567,19 @@ app.get('/api/v1/pastoral_messages', async (req: Request, res: Response) => {
           return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para esta congregação.' });
         }
         params.push(church_id);
-        query += ` AND church_id = $${params.length}`;
+        query += ` AND church_id::text = $${params.length}`;
       } else {
         params.push(ctx.allowedChurchIds);
-        query += ` AND church_id = ANY($${params.length})`;
+        query += ` AND church_id::text = ANY($${params.length})`;
       }
     } else if (church_id && church_id !== 'all' && typeof church_id === 'string') {
       params.push(church_id);
-      query += ` AND church_id = $${params.length}`;
+      query += ` AND church_id::text = $${params.length}`;
     }
 
     if (user_id) {
       params.push(user_id);
-      query += ` AND user_id = $${params.length}`;
+      query += ` AND user_id::text = $${params.length}`;
     }
     query += ' ORDER BY created_at DESC';
     const result = await pool.query(query, params);
@@ -5645,19 +5697,19 @@ app.get('/api/v1/communication_logs', async (req: Request, res: Response) => {
           return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para esta congregação.' });
         }
         params.push(church_id);
-        query += ` AND church_id = $${params.length}`;
+        query += ` AND church_id::text = $${params.length}`;
       } else {
         params.push(ctx.allowedChurchIds);
-        query += ` AND church_id = ANY($${params.length})`;
+        query += ` AND church_id::text = ANY($${params.length})`;
       }
     } else if (church_id && church_id !== 'all' && typeof church_id === 'string') {
       params.push(church_id);
-      query += ` AND church_id = $${params.length}`;
+      query += ` AND church_id::text = $${params.length}`;
     }
 
     if (user_id) {
       params.push(user_id);
-      query += ` AND user_id = $${params.length}`;
+      query += ` AND user_id::text = $${params.length}`;
     }
     if (status) {
       params.push(status);
@@ -5695,19 +5747,19 @@ app.get('/api/v1/communication_events', async (req: Request, res: Response) => {
           return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para esta congregação.' });
         }
         params.push(church_id);
-        query += ` AND church_id = $${params.length}`;
+        query += ` AND church_id::text = $${params.length}`;
       } else {
         params.push(ctx.allowedChurchIds);
-        query += ` AND church_id = ANY($${params.length})`;
+        query += ` AND church_id::text = ANY($${params.length})`;
       }
     } else if (church_id && church_id !== 'all' && typeof church_id === 'string') {
       params.push(church_id);
-      query += ` AND church_id = $${params.length}`;
+      query += ` AND church_id::text = $${params.length}`;
     }
 
     if (user_id) {
       params.push(user_id);
-      query += ` AND user_id = $${params.length}`;
+      query += ` AND user_id::text = $${params.length}`;
     }
     if (status) {
       params.push(status);
@@ -6167,7 +6219,7 @@ async function runCommunicationProcessor(churchIdFilter?: string) {
         const updateRes = await client2.query(
           `UPDATE communication_queue
            SET status = 'PROCESSING', attempts = attempts + 1, updated_at = NOW()
-           WHERE id = ANY($1::uuid[])
+           WHERE id::text = ANY($1)
            RETURNING *`,
           [ids]
         );
@@ -6238,7 +6290,7 @@ async function runCommunicationProcessor(churchIdFilter?: string) {
         const updateRes = await client3.query(
           `UPDATE communication_queue
            SET status = 'PROCESSING', updated_at = NOW()
-           WHERE id = ANY($1::uuid[])
+           WHERE id::text = ANY($1)
            RETURNING *`,
           [ids]
         );
@@ -6368,22 +6420,22 @@ app.get('/api/v1/communication_queue', async (req: Request, res: Response) => {
           return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para esta congregação.' });
         }
         params.push(church_id);
-        query += ` AND church_id = $${paramCounter++}`;
+        query += ` AND church_id::text = $${paramCounter++}`;
       } else {
         params.push(ctx.allowedChurchIds);
-        query += ` AND church_id = ANY($${paramCounter++})`;
+        query += ` AND church_id::text = ANY($${paramCounter++})`;
       }
     } else if (church_id && church_id !== 'all' && typeof church_id === 'string') {
       const ownerUserIds = await getEquivalentUserIds(ctx.ownerId || ctx.userId || '');
-      const chCheck = await pool.query('SELECT id FROM churches WHERE id = $1 AND user_id = ANY($2)', [church_id, ownerUserIds]);
+      const chCheck = await pool.query('SELECT id FROM churches WHERE id::text = $1 AND user_id::text = ANY($2)', [church_id, ownerUserIds]);
       if (chCheck.rows.length === 0 && !ctx.isSuperAdmin) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para esta congregação.' });
       }
       params.push(church_id);
-      query += ` AND church_id = $${paramCounter++}`;
+      query += ` AND church_id::text = $${paramCounter++}`;
     } else if (!ctx.isSuperAdmin) {
       const ownerUserIds = await getEquivalentUserIds(ctx.ownerId || ctx.userId || '');
-      query += ` AND church_id IN (SELECT id::text FROM churches WHERE user_id = ANY($${paramCounter++}))`;
+      query += ` AND church_id::text IN (SELECT id::text FROM churches WHERE user_id::text = ANY($${paramCounter++}))`;
       params.push(ownerUserIds);
     }
 
@@ -6414,7 +6466,7 @@ app.post('/api/v1/communication_queue/process', async (req: Request, res: Respon
       }
       if (!ctx.isSecondaryUser && !ctx.isSuperAdmin) {
         const ownerUserIds = await getEquivalentUserIds(ctx.ownerId || ctx.userId || '');
-        const chCheck = await pool.query('SELECT id FROM churches WHERE id = $1 AND user_id = ANY($2)', [church_id, ownerUserIds]);
+        const chCheck = await pool.query('SELECT id FROM churches WHERE id::text = $1 AND user_id::text = ANY($2)', [church_id, ownerUserIds]);
         if (chCheck.rows.length === 0) {
           return res.status(403).json({ error: 'FORBIDDEN' });
         }
@@ -6446,7 +6498,7 @@ app.post('/api/v1/communication_queue/:id/retry', async (req: Request, res: Resp
       }
       if (!ctx.isSecondaryUser && !ctx.isSuperAdmin) {
         const ownerUserIds = await getEquivalentUserIds(ctx.ownerId || ctx.userId || '');
-        const chCheck = await pool.query('SELECT id FROM churches WHERE id = $1 AND user_id = ANY($2)', [churchId, ownerUserIds]);
+        const chCheck = await pool.query('SELECT id FROM churches WHERE id::text = $1 AND user_id::text = ANY($2)', [churchId, ownerUserIds]);
         if (chCheck.rows.length === 0) {
           return res.status(403).json({ error: 'FORBIDDEN' });
         }
@@ -6535,7 +6587,7 @@ app.get('/api/v1/learned_associations', async (req: Request, res: Response) => {
     if (effectiveUserId) {
       const userIds = await getEquivalentUserIds(effectiveUserId);
       params.push(userIds);
-      query += ` AND (user_id = ANY($1) OR user_id IS NULL)`;
+      query += ` AND (user_id::text = ANY($1) OR user_id IS NULL)`;
     }
     const result = await pool.query(query, params);
     return res.json(result.rows);
@@ -6667,7 +6719,7 @@ app.get('/api/v1/saved_reports', async (req: Request, res: Response) => {
     if (effectiveUserId) {
       const userIds = await getEquivalentUserIds(effectiveUserId);
       params.push(userIds);
-      query += ` AND (user_id = ANY($1) OR user_id IS NULL)`;
+      query += ` AND (user_id::text = ANY($1) OR user_id IS NULL)`;
     }
 
     if (ctx.isSecondaryUser) {
@@ -6675,14 +6727,14 @@ app.get('/api/v1/saved_reports', async (req: Request, res: Response) => {
         if (!ctx.allowedChurchIds.includes(church_id)) {
           return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para esta congregação.' });
         }
-        query += ` AND church_id = $${params.length + 1}`;
+        query += ` AND church_id::text = $${params.length + 1}`;
         params.push(church_id);
       } else {
-        query += ` AND church_id = ANY($${params.length + 1})`;
+        query += ` AND church_id::text = ANY($${params.length + 1})`;
         params.push(ctx.allowedChurchIds);
       }
     } else if (church_id && church_id !== 'all' && typeof church_id === 'string') {
-      query += ` AND church_id = $${params.length + 1}`;
+      query += ` AND church_id::text = $${params.length + 1}`;
       params.push(church_id);
     }
 
@@ -6725,7 +6777,7 @@ app.post('/api/v1/saved_reports', async (req: Request, res: Response) => {
         }
       } else if (ctx.isOwner && !ctx.isSuperAdmin) {
         const churchCheck = await pool.query(
-          'SELECT id FROM churches WHERE id = $1 AND (user_id = $2 OR user_id = $3) LIMIT 1',
+          'SELECT id FROM churches WHERE id::text = $1 AND (user_id::text = $2 OR user_id::text = $3) LIMIT 1',
           [targetChurchId, ctx.userId, ctx.ownerId || ctx.userId]
         );
         if (churchCheck.rows.length === 0) {
@@ -6803,7 +6855,7 @@ app.put('/api/v1/saved_reports/:id', async (req: Request, res: Response) => {
         }
       } else if (ctx.isOwner && !ctx.isSuperAdmin) {
         const churchCheck = await pool.query(
-          'SELECT id FROM churches WHERE id = $1 AND (user_id = $2 OR user_id = $3) LIMIT 1',
+          'SELECT id FROM churches WHERE id::text = $1 AND (user_id::text = $2 OR user_id::text = $3) LIMIT 1',
           [church_id, ctx.userId, ctx.ownerId || ctx.userId]
         );
         if (churchCheck.rows.length === 0) {
@@ -7071,7 +7123,7 @@ app.get('/api/v1/church-closings', async (req: Request, res: Response) => {
         query += ` AND church_id::text = ANY($${params.length})`;
       } else {
         params.push(ownerUserIds);
-        query += ` AND (church_id::text IN (SELECT id::text FROM churches WHERE user_id = ANY($${params.length})) OR church_id::text = ANY($${params.length}))`;
+        query += ` AND (church_id::text IN (SELECT id::text FROM churches WHERE user_id::text = ANY($${params.length})) OR church_id::text = ANY($${params.length}))`;
       }
     }
 
@@ -7120,7 +7172,7 @@ app.get('/api/v1/church-closings/:churchId/:year/:month', async (req: Request, r
         const ownerId = ctx.ownerId || ctx.userId || '';
         const ownerUserIds = await getEquivalentUserIds(ownerId);
         const churchCheck = await pool.query(
-          'SELECT id FROM churches WHERE id::text = $1 AND (user_id = ANY($2) OR id::text = ANY($2)) LIMIT 1',
+          'SELECT id FROM churches WHERE id::text = $1 AND (user_id::text = ANY($2) OR id::text = ANY($2)) LIMIT 1',
           [String(churchId), ownerUserIds]
         );
         if (churchCheck.rows.length === 0) {
@@ -7693,7 +7745,7 @@ app.delete('/api/v1/church-closings/:churchId/:year/:month', async (req: Request
       const ownerUserIds = await getEquivalentUserIds(ownerId);
 
       const chCheck = await pool.query(
-        'SELECT id FROM churches WHERE id = $1 AND (user_id = ANY($2) OR id::text = $3) LIMIT 1',
+        'SELECT id FROM churches WHERE id::text = $1 AND (user_id::text = ANY($2) OR id::text = $3) LIMIT 1',
         [effChurchId, ownerUserIds, ownerId]
       );
 
@@ -7949,7 +8001,7 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
 
     if (ids) {
       const idsArray = (ids as string).split(',');
-      query += ` AND id = ANY($${counter})`;
+      query += ` AND id::text = ANY($${counter})`;
       params.push(idsArray);
       counter++;
     }
@@ -7958,7 +8010,7 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
 
     if (effectiveUserId) {
       const userIds = await getEquivalentUserIds(String(effectiveUserId));
-      query += ` AND (user_id = ANY($${counter}) OR user_id IS NULL)`;
+      query += ` AND (user_id::text = ANY($${counter}) OR user_id IS NULL)`;
       params.push(userIds);
       counter++;
     }
@@ -7968,14 +8020,14 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
         if (!ctx.allowedChurchIds.includes(church_id)) {
           return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para esta congregação.' });
         }
-        query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND splits::text LIKE $${counter + 1}))`;
+        query += ` AND (church_id::text = $${counter} OR (splits IS NOT NULL AND splits::text LIKE $${counter + 1}))`;
         params.push(church_id, `%"churchId":"${church_id}"%`);
         counter += 2;
       } else {
         const hasBankAuth = allowedBankIds.length > 0;
         if (ctx.allowedChurchIds.length === 1) {
-          const bankClause = hasBankAuth ? ` OR (status = 'pending' AND church_id IS NULL AND bank_id = ANY($${counter + 2}))` : '';
-          query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND splits::text LIKE $${counter + 1})${bankClause})`;
+          const bankClause = hasBankAuth ? ` OR (status = 'pending' AND church_id IS NULL AND bank_id::text = ANY($${counter + 2}))` : '';
+          query += ` AND (church_id::text = $${counter} OR (splits IS NOT NULL AND splits::text LIKE $${counter + 1})${bankClause})`;
           params.push(ctx.allowedChurchIds[0], `%"churchId":"${ctx.allowedChurchIds[0]}"%`);
           counter += 2;
           if (hasBankAuth) {
@@ -7985,8 +8037,8 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
         } else if (ctx.allowedChurchIds.length > 1) {
           const splitClauses = ctx.allowedChurchIds.map((_, i) => `splits::text LIKE $${counter + 1 + i}`).join(' OR ');
           const bankParamIdx = counter + 1 + ctx.allowedChurchIds.length;
-          const bankClause = hasBankAuth ? ` OR (status = 'pending' AND church_id IS NULL AND bank_id = ANY($${bankParamIdx}))` : '';
-          query += ` AND (church_id = ANY($${counter}) OR (splits IS NOT NULL AND (${splitClauses}))${bankClause})`;
+          const bankClause = hasBankAuth ? ` OR (status = 'pending' AND church_id IS NULL AND bank_id::text = ANY($${bankParamIdx}))` : '';
+          query += ` AND (church_id::text = ANY($${counter}) OR (splits IS NOT NULL AND (${splitClauses}))${bankClause})`;
           params.push(ctx.allowedChurchIds);
           ctx.allowedChurchIds.forEach(cId => params.push(`%"churchId":"${cId}"%`));
           counter += 1 + ctx.allowedChurchIds.length;
@@ -7995,19 +8047,19 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
             counter++;
           }
         } else if (hasBankAuth) {
-          query += ` AND (status = 'pending' AND church_id IS NULL AND bank_id = ANY($${counter}))`;
+          query += ` AND (status = 'pending' AND church_id IS NULL AND bank_id::text = ANY($${counter}))`;
           params.push(allowedBankIds);
           counter++;
         }
       }
     } else if (church_id && church_id !== 'all' && typeof church_id === 'string') {
-      query += ` AND (church_id = $${counter} OR (splits IS NOT NULL AND splits::text LIKE $${counter + 1}))`;
+      query += ` AND (church_id::text = $${counter} OR (splits IS NOT NULL AND splits::text LIKE $${counter + 1}))`;
       params.push(church_id, `%"churchId":"${church_id}"%`);
       counter += 2;
     }
 
     if (req.query.contributor_id) {
-      query += ` AND contributor_id = $${counter}`;
+      query += ` AND contributor_id::text = $${counter}`;
       params.push(req.query.contributor_id);
       counter++;
     }
@@ -8183,7 +8235,7 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
         }
       } else if (ctx.isOwner && !ctx.isSuperAdmin) {
         const destChurchCheck = await pool.query(
-          'SELECT id FROM churches WHERE id = $1 AND (user_id = $2 OR user_id = $3) LIMIT 1',
+          'SELECT id FROM churches WHERE id::text = $1 AND (user_id::text = $2 OR user_id::text = $3) LIMIT 1',
           [church_id, ctx.userId, ctx.ownerId || ctx.userId]
         );
         if (destChurchCheck.rows.length === 0) {
@@ -8395,7 +8447,7 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
           }
         } else if (ctx.isOwner && !ctx.isSuperAdmin) {
           const destChurchCheck = await client.query(
-            'SELECT id FROM churches WHERE id = $1 AND (user_id = $2 OR user_id = $3) LIMIT 1',
+            'SELECT id FROM churches WHERE id::text = $1 AND (user_id::text = $2 OR user_id::text = $3) LIMIT 1',
             [effectiveChurchId, ctx.userId, ctx.ownerId || ctx.userId]
           );
           if (destChurchCheck.rows.length === 0) {
@@ -8627,7 +8679,7 @@ async function isAuthorizedForTransaction(pool: any, ctx: TenantContext, oldTx: 
     if (oldTx.church_id && oldTx.church_id !== 'unidentified') {
       if (ctx.allowedChurchIds && ctx.allowedChurchIds.includes(oldTx.church_id)) return true;
       const churchCheck = await pool.query(
-        'SELECT id FROM churches WHERE id = $1 AND (user_id = $2 OR user_id = $3) LIMIT 1',
+        'SELECT id FROM churches WHERE id::text = $1 AND (user_id::text = $2 OR user_id::text = $3) LIMIT 1',
         [oldTx.church_id, currentUserId, currentOwnerId]
       );
       if (churchCheck.rows.length > 0) return true;
@@ -8703,7 +8755,7 @@ async function isAuthorizedForFinancialRecord(pool: any, ctx: TenantContext, old
     if (oldRec.church_id && oldRec.church_id !== 'unidentified') {
       if (ctx.allowedChurchIds && ctx.allowedChurchIds.includes(oldRec.church_id)) return true;
       const churchCheck = await pool.query(
-        'SELECT id FROM churches WHERE id = $1 AND (user_id = $2 OR user_id = $3) LIMIT 1',
+        'SELECT id FROM churches WHERE id::text = $1 AND (user_id::text = $2 OR user_id::text = $3) LIMIT 1',
         [oldRec.church_id, currentUserId, currentOwnerId]
       );
       if (churchCheck.rows.length > 0) return true;
@@ -8780,7 +8832,7 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
       // 3. Proprietário não pode transferir transação para congregação pertencente a outra organização
       if (church_id !== undefined && church_id !== null && church_id !== 'unidentified') {
         const destChurchCheck = await pool.query(
-          'SELECT id FROM churches WHERE id = $1 AND (user_id = $2 OR user_id = $3) LIMIT 1',
+          'SELECT id FROM churches WHERE id::text = $1 AND (user_id::text = $2 OR user_id::text = $3) LIMIT 1',
           [church_id, currentUserId, currentOwnerId]
         );
         if (destChurchCheck.rows.length === 0) {
@@ -9149,7 +9201,7 @@ app.get('/api/v1/financial_records', async (req: Request, res: Response) => {
     const userIds = await getEquivalentUserIds(String(effectiveUserId));
     let query = `
       SELECT * FROM financial_records 
-      WHERE user_id = ANY($1)
+      WHERE user_id::text = ANY($1)
     `;
     const params: any[] = [userIds];
     let count = 2;
@@ -9159,16 +9211,16 @@ app.get('/api/v1/financial_records', async (req: Request, res: Response) => {
         if (!ctx.allowedChurchIds.includes(church_id)) {
           return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para esta congregação.' });
         }
-        query += ` AND church_id = $${count}`;
+        query += ` AND church_id::text = $${count}`;
         params.push(church_id);
         count++;
       } else {
-        query += ` AND church_id = ANY($${count})`;
+        query += ` AND church_id::text = ANY($${count})`;
         params.push(ctx.allowedChurchIds);
         count++;
       }
     } else if (church_id && church_id !== 'all' && typeof church_id === 'string') {
-      query += ` AND church_id = $${count}`;
+      query += ` AND church_id::text = $${count}`;
       params.push(church_id);
       count++;
     }
@@ -9244,7 +9296,7 @@ app.post('/api/v1/financial_records', async (req: Request, res: Response) => {
         }
       } else if (ctx.isOwner && !ctx.isSuperAdmin) {
         const destChurchCheck = await pool.query(
-          'SELECT id FROM churches WHERE id = $1 AND (user_id = $2 OR user_id = $3) LIMIT 1',
+          'SELECT id FROM churches WHERE id::text = $1 AND (user_id::text = $2 OR user_id::text = $3) LIMIT 1',
           [church_id, ctx.userId, ctx.ownerId || ctx.userId]
         );
         if (destChurchCheck.rows.length === 0) {
@@ -9408,7 +9460,7 @@ app.put('/api/v1/financial_records/:id', async (req: Request, res: Response) => 
       // 3. Proprietário não pode transferir registro para congregação de outra organização
       if (church_id !== undefined && church_id !== null && church_id !== 'unidentified') {
         const destChurchCheck = await pool.query(
-          'SELECT id FROM churches WHERE id = $1 AND (user_id = $2 OR user_id = $3) LIMIT 1',
+          'SELECT id FROM churches WHERE id::text = $1 AND (user_id::text = $2 OR user_id::text = $3) LIMIT 1',
           [church_id, currentUserId, currentOwnerId]
         );
         if (destChurchCheck.rows.length === 0) {
