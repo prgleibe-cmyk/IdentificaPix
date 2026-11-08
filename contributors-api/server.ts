@@ -2578,6 +2578,49 @@ export {
   validateTransactionSplits
 };
 
+async function enrichSecondaryUserContext(poolInstance: any, ctx: TenantContext): Promise<void> {
+  if (!ctx.isSecondaryUser || !ctx.userId) return;
+  if (ctx.allowedChurchIds.length > 0 && ctx.allowedBankIds.length > 0 && ctx.permissions.length > 0 && ctx.ownerId && ctx.ownerId !== ctx.userId) return;
+
+  try {
+    const uRes = await poolInstance.query(
+      `SELECT u.church_id, u.permissions, u.owner_id,
+              p.owner_id as profile_owner_id, p.congregation as profile_church_id, p.permissions as profile_permissions
+       FROM profiles p
+       FULL OUTER JOIN app_users u ON (u.id::text = p.id::text OR (u.email IS NOT NULL AND LOWER(u.email) = LOWER(p.email)))
+       WHERE (u.id::text = $1 OR p.id::text = $1)
+       LIMIT 1`,
+      [ctx.userId]
+    );
+    if (uRes.rows.length > 0) {
+      const row = uRes.rows[0];
+      const resolvedOwnerId = row.owner_id || row.profile_owner_id;
+      if (resolvedOwnerId && (!ctx.ownerId || ctx.ownerId === ctx.userId)) {
+        ctx.ownerId = String(resolvedOwnerId);
+      }
+
+      const mergedPerms = row.permissions || row.profile_permissions;
+      const dbChurchIds = extractContextAllowedChurchIds({ ...row, permissions: mergedPerms });
+      const dbBankIds = extractContextAllowedBankIds({ ...row, permissions: mergedPerms });
+      const dbPerms = extractContextPermissions({ ...row, permissions: mergedPerms });
+
+      if (ctx.allowedChurchIds.length === 0 && dbChurchIds.length > 0) {
+        ctx.allowedChurchIds = dbChurchIds;
+      }
+      if (ctx.allowedBankIds.length === 0 && dbBankIds.length > 0) {
+        ctx.allowedBankIds = dbBankIds;
+      }
+      if (dbPerms.length > 0) {
+        ctx.permissions = Array.from(new Set([...ctx.permissions, ...dbPerms]));
+      }
+      if (!ctx.churchId && (row.church_id || row.profile_church_id)) {
+        ctx.churchId = String(row.church_id || row.profile_church_id);
+      }
+    }
+  } catch (err) {
+    console.warn('[Contributors API] Erro ao enriquecer contexto do usuário secundário:', err);
+  }
+}
 
 // GET /health
 app.get('/health', (req: Request, res: Response) => {
@@ -2694,6 +2737,7 @@ app.get('/api/v1/contributors', async (req: Request, res: Response) => {
     res.set('Expires', '0');
 
     const ctx = getTenantContext(req);
+    await enrichSecondaryUserContext(pool, ctx);
     const requestedChurchId = req.query.church_id as string | undefined;
     const { status, search, q } = req.query;
 
@@ -5056,6 +5100,7 @@ async function getEquivalentUserIds(userId: string): Promise<string[]> {
 const getReferenceDataHandler = async (req: Request, res: Response) => {
   try {
     const ctx = getTenantContext(req);
+    await enrichSecondaryUserContext(pool, ctx);
     const paramOwnerId = (req.params.ownerId || req.query.user_id) as string | undefined;
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
@@ -5110,7 +5155,7 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
       }
       if (ctx.isSecondaryUser) {
         reportsParams.push(ctx.allowedChurchIds);
-        reportsQuery += ` AND church_id::text = ANY($${reportsParams.length})`;
+        reportsQuery += ` AND (church_id::text = ANY($${reportsParams.length}) OR name = '[SESSÃO_ATIVA]' OR church_id IS NULL)`;
       }
       reportsQuery += ' ORDER BY created_at DESC';
     }
@@ -6694,6 +6739,7 @@ app.delete('/api/v1/learned_associations/by-user/:user_id', async (req: Request,
 app.get('/api/v1/saved_reports', async (req: Request, res: Response) => {
   try {
     const ctx = getTenantContext(req);
+    await enrichSecondaryUserContext(pool, ctx);
     const { user_id, exclude_data, church_id } = req.query;
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
@@ -6730,7 +6776,7 @@ app.get('/api/v1/saved_reports', async (req: Request, res: Response) => {
         query += ` AND church_id::text = $${params.length + 1}`;
         params.push(church_id);
       } else {
-        query += ` AND church_id::text = ANY($${params.length + 1})`;
+        query += ` AND (church_id::text = ANY($${params.length + 1}) OR name = '[SESSÃO_ATIVA]' OR church_id IS NULL)`;
         params.push(ctx.allowedChurchIds);
       }
     } else if (church_id && church_id !== 'all' && typeof church_id === 'string') {
@@ -6751,6 +6797,7 @@ app.get('/api/v1/saved_reports', async (req: Request, res: Response) => {
 app.post('/api/v1/saved_reports', async (req: Request, res: Response) => {
   try {
     const ctx = getTenantContext(req);
+    await enrichSecondaryUserContext(pool, ctx);
     const { id, name, record_count, user_id, data, church_id } = req.body;
 
     if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
@@ -7105,6 +7152,7 @@ async function isChurchPeriodClosed(
 app.get('/api/v1/church-closings', async (req: Request, res: Response) => {
   try {
     const ctx = getTenantContext(req);
+    await enrichSecondaryUserContext(pool, ctx);
     if (!ctx.isAuthenticated) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Autenticação necessária para consultar fechamentos de caixa.' });
     }
@@ -7969,6 +8017,7 @@ app.all(['/api/v1/consolidated_transactions/repair-churches', '/api/v1/admin/rep
 app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response) => {
   try {
     const ctx = getTenantContext(req);
+    await enrichSecondaryUserContext(pool, ctx);
     if (ctx.isSecondaryUser && !hasPermission(ctx, 'view')) {
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: permissão de visualização de transações necessária.' });
     }
@@ -8195,6 +8244,7 @@ app.get('/api/v1/consolidated_transactions/:id/attachments', async (req: Request
 app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response) => {
   try {
     const ctx = getTenantContext(req);
+    await enrichSecondaryUserContext(pool, ctx);
     if (!ctx.isAuthenticated) {
       return res.status(401).json({ error: 'UNAUTHORIZED' });
     }
@@ -8396,6 +8446,7 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
   const client = await pool.connect();
   try {
     const ctx = getTenantContext(req);
+    await enrichSecondaryUserContext(pool, ctx);
     if (!ctx.isAuthenticated) {
       client.release();
       return res.status(401).json({ error: 'UNAUTHORIZED' });
@@ -8787,6 +8838,7 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
   try {
     const { id } = req.params;
     const ctx = getTenantContext(req);
+    await enrichSecondaryUserContext(pool, ctx);
     if (!ctx.isAuthenticated) {
       return res.status(401).json({ error: 'UNAUTHORIZED' });
     }
@@ -9037,6 +9089,7 @@ app.delete('/api/v1/consolidated_transactions/:id', async (req: Request, res: Re
   try {
     const { id } = req.params;
     const ctx = getTenantContext(req);
+    await enrichSecondaryUserContext(pool, ctx);
     if (!ctx.isAuthenticated) {
       return res.status(401).json({ error: 'UNAUTHORIZED' });
     }
@@ -9103,6 +9156,7 @@ app.delete('/api/v1/consolidated_transactions/:id', async (req: Request, res: Re
 app.post('/api/v1/consolidated_transactions/bulk-delete', async (req: Request, res: Response) => {
   try {
     const ctx = getTenantContext(req);
+    await enrichSecondaryUserContext(pool, ctx);
     if (!ctx.isAuthenticated) {
       return res.status(401).json({ error: 'UNAUTHORIZED' });
     }
@@ -9173,6 +9227,7 @@ app.post('/api/v1/consolidated_transactions/bulk-delete', async (req: Request, r
 app.get('/api/v1/financial_records', async (req: Request, res: Response) => {
   try {
     const ctx = getTenantContext(req);
+    await enrichSecondaryUserContext(pool, ctx);
     if (!ctx.isAuthenticated) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Autenticação necessária para consultar registros financeiros.' });
     }
@@ -9249,6 +9304,7 @@ app.get('/api/v1/financial_records', async (req: Request, res: Response) => {
 app.post('/api/v1/financial_records', async (req: Request, res: Response) => {
   try {
     const ctx = getTenantContext(req);
+    await enrichSecondaryUserContext(pool, ctx);
     if (!ctx.isAuthenticated) {
       return res.status(401).json({ error: 'UNAUTHORIZED' });
     }
@@ -9397,6 +9453,7 @@ app.put('/api/v1/financial_records/:id', async (req: Request, res: Response) => 
   try {
     const { id } = req.params;
     const ctx = getTenantContext(req);
+    await enrichSecondaryUserContext(pool, ctx);
     if (!ctx.isAuthenticated) {
       return res.status(401).json({ error: 'UNAUTHORIZED' });
     }
@@ -9581,6 +9638,7 @@ app.delete('/api/v1/financial_records/:id', async (req: Request, res: Response) 
   try {
     const { id } = req.params;
     const ctx = getTenantContext(req);
+    await enrichSecondaryUserContext(pool, ctx);
     if (!ctx.isAuthenticated) {
       return res.status(401).json({ error: 'UNAUTHORIZED' });
     }

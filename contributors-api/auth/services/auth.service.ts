@@ -22,48 +22,99 @@ import { sanitizeEmail } from '../validators/auth.validators.js';
 import { UserResponse, LoginResult, AuthTokens } from '../types/auth.types.js';
 import { logAudit } from '../../services/audit.service.js';
 
+function safeParsePermissions(raw: any): any {
+  if (!raw) return null;
+  if (typeof raw === 'object') return raw;
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return trimmed;
+    }
+  }
+  return null;
+}
+
 function extractAllowedChurchIds(user: any): string[] {
   const ids = new Set<string>();
-  if (user.church_id && typeof user.church_id === 'string' && user.church_id.trim()) {
-    ids.add(user.church_id.trim());
-  }
-  if (user.churchId && typeof user.churchId === 'string' && user.churchId.trim()) {
-    ids.add(user.churchId.trim());
-  }
-  if (Array.isArray(user.congregation_ids)) {
-    user.congregation_ids.forEach((id: any) => {
-      if (typeof id === 'string' && id.trim()) ids.add(id.trim());
-    });
-  }
-  if (Array.isArray(user.congregationIds)) {
-    user.congregationIds.forEach((id: any) => {
-      if (typeof id === 'string' && id.trim()) ids.add(id.trim());
-    });
-  }
-  if (Array.isArray(user.allowed_church_ids)) {
-    user.allowed_church_ids.forEach((id: any) => {
-      if (typeof id === 'string' && id.trim()) ids.add(id.trim());
-    });
-  }
-  if (Array.isArray(user.permissions)) {
-    user.permissions.forEach((perm: any) => {
+  if (!user) return [];
+
+  const addIfValid = (val: any) => {
+    if (typeof val === 'string') {
+      const trimmed = val.trim();
+      if (trimmed.length > 0) ids.add(trimmed);
+    }
+  };
+
+  addIfValid(user.church_id);
+  addIfValid(user.churchId);
+
+  if (Array.isArray(user.congregation_ids)) user.congregation_ids.forEach(addIfValid);
+  if (Array.isArray(user.congregationIds)) user.congregationIds.forEach(addIfValid);
+  if (Array.isArray(user.allowed_church_ids)) user.allowed_church_ids.forEach(addIfValid);
+  if (Array.isArray(user.allowedChurchIds)) user.allowedChurchIds.forEach(addIfValid);
+  if (Array.isArray(user.churchIds)) user.churchIds.forEach(addIfValid);
+  if (Array.isArray(user.church_ids)) user.church_ids.forEach(addIfValid);
+
+  const parsedPerms = safeParsePermissions(user.permissions);
+  if (Array.isArray(parsedPerms)) {
+    parsedPerms.forEach((perm: any) => {
       if (typeof perm === 'string') {
-        if (perm.startsWith('congregation:')) {
-          const cid = perm.split(':')[1];
-          if (cid && cid.trim()) ids.add(cid.trim());
-        } else if (perm.startsWith('church:')) {
-          const cid = perm.split(':')[1];
-          if (cid && cid.trim()) ids.add(cid.trim());
+        if (perm.startsWith('congregation:') || perm.startsWith('church:')) {
+          addIfValid(perm.split(':')[1]);
         }
       }
     });
-  } else if (user.permissions && typeof user.permissions === 'object') {
-    if (Array.isArray(user.permissions.congregationIds)) {
-      user.permissions.congregationIds.forEach((id: any) => {
-        if (typeof id === 'string' && id.trim()) ids.add(id.trim());
-      });
-    }
+  } else if (parsedPerms && typeof parsedPerms === 'object') {
+    if (Array.isArray(parsedPerms.congregationIds)) parsedPerms.congregationIds.forEach(addIfValid);
+    if (Array.isArray(parsedPerms.congregation_ids)) parsedPerms.congregation_ids.forEach(addIfValid);
+    if (Array.isArray(parsedPerms.churchIds)) parsedPerms.churchIds.forEach(addIfValid);
+    if (Array.isArray(parsedPerms.church_ids)) parsedPerms.church_ids.forEach(addIfValid);
+    if (Array.isArray(parsedPerms.allowedChurchIds)) parsedPerms.allowedChurchIds.forEach(addIfValid);
+    if (Array.isArray(parsedPerms.allowed_church_ids)) parsedPerms.allowed_church_ids.forEach(addIfValid);
+    addIfValid(parsedPerms.congregation);
+    addIfValid(parsedPerms.churchId);
+    addIfValid(parsedPerms.church_id);
   }
+
+  return Array.from(ids);
+}
+
+function extractAllowedBankIds(user: any): string[] {
+  const ids = new Set<string>();
+  if (!user) return [];
+
+  const addIfValid = (val: any) => {
+    if (typeof val === 'string') {
+      const trimmed = val.trim();
+      if (trimmed.length > 0) ids.add(trimmed);
+    }
+  };
+
+  if (Array.isArray(user.bank_ids)) user.bank_ids.forEach(addIfValid);
+  if (Array.isArray(user.bankIds)) user.bankIds.forEach(addIfValid);
+  if (Array.isArray(user.allowed_bank_ids)) user.allowed_bank_ids.forEach(addIfValid);
+  if (Array.isArray(user.allowedBankIds)) user.allowedBankIds.forEach(addIfValid);
+
+  const parsedPerms = safeParsePermissions(user.permissions);
+  if (parsedPerms && typeof parsedPerms === 'object') {
+    if (Array.isArray(parsedPerms.bankIds)) parsedPerms.bankIds.forEach(addIfValid);
+    if (Array.isArray(parsedPerms.bank_ids)) parsedPerms.bank_ids.forEach(addIfValid);
+    if (Array.isArray(parsedPerms.allowedBankIds)) parsedPerms.allowedBankIds.forEach(addIfValid);
+    if (Array.isArray(parsedPerms.allowed_bank_ids)) parsedPerms.allowed_bank_ids.forEach(addIfValid);
+  }
+  if (Array.isArray(parsedPerms)) {
+    parsedPerms.forEach((perm: any) => {
+      if (typeof perm === 'string') {
+        if (perm.startsWith('bank:') || perm.startsWith('bank_id:')) {
+          addIfValid(perm.split(':')[1]);
+        }
+      }
+    });
+  }
+
   return Array.from(ids);
 }
 
@@ -190,7 +241,9 @@ export class AuthService {
       role: user.role,
       permissions: user.permissions,
       congregationIds: extractAllowedChurchIds(user),
-      allowedChurchIds: extractAllowedChurchIds(user)
+      allowedChurchIds: extractAllowedChurchIds(user),
+      bankIds: extractAllowedBankIds(user),
+      allowedBankIds: extractAllowedBankIds(user)
     });
 
     const refreshInfo = generateRefreshToken();
@@ -287,7 +340,9 @@ export class AuthService {
       role: user.role,
       permissions: user.permissions,
       congregationIds: extractAllowedChurchIds(user),
-      allowedChurchIds: extractAllowedChurchIds(user)
+      allowedChurchIds: extractAllowedChurchIds(user),
+      bankIds: extractAllowedBankIds(user),
+      allowedBankIds: extractAllowedBankIds(user)
     });
 
     const refreshInfo = generateRefreshToken();
@@ -490,7 +545,9 @@ export class AuthService {
       role: userToAuth.role,
       permissions: userToAuth.permissions,
       congregationIds: extractAllowedChurchIds(userToAuth),
-      allowedChurchIds: extractAllowedChurchIds(userToAuth)
+      allowedChurchIds: extractAllowedChurchIds(userToAuth),
+      bankIds: extractAllowedBankIds(userToAuth),
+      allowedBankIds: extractAllowedBankIds(userToAuth)
     });
 
     const refreshInfo = generateRefreshToken();
@@ -567,7 +624,9 @@ export class AuthService {
             role: user.role,
             permissions: user.permissions,
             congregationIds: extractAllowedChurchIds(user),
-            allowedChurchIds: extractAllowedChurchIds(user)
+            allowedChurchIds: extractAllowedChurchIds(user),
+            bankIds: extractAllowedBankIds(user),
+            allowedBankIds: extractAllowedBankIds(user)
           });
           return {
             accessToken: accessInfo.token,
@@ -608,7 +667,9 @@ export class AuthService {
       role: user.role,
       permissions: user.permissions,
       congregationIds: extractAllowedChurchIds(user),
-      allowedChurchIds: extractAllowedChurchIds(user)
+      allowedChurchIds: extractAllowedChurchIds(user),
+      bankIds: extractAllowedBankIds(user),
+      allowedBankIds: extractAllowedBankIds(user)
     });
 
     const newRefreshInfo = generateRefreshToken();
