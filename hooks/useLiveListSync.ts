@@ -66,7 +66,7 @@ export const useLiveListSync = ({
                     rawDescription: t.description,
                     amount: t.amount,
                     originalAmount: String(t.amount.toFixed(2)),
-                    contributionType: t.contribution_type || (t.type === 'income' ? 'ENTRADA' : 'SAÍDA'),
+                    contributionType: (t.contribution_type && !['ENTRADA', 'SAÍDA', 'SAIDA', 'INCOME', 'EXPENSE'].includes(String(t.contribution_type).trim().toUpperCase())) ? t.contribution_type : undefined,
                     paymentMethod: t.payment_method || t.pix_key || 'OUTROS',
                     cleanedDescription: t.description,
                     bank_id: t.bank_id,

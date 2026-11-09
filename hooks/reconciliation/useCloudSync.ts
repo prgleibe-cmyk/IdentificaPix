@@ -376,7 +376,9 @@ export const useCloudSync = ({
                         });
                     }
 
-                    const savedContribType = t.contribution_type || assoc?.contributionType || undefined;
+                    const rawContrib = t.contribution_type || assoc?.contributionType || undefined;
+                    const isGenericRawContrib = typeof rawContrib === 'string' && ['ENTRADA', 'SAÍDA', 'SAIDA', 'ENTRADAS', 'SAIDAS', 'INCOME', 'EXPENSE'].includes(rawContrib.trim().toUpperCase());
+                    const savedContribType = !isGenericRawContrib ? rawContrib : undefined;
                     const savedPaymentMethod = t.payment_method || assoc?.paymentMethod || undefined;
 
                     const isManualTx = t.source === 'manual' || 

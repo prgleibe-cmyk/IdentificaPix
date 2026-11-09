@@ -234,7 +234,7 @@ export const matchTransactions = (
             church: txChurch,
             _churchId: txChurch.id !== PLACEHOLDER_CHURCH.id ? txChurch.id : undefined,
             similarity: 0,
-            contributionType: tx.contributionType,
+            contributionType: (tx.contributionType && !['ENTRADA', 'SAÍDA', 'SAIDA', 'INCOME', 'EXPENSE'].includes(String(tx.contributionType).trim().toUpperCase())) ? tx.contributionType : undefined,
             paymentMethod: tx.paymentMethod
         };
 
@@ -263,6 +263,12 @@ export const matchTransactions = (
                     : (churches.find(c => c.id === learned.churchId) || PLACEHOLDER_CHURCH));
 
             if (effectiveChurch && effectiveChurch.id !== PLACEHOLDER_CHURCH.id) {
+                const learnedType = (learned as any).contributionType || (learned as any).contribution_type || (learned as any).category;
+                const candidateType = (registeredContrib && registeredContrib.contributionType) || learnedType || tx.contributionType;
+                const cleanCandidate = typeof candidateType === 'string' ? candidateType.trim().toUpperCase() : '';
+                const isGenericCandidate = !cleanCandidate || ['ENTRADA', 'SAÍDA', 'SAIDA', 'ENTRADAS', 'SAIDAS', 'INCOME', 'EXPENSE'].includes(cleanCandidate);
+                const effectiveContribType = !isGenericCandidate ? candidateType : undefined;
+
                 matchResult = {
                     ...matchResult,
                     status: ReconciliationStatus.IDENTIFIED,
@@ -280,7 +286,7 @@ export const matchTransactions = (
                         cleanedName: validName
                     } : null),
                     contributorAmount: tx.amount,
-                    contributionType: (registeredContrib && registeredContrib.contributionType) || tx.contributionType,
+                    contributionType: effectiveContribType,
                     paymentMethod: (registeredContrib && registeredContrib.paymentMethod) || tx.paymentMethod
                 };
                 if (registeredContrib?._internalId) {

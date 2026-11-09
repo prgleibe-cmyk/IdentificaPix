@@ -725,16 +725,22 @@ export const ManualIdModal: React.FC = () => {
                 (contributionTypes || []).some((ct: any) => ct.name?.toUpperCase() === matchedResult?.contributionType?.toUpperCase() && ct.type === 'saida') ||
                 isDescSaida;
 
+            const isGenericType = (str?: string) => {
+                if (!str || typeof str !== 'string') return true;
+                const clean = str.trim().toUpperCase();
+                return ['ENTRADA', 'SAÍDA', 'SAIDA', 'ENTRADAS', 'SAIDAS', 'INCOME', 'EXPENSE', 'GERAL', 'DIVERSOS'].includes(clean);
+            };
+
             if (isTxSaida) {
                 setManualType('saida');
-                if (matchedResult?.contributionType) {
+                if (matchedResult?.contributionType && !isGenericType(matchedResult.contributionType)) {
                     setSelectedType(matchedResult.contributionType);
                 } else {
                     setSelectedType(defaultSaidaType);
                 }
             } else {
                 setManualType('entrada');
-                if (matchedResult?.contributionType) {
+                if (matchedResult?.contributionType && !isGenericType(matchedResult.contributionType)) {
                     setSelectedType(matchedResult.contributionType);
                 } else {
                     setSelectedType(defaultEntradaType);

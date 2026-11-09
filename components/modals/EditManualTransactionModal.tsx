@@ -102,11 +102,17 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
     }, [row]);
 
     const initialContributionType = useMemo(() => {
-        if (!row) return 'Dízimo';
-        return row.contributionType || 
+        if (!row) return isInitialExpense ? 'Despesa Geral' : 'Dízimo';
+        const rawType = row.contributionType || 
                (row.contributor as any)?.contributionType || 
-               (isInitialExpense ? 'Despesa Geral' : 'Dízimo');
-    }, [row, isInitialExpense]);
+               (row.transaction as any)?.contributionType || '';
+        const cleanRaw = typeof rawType === 'string' ? rawType.trim().toUpperCase() : '';
+        const isGeneric = !cleanRaw || ['ENTRADA', 'SAÍDA', 'SAIDA', 'ENTRADAS', 'SAIDAS', 'INCOME', 'EXPENSE', 'GERAL', 'DIVERSOS', '---', 'NONE', 'NULL', 'UNDEFINED'].includes(cleanRaw);
+        if (!isGeneric) {
+            return rawType.trim();
+        }
+        return resolveContributionType(row, contributionTypes, contributionKeywords);
+    }, [row, isInitialExpense, contributionTypes, contributionKeywords]);
 
     const initialPaymentMethod = useMemo(() => {
         if (!row) return 'DINHEIRO';
@@ -392,14 +398,12 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
     const handleTypeSwitch = (newType: 'entrada' | 'saida') => {
         setType(newType);
         if (newType === 'saida') {
-            if (contributionType === 'Dízimo' || contributionType === 'Oferta' || !contributionType) {
-                setContributionType('Despesa Geral');
-            }
+            const firstSaida = (contributionTypes || []).find((ct: any) => ct.type === 'saida' && ct.is_active !== false)?.name;
+            setContributionType(firstSaida || 'Despesa Geral');
             setSelectedContributorId(null);
         } else {
-            if (contributionType === 'Despesa Geral' || contributionType === 'Saída Geral') {
-                setContributionType('Dízimo');
-            }
+            const firstEntrada = (contributionTypes || []).find((ct: any) => (ct.type === 'entrada' || !ct.type) && ct.is_active !== false)?.name;
+            setContributionType(firstEntrada || 'Dízimo');
         }
     };
 
