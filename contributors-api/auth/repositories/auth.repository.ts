@@ -530,11 +530,13 @@ export class AuthRepository {
   }
 
   private mapUserRow(row: any): LocalUser {
-    let permissionsArr: string[] = [];
+    let permissionsArr: any = [];
     if (Array.isArray(row.permissions)) {
       permissionsArr = row.permissions;
     } else if (typeof row.permissions === 'string') {
       try { permissionsArr = JSON.parse(row.permissions); } catch { permissionsArr = []; }
+    } else if (row.permissions && typeof row.permissions === 'object') {
+      permissionsArr = row.permissions;
     }
 
     return {

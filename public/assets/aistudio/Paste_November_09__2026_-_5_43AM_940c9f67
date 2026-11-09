@@ -1,0 +1,789 @@
+[CloudSync:ATOM_EFFECT_TRIGGER] {isReady: false, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 0, assocCount: 0, …}
+index-DKJYxt0e.js:10 [PostReconstruct:SKIPPED] {isContextReady: false, isLoading: false}
+index-DKJYxt0e.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: false, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 1, assocCount: 0, …}
+index-DKJYxt0e.js:10 [PostReconstruct:WAIT_STABLE] {signatureChanged: true}
+index-DKJYxt0e.js:10 [PostReconstruct:STABLE] 172
+index-DKJYxt0e.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 1, assocCount: 1662, …}
+index-DKJYxt0e.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DKJYxt0e.js:10 [Hydration:FINISHED]
+index-DKJYxt0e.js:10 [PostReconstruct:WAIT_STABLE] {signatureChanged: true}
+index-DKJYxt0e.js:10 [PostReconstruct:STABLE] 174
+index-DKJYxt0e.js:10 [WRITE:VPS] Excluindo transação por ID: 096ff703-5f10-43f1-b7e8-0cd27332f767
+index-DKJYxt0e.js:10  DELETE https://identificapix.com.br/api/v1/consolidated_transactions/096ff703-5f10-43f1-b7e8-0cd27332f767 403 (Forbidden)
+deleteTransactionById @ index-DKJYxt0e.js:10
+await in deleteTransactionById
+(anônimo) @ index-DKJYxt0e.js:12
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DKJYxt0e.js:10 [Consolidation] Erro ao excluir transação: Error: Erro ao excluir transação: {"error":"FORBIDDEN","message":"Acesso negado: permissão para excluir transações necessária."}
+    at Object.deleteTransactionById (index-DKJYxt0e.js:10:96804)
+    at async index-DKJYxt0e.js:12:13797
+deleteTransactionById @ index-DKJYxt0e.js:10
+await in deleteTransactionById
+(anônimo) @ index-DKJYxt0e.js:12
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DKJYxt0e.js:12 [useDataDeletion] Falha ao deletar do banco mas prosseguindo com remoção do relatório: Error: Erro ao excluir transação: {"error":"FORBIDDEN","message":"Acesso negado: permissão para excluir transações necessária."}
+    at Object.deleteTransactionById (index-DKJYxt0e.js:10:96804)
+    at async index-DKJYxt0e.js:12:13797
+(anônimo) @ index-DKJYxt0e.js:12
+await in (anônimo)
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DKJYxt0e.js:10 [PostReconstruct:BLOCK] Pulando AutoProcess em resposta a atualização atômica.
+index-DKJYxt0e.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: false}
+index-DKJYxt0e.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 1, assocCount: 1662, …}
+index-DKJYxt0e.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DKJYxt0e.js:10 [Hydration:FINISHED]
+index-DKJYxt0e.js:10 [PostReconstruct:WAIT_STABLE] {signatureChanged: true}
+index-DKJYxt0e.js:10 [PostReconstruct:STABLE] 174
+index-DKJYxt0e.js:11  PUT https://identificapix.com.br/api/v1/consolidated_transactions/377413eb-add6-4b09-9bbe-03fdda3786e8 403 (Forbidden)
+(anônimo) @ index-DKJYxt0e.js:11
+await in (anônimo)
+Ve @ EditManualTransactionModal-7trCfa7J.js:13
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DKJYxt0e.js:11 [updateReportData] Erro HTTP ao persistir consolidated_transaction: 403 Acesso negado: permissão para editar transações necessária.
+(anônimo) @ index-DKJYxt0e.js:11
+await in (anônimo)
+Ve @ EditManualTransactionModal-7trCfa7J.js:13
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DKJYxt0e.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: false}
+index-DKJYxt0e.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 1, assocCount: 1662, …}
+index-DKJYxt0e.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DKJYxt0e.js:10 [Hydration:FINISHED]
+index-DKJYxt0e.js:10 [PostReconstruct:WAIT_STABLE] {signatureChanged: true}
+index-DKJYxt0e.js:10 [PostReconstruct:STABLE] 175
+index-DKJYxt0e.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: false}
+index-DKJYxt0e.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 1, assocCount: 1662, …}
+index-DKJYxt0e.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DKJYxt0e.js:10 [ID:WRITE] {userId: 'f1f59f61-4960-495a-a276-62647538447c', effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', payloadUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b'}
+index-DKJYxt0e.js:10 [WRITE:FIX] Inserindo transações com effectiveUserId: 1e812dc4-ace8-4631-9e4e-c22612a33c5b
+index-DKJYxt0e.js:10  POST https://identificapix.com.br/api/v1/consolidated_transactions/bulk 403 (Forbidden)
+addTransactions @ index-DKJYxt0e.js:10
+await in addTransactions
+(anônimo) @ index-DKJYxt0e.js:12
+await in (anônimo)
+wa @ index-DKJYxt0e.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DKJYxt0e.js:10 [Consolidation:CRITICAL_FAIL] Error: Erro ao inserir transações em lote na VPS: {"error":"FORBIDDEN","message":"Acesso negado: permissão para criar transações necessária."}
+    at Object.addTransactions (index-DKJYxt0e.js:10:89533)
+    at async index-DKJYxt0e.js:12:1340
+    at async wa (index-DKJYxt0e.js:558:50359)
+addTransactions @ index-DKJYxt0e.js:10
+await in addTransactions
+(anônimo) @ index-DKJYxt0e.js:12
+await in (anônimo)
+wa @ index-DKJYxt0e.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DKJYxt0e.js:12 [confirmBulkManualIdentification] Erro ao salvar lançamento manual: Error: Erro ao inserir transações em lote na VPS: {"error":"FORBIDDEN","message":"Acesso negado: permissão para criar transações necessária."}
+    at Object.addTransactions (index-DKJYxt0e.js:10:89533)
+    at async index-DKJYxt0e.js:12:1340
+    at async wa (index-DKJYxt0e.js:558:50359)
+(anônimo) @ index-DKJYxt0e.js:12
+await in (anônimo)
+wa @ index-DKJYxt0e.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DKJYxt0e.js:558 [ManualIdModal] Error confirming identification: Error: Erro ao inserir transações em lote na VPS: {"error":"FORBIDDEN","message":"Acesso negado: permissão para criar transações necessária."}
+    at Object.addTransactions (index-DKJYxt0e.js:10:89533)
+    at async index-DKJYxt0e.js:12:1340
+    at async wa (index-DKJYxt0e.js:558:50359)
+wa @ index-DKJYxt0e.js:558
+await in wa
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DKJYxt0e.js:11  GET https://identificapix.com.br/api/v1/saved_reports?user_id=1e812dc4-ace8-4631-9e4e-c22612a33c5b&exclude_data=true 502 (Bad Gateway)
+(anônimo) @ index-DKJYxt0e.js:11
+await in (anônimo)
+(anônimo) @ index-DKJYxt0e.js:11
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+Hc @ vendor-VZ-Yj73K.js:30
+F @ index-DKJYxt0e.js:12
+(anônimo) @ index-DKJYxt0e.js:12
+setInterval
+(anônimo) @ index-DKJYxt0e.js:12
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+al @ vendor-VZ-Yj73K.js:32
+fl.render.No.render @ vendor-VZ-Yj73K.js:32
+(anônimo) @ index-DKJYxt0e.js:701
+index-DKJYxt0e.js:11 [ReportManager] Erro ao carregar relatórios históricos: Error: Falha ao buscar relatórios via API.
+    at index-DKJYxt0e.js:11:25389
+(anônimo) @ index-DKJYxt0e.js:11
+await in (anônimo)
+(anônimo) @ index-DKJYxt0e.js:11
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+Hc @ vendor-VZ-Yj73K.js:30
+F @ index-DKJYxt0e.js:12
+(anônimo) @ index-DKJYxt0e.js:12
+setInterval
+(anônimo) @ index-DKJYxt0e.js:12
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+al @ vendor-VZ-Yj73K.js:32
+fl.render.No.render @ vendor-VZ-Yj73K.js:32
+(anônimo) @ index-DKJYxt0e.js:701
+index-DKJYxt0e.js:10  GET https://identificapix.com.br/api/v1/reference/data/1e812dc4-ace8-4631-9e4e-c22612a33c5b?limit=50&offset=0 502 (Bad Gateway)
+(anônimo) @ index-DKJYxt0e.js:10
+await in (anônimo)
+(anônimo) @ index-DKJYxt0e.js:10
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+Hc @ vendor-VZ-Yj73K.js:30
+F @ index-DKJYxt0e.js:12
+(anônimo) @ index-DKJYxt0e.js:12
+setInterval
+(anônimo) @ index-DKJYxt0e.js:12
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+al @ vendor-VZ-Yj73K.js:32
+fl.render.No.render @ vendor-VZ-Yj73K.js:32
+(anônimo) @ index-DKJYxt0e.js:701
+index-DKJYxt0e.js:10  GET https://identificapix.com.br/api/v1/consolidated_transactions?user_id=1e812dc4-ace8-4631-9e4e-c22612a33c5b&status=identified&limit=1000&offset=0 502 (Bad Gateway)
+_fetchPaginated @ index-DKJYxt0e.js:10
+getPendingTransactions @ index-DKJYxt0e.js:10
+(anônimo) @ index-DKJYxt0e.js:11
+(anônimo) @ index-DKJYxt0e.js:11
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+Hc @ vendor-VZ-Yj73K.js:30
+F @ index-DKJYxt0e.js:12
+(anônimo) @ index-DKJYxt0e.js:12
+setInterval
+(anônimo) @ index-DKJYxt0e.js:12
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+al @ vendor-VZ-Yj73K.js:32
+fl.render.No.render @ vendor-VZ-Yj73K.js:32
+(anônimo) @ index-DKJYxt0e.js:701
+index-DKJYxt0e.js:10 [Consolidation:FETCH_FAIL] Error: Erro ao buscar dados paginados da VPS: 
+    at Object._fetchPaginated (index-DKJYxt0e.js:10:87542)
+    at async Promise.all (index 1)
+    at async Object.getPendingTransactions (index-DKJYxt0e.js:10:95842)
+    at async index-DKJYxt0e.js:11:1991
+getPendingTransactions @ index-DKJYxt0e.js:10
+await in getPendingTransactions
+(anônimo) @ index-DKJYxt0e.js:11
+(anônimo) @ index-DKJYxt0e.js:11
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+Hc @ vendor-VZ-Yj73K.js:30
+F @ index-DKJYxt0e.js:12
+(anônimo) @ index-DKJYxt0e.js:12
+setInterval
+(anônimo) @ index-DKJYxt0e.js:12
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+al @ vendor-VZ-Yj73K.js:32
+fl.render.No.render @ vendor-VZ-Yj73K.js:32
+(anônimo) @ index-DKJYxt0e.js:701
+index-DKJYxt0e.js:11 [Lista Viva] Erro na sincronização da UI: Error: Erro ao buscar dados paginados da VPS: 
+    at Object._fetchPaginated (index-DKJYxt0e.js:10:87542)
+    at async Promise.all (index 1)
+    at async Object.getPendingTransactions (index-DKJYxt0e.js:10:95842)
+    at async index-DKJYxt0e.js:11:1991
+(anônimo) @ index-DKJYxt0e.js:11
+await in (anônimo)
+(anônimo) @ index-DKJYxt0e.js:11
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+Hc @ vendor-VZ-Yj73K.js:30
+F @ index-DKJYxt0e.js:12
+(anônimo) @ index-DKJYxt0e.js:12
+setInterval
+(anônimo) @ index-DKJYxt0e.js:12
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+al @ vendor-VZ-Yj73K.js:32
+fl.render.No.render @ vendor-VZ-Yj73K.js:32
+(anônimo) @ index-DKJYxt0e.js:701
+index-DKJYxt0e.js:10  GET https://identificapix.com.br/api/v1/consolidated_transactions?user_id=1e812dc4-ace8-4631-9e4e-c22612a33c5b&limit=5000&offset=0 502 (Bad Gateway)
+(anônimo) @ index-DKJYxt0e.js:10
+await in (anônimo)
+(anônimo) @ index-DKJYxt0e.js:10
+(anônimo) @ index-DKJYxt0e.js:10
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+Hc @ vendor-VZ-Yj73K.js:30
+F @ index-DKJYxt0e.js:12
+(anônimo) @ index-DKJYxt0e.js:12
+setInterval
+(anônimo) @ index-DKJYxt0e.js:12
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+al @ vendor-VZ-Yj73K.js:32
+fl.render.No.render @ vendor-VZ-Yj73K.js:32
+(anônimo) @ index-DKJYxt0e.js:701
+index-DKJYxt0e.js:10 [CloudSync:ATOM_RECONSTRUCT_FAIL] Error: Erro ao buscar transações consolidadas do VPS: 
+    at index-DKJYxt0e.js:10:103955
+    at async Promise.all (index 0)
+    at async index-DKJYxt0e.js:10:105006
+(anônimo) @ index-DKJYxt0e.js:10
+await in (anônimo)
+(anônimo) @ index-DKJYxt0e.js:10
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+Hc @ vendor-VZ-Yj73K.js:30
+F @ index-DKJYxt0e.js:12
+(anônimo) @ index-DKJYxt0e.js:12
+setInterval
+(anônimo) @ index-DKJYxt0e.js:12
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+al @ vendor-VZ-Yj73K.js:32
+fl.render.No.render @ vendor-VZ-Yj73K.js:32
+(anônimo) @ index-DKJYxt0e.js:701
+index-DKJYxt0e.js:10 [Hydration:FINISHED]
+index-DKJYxt0e.js:10  GET https://identificapix.com.br/api/reference/data/1e812dc4-ace8-4631-9e4e-c22612a33c5b?limit=50&offset=0 502 (Bad Gateway)
+(anônimo) @ index-DKJYxt0e.js:10
+await in (anônimo)
+(anônimo) @ index-DKJYxt0e.js:10
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+Hc @ vendor-VZ-Yj73K.js:30
+F @ index-DKJYxt0e.js:12
+(anônimo) @ index-DKJYxt0e.js:12
+setInterval
+(anônimo) @ index-DKJYxt0e.js:12
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+al @ vendor-VZ-Yj73K.js:32
+fl.render.No.render @ vendor-VZ-Yj73K.js:32
+(anônimo) @ index-DKJYxt0e.js:701
+index-DKJYxt0e.js:10  GET https://identificapix.com.br/api/v1/banks?user_id=1e812dc4-ace8-4631-9e4e-c22612a33c5b 502 (Bad Gateway)
+(anônimo) @ index-DKJYxt0e.js:10
+await in (anônimo)
+(anônimo) @ index-DKJYxt0e.js:10
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+Hc @ vendor-VZ-Yj73K.js:30
+F @ index-DKJYxt0e.js:12
+(anônimo) @ index-DKJYxt0e.js:12
+setInterval
+(anônimo) @ index-DKJYxt0e.js:12
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+al @ vendor-VZ-Yj73K.js:32
+fl.render.No.render @ vendor-VZ-Yj73K.js:32
+(anônimo) @ index-DKJYxt0e.js:701
+index-DKJYxt0e.js:10  GET https://identificapix.com.br/api/v1/learned_associations?user_id=1e812dc4-ace8-4631-9e4e-c22612a33c5b 502 (Bad Gateway)
+(anônimo) @ index-DKJYxt0e.js:10
+await in (anônimo)
+(anônimo) @ index-DKJYxt0e.js:10
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+Hc @ vendor-VZ-Yj73K.js:30
+F @ index-DKJYxt0e.js:12
+(anônimo) @ index-DKJYxt0e.js:12
+setInterval
+(anônimo) @ index-DKJYxt0e.js:12
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+al @ vendor-VZ-Yj73K.js:32
+fl.render.No.render @ vendor-VZ-Yj73K.js:32
+(anônimo) @ index-DKJYxt0e.js:701
+index-DKJYxt0e.js:10  GET https://identificapix.com.br/api/v1/churches?user_id=1e812dc4-ace8-4631-9e4e-c22612a33c5b 502 (Bad Gateway)
+(anônimo) @ index-DKJYxt0e.js:10
+await in (anônimo)
+(anônimo) @ index-DKJYxt0e.js:10
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+Hc @ vendor-VZ-Yj73K.js:30
+F @ index-DKJYxt0e.js:12
+(anônimo) @ index-DKJYxt0e.js:12
+setInterval
+(anônimo) @ index-DKJYxt0e.js:12
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+al @ vendor-VZ-Yj73K.js:32
+fl.render.No.render @ vendor-VZ-Yj73K.js:32
+(anônimo) @ index-DKJYxt0e.js:701
+index-DKJYxt0e.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 0, assocCount: 1662, …}
+index-DKJYxt0e.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DKJYxt0e.js:10  GET https://identificapix.com.br/api/v1/consolidated_transactions?user_id=1e812dc4-ace8-4631-9e4e-c22612a33c5b&limit=5000&offset=0 502 (Bad Gateway)
+(anônimo) @ index-DKJYxt0e.js:10
+await in (anônimo)
+(anônimo) @ index-DKJYxt0e.js:10
+(anônimo) @ index-DKJYxt0e.js:10
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+Hc @ vendor-VZ-Yj73K.js:30
+(anônimo) @ index-DKJYxt0e.js:10
+(anônimo) @ index-DKJYxt0e.js:10
+await in (anônimo)
+(anônimo) @ index-DKJYxt0e.js:10
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+Hc @ vendor-VZ-Yj73K.js:30
+F @ index-DKJYxt0e.js:12
+(anônimo) @ index-DKJYxt0e.js:12
+setInterval
+(anônimo) @ index-DKJYxt0e.js:12
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+al @ vendor-VZ-Yj73K.js:32
+fl.render.No.render @ vendor-VZ-Yj73K.js:32
+(anônimo) @ index-DKJYxt0e.js:701
+index-DKJYxt0e.js:10 [CloudSync:ATOM_RECONSTRUCT_FAIL] Error: Erro ao buscar transações consolidadas do VPS: 
+    at index-DKJYxt0e.js:10:103955
+    at async Promise.all (index 0)
+    at async index-DKJYxt0e.js:10:105006
+(anônimo) @ index-DKJYxt0e.js:10
+await in (anônimo)
+(anônimo) @ index-DKJYxt0e.js:10
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+Hc @ vendor-VZ-Yj73K.js:30
+(anônimo) @ index-DKJYxt0e.js:10
+(anônimo) @ index-DKJYxt0e.js:10
+await in (anônimo)
+(anônimo) @ index-DKJYxt0e.js:10
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+Hc @ vendor-VZ-Yj73K.js:30
+F @ index-DKJYxt0e.js:12
+(anônimo) @ index-DKJYxt0e.js:12
+setInterval
+(anônimo) @ index-DKJYxt0e.js:12
+ol @ vendor-VZ-Yj73K.js:32
+Xt @ vendor-VZ-Yj73K.js:32
+(anônimo) @ vendor-VZ-Yj73K.js:32
+E @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+un @ vendor-VZ-Yj73K.js:17
+postMessage
+on @ vendor-VZ-Yj73K.js:17
+pl @ vendor-VZ-Yj73K.js:17
+e.unstable_scheduleCallback @ vendor-VZ-Yj73K.js:17
+Wa @ vendor-VZ-Yj73K.js:32
+de @ vendor-VZ-Yj73K.js:32
+Re @ vendor-VZ-Yj73K.js:32
+al @ vendor-VZ-Yj73K.js:32
+fl.render.No.render @ vendor-VZ-Yj73K.js:32
+(anônimo) @ index-DKJYxt0e.js:701
+index-DKJYxt0e.js:10 [Hydration:FINISHED]
+index-DKJYxt0e.js:701 [SystemVersionMonitor] Nova versão do servidor detectada: 2026-11-09T09:40:38.285Z

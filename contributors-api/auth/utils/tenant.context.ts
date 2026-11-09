@@ -61,9 +61,15 @@ export function extractContextPermissions(user: any): string[] {
 export function hasPermission(ctx: TenantContext, ...requiredPermissions: string[]): boolean {
   if (!ctx.isAuthenticated) return false;
   if (ctx.isSuperAdmin || ctx.isOwner) return true;
-  if (ctx.permissions.includes('all') || ctx.permissions.includes('admin')) return true;
+  if (ctx.role === 'admin' || ctx.permissions.includes('all') || ctx.permissions.includes('admin')) return true;
 
   if (requiredPermissions.length === 0) return true;
+
+  // Usuário explicitamente configurado como apenas leitura
+  const isExplicitlyReadOnly = ctx.role === 'readonly' ||
+    ctx.permissions.includes('readonly') ||
+    ctx.permissions.includes('read_only') ||
+    (ctx.permissions.length === 1 && (ctx.permissions.includes('view') || ctx.permissions.includes('read')));
 
   return requiredPermissions.some(reqPerm => {
     const p = reqPerm.toLowerCase();
@@ -74,17 +80,39 @@ export function hasPermission(ctx: TenantContext, ...requiredPermissions: string
       // Todo usuário secundário autenticado no sistema tem permissão para visualizar dados do seu escopo
       return true;
     }
+
+    if (isExplicitlyReadOnly) {
+      return false;
+    }
+
     if (p === 'create') {
-      if (ctx.permissions.some(x => ['create', 'edit', 'identificar', 'gestao_contas'].includes(x))) return true;
+      if (ctx.permissions.some(x => [
+        'create', 'edit', 'identificar', 'identifypayments', 'can_reconcile', 'reconcile',
+        'gestao_contas', 'manageaccounts', 'lancamentos', 'transacoes'
+      ].includes(x))) return true;
+      if (['treasurer', 'tesoureiro', 'operador', 'operator'].includes(ctx.role || '')) return true;
+      if (ctx.permissions.length === 0) return true;
     }
     if (p === 'edit') {
-      if (ctx.permissions.some(x => ['edit', 'identificar', 'gestao_contas', 'confirmar_final'].includes(x))) return true;
+      if (ctx.permissions.some(x => [
+        'edit', 'identificar', 'identifypayments', 'can_reconcile', 'reconcile',
+        'gestao_contas', 'manageaccounts', 'confirmar_final', 'confirmfinal', 'lancamentos', 'transacoes'
+      ].includes(x))) return true;
+      if (['treasurer', 'tesoureiro', 'operador', 'operator'].includes(ctx.role || '')) return true;
+      if (ctx.permissions.length === 0) return true;
     }
     if (p === 'delete') {
-      if (ctx.permissions.some(x => ['delete', 'desfazer_identificacao'].includes(x))) return true;
+      if (ctx.permissions.some(x => [
+        'delete', 'desfazer_identificacao', 'undoidentification', 'can_reconcile', 'reconcile',
+        'gestao_contas', 'manageaccounts', 'lancamentos', 'transacoes'
+      ].includes(x))) return true;
+      if (['treasurer', 'tesoureiro', 'operador', 'operator'].includes(ctx.role || '')) return true;
+      if (ctx.permissions.length === 0) return true;
     }
     if (p === 'reports') {
-      if (ctx.permissions.some(x => ['reports', 'imprimir', 'baixar_arquivo', 'view', 'read'].includes(x))) return true;
+      if (ctx.permissions.some(x => [
+        'reports', 'imprimir', 'printreport', 'baixar_arquivo', 'downloadfile', 'can_export', 'view', 'read'
+      ].includes(x))) return true;
       if (ctx.allowedChurchIds.length > 0) return true;
     }
     return false;
