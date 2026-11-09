@@ -4,6 +4,7 @@ import { DeletingItem } from '../types';
 import { consolidationService } from '../services/ConsolidationService';
 import { useAuth } from '../contexts/AuthContext';
 import { batchState, lastRealtimeUpdate } from './reconciliation/useCloudSync';
+import { getAuthToken } from '../services/auth/authAdapter';
 
 interface UseDataDeletionProps {
     user: any;
@@ -67,7 +68,9 @@ export const useDataDeletion = ({
                         reconciliation.setActiveSpreadsheetData?.(null);
                     }
 
-                    const res = await fetch(`/api/v1/saved_reports/${id}`, { method: 'DELETE' });
+                    const token = await getAuthToken();
+                    const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
+                    const res = await fetch(`/api/v1/saved_reports/${id}`, { method: 'DELETE', headers });
                     if (!res.ok) throw new Error("Erro ao excluir relatório do VPS");
                     
                     if (typeof reportManager?.setSavedReports === 'function') {

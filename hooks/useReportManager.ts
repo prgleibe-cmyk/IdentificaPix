@@ -272,7 +272,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
         console.log(`[WRITE:ALREADY_CORRECT] Sobrescrevendo relatório com effectiveUserId: ${effectiveUserId} no VPS`);
         try {
-            const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+            const token = await getAuthToken();
             const headers: Record<string, string> = { 'Content-Type': 'application/json' };
             if (token) {
                 headers['Authorization'] = `Bearer ${token}`;
@@ -399,9 +399,14 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
             console.log(`[WRITE:ALREADY_CORRECT] Inserindo nova planilha com effectiveUserId: ${effectiveUserId} no VPS`);
             try {
+                const token = await getAuthToken();
+                const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
                 const res = await fetch('/api/v1/saved_reports', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify({
                         id: newReport.id,
                         name: newReport.name,
@@ -442,7 +447,12 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         setSavedReports(prev => prev.filter(r => new Date(r.createdAt) >= dateThreshold));
         console.log(`[WRITE:ALREADY_CORRECT] Faxina de relatórios antigos com effectiveUserId: ${effectiveUserId} no VPS`);
         try {
-            await Promise.all(reportsToDelete.map(r => fetch(`/api/v1/saved_reports/${r.id}`, { method: 'DELETE' })));
+            const token = await getAuthToken();
+            const headers: Record<string, string> = {};
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+            await Promise.all(reportsToDelete.map(r => fetch(`/api/v1/saved_reports/${r.id}`, { method: 'DELETE', headers })));
             showToast(`${reportsToDelete.length} itens removidos.`, "success");
         } catch (err) {
             console.error("Erro ao faxinar relatórios antigos no VPS:", err);

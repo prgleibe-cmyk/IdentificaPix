@@ -10,7 +10,6 @@ import zlib from 'zlib';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 import { createAuthRouter, AuthRepository } from './auth/routes/auth.routes.js';
-import { verifyAccessToken } from './auth/utils/jwt.utils.js';
 import { createAdminConfigRouter } from './admin-config/routes/admin_config.routes.js';
 import { createAutomationMacroRouter } from './automation-macros/routes/automation_macro.routes.js';
 import { createFileModelRouter } from './file-models/routes/file_model.routes.js';
@@ -2567,6 +2566,7 @@ import {
   getTenantContext,
   validateTransactionSplits
 } from './auth/utils/tenant.context.js';
+import { verifyAccessToken } from './auth/utils/jwt.utils.js';
 
 export type { TenantContext };
 export {
@@ -2621,6 +2621,94 @@ async function enrichSecondaryUserContext(poolInstance: any, ctx: TenantContext)
     console.warn('[Contributors API] Erro ao enriquecer contexto do usuário secundário:', err);
   }
 }
+
+// --- SSE Realtime Infrastructure ---
+const sseClientsByTenant = new Map<string, Set<Response>>();
+
+export function notifyTenantRealtime(ownerId: string | null | undefined, eventData: { type: string; [key: string]: any }) {
+  if (!ownerId) return;
+  const key = String(ownerId);
+  const clients = sseClientsByTenant.get(key);
+  if (!clients || clients.size === 0) return;
+  const payload = `data: ${JSON.stringify(eventData)}\n\n`;
+  for (const clientRes of Array.from(clients)) {
+    try {
+      clientRes.write(payload);
+      if (typeof (clientRes as any).flush === 'function') {
+        (clientRes as any).flush();
+      }
+    } catch (_) {
+      clients.delete(clientRes);
+    }
+  }
+}
+
+// GET /api/v1/realtime/stream
+app.get(['/api/v1/realtime/stream', '/api/v1/realtime/events'], async (req: Request, res: Response) => {
+  try {
+    let ctx = getTenantContext(req);
+    if (!ctx.isAuthenticated && req.query.token && typeof req.query.token === 'string') {
+      try {
+        const decoded = verifyAccessToken(req.query.token);
+        (req as any).user = decoded;
+        ctx = getTenantContext(req);
+      } catch (_) {}
+    }
+    await enrichSecondaryUserContext(pool, ctx);
+
+    if (!ctx.isAuthenticated) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Autenticação necessária para o canal realtime.' });
+    }
+
+    const tenantId = String(ctx.ownerId || ctx.userId);
+    if (!tenantId) {
+      return res.status(400).json({ error: 'INVALID_TENANT' });
+    }
+
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no'
+    });
+    if (typeof (res as any).flushHeaders === 'function') {
+      (res as any).flushHeaders();
+    }
+
+    res.write(`data: ${JSON.stringify({ type: 'CONNECTED', tenantId, timestamp: Date.now() })}\n\n`);
+
+    if (!sseClientsByTenant.has(tenantId)) {
+      sseClientsByTenant.set(tenantId, new Set());
+    }
+    const tenantClients = sseClientsByTenant.get(tenantId)!;
+    tenantClients.add(res);
+
+    const keepAliveTimer = setInterval(() => {
+      try {
+        res.write(': keep-alive\n\n');
+        if (typeof (res as any).flush === 'function') {
+          (res as any).flush();
+        }
+      } catch (_) {
+        clearInterval(keepAliveTimer);
+        tenantClients.delete(res);
+      }
+    }, 25000);
+
+    req.on('close', () => {
+      clearInterval(keepAliveTimer);
+      tenantClients.delete(res);
+      if (tenantClients.size === 0) {
+        sseClientsByTenant.delete(tenantId);
+      }
+    });
+  } catch (err) {
+    console.error('[SSE Stream Error]:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+    }
+  }
+});
 
 // GET /health
 app.get('/health', (req: Request, res: Response) => {
@@ -6865,6 +6953,7 @@ app.post('/api/v1/saved_reports', async (req: Request, res: Response) => {
         req
       });
     } catch (_) {}
+    notifyTenantRealtime(effectiveUserId || ctx.ownerId || ctx.userId, { type: 'REPORT_UPDATED', action: 'CREATE', id: createdReport?.id });
     return res.status(201).json(createdReport);
   } catch (err) {
     console.error('[Contributors API] Error POST saved reports:', err);
@@ -6877,6 +6966,7 @@ app.put('/api/v1/saved_reports/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const ctx = getTenantContext(req);
+    await enrichSecondaryUserContext(pool, ctx);
     const { name, data, record_count, church_id } = req.body;
 
     const oldRes = await pool.query('SELECT * FROM saved_reports WHERE id = $1', [id]);
@@ -6958,6 +7048,7 @@ app.put('/api/v1/saved_reports/:id', async (req: Request, res: Response) => {
         req
       });
     } catch (_) {}
+    notifyTenantRealtime(ctx.ownerId || ctx.userId, { type: 'REPORT_UPDATED', action: 'UPDATE', id });
     return res.json(updatedReport);
   } catch (err) {
     console.error('[Contributors API] Error PUT saved report:', err);
@@ -6970,6 +7061,7 @@ app.delete('/api/v1/saved_reports/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const ctx = getTenantContext(req);
+    await enrichSecondaryUserContext(pool, ctx);
 
     const oldRes = await pool.query('SELECT * FROM saved_reports WHERE id = $1', [id]);
     const oldReport = oldRes.rows[0] || null;
@@ -6998,6 +7090,7 @@ app.delete('/api/v1/saved_reports/:id', async (req: Request, res: Response) => {
         req
       });
     } catch (_) {}
+    notifyTenantRealtime(ctx.ownerId || ctx.userId, { type: 'REPORT_UPDATED', action: 'DELETE', id });
     return res.json({ success: true, id });
   } catch (err) {
     console.error('[Contributors API] Error DELETE saved report:', err);
@@ -8434,6 +8527,7 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
       });
     }
 
+    notifyTenantRealtime(effectiveUserId || ctx.ownerId || ctx.userId, { type: 'TRANSACTION_UPDATED', action: 'CREATE', txId: row?.id, churchId: row?.church_id });
     return res.status(201).json(row);
   } catch (err) {
     console.error('[Contributors API] Error POST consolidated_transaction:', err);
@@ -8663,6 +8757,7 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
       } catch (_) {}
     }
 
+    notifyTenantRealtime(ctx.ownerId || ctx.userId, { type: 'TRANSACTION_UPDATED', action: 'BULK_CREATE', count: inserted.length });
     return res.status(201).json(inserted);
   } catch (err) {
     await client.query('ROLLBACK');
@@ -9077,6 +9172,7 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
       req
     });
 
+    notifyTenantRealtime(ctx.ownerId || ctx.userId, { type: 'TRANSACTION_UPDATED', action: 'UPDATE', txId: id });
     return res.json(updatedRow);
   } catch (err) {
     console.error('[Contributors API] Error PUT consolidated_transaction:', err);
@@ -9145,6 +9241,7 @@ app.delete('/api/v1/consolidated_transactions/:id', async (req: Request, res: Re
       console.warn('[Audit] Erro ao gravar log de auditoria no DELETE:', auditErr);
     }
 
+    notifyTenantRealtime(ctx.ownerId || ctx.userId, { type: 'TRANSACTION_UPDATED', action: 'DELETE', txId: id });
     return res.json({ success: true, id });
   } catch (err) {
     console.error('[Contributors API] Error DELETE consolidated_transaction:', err);
@@ -9216,6 +9313,7 @@ app.post('/api/v1/consolidated_transactions/bulk-delete', async (req: Request, r
       }
     }
 
+    notifyTenantRealtime(ctx.ownerId || ctx.userId, { type: 'TRANSACTION_UPDATED', action: 'BULK_DELETE', ids });
     return res.json({ success: true, count: result.rows.length, ids });
   } catch (err) {
     console.error('[Contributors API] Error POST bulk-delete consolidated_transactions:', err);

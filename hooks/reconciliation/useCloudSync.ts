@@ -139,17 +139,16 @@ export const useCloudSync = ({
 
     const isContextReady = isReady && activeReportId !== null;
 
-    const dataReadyKey = `${effectiveUserId}-${churches?.length || 0}-${learnedAssociations?.length || 0}-${isReferenceReady !== false ? 'ready' : 'loading'}`;
+    const dataReadyKey = `${effectiveUserId}-${churches?.length || 0}-${learnedAssociations?.length || 0}-${isReferenceReady !== false ? 'ready' : 'loading'}-${realtimeRefreshKey || 0}`;
 
     const lastDataReadyKeyRef = useRef<string>('');
 
     useEffect(() => {
-        // Apenas reseta para reconstrução se a hidratação inicial ainda não concluiu
-        if (!hasCompletedInitialHydration && realtimeRefreshKey && realtimeRefreshKey > 0) {
+        if (realtimeRefreshKey && realtimeRefreshKey > 0) {
             lastDataReadyKeyRef.current = '';
             lastSignatureRef.current = null;
         }
-    }, [realtimeRefreshKey, hasCompletedInitialHydration]);
+    }, [realtimeRefreshKey]);
 
     // ☁️ SINCRONIZAÇÃO COM A NUVEM (Trabalho Vivo)
     // Desativado o "blocão" JSON para sessões ativas para favorecer a atomização

@@ -43,30 +43,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // 📡 ESCUTA DE SINCRONIZAÇÃO EM TEMPO REAL (Multi-dispositivos, abas e reconexão)
     useEffect(() => {
-        const triggerRefresh = () => {
+        const triggerRefresh = (force: boolean = false) => {
             const now = Date.now();
-            if (now - lastTriggerTimeRef.current < 15000) return; // debounce seguro de 15s
+            const minInterval = force ? 300 : 15000;
+            if (now - lastTriggerTimeRef.current < minInterval) return;
             lastTriggerTimeRef.current = now;
             
-            console.log("[AppContext:RealtimeRefresh] Sincronização em tempo real acionada.");
+            console.log("[AppContext:RealtimeRefresh] Sincronização em tempo real acionada.", { force });
             syncAllChurchClosings().catch(() => {});
             setRealtimeRefreshKey(prev => prev + 1);
         };
 
         const handleVisibilityOrFocus = () => {
             if (document.visibilityState === 'visible') {
-                triggerRefresh();
+                triggerRefresh(false);
             }
         };
 
-        window.addEventListener('online', triggerRefresh);
+        const onOnline = () => triggerRefresh(true);
+
+        window.addEventListener('online', onOnline);
         document.addEventListener('visibilitychange', handleVisibilityOrFocus);
         window.addEventListener('focus', handleVisibilityOrFocus);
 
         // Polling suave em segundo plano para manter dados sincronizados entre múltiplos aparelhos/usuários
         const intervalId = setInterval(() => {
             if (document.visibilityState === 'visible' && user?.id) {
-                triggerRefresh();
+                triggerRefresh(false);
             }
         }, 30000);
 
@@ -76,9 +79,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             try {
                 bc = new BroadcastChannel('identificapix_realtime_sync');
                 bc.onmessage = (event) => {
-                    if (event.data?.type === 'TRANSACTION_UPDATED' || event.data?.type === 'MONTH_CLOSING_UPDATED') {
+                    if (event.data?.type === 'TRANSACTION_UPDATED' || event.data?.type === 'MONTH_CLOSING_UPDATED' || event.data?.type === 'REPORT_UPDATED') {
                         syncAllChurchClosings().catch(() => {});
-                        triggerRefresh();
+                        triggerRefresh(true);
                     }
                 };
             } catch (e) {
@@ -86,8 +89,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
         }
 
+        // Server-Sent Events (SSE) para sincronização instantânea entre diferentes aparelhos e usuários
+        let eventSource: EventSource | null = null;
+        let isCancelled = false;
+
+        const setupSSE = async () => {
+            if (!user?.id) return;
+            try {
+                const token = await getAuthToken();
+                if (isCancelled || !token) return;
+
+                const sseUrl = `/api/v1/realtime/stream?token=${encodeURIComponent(token)}`;
+                eventSource = new EventSource(sseUrl);
+
+                eventSource.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        if (data.type === 'TRANSACTION_UPDATED' || data.type === 'REPORT_UPDATED' || data.type === 'MONTH_CLOSING_UPDATED') {
+                            console.log('[SSE:Realtime] Evento recebido da VPS:', data);
+                            triggerRefresh(true);
+                        }
+                    } catch (_) {}
+                };
+
+                eventSource.onerror = () => {
+                    if (eventSource) {
+                        eventSource.close();
+                        eventSource = null;
+                    }
+                    if (!isCancelled) {
+                        setTimeout(setupSSE, 5000);
+                    }
+                };
+            } catch (err) {
+                console.warn('[SSE] Erro ao iniciar stream:', err);
+            }
+        };
+
+        setupSSE();
+
         return () => {
-            window.removeEventListener('online', triggerRefresh);
+            isCancelled = true;
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+            window.removeEventListener('online', onOnline);
             document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
             window.removeEventListener('focus', handleVisibilityOrFocus);
             clearInterval(intervalId);

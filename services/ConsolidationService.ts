@@ -312,9 +312,10 @@ export const consolidationService = {
                 updatePayload.description = newDescription.trim();
             }
 
+            const headers = await getAuthHeaders();
             const response = await fetch(`/api/v1/consolidated_transactions/${id}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 body: JSON.stringify(updatePayload)
             });
 
@@ -533,11 +534,7 @@ export const consolidationService = {
     deleteTransactionById: async (id: string) => {
         try {
             console.log(`[WRITE:VPS] Excluindo transação por ID: ${id}`);
-            const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
-            const headers: Record<string, string> = {};
-            if (token) {
-                headers['Authorization'] = `Bearer ${token}`;
-            }
+            const headers = await getAuthHeaders();
             
             const response = await fetch(`/api/v1/consolidated_transactions/${id}`, {
                 method: 'DELETE',
@@ -553,6 +550,14 @@ export const consolidationService = {
                 throw new Error(`Erro ao excluir transação: ${errorText}`);
             }
 
+            if (typeof BroadcastChannel !== 'undefined') {
+                try {
+                    const bc = new BroadcastChannel('identificapix_realtime_sync');
+                    bc.postMessage({ type: 'TRANSACTION_UPDATED', txId: id, action: 'DELETE' });
+                    bc.close();
+                } catch (_) {}
+            }
+
             return true;
 
         } catch (error) {
@@ -564,11 +569,7 @@ export const consolidationService = {
     deleteTransactionsByIds: async (ids: string[]) => {
         try {
             console.log(`[WRITE:VPS] Excluindo múltiplas transações por IDs:`, ids);
-            const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
-            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-            if (token) {
-                headers['Authorization'] = `Bearer ${token}`;
-            }
+            const headers = await getAuthHeaders();
 
             const response = await fetch('/api/v1/consolidated_transactions/bulk-delete', {
                 method: 'POST',
@@ -579,6 +580,14 @@ export const consolidationService = {
             if (!response.ok) {
                 const errorText = await response.text();
                 throw new Error(`Erro ao excluir transações em lote: ${errorText}`);
+            }
+
+            if (typeof BroadcastChannel !== 'undefined') {
+                try {
+                    const bc = new BroadcastChannel('identificapix_realtime_sync');
+                    bc.postMessage({ type: 'TRANSACTION_UPDATED', txIds: ids, action: 'DELETE' });
+                    bc.close();
+                } catch (_) {}
             }
 
             return true;
