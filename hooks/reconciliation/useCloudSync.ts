@@ -34,6 +34,29 @@ interface UseCloudSyncProps {
 
 export const batchState = { isBatchUpdating: false, isAtomicUpdate: false };
 export const lastRealtimeUpdate = { txId: null as string | null, timestamp: 0 };
+export const recentlyDeletedTxIds = new Map<string, number>();
+
+export const markTxAsDeleted = (id: string | string[]) => {
+    const now = Date.now();
+    const ids = Array.isArray(id) ? id : [id];
+    ids.forEach(txId => {
+        if (txId && typeof txId === 'string') recentlyDeletedTxIds.set(txId, now);
+    });
+    for (const [k, ts] of recentlyDeletedTxIds.entries()) {
+        if (now - ts > 120000) recentlyDeletedTxIds.delete(k);
+    }
+};
+
+export const isTxDeletedRecently = (id: string): boolean => {
+    if (!id || typeof id !== 'string') return false;
+    const ts = recentlyDeletedTxIds.get(id);
+    if (!ts) return false;
+    if (Date.now() - ts > 120000) {
+        recentlyDeletedTxIds.delete(id);
+        return false;
+    }
+    return true;
+};
 const ENABLE_HEAVY_LOGS = false;
 
 const toIsoDate = (str: any): string => {
@@ -169,9 +192,10 @@ export const useCloudSync = ({
     const reconstructSession = useCallback(async () => {
         if (!effectiveUserId) return;
 
-        // Se já estamos hidratando, ignoramos chamadas concorrentes para evitar sobrecarga e vazamento de memória
+        // Se já estamos hidratando, agendamos re-tentativa para garantir que atualizações não sejam perdidas
         if (isHydratingFromCloud.current) {
-            console.log("[CloudSync:BUSY] Hidratação já em andamento, ignorando chamada concorrente.");
+            console.log("[CloudSync:BUSY] Hidratação já em andamento, agendando re-tentativa.");
+            needsRetry.current = true;
             return;
         }
 
@@ -300,12 +324,11 @@ export const useCloudSync = ({
                     });
                 }
 
-                if ((!txs || txs.length === 0) && reportsMap.size === 0) {
+                if ((!txs || txs.length === 0) && (!activeReportId || reportsMap.size === 0)) {
                     setMatchResults(prev => {
-                        const localManuals = (prev || []).filter(r => (r as any).isManual || r.transaction?.isManual || r.transaction?.source === 'manual');
-                        if (localManuals.length > 0) {
-                            console.log('[CloudSync:PROTECT] Preservando lançamentos locais existentes:', localManuals.length);
-                            return localManuals;
+                        const localDrafts = (prev || []).filter(r => Boolean(r.transaction?.id && typeof r.transaction.id === 'string' && r.transaction.id.startsWith('ghost-manual-')));
+                        if (localDrafts.length > 0) {
+                            return localDrafts;
                         }
                         return [];
                     });
@@ -436,11 +459,11 @@ export const useCloudSync = ({
                     if (t.status === 'resolved') status = ReconciliationStatus.RESOLVED;
                     else if (t.status === 'identified' || isManualTx) status = ReconciliationStatus.IDENTIFIED;
 
-                    // ⚡ AUTO-IDENTIFICAÇÃO DE VÍNCULOS SALVOS (SEM IA)
+                    // ⚡ AUTO-IDENTIFICAÇÃO DE VÍNCULOS SALVOS (SEM IA) - PARIDADE TOTAL
                     // Se a transação no banco está 'pending', mas existe uma associação aprendida (assoc),
-                    // promovemos localmente para IDENTIFIED e agendamos a atualização no banco em segundo plano (sequencialmente).
-                    // 🛡️ Usuários secundários NUNCA auto-promovem em memória: respeitam estritamente a fonte da verdade do banco.
-                    if (!isSecondaryUser && assoc && t.status === 'pending') {
+                    // tanto o usuário Principal quanto o Secundário visualizam como IDENTIFIED garantindo paridade contábil,
+                    // e agendamos a atualização atômica do status no banco em segundo plano.
+                    if (assoc && t.status === 'pending') {
                         status = ReconciliationStatus.IDENTIFIED;
                         pendingPromotions.push({
                             id: t.id,
@@ -513,35 +536,30 @@ export const useCloudSync = ({
                             updatedAt: (rUpdatedTime >= savedUpdatedTime ? r.updatedAt : saved.updatedAt) || new Date().toISOString()
                         });
                     } else {
-                        reconstructedMap.set(r.transaction.id, r);
-                    }
-                });
-
-                // 2. Complementa com itens salvos no relatório que eventualmente não estejam na consulta do banco, RESPEITANDO O FILTRO DE PERÍODO
-                // NOTA: Para relatórios históricos salvos (activeReportId != null) OU para lançamentos manuais na Lista Viva (!activeReportId)
-                const startStr = searchFilters?.dateRange?.start ? toIsoDate(searchFilters.dateRange.start) : null;
-                const endStr = searchFilters?.dateRange?.end ? toIsoDate(searchFilters.dateRange.end) : null;
-
-                reportsMap.forEach((value, key) => {
-                    if (!reconstructedMap.has(key)) {
-                        const isManual = value.transaction?.isManual || 
-                            value.transaction?.source === 'manual' || 
-                            value.matchMethod === MatchMethod.MANUAL ||
-                            (value.transaction?.id && typeof value.transaction.id === 'string' && (value.transaction.id.startsWith('ghost-manual-') || value.transaction.id.startsWith('manual-')));
-
-                        if (activeReportId || isManual) {
-                            if (activeReportId) {
-                                const txDate = value.contributor?.reference_date || value.reference_date || value.transaction?.reference_date || value.transaction?.date || (value as any).date;
-                                if (txDate && (startStr || endStr)) {
-                                    const itemIso = toIsoDate(txDate);
-                                    if (startStr && itemIso < startStr) return;
-                                    if (endStr && itemIso > endStr) return;
-                                }
-                            }
-                            reconstructedMap.set(key, value);
+                        if (!isTxDeletedRecently(r.transaction.id)) {
+                            reconstructedMap.set(r.transaction.id, r);
                         }
                     }
                 });
+
+                // 2. Complementa com itens salvos no relatório apenas para relatórios explicitamente salvos (activeReportId != null)
+                // Na sessão ativa viva (!activeReportId), a tabela consolidated_transactions do banco é a autoridade máxima absoluta
+                const startStr = searchFilters?.dateRange?.start ? toIsoDate(searchFilters.dateRange.start) : null;
+                const endStr = searchFilters?.dateRange?.end ? toIsoDate(searchFilters.dateRange.end) : null;
+
+                if (activeReportId) {
+                    reportsMap.forEach((value, key) => {
+                        if (!reconstructedMap.has(key)) {
+                            const txDate = value.contributor?.reference_date || value.reference_date || value.transaction?.reference_date || value.transaction?.date || (value as any).date;
+                            if (txDate && (startStr || endStr)) {
+                                const itemIso = toIsoDate(txDate);
+                                if (startStr && itemIso < startStr) return;
+                                if (endStr && itemIso > endStr) return;
+                            }
+                            reconstructedMap.set(key, value);
+                        }
+                    });
+                }
 
                 const reconstructed = Array.from(reconstructedMap.values());
 
@@ -553,6 +571,10 @@ export const useCloudSync = ({
                     let hasChanges = false;
 
                     reconstructed.forEach(r => {
+                        // 🛡️ ETAPA 3: Descarta da memória imediatamente qualquer transação excluída no banco
+                        if (isTxDeletedRecently(r.transaction.id)) {
+                            return;
+                        }
                         const current = prevMap.get(r.transaction.id);
                         
                         // 🛡️ BLOCK_REGRESSION: Proteção contra updates atrasados do banco
@@ -612,13 +634,17 @@ export const useCloudSync = ({
                         hasChanges = true;
                     });
 
-                    // Preserva estritamente lançamentos manuais locais (persistidos ou temporários) que ainda não vieram na fatia atual do banco
+                    // Preserva apenas rascunhos temporários não persistidos (ghost-manual) que ainda não foram salvos no banco
                     prev.forEach(p => {
-                        const isManual = p.transaction?.isManual || 
-                            p.transaction?.source === 'manual' || 
-                            p.matchMethod === MatchMethod.MANUAL ||
-                            (p.transaction?.id && typeof p.transaction.id === 'string' && (p.transaction.id.startsWith('ghost-manual-') || p.transaction.id.startsWith('manual-')));
-                        if (!map.has(p.transaction.id) && isManual) {
+                        if (isTxDeletedRecently(p.transaction?.id)) {
+                            return;
+                        }
+                        const isGhostDraft = Boolean(
+                            p.transaction?.id && 
+                            typeof p.transaction.id === 'string' && 
+                            p.transaction.id.startsWith('ghost-manual-')
+                        );
+                        if (!map.has(p.transaction.id) && isGhostDraft) {
                             map.set(p.transaction.id, p);
                             hasChanges = true;
                         }
@@ -701,7 +727,12 @@ export const useCloudSync = ({
                 setIsHydrating(false);
                 setHasCompletedInitialHydration(true);
                 if (setIsLoading) setIsLoading(false);
-                needsRetry.current = false;
+                if (needsRetry.current) {
+                    needsRetry.current = false;
+                    setTimeout(() => {
+                        reconstructSessionRef.current?.();
+                    }, 50);
+                }
                 setTimeout(() => {
                     console.log('[Hydration:FINISHED]');
                 }, 0);

@@ -14,7 +14,7 @@ import { getAuthToken, getAuthSession } from '../services/auth/authAdapter';
 import { PLACEHOLDER_CHURCH } from '../services/processingService';
 import { resolveContributionType } from '../utils/formatters';
 import { cleanDisplayDescription } from '../services/utils/parsingUtils';
-import { batchState, lastRealtimeUpdate } from '../hooks/reconciliation/useCloudSync';
+import { batchState, lastRealtimeUpdate, markTxAsDeleted } from '../hooks/reconciliation/useCloudSync';
 import { syncAllChurchClosings } from '../services/monthClosingService';
 const ENABLE_HEAVY_LOGS = false;
 
@@ -40,6 +40,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const [realtimeRefreshKey, setRealtimeRefreshKey] = useState(0);
     const lastTriggerTimeRef = useRef(Date.now());
+    const reconciliationRef = useRef<any>(null);
 
     // 📡 ESCUTA DE SINCRONIZAÇÃO EM TEMPO REAL (Multi-dispositivos, abas e reconexão)
     useEffect(() => {
@@ -80,6 +81,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 bc = new BroadcastChannel('identificapix_realtime_sync');
                 bc.onmessage = (event) => {
                     if (event.data?.type === 'TRANSACTION_UPDATED' || event.data?.type === 'MONTH_CLOSING_UPDATED' || event.data?.type === 'REPORT_UPDATED') {
+                        if (event.data?.type === 'TRANSACTION_UPDATED') {
+                            if (event.data.action === 'DELETE' && event.data.txId) {
+                                markTxAsDeleted(event.data.txId);
+                                reconciliationRef.current?.removeTransaction?.(event.data.txId);
+                            } else if (event.data.action === 'BULK_DELETE' && Array.isArray(event.data.ids)) {
+                                markTxAsDeleted(event.data.ids);
+                                reconciliationRef.current?.removeTransactions?.(event.data.ids);
+                            }
+                        }
                         syncAllChurchClosings().catch(() => {});
                         triggerRefresh(true);
                     }
@@ -107,6 +117,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                         const data = JSON.parse(event.data);
                         if (data.type === 'TRANSACTION_UPDATED' || data.type === 'REPORT_UPDATED' || data.type === 'MONTH_CLOSING_UPDATED') {
                             console.log('[SSE:Realtime] Evento recebido da VPS:', data);
+                            if (data.type === 'TRANSACTION_UPDATED') {
+                                if (data.action === 'DELETE' && data.txId) {
+                                    console.log('[SSE:Realtime] Descartando transação excluída da memória imediatamente:', data.txId);
+                                    markTxAsDeleted(data.txId);
+                                    reconciliationRef.current?.removeTransaction?.(data.txId);
+                                } else if (data.action === 'BULK_DELETE' && Array.isArray(data.ids)) {
+                                    console.log('[SSE:Realtime] Descartando lote de transações excluídas da memória imediatamente:', data.ids);
+                                    markTxAsDeleted(data.ids);
+                                    reconciliationRef.current?.removeTransactions?.(data.ids);
+                                }
+                            }
                             triggerRefresh(true);
                         }
                     } catch (_) {}
@@ -168,6 +189,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         realtimeRefreshKey,
         isReferenceReady
     });
+    reconciliationRef.current = reconciliation;
 
     const initialDataLoaded = Boolean(
         !user || (isSubscriptionReady && referenceData.isReady && reportManager.isReportsReady && (reconciliation.hasCompletedInitialHydration || !isReferenceReady))

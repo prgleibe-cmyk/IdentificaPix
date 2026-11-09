@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { MatchResult, ReconciliationStatus, GroupedReportData, Transaction } from '../../types';
 import { matchTransactions, groupResultsByChurch, PLACEHOLDER_CHURCH } from '../../services/processingService';
-import { batchState, lastRealtimeUpdate } from './useCloudSync';
+import { batchState, lastRealtimeUpdate, markTxAsDeleted } from './useCloudSync';
 import { getAuthToken } from '../../services/auth/authAdapter';
 
 interface UseTransactionMatcherProps {
@@ -645,6 +645,7 @@ export const useTransactionMatcher = ({
         batchState.isAtomicUpdate = true;
         lastRealtimeUpdate.txId = id;
         lastRealtimeUpdate.timestamp = Date.now();
+        markTxAsDeleted(id);
         setMatchResults(prev => prev.filter(r => r?.transaction?.id !== id));
     }, [setMatchResults]);
 
@@ -652,6 +653,7 @@ export const useTransactionMatcher = ({
         batchState.isAtomicUpdate = true;
         lastRealtimeUpdate.txId = ids[0] || null;
         lastRealtimeUpdate.timestamp = Date.now();
+        markTxAsDeleted(ids);
         setMatchResults(prev => prev.filter(r => !r?.transaction?.id || !ids.includes(r.transaction.id)));
     }, [setMatchResults]);
 
