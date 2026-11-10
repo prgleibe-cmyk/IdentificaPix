@@ -64,7 +64,10 @@ export const UsersManagementPage: React.FC = () => {
                     'Authorization': `Bearer ${token}`
                 }
             });
-            if (!response.ok) throw new Error('Falha ao buscar usuários');
+            if (!response.ok) {
+                const errJson = await response.json().catch(() => null);
+                throw new Error(errJson?.error || errJson?.message || `Falha ao buscar usuários (HTTP ${response.status})`);
+            }
             const data = await response.json();
             setUsers(data || []);
         } catch (error) {

@@ -9,7 +9,10 @@ const router = express.Router();
 export default () => {
     const getVpsApiUrl = () => {
         const defaultPort = process.env.PORT || '3000';
-        const vpsUrl = process.env.CONTRIBUTORS_API_URL || (process.env.INTEGRATED_MODE === 'true' ? `http://127.0.0.1:${defaultPort}` : 'http://127.0.0.1:3010');
+        const rawUrl = process.env.CONTRIBUTORS_API_URL;
+        const vpsUrl = (rawUrl && !rawUrl.includes('contributors-api:3010')) 
+            ? rawUrl 
+            : (process.env.INTEGRATED_MODE === 'true' ? `http://127.0.0.1:${defaultPort}` : 'http://127.0.0.1:3010');
         return vpsUrl.endsWith('/') ? vpsUrl.slice(0, -1) : vpsUrl;
     };
 
@@ -19,7 +22,7 @@ export default () => {
         
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 3000);
+            const timeoutId = setTimeout(() => controller.abort(), 10000);
             
             const response = await fetch(primaryUrl, {
                 ...options,
