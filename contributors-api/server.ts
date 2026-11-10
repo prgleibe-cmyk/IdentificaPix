@@ -49,10 +49,14 @@ class LocalSqliteEngine {
       const { DatabaseSync } = requireFallback('node:sqlite');
       // Unificação absoluta: apontar sempre para o diretório raiz data/ do projeto
       let rootAppDir = process.cwd();
-      if (!fs.existsSync(path.join(rootAppDir, 'data')) && fs.existsSync(path.resolve(rootAppDir, '..', 'data'))) {
+      if (path.basename(rootAppDir) === 'contributors-api') {
+        rootAppDir = path.resolve(rootAppDir, '..');
+      } else if (!fs.existsSync(path.join(rootAppDir, 'data')) && fs.existsSync(path.resolve(rootAppDir, '..', 'data'))) {
         rootAppDir = path.resolve(rootAppDir, '..');
       } else if (fs.existsSync(path.resolve(__dirname, '..', '..', 'data'))) {
         rootAppDir = path.resolve(__dirname, '..', '..');
+      } else if (fs.existsSync(path.resolve(__dirname, '..', 'data'))) {
+        rootAppDir = path.resolve(__dirname, '..');
       }
       const dbDir = path.resolve(rootAppDir, 'data');
       if (!fs.existsSync(dbDir)) {
@@ -109,6 +113,12 @@ class LocalSqliteEngine {
           if (a !== null && a !== undefined) return a;
         }
         return null;
+      });
+      this.db.function('split_part', (str: any, delimiter: any, position: any) => {
+        if (str == null) return '';
+        const parts = String(str).split(String(delimiter));
+        const idx = Number(position) - 1;
+        return parts[idx] || '';
       });
 
       // Enable WAL mode for high concurrent performance
@@ -777,32 +787,30 @@ class LocalSqliteEngine {
 
     // 🛡️ Sincronização e Resgate de Dados entre Bancos Locais:
     try {
-      const subDbPath = path.resolve(process.cwd(), 'contributors-api', 'data', 'contributors_local.sqlite');
-      const canonicalPath = path.resolve(process.cwd(), 'data', 'contributors_local.sqlite');
-      if (fs.existsSync(subDbPath) && subDbPath !== canonicalPath) {
+      let rootDir = process.cwd();
+      if (path.basename(rootDir) === 'contributors-api') {
+        rootDir = path.resolve(rootDir, '..');
+      }
+      const subDbPath = path.resolve(rootDir, 'contributors-api', 'data', 'contributors_local.sqlite');
+      const canonicalPath = path.resolve(rootDir, 'data', 'contributors_local.sqlite');
+      if (fs.existsSync(subDbPath) && fs.existsSync(canonicalPath) && subDbPath !== canonicalPath) {
         const { DatabaseSync: SubDbSync } = requireFallback('node:sqlite');
         const subDb = new SubDbSync(subDbPath);
-        const subTxs = subDb.prepare('SELECT * FROM consolidated_transactions').all();
-        if (subTxs && subTxs.length > 0) {
-          for (const tx of subTxs) {
-            const exists = this.db.prepare('SELECT id FROM consolidated_transactions WHERE id = ?').get(tx.id);
-            if (!exists) {
-              const cols = Object.keys(tx);
-              const placeholders = cols.map(() => '?').join(', ');
-              this.db.prepare(`INSERT INTO consolidated_transactions (${cols.join(', ')}) VALUES (${placeholders})`).run(...Object.values(tx));
+        const syncTables = ['profiles', 'app_users', 'churches', 'banks', 'contributors', 'consolidated_transactions', 'saved_reports'];
+        for (const tbl of syncTables) {
+          try {
+            const subRows = subDb.prepare(`SELECT * FROM ${tbl}`).all();
+            if (subRows && subRows.length > 0) {
+              for (const row of subRows) {
+                const exists = this.db.prepare(`SELECT id FROM ${tbl} WHERE id = ?`).get((row as any).id);
+                if (!exists) {
+                  const cols = Object.keys(row as any);
+                  const placeholders = cols.map(() => '?').join(', ');
+                  this.db.prepare(`INSERT OR IGNORE INTO ${tbl} (${cols.join(', ')}) VALUES (${placeholders})`).run(...Object.values(row as any));
+                }
+              }
             }
-          }
-        }
-        const subReports = subDb.prepare('SELECT * FROM saved_reports').all();
-        if (subReports && subReports.length > 0) {
-          for (const rep of subReports) {
-            const exists = this.db.prepare('SELECT id FROM saved_reports WHERE id = ?').get(rep.id);
-            if (!exists) {
-              const cols = Object.keys(rep);
-              const placeholders = cols.map(() => '?').join(', ');
-              this.db.prepare(`INSERT INTO saved_reports (${cols.join(', ')}) VALUES (${placeholders})`).run(...Object.values(rep));
-            }
-          }
+          } catch (_) {}
         }
       }
     } catch (_) {}
@@ -987,7 +995,7 @@ class LocalSqliteEngine {
     const command = s.split(' ')[0].toUpperCase();
 
     try {
-      if (command === 'SELECT' || /\bRETURNING\b/i.test(s)) {
+      if (command === 'SELECT' || command === 'WITH' || /\bRETURNING\b/i.test(s)) {
         const stmt = this.db.prepare(s);
         let rows = (expandedParams.length > 0 ? stmt.all(...expandedParams) : stmt.all()) as any[];
         if (s.toLowerCase().includes('pg_try_advisory_lock') || s.toLowerCase().includes('pg_try_advisory_xact_lock')) {

@@ -74,11 +74,11 @@ export class ProfileRepository {
       WITH combined_all AS (
         -- 1. Todos os usuários de app_users combinados com profiles
         SELECT 
-          COALESCE(p.id, u.id::text) AS id,
+          COALESCE(p.id, u.id) AS id,
           COALESCE(u.email, p.email) AS email,
           COALESCE(p.name, u.name, split_part(COALESCE(u.email, p.email, ''), '@', 1)) AS name,
-          COALESCE(p.role, u.role::text, 'owner') AS role,
-          COALESCE(p.owner_id, u.owner_id::text, u.id::text) AS owner_id,
+          COALESCE(p.role, u.role, 'owner') AS role,
+          COALESCE(p.owner_id, u.owner_id, u.id) AS owner_id,
           COALESCE(p.subscription_status, 'trial') AS subscription_status,
           p.subscription_ends_at,
           p.trial_ends_at,
@@ -87,14 +87,14 @@ export class ProfileRepository {
           COALESCE(p.max_churches, 2) AS max_churches,
           COALESCE(p.max_banks, 2) AS max_banks,
           p.custom_price,
-          COALESCE(p.is_blocked, NOT COALESCE(u.is_active, true), false) AS is_blocked,
-          COALESCE(p.is_lifetime, false) AS is_lifetime,
-          COALESCE(p.permissions, u.permissions, '{}'::jsonb) AS permissions,
-          COALESCE(p.congregation, u.church_id::text, '') AS congregation,
-          COALESCE(p.created_at, u.created_at, NOW()) AS created_at,
-          COALESCE(p.updated_at, u.updated_at, NOW()) AS updated_at
+          COALESCE(p.is_blocked, CASE WHEN u.is_active = 0 THEN 1 ELSE 0 END, 0) AS is_blocked,
+          COALESCE(p.is_lifetime, 0) AS is_lifetime,
+          COALESCE(p.permissions, u.permissions, '{}') AS permissions,
+          COALESCE(p.congregation, u.church_id, '') AS congregation,
+          COALESCE(p.created_at, u.created_at, now()) AS created_at,
+          COALESCE(p.updated_at, u.updated_at, now()) AS updated_at
         FROM app_users u
-        LEFT JOIN profiles p ON (p.id = u.id::text OR (p.email IS NOT NULL AND u.email IS NOT NULL AND LOWER(TRIM(p.email)) = LOWER(TRIM(u.email))))
+        LEFT JOIN profiles p ON (p.id = u.id OR (p.email IS NOT NULL AND u.email IS NOT NULL AND LOWER(TRIM(p.email)) = LOWER(TRIM(u.email))))
         WHERE u.deleted_at IS NULL
 
         UNION ALL
@@ -114,22 +114,32 @@ export class ProfileRepository {
           COALESCE(p.max_churches, 2) AS max_churches,
           COALESCE(p.max_banks, 2) AS max_banks,
           p.custom_price,
-          COALESCE(p.is_blocked, false) AS is_blocked,
-          COALESCE(p.is_lifetime, false) AS is_lifetime,
-          COALESCE(p.permissions, '{}'::jsonb) AS permissions,
+          COALESCE(p.is_blocked, 0) AS is_blocked,
+          COALESCE(p.is_lifetime, 0) AS is_lifetime,
+          COALESCE(p.permissions, '{}') AS permissions,
           COALESCE(p.congregation, '') AS congregation,
-          COALESCE(p.created_at, NOW()) AS created_at,
-          COALESCE(p.updated_at, NOW()) AS updated_at
+          COALESCE(p.created_at, now()) AS created_at,
+          COALESCE(p.updated_at, now()) AS updated_at
         FROM profiles p
-        WHERE p.id NOT IN (SELECT u.id::text FROM app_users u WHERE u.deleted_at IS NULL)
+        WHERE p.id NOT IN (SELECT u.id FROM app_users u WHERE u.deleted_at IS NULL)
           AND (p.email IS NULL OR LOWER(TRIM(p.email)) NOT IN (SELECT LOWER(TRIM(u.email)) FROM app_users u WHERE u.deleted_at IS NULL))
       )
-      SELECT DISTINCT ON (COALESCE(LOWER(TRIM(email)), id)) *
+      SELECT *
       FROM combined_all
-      ORDER BY COALESCE(LOWER(TRIM(email)), id), created_at DESC;
+      ORDER BY created_at DESC;
     `;
     const result = await this.pool.query(query);
-    return (result.rows || []).map((row: any) => this.parseRow(row));
+    const seen = new Set<string>();
+    const deduplicated: ProfileItem[] = [];
+    for (const rawRow of result.rows || []) {
+      const parsed = this.parseRow(rawRow);
+      const dedupeKey = (parsed.email ? parsed.email.toLowerCase().trim() : '') || parsed.id;
+      if (dedupeKey && !seen.has(dedupeKey)) {
+        seen.add(dedupeKey);
+        deduplicated.push(parsed);
+      }
+    }
+    return deduplicated;
   }
 
   async getById(id: string): Promise<ProfileItem | null> {
@@ -196,15 +206,15 @@ export class ProfileRepository {
     await this.ensureTableExists();
     const query = `
       WITH target_identities AS (
-        SELECT id::text AS uid, email, owner_id::text AS owner_ref FROM app_users 
-        WHERE id::text = $1 
+        SELECT id AS uid, email, owner_id AS owner_ref FROM app_users 
+        WHERE id = $1 
            OR (email IS NOT NULL AND LOWER(TRIM(email)) = LOWER(TRIM($1)))
            OR (email IS NOT NULL AND LOWER(TRIM(email)) = (SELECT LOWER(TRIM(email)) FROM profiles WHERE id = $1 LIMIT 1))
         UNION
         SELECT id AS uid, email, owner_id AS owner_ref FROM profiles 
         WHERE id = $1 
            OR (email IS NOT NULL AND LOWER(TRIM(email)) = LOWER(TRIM($1)))
-           OR (email IS NOT NULL AND LOWER(TRIM(email)) = (SELECT LOWER(TRIM(email)) FROM app_users WHERE id::text = $1 LIMIT 1))
+           OR (email IS NOT NULL AND LOWER(TRIM(email)) = (SELECT LOWER(TRIM(email)) FROM app_users WHERE id = $1 LIMIT 1))
         UNION
         SELECT $1 AS uid, NULL AS email, NULL AS owner_ref
       ),
@@ -243,11 +253,11 @@ export class ProfileRepository {
       combined_users AS (
         -- 1. Usuários secundários de app_users (fonte primária autoritativa) complementados por profiles
         SELECT 
-          COALESCE(p.id, u.id::text) AS id,
+          COALESCE(p.id, u.id) AS id,
           COALESCE(u.email, p.email) AS email,
           COALESCE(p.name, u.name, split_part(COALESCE(u.email, p.email, ''), '@', 1)) AS name,
-          COALESCE(p.role, u.role::text, 'member') AS role,
-          COALESCE(p.owner_id, u.owner_id::text, $1) AS owner_id,
+          COALESCE(p.role, u.role, 'member') AS role,
+          COALESCE(p.owner_id, u.owner_id, $1) AS owner_id,
           p.subscription_status,
           p.subscription_ends_at,
           p.trial_ends_at,
@@ -256,18 +266,18 @@ export class ProfileRepository {
           p.max_churches,
           p.max_banks,
           p.custom_price,
-          COALESCE(p.is_blocked, NOT COALESCE(u.is_active, true), false) AS is_blocked,
+          COALESCE(p.is_blocked, CASE WHEN u.is_active = 0 THEN 1 ELSE 0 END, 0) AS is_blocked,
           p.is_lifetime,
-          COALESCE(p.permissions, u.permissions, '{}'::jsonb) AS permissions,
-          COALESCE(p.congregation, u.church_id::text, '') AS congregation,
-          COALESCE(p.created_at, u.created_at, NOW()) AS created_at,
-          COALESCE(p.updated_at, u.updated_at, NOW()) AS updated_at
+          COALESCE(p.permissions, u.permissions, '{}') AS permissions,
+          COALESCE(p.congregation, u.church_id, '') AS congregation,
+          COALESCE(p.created_at, u.created_at, now()) AS created_at,
+          COALESCE(p.updated_at, u.updated_at, now()) AS updated_at
         FROM app_users u
-        LEFT JOIN profiles p ON (p.id = u.id::text OR (p.email IS NOT NULL AND u.email IS NOT NULL AND LOWER(TRIM(p.email)) = LOWER(TRIM(u.email))))
+        LEFT JOIN profiles p ON (p.id = u.id OR (p.email IS NOT NULL AND u.email IS NOT NULL AND LOWER(TRIM(p.email)) = LOWER(TRIM(u.email))))
         WHERE u.deleted_at IS NULL
           AND (
-            u.owner_id::text IN (SELECT key_val FROM all_owner_keys WHERE key_val IS NOT NULL)
-            OR LOWER(TRIM(u.owner_id::text)) IN (SELECT key_val FROM all_owner_keys WHERE key_val IS NOT NULL)
+            u.owner_id IN (SELECT key_val FROM all_owner_keys WHERE key_val IS NOT NULL)
+            OR LOWER(TRIM(u.owner_id)) IN (SELECT key_val FROM all_owner_keys WHERE key_val IS NOT NULL)
             OR (p.owner_id IS NOT NULL AND (
                 p.owner_id IN (SELECT key_val FROM all_owner_keys WHERE key_val IS NOT NULL)
                 OR LOWER(TRIM(p.owner_id)) IN (SELECT key_val FROM all_owner_keys WHERE key_val IS NOT NULL)
@@ -302,20 +312,27 @@ export class ProfileRepository {
           p.owner_id IN (SELECT key_val FROM all_owner_keys WHERE key_val IS NOT NULL)
           OR LOWER(TRIM(p.owner_id)) IN (SELECT key_val FROM all_owner_keys WHERE key_val IS NOT NULL)
         )
-        AND p.id NOT IN (SELECT u.id::text FROM app_users u WHERE u.deleted_at IS NULL)
+        AND p.id NOT IN (SELECT u.id FROM app_users u WHERE u.deleted_at IS NULL)
         AND (p.email IS NULL OR LOWER(TRIM(p.email)) NOT IN (SELECT LOWER(TRIM(u.email)) FROM app_users u WHERE u.deleted_at IS NULL))
       )
-      SELECT * FROM (
-        SELECT DISTINCT ON (COALESCE(LOWER(TRIM(email)), id)) *
-        FROM combined_users
-        WHERE (id IS NULL OR id NOT IN (SELECT id_val FROM owner_self_identities WHERE id_val IS NOT NULL))
-          AND (email IS NULL OR LOWER(TRIM(email)) NOT IN (SELECT id_val FROM owner_self_identities WHERE id_val IS NOT NULL))
-        ORDER BY COALESCE(LOWER(TRIM(email)), id), created_at DESC
-      ) final_deduplicated
+      SELECT *
+      FROM combined_users
+      WHERE (id IS NULL OR id NOT IN (SELECT id_val FROM owner_self_identities WHERE id_val IS NOT NULL))
+        AND (email IS NULL OR LOWER(TRIM(email)) NOT IN (SELECT id_val FROM owner_self_identities WHERE id_val IS NOT NULL))
       ORDER BY created_at DESC;
     `;
     const result = await this.pool.query(query, [ownerId]);
-    return (result.rows || []).map((row: any) => this.parseRow(row));
+    const seen = new Set<string>();
+    const deduplicated: ProfileItem[] = [];
+    for (const rawRow of result.rows || []) {
+      const parsed = this.parseRow(rawRow);
+      const dedupeKey = (parsed.email ? parsed.email.toLowerCase().trim() : '') || parsed.id;
+      if (dedupeKey && !seen.has(dedupeKey)) {
+        seen.add(dedupeKey);
+        deduplicated.push(parsed);
+      }
+    }
+    return deduplicated;
   }
 
   async createOrUpsert(dto: CreateProfileDTO): Promise<ProfileItem> {
