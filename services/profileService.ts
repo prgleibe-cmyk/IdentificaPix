@@ -47,7 +47,11 @@ export const profileService = {
     try {
       const headers = await getHeaders();
       const response = await fetch(`/api/v1/profiles?owner_id=${encodeURIComponent(ownerId)}`, { method: 'GET', headers });
-      if (!response.ok) return [];
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        console.error(`[ProfileService] Erro HTTP ${response.status} ao buscar perfis do owner ${ownerId}:`, errorText);
+        return [];
+      }
       const json = await response.json();
       return json.success && Array.isArray(json.data) ? json.data : [];
     } catch (err) {
@@ -60,7 +64,11 @@ export const profileService = {
     try {
       const headers = await getHeaders();
       const response = await fetch('/api/v1/profiles', { method: 'GET', headers });
-      if (!response.ok) return [];
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        console.error(`[ProfileService] Erro HTTP ${response.status} ao buscar todos os perfis:`, errorText);
+        return [];
+      }
       const json = await response.json();
       return json.success && Array.isArray(json.data) ? json.data : [];
     } catch (err) {
