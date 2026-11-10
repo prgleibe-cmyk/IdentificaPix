@@ -3,7 +3,7 @@ import { MatchResult, Church, ReconciliationStatus, MatchMethod, Contributor } f
 import { groupResultsByChurch } from '../services/processingService';
 import { consolidationService } from '../services/ConsolidationService';
 import { batchState, lastRealtimeUpdate } from './reconciliation/useCloudSync';
-import { getAuthSession } from '../services/auth/authAdapter';
+import { getAuthSession, getAuthToken } from '../services/auth/authAdapter';
 import { LaunchService } from '../services/LaunchService';
 import { extractNameAndCpf } from '../utils/contributorHelper';
 import { CommunicationEventService } from '../services/CommunicationEventService';
@@ -53,8 +53,18 @@ export const useReconciliationActions = ({
       const cleanCpf = cpf ? cpf.replace(/\D/g, '') : '';
       const hasValidCpf = cleanCpf.length === 11 || cleanCpf.length === 14;
 
+      const token = await getAuthToken();
+      const authHeaders: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
+      if (token) {
+        authHeaders['Authorization'] = `Bearer ${token}`;
+      }
+
       // 1. Evitar duplicar registros buscando na base completa de contribuintes
-      const listResp = await fetch('/api/v1/contributors');
+      const listResp = await fetch('/api/v1/contributors', {
+        headers: authHeaders
+      });
       if (listResp.ok) {
         const list = await listResp.json();
         const existing = list.find((c: any) => {
@@ -80,9 +90,7 @@ export const useReconciliationActions = ({
       console.log('[AutoRegister] Efetuando cadastro com CPF na VPS para:', canonical_name);
       const postResp = await fetch('/api/v1/contributors', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: authHeaders,
         body: JSON.stringify({
           church_id: churchId,
           canonical_name,

@@ -26,6 +26,11 @@ const formatCpfCnpj = (value: string) => {
     return value;
 };
 
+const toYmd = (d?: string | null): string => {
+    if (!d) return new Date().toISOString().split('T')[0];
+    return d.includes('T') ? d.split('T')[0] : d;
+};
+
 export const ManualIdModal: React.FC = () => {
     const { 
         bulkIdentificationTxs,
@@ -619,9 +624,9 @@ export const ManualIdModal: React.FC = () => {
             // 1. Data/Date (Preserva estritamente se o usuário já alterou manualmente)
             if (!isDateManuallyChangedRef.current) {
                 if (tx.date) {
-                    setSelectedDate(tx.date);
+                    setSelectedDate(toYmd(tx.date));
                 } else if (matchedResult?.transaction?.date) {
-                    setSelectedDate(matchedResult.transaction.date);
+                    setSelectedDate(toYmd(matchedResult.transaction.date));
                 } else {
                     setSelectedDate(new Date().toISOString().split('T')[0]);
                 }
@@ -748,7 +753,7 @@ export const ManualIdModal: React.FC = () => {
             }
 
             // Inicializa a data de referência com a data da transação ou a reference_date existente
-            const initialDate = matchedResult?.reference_date || tx.reference_date || tx.date || new Date().toISOString().split('T')[0];
+            const initialDate = toYmd(matchedResult?.reference_date || tx.reference_date || tx.date);
             setSelectedDate(initialDate);
 
             if (matchedResult?.church?.id && matchedResult.church.id !== 'unidentified') {
@@ -830,7 +835,7 @@ export const ManualIdModal: React.FC = () => {
         // 3. Data da Operação / Vencimento
         const docDate = extracted.extractedDueDate || extracted.extractedDate;
         if (docDate) {
-            setSelectedDate(docDate);
+            setSelectedDate(toYmd(docDate));
             isDateManuallyChangedRef.current = true;
             if (bulkIdentificationTxs?.[0] && bulkIdentificationTxs[0].id?.startsWith('ghost-manual-')) {
                 bulkIdentificationTxs[0].date = docDate;
@@ -1193,7 +1198,7 @@ export const ManualIdModal: React.FC = () => {
                                 <Calendar className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-orange-500 transition-colors pointer-events-none" />
                                 <input
                                     type="date"
-                                    value={selectedDate}
+                                    value={toYmd(selectedDate)}
                                     onChange={e => {
                                         const val = e.target.value;
                                         setSelectedDate(val);
@@ -2083,7 +2088,7 @@ export const ManualIdModal: React.FC = () => {
                                 <Calendar className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
                                 <input
                                     type="date"
-                                    value={selectedDate}
+                                    value={toYmd(selectedDate)}
                                     onChange={e => {
                                         const val = e.target.value;
                                         setSelectedDate(val);

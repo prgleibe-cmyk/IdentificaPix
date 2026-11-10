@@ -8,7 +8,14 @@ export const ExpiredBlockOverlay: React.FC = () => {
     const context = useContext(AppContext);
     const openPaymentModal = context?.openPaymentModal;
 
-    if (!subscription || (!subscription.isExpired && !subscription.isBlocked)) {
+    const userEmail = String(user?.email || '').toLowerCase().trim();
+    const isPlatformAdmin = userEmail === 'identificapix@gmail.com' || 
+                            user?.role === 'superadmin' || 
+                            user?.role === 'super_admin' || 
+                            user?.role === 'admin' || 
+                            subscription?.role === 'admin';
+
+    if (isPlatformAdmin || !subscription || (!subscription.isExpired && !subscription.isBlocked)) {
         return null;
     }
 

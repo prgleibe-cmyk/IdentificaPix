@@ -609,7 +609,7 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
                     </label>
                     <input 
                         type="date"
-                        value={date}
+                        value={date ? (date.includes('T') ? date.split('T')[0] : date) : ''}
                         onChange={(e) => setDate(e.target.value)}
                         className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2.5 px-3.5 transition-all outline-none text-xs font-bold"
                     />

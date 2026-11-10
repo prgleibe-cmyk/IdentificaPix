@@ -64,7 +64,7 @@ export const authService = {
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     Object.keys(localStorage).forEach(key => {
-      if (key.includes('supabase.auth.token') || key.includes('identificapix')) {
+      if (key.includes('supabase.auth.token') || key.includes('identificapix') || key.includes('iggestor_vps_subscription')) {
         localStorage.removeItem(key);
       }
     });

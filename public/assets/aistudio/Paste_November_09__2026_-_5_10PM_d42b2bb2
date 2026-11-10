@@ -1,0 +1,1642 @@
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: false, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 0, assocCount: 0, …}
+index-DSbIgsAu.js:10 [PostReconstruct:SKIPPED] {isContextReady: false, isLoading: false}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [PostReconstruct:SKIPPED] {isContextReady: false, isLoading: true}
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:10 [PostReconstruct:WAIT_STABLE] {signatureChanged: true}
+index-DSbIgsAu.js:10 [PostReconstruct:STABLE] 4989
+index-DSbIgsAu.js:10 [PostReconstruct:SKIPPED_NO_PENDING] {total: 4989}
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: false}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: false}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: false}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: false}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:10 [PostReconstruct:WAIT_STABLE] {signatureChanged: true}
+index-DSbIgsAu.js:10 [PostReconstruct:STABLE] 4990
+index-DSbIgsAu.js:10 [AutoProcess:FINAL_TRIGGER]
+index-DSbIgsAu.js:11 [AutoProcess:START]
+index-DSbIgsAu.js:11 [AutoProcess:PROCESSING]
+index-DSbIgsAu.js:11 [AutoProcess:DONE]
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: false}
+index-DSbIgsAu.js:10 [PostReconstruct:WAIT_STABLE] {signatureChanged: true}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [PostReconstruct:STABLE] 4990
+index-DSbIgsAu.js:10 [AutoProcess:FINAL_TRIGGER]
+index-DSbIgsAu.js:11 [AutoProcess:START]
+index-DSbIgsAu.js:11 [AutoProcess:PROCESSING]
+index-DSbIgsAu.js:11 [AutoProcess:DONE]
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: false}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: false}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: false}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: false}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: false}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: false}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: false}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: false}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: false}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:540 MultiFormatReader: non-ReaderException from reader: e
+    at a.decode (index-DSbIgsAu.js:537:16701)
+    at a.decodeInternal (index-DSbIgsAu.js:540:12896)
+    at a.decodeWithState (index-DSbIgsAu.js:540:11592)
+    at e.decodeBitmap (index-DSbIgsAu.js:540:14022)
+    at a.decode (index-DSbIgsAu.js:535:16697)
+    at s (index-DSbIgsAu.js:535:15942)
+    at index-DSbIgsAu.js:535:16144
+    at new Promise (<anonymous>)
+    at a.decodeOnce (index-DSbIgsAu.js:535:16111)
+    at t.imageLoadedListener (index-DSbIgsAu.js:535:14445)
+a.decodeInternal @ index-DSbIgsAu.js:540
+a.decodeWithState @ index-DSbIgsAu.js:540
+e.decodeBitmap @ index-DSbIgsAu.js:540
+a.decode @ index-DSbIgsAu.js:535
+s @ index-DSbIgsAu.js:535
+(anônimo) @ index-DSbIgsAu.js:535
+a.decodeOnce @ index-DSbIgsAu.js:535
+t.imageLoadedListener @ index-DSbIgsAu.js:535
+index-DSbIgsAu.js:540 MultiFormatReader: non-ReaderException from reader: e
+    at a.selectBestPatterns (index-DSbIgsAu.js:537:173762)
+    at a.find (index-DSbIgsAu.js:537:169602)
+    at a.detect (index-DSbIgsAu.js:537:175193)
+    at a.decode (index-DSbIgsAu.js:537:178682)
+    at a.decodeInternal (index-DSbIgsAu.js:540:12896)
+    at a.decodeWithState (index-DSbIgsAu.js:540:11592)
+    at e.decodeBitmap (index-DSbIgsAu.js:540:14022)
+    at a.decode (index-DSbIgsAu.js:535:16697)
+    at s (index-DSbIgsAu.js:535:15942)
+    at index-DSbIgsAu.js:535:16144
+a.decodeInternal @ index-DSbIgsAu.js:540
+a.decodeWithState @ index-DSbIgsAu.js:540
+e.decodeBitmap @ index-DSbIgsAu.js:540
+a.decode @ index-DSbIgsAu.js:535
+s @ index-DSbIgsAu.js:535
+(anônimo) @ index-DSbIgsAu.js:535
+a.decodeOnce @ index-DSbIgsAu.js:535
+t.imageLoadedListener @ index-DSbIgsAu.js:535
+index-DSbIgsAu.js:540 MultiFormatReader: non-ReaderException from reader: e: No Micro QR finder pattern found.
+    at a.findFinderPattern (index-DSbIgsAu.js:537:191781)
+    at a.detect (index-DSbIgsAu.js:537:191152)
+    at a.decode (index-DSbIgsAu.js:537:195440)
+    at a.decodeInternal (index-DSbIgsAu.js:540:12896)
+    at a.decodeWithState (index-DSbIgsAu.js:540:11592)
+    at e.decodeBitmap (index-DSbIgsAu.js:540:14022)
+    at a.decode (index-DSbIgsAu.js:535:16697)
+    at s (index-DSbIgsAu.js:535:15942)
+    at index-DSbIgsAu.js:535:16144
+    at new Promise (<anonymous>)
+a.decodeInternal @ index-DSbIgsAu.js:540
+a.decodeWithState @ index-DSbIgsAu.js:540
+e.decodeBitmap @ index-DSbIgsAu.js:540
+a.decode @ index-DSbIgsAu.js:535
+s @ index-DSbIgsAu.js:535
+(anônimo) @ index-DSbIgsAu.js:535
+a.decodeOnce @ index-DSbIgsAu.js:535
+t.imageLoadedListener @ index-DSbIgsAu.js:535
+index-DSbIgsAu.js:540 MultiFormatReader: non-ReaderException from reader: e
+    at a.detect (index-DSbIgsAu.js:537:3966)
+    at a.detect (index-DSbIgsAu.js:537:132354)
+    at a.decode (index-DSbIgsAu.js:537:135925)
+    at a.decodeInternal (index-DSbIgsAu.js:540:12896)
+    at a.decodeWithState (index-DSbIgsAu.js:540:11592)
+    at e.decodeBitmap (index-DSbIgsAu.js:540:14022)
+    at a.decode (index-DSbIgsAu.js:535:16697)
+    at s (index-DSbIgsAu.js:535:15942)
+    at index-DSbIgsAu.js:535:16144
+    at new Promise (<anonymous>)
+a.decodeInternal @ index-DSbIgsAu.js:540
+a.decodeWithState @ index-DSbIgsAu.js:540
+e.decodeBitmap @ index-DSbIgsAu.js:540
+a.decode @ index-DSbIgsAu.js:535
+s @ index-DSbIgsAu.js:535
+(anônimo) @ index-DSbIgsAu.js:535
+a.decodeOnce @ index-DSbIgsAu.js:535
+t.imageLoadedListener @ index-DSbIgsAu.js:535
+index-DSbIgsAu.js:540 MultiFormatReader: non-ReaderException from reader: e
+    at a.getBullsEyeCorners (index-DSbIgsAu.js:537:10968)
+    at a.detectMirror (index-DSbIgsAu.js:537:8994)
+    at a.decode (index-DSbIgsAu.js:537:14940)
+    at a.decodeInternal (index-DSbIgsAu.js:540:12896)
+    at a.decodeWithState (index-DSbIgsAu.js:540:11592)
+    at e.decodeBitmap (index-DSbIgsAu.js:540:14022)
+    at a.decode (index-DSbIgsAu.js:535:16697)
+    at s (index-DSbIgsAu.js:535:15942)
+    at index-DSbIgsAu.js:535:16144
+    at new Promise (<anonymous>)
+a.decodeInternal @ index-DSbIgsAu.js:540
+a.decodeWithState @ index-DSbIgsAu.js:540
+e.decodeBitmap @ index-DSbIgsAu.js:540
+a.decode @ index-DSbIgsAu.js:535
+s @ index-DSbIgsAu.js:535
+(anônimo) @ index-DSbIgsAu.js:535
+a.decodeOnce @ index-DSbIgsAu.js:535
+t.imageLoadedListener @ index-DSbIgsAu.js:535
+index-DSbIgsAu.js:540 MultiFormatReader: non-ReaderException from reader: e
+    at e.getNotFoundInstance (index-DSbIgsAu.js:534:919)
+    at a.decode (index-DSbIgsAu.js:540:8865)
+    at a.decodeInternal (index-DSbIgsAu.js:540:12896)
+    at a.decodeWithState (index-DSbIgsAu.js:540:11592)
+    at e.decodeBitmap (index-DSbIgsAu.js:540:14022)
+    at a.decode (index-DSbIgsAu.js:535:16697)
+    at s (index-DSbIgsAu.js:535:15942)
+    at index-DSbIgsAu.js:535:16144
+    at new Promise (<anonymous>)
+    at a.decodeOnce (index-DSbIgsAu.js:535:16111)
+a.decodeInternal @ index-DSbIgsAu.js:540
+a.decodeWithState @ index-DSbIgsAu.js:540
+e.decodeBitmap @ index-DSbIgsAu.js:540
+a.decode @ index-DSbIgsAu.js:535
+s @ index-DSbIgsAu.js:535
+(anônimo) @ index-DSbIgsAu.js:535
+a.decodeOnce @ index-DSbIgsAu.js:535
+t.imageLoadedListener @ index-DSbIgsAu.js:535
+index-DSbIgsAu.js:540 MultiFormatReader: non-ReaderException from reader: e
+    at e.getChecksumInstance (index-DSbIgsAu.js:532:12549)
+    at a.correctErrors (index-DSbIgsAu.js:538:1044)
+    at a.decode (index-DSbIgsAu.js:538:300)
+    at a.decode (index-DSbIgsAu.js:538:1347)
+    at a.decodeInternal (index-DSbIgsAu.js:540:12896)
+    at a.decodeWithState (index-DSbIgsAu.js:540:11592)
+    at e.decodeBitmap (index-DSbIgsAu.js:540:14022)
+    at a.decode (index-DSbIgsAu.js:535:16697)
+    at s (index-DSbIgsAu.js:535:15942)
+    at index-DSbIgsAu.js:535:16144
+a.decodeInternal @ index-DSbIgsAu.js:540
+a.decodeWithState @ index-DSbIgsAu.js:540
+e.decodeBitmap @ index-DSbIgsAu.js:540
+a.decode @ index-DSbIgsAu.js:535
+s @ index-DSbIgsAu.js:535
+(anônimo) @ index-DSbIgsAu.js:535
+a.decodeOnce @ index-DSbIgsAu.js:535
+t.imageLoadedListener @ index-DSbIgsAu.js:535
+index-DSbIgsAu.js:540 MultiFormatReader: non-ReaderException from reader: e
+    at a.decode (index-DSbIgsAu.js:537:16701)
+    at a.decodeInternal (index-DSbIgsAu.js:540:12896)
+    at a.decodeWithState (index-DSbIgsAu.js:540:11592)
+    at e.decodeBitmap (index-DSbIgsAu.js:540:14022)
+    at a.decode (index-DSbIgsAu.js:535:16824)
+    at s (index-DSbIgsAu.js:535:15942)
+    at index-DSbIgsAu.js:535:16144
+    at new Promise (<anonymous>)
+    at a.decodeOnce (index-DSbIgsAu.js:535:16111)
+    at t.imageLoadedListener (index-DSbIgsAu.js:535:14445)
+a.decodeInternal @ index-DSbIgsAu.js:540
+a.decodeWithState @ index-DSbIgsAu.js:540
+e.decodeBitmap @ index-DSbIgsAu.js:540
+a.decode @ index-DSbIgsAu.js:535
+s @ index-DSbIgsAu.js:535
+(anônimo) @ index-DSbIgsAu.js:535
+a.decodeOnce @ index-DSbIgsAu.js:535
+t.imageLoadedListener @ index-DSbIgsAu.js:535
+index-DSbIgsAu.js:540 MultiFormatReader: non-ReaderException from reader: e
+    at a.selectBestPatterns (index-DSbIgsAu.js:537:173762)
+    at a.find (index-DSbIgsAu.js:537:169602)
+    at a.detect (index-DSbIgsAu.js:537:175193)
+    at a.decode (index-DSbIgsAu.js:537:178682)
+    at a.decodeInternal (index-DSbIgsAu.js:540:12896)
+    at a.decodeWithState (index-DSbIgsAu.js:540:11592)
+    at e.decodeBitmap (index-DSbIgsAu.js:540:14022)
+    at a.decode (index-DSbIgsAu.js:535:16824)
+    at s (index-DSbIgsAu.js:535:15942)
+    at index-DSbIgsAu.js:535:16144
+a.decodeInternal @ index-DSbIgsAu.js:540
+a.decodeWithState @ index-DSbIgsAu.js:540
+e.decodeBitmap @ index-DSbIgsAu.js:540
+a.decode @ index-DSbIgsAu.js:535
+s @ index-DSbIgsAu.js:535
+(anônimo) @ index-DSbIgsAu.js:535
+a.decodeOnce @ index-DSbIgsAu.js:535
+t.imageLoadedListener @ index-DSbIgsAu.js:535
+index-DSbIgsAu.js:540 MultiFormatReader: non-ReaderException from reader: e: No Micro QR finder pattern found.
+    at a.findFinderPattern (index-DSbIgsAu.js:537:191781)
+    at a.detect (index-DSbIgsAu.js:537:191152)
+    at a.decode (index-DSbIgsAu.js:537:195440)
+    at a.decodeInternal (index-DSbIgsAu.js:540:12896)
+    at a.decodeWithState (index-DSbIgsAu.js:540:11592)
+    at e.decodeBitmap (index-DSbIgsAu.js:540:14022)
+    at a.decode (index-DSbIgsAu.js:535:16824)
+    at s (index-DSbIgsAu.js:535:15942)
+    at index-DSbIgsAu.js:535:16144
+    at new Promise (<anonymous>)
+a.decodeInternal @ index-DSbIgsAu.js:540
+a.decodeWithState @ index-DSbIgsAu.js:540
+e.decodeBitmap @ index-DSbIgsAu.js:540
+a.decode @ index-DSbIgsAu.js:535
+s @ index-DSbIgsAu.js:535
+(anônimo) @ index-DSbIgsAu.js:535
+a.decodeOnce @ index-DSbIgsAu.js:535
+t.imageLoadedListener @ index-DSbIgsAu.js:535
+index-DSbIgsAu.js:540 MultiFormatReader: non-ReaderException from reader: e
+    at new a (index-DSbIgsAu.js:537:119671)
+    at a.decode (index-DSbIgsAu.js:537:131594)
+    at a.decode (index-DSbIgsAu.js:537:135949)
+    at a.decodeInternal (index-DSbIgsAu.js:540:12896)
+    at a.decodeWithState (index-DSbIgsAu.js:540:11592)
+    at e.decodeBitmap (index-DSbIgsAu.js:540:14022)
+    at a.decode (index-DSbIgsAu.js:535:16824)
+    at s (index-DSbIgsAu.js:535:15942)
+    at index-DSbIgsAu.js:535:16144
+    at new Promise (<anonymous>)
+a.decodeInternal @ index-DSbIgsAu.js:540
+a.decodeWithState @ index-DSbIgsAu.js:540
+e.decodeBitmap @ index-DSbIgsAu.js:540
+a.decode @ index-DSbIgsAu.js:535
+s @ index-DSbIgsAu.js:535
+(anônimo) @ index-DSbIgsAu.js:535
+a.decodeOnce @ index-DSbIgsAu.js:535
+t.imageLoadedListener @ index-DSbIgsAu.js:535
+index-DSbIgsAu.js:540 MultiFormatReader: non-ReaderException from reader: e
+    at a.getBullsEyeCorners (index-DSbIgsAu.js:537:10968)
+    at a.detectMirror (index-DSbIgsAu.js:537:8994)
+    at a.decode (index-DSbIgsAu.js:537:14940)
+    at a.decodeInternal (index-DSbIgsAu.js:540:12896)
+    at a.decodeWithState (index-DSbIgsAu.js:540:11592)
+    at e.decodeBitmap (index-DSbIgsAu.js:540:14022)
+    at a.decode (index-DSbIgsAu.js:535:16824)
+    at s (index-DSbIgsAu.js:535:15942)
+    at index-DSbIgsAu.js:535:16144
+    at new Promise (<anonymous>)
+a.decodeInternal @ index-DSbIgsAu.js:540
+a.decodeWithState @ index-DSbIgsAu.js:540
+e.decodeBitmap @ index-DSbIgsAu.js:540
+a.decode @ index-DSbIgsAu.js:535
+s @ index-DSbIgsAu.js:535
+(anônimo) @ index-DSbIgsAu.js:535
+a.decodeOnce @ index-DSbIgsAu.js:535
+t.imageLoadedListener @ index-DSbIgsAu.js:535
+index-DSbIgsAu.js:540 MultiFormatReader: non-ReaderException from reader: e
+    at e.getNotFoundInstance (index-DSbIgsAu.js:534:919)
+    at a.decode (index-DSbIgsAu.js:540:8865)
+    at a.decodeInternal (index-DSbIgsAu.js:540:12896)
+    at a.decodeWithState (index-DSbIgsAu.js:540:11592)
+    at e.decodeBitmap (index-DSbIgsAu.js:540:14022)
+    at a.decode (index-DSbIgsAu.js:535:16824)
+    at s (index-DSbIgsAu.js:535:15942)
+    at index-DSbIgsAu.js:535:16144
+    at new Promise (<anonymous>)
+    at a.decodeOnce (index-DSbIgsAu.js:535:16111)
+a.decodeInternal @ index-DSbIgsAu.js:540
+a.decodeWithState @ index-DSbIgsAu.js:540
+e.decodeBitmap @ index-DSbIgsAu.js:540
+a.decode @ index-DSbIgsAu.js:535
+s @ index-DSbIgsAu.js:535
+(anônimo) @ index-DSbIgsAu.js:535
+a.decodeOnce @ index-DSbIgsAu.js:535
+t.imageLoadedListener @ index-DSbIgsAu.js:535
+index-DSbIgsAu.js:540 MultiFormatReader: non-ReaderException from reader: e
+    at e.getChecksumInstance (index-DSbIgsAu.js:532:12549)
+    at a.correctErrors (index-DSbIgsAu.js:538:1044)
+    at a.decode (index-DSbIgsAu.js:538:300)
+    at a.decode (index-DSbIgsAu.js:538:1347)
+    at a.decodeInternal (index-DSbIgsAu.js:540:12896)
+    at a.decodeWithState (index-DSbIgsAu.js:540:11592)
+    at e.decodeBitmap (index-DSbIgsAu.js:540:14022)
+    at a.decode (index-DSbIgsAu.js:535:16824)
+    at s (index-DSbIgsAu.js:535:15942)
+    at index-DSbIgsAu.js:535:16144
+a.decodeInternal @ index-DSbIgsAu.js:540
+a.decodeWithState @ index-DSbIgsAu.js:540
+e.decodeBitmap @ index-DSbIgsAu.js:540
+a.decode @ index-DSbIgsAu.js:535
+s @ index-DSbIgsAu.js:535
+(anônimo) @ index-DSbIgsAu.js:535
+a.decodeOnce @ index-DSbIgsAu.js:535
+t.imageLoadedListener @ index-DSbIgsAu.js:535
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: false}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: false}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: false}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+The specified value "2026-11-05T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-05T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-05T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-05T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-05T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-05T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-05T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-05T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-05T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-05T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-05T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-05T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-05T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-05T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-05T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-05T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-05T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-05T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-05T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-05T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-05T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-05T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+index-DSbIgsAu.js:10 [ID:WRITE] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', payloadUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b'}
+index-DSbIgsAu.js:10 [WRITE:START] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', transactionId: '02e53214-8164-4eae-8a78-782ce8dc51b6', payload: {…}}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] EXPLICIT PARAMETERS PASSED TO updateTransactionStatus:
+index-DSbIgsAu.js:10 - transactionId: 02e53214-8164-4eae-8a78-782ce8dc51b6
+index-DSbIgsAu.js:10 - status: identified
+index-DSbIgsAu.js:10 - churchId: 7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc
+index-DSbIgsAu.js:10 - bankId: ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc
+index-DSbIgsAu.js:10 - contributorId: null
+index-DSbIgsAu.js:10 - type (financeiro): income
+index-DSbIgsAu.js:10 - pixKey: undefined
+index-DSbIgsAu.js:10 - contribution_type (religioso): DÍZIMO
+index-DSbIgsAu.js:10 - payment_method (forma): PIX
+index-DSbIgsAu.js:10 [DIAGNOSTIC] safeUpdateData final: {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:04:40.773Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] TYPE_CHECK Errors Detected: []
+index-DSbIgsAu.js:10 [FIX:PERSIST_FIELDS] {type: 'income', contribution_type: 'DÍZIMO', payment_method: 'PIX'}
+index-DSbIgsAu.js:10 💾 SALVANDO MATCH (TransactionStatus) {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:04:40.773Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:12 [SSE:Realtime] Evento recebido da VPS: {type: 'TRANSACTION_UPDATED', action: 'UPDATE', txId: '02e53214-8164-4eae-8a78-782ce8dc51b6'}
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: true}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [IA-LEARN] Chamou função de aprendizado {entrada: {…}}
+index-DSbIgsAu.js:10 [IA-LEARN] Salvando aprendizado {dados: {…}}
+index-DSbIgsAu.js:10 [WRITE:FIX] Persistindo learned_association com effectiveUserId: 1e812dc4-ace8-4631-9e4e-c22612a33c5b no VPS
+index-DSbIgsAu.js:10 [PostReconstruct:BLOCK] Pulando AutoProcess em resposta a atualização atômica.
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1683, …}
+index-DSbIgsAu.js:10 [CloudSync:BUSY] Hidratação já em andamento, agendando re-tentativa.
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:10 [PostReconstruct:WAIT_STABLE] {signatureChanged: true}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:BUSY] Hidratação já em andamento, agendando re-tentativa.
+index-DSbIgsAu.js:10 [PostReconstruct:STABLE] 4990
+index-DSbIgsAu.js:10 [AutoProcess:FINAL_TRIGGER]
+index-DSbIgsAu.js:11 [AutoProcess:START]
+index-DSbIgsAu.js:11 [AutoProcess:PROCESSING]
+index-DSbIgsAu.js:11 [AutoProcess:DONE]
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+The specified value "2026-11-03T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-03T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-03T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-03T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-03T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-03T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-03T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-03T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-03T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-03T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-03T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-03T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-03T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-03T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-03T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-03T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-03T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-03T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-03T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-03T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-03T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-03T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-03T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-03T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+index-DSbIgsAu.js:11  GET https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+(anônimo) @ index-DSbIgsAu.js:12
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:11 [AutoRegister] Efetuando cadastro com CPF na VPS para: ALOISIO DA SILVA UCHOA
+index-DSbIgsAu.js:11  POST https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+await in i
+(anônimo) @ index-DSbIgsAu.js:12
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:10 [ID:WRITE] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', payloadUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b'}
+index-DSbIgsAu.js:10 [WRITE:START] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', transactionId: '2803a56d-a1b0-4d2b-81ea-33394cb7d275', payload: {…}}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] EXPLICIT PARAMETERS PASSED TO updateTransactionStatus:
+index-DSbIgsAu.js:10 - transactionId: 2803a56d-a1b0-4d2b-81ea-33394cb7d275
+index-DSbIgsAu.js:10 - status: identified
+index-DSbIgsAu.js:10 - churchId: 7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc
+index-DSbIgsAu.js:10 - bankId: ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc
+index-DSbIgsAu.js:10 - contributorId: undefined
+index-DSbIgsAu.js:10 - type (financeiro): income
+index-DSbIgsAu.js:10 - pixKey: undefined
+index-DSbIgsAu.js:10 - contribution_type (religioso): DÍZIMO
+index-DSbIgsAu.js:10 - payment_method (forma): PIX
+index-DSbIgsAu.js:10 [DIAGNOSTIC] safeUpdateData final: {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:05:16.376Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] TYPE_CHECK Errors Detected: []
+index-DSbIgsAu.js:10 [FIX:PERSIST_FIELDS] {type: 'income', contribution_type: 'DÍZIMO', payment_method: 'PIX'}
+index-DSbIgsAu.js:10 💾 SALVANDO MATCH (TransactionStatus) {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:05:16.376Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:12 [SSE:Realtime] Evento recebido da VPS: {type: 'TRANSACTION_UPDATED', action: 'UPDATE', txId: '2803a56d-a1b0-4d2b-81ea-33394cb7d275'}
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: true}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:11  GET https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+(anônimo) @ index-DSbIgsAu.js:12
+await in (anônimo)
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:11 [AutoRegister] Efetuando cadastro com CPF na VPS para: ALOISIO DA SILVA UCHOA
+index-DSbIgsAu.js:11  POST https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+await in i
+(anônimo) @ index-DSbIgsAu.js:12
+await in (anônimo)
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:10 [ID:WRITE] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', payloadUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b'}
+index-DSbIgsAu.js:10 [WRITE:START] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', transactionId: '35f64c15-99c3-4160-adff-b0783b4337dd', payload: {…}}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] EXPLICIT PARAMETERS PASSED TO updateTransactionStatus:
+index-DSbIgsAu.js:10 - transactionId: 35f64c15-99c3-4160-adff-b0783b4337dd
+index-DSbIgsAu.js:10 - status: identified
+index-DSbIgsAu.js:10 - churchId: 7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc
+index-DSbIgsAu.js:10 - bankId: ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc
+index-DSbIgsAu.js:10 - contributorId: undefined
+index-DSbIgsAu.js:10 - type (financeiro): income
+index-DSbIgsAu.js:10 - pixKey: undefined
+index-DSbIgsAu.js:10 - contribution_type (religioso): DÍZIMO
+index-DSbIgsAu.js:10 - payment_method (forma): PIX
+index-DSbIgsAu.js:10 [DIAGNOSTIC] safeUpdateData final: {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:05:16.968Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] TYPE_CHECK Errors Detected: []
+index-DSbIgsAu.js:10 [FIX:PERSIST_FIELDS] {type: 'income', contribution_type: 'DÍZIMO', payment_method: 'PIX'}
+index-DSbIgsAu.js:10 💾 SALVANDO MATCH (TransactionStatus) {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:05:16.968Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:12 [SSE:Realtime] Evento recebido da VPS: {type: 'TRANSACTION_UPDATED', action: 'UPDATE', txId: '35f64c15-99c3-4160-adff-b0783b4337dd'}
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: true}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:BUSY] Hidratação já em andamento, agendando re-tentativa.
+index-DSbIgsAu.js:11  GET https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+(anônimo) @ index-DSbIgsAu.js:12
+await in (anônimo)
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:11 [AutoRegister] Efetuando cadastro com CPF na VPS para: ALOISIO DA SILVA UCHOA
+index-DSbIgsAu.js:11  POST https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+await in i
+(anônimo) @ index-DSbIgsAu.js:12
+await in (anônimo)
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:10 [ID:WRITE] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', payloadUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b'}
+index-DSbIgsAu.js:10 [WRITE:START] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', transactionId: '5fbc931e-dd4e-4633-a8fb-7c30c3ebb497', payload: {…}}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] EXPLICIT PARAMETERS PASSED TO updateTransactionStatus:
+index-DSbIgsAu.js:10 - transactionId: 5fbc931e-dd4e-4633-a8fb-7c30c3ebb497
+index-DSbIgsAu.js:10 - status: identified
+index-DSbIgsAu.js:10 - churchId: 7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc
+index-DSbIgsAu.js:10 - bankId: ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc
+index-DSbIgsAu.js:10 - contributorId: undefined
+index-DSbIgsAu.js:10 - type (financeiro): income
+index-DSbIgsAu.js:10 - pixKey: undefined
+index-DSbIgsAu.js:10 - contribution_type (religioso): DÍZIMO
+index-DSbIgsAu.js:10 - payment_method (forma): PIX
+index-DSbIgsAu.js:10 [DIAGNOSTIC] safeUpdateData final: {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:05:18.381Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] TYPE_CHECK Errors Detected: []
+index-DSbIgsAu.js:10 [FIX:PERSIST_FIELDS] {type: 'income', contribution_type: 'DÍZIMO', payment_method: 'PIX'}
+index-DSbIgsAu.js:10 💾 SALVANDO MATCH (TransactionStatus) {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:05:18.381Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:12 [SSE:Realtime] Evento recebido da VPS: {type: 'TRANSACTION_UPDATED', action: 'UPDATE', txId: '5fbc931e-dd4e-4633-a8fb-7c30c3ebb497'}
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: true}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:BUSY] Hidratação já em andamento, agendando re-tentativa.
+index-DSbIgsAu.js:10 [IA-LEARN] Chamou função de aprendizado {entrada: {…}}
+index-DSbIgsAu.js:10 [IA-LEARN] Chamou função de aprendizado {entrada: {…}}
+index-DSbIgsAu.js:10 [IA-LEARN] Chamou função de aprendizado {entrada: {…}}
+index-DSbIgsAu.js:10 [IA-LEARN] Salvando aprendizado {dados: {…}}
+index-DSbIgsAu.js:10 [WRITE:FIX] Persistindo learned_association com effectiveUserId: 1e812dc4-ace8-4631-9e4e-c22612a33c5b no VPS
+index-DSbIgsAu.js:10 [IA-LEARN] Salvando aprendizado {dados: {…}}
+index-DSbIgsAu.js:10 [WRITE:FIX] Persistindo learned_association com effectiveUserId: 1e812dc4-ace8-4631-9e4e-c22612a33c5b no VPS
+index-DSbIgsAu.js:10 [IA-LEARN] Salvando aprendizado {dados: {…}}
+index-DSbIgsAu.js:10 [WRITE:FIX] Persistindo learned_association com effectiveUserId: 1e812dc4-ace8-4631-9e4e-c22612a33c5b no VPS
+index-DSbIgsAu.js:10 [PostReconstruct:BLOCK] Pulando AutoProcess em resposta a atualização atômica.
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1683, …}
+index-DSbIgsAu.js:10 [CloudSync:BUSY] Hidratação já em andamento, agendando re-tentativa.
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:10 [PostReconstruct:WAIT_STABLE] {signatureChanged: true}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [PostReconstruct:STABLE] 4990
+index-DSbIgsAu.js:10 [AutoProcess:FINAL_TRIGGER]
+index-DSbIgsAu.js:11 [AutoProcess:START]
+index-DSbIgsAu.js:11 [AutoProcess:PROCESSING]
+index-DSbIgsAu.js:11 [AutoProcess:DONE]
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:10 [PostReconstruct:WAIT_STABLE] {signatureChanged: true}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [PostReconstruct:STABLE] 4990
+index-DSbIgsAu.js:10 [AutoProcess:FINAL_TRIGGER]
+index-DSbIgsAu.js:11 [AutoProcess:START]
+index-DSbIgsAu.js:11 [AutoProcess:PROCESSING]
+index-DSbIgsAu.js:11 [AutoProcess:DONE]
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: false}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: false}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:11  GET https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+(anônimo) @ index-DSbIgsAu.js:12
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:11 [AutoRegister] Efetuando cadastro com CPF na VPS para: ALOISIO DA SILVA UCHOA
+index-DSbIgsAu.js:11  POST https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+await in i
+(anônimo) @ index-DSbIgsAu.js:12
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:10 [ID:WRITE] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', payloadUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b'}
+index-DSbIgsAu.js:10 [WRITE:START] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', transactionId: '2803a56d-a1b0-4d2b-81ea-33394cb7d275', payload: {…}}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] EXPLICIT PARAMETERS PASSED TO updateTransactionStatus:
+index-DSbIgsAu.js:10 - transactionId: 2803a56d-a1b0-4d2b-81ea-33394cb7d275
+index-DSbIgsAu.js:10 - status: identified
+index-DSbIgsAu.js:10 - churchId: 7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc
+index-DSbIgsAu.js:10 - bankId: ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc
+index-DSbIgsAu.js:10 - contributorId: undefined
+index-DSbIgsAu.js:10 - type (financeiro): income
+index-DSbIgsAu.js:10 - pixKey: undefined
+index-DSbIgsAu.js:10 - contribution_type (religioso): DÍZIMO
+index-DSbIgsAu.js:10 - payment_method (forma): PIX
+index-DSbIgsAu.js:10 [DIAGNOSTIC] safeUpdateData final: {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:06:40.140Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] TYPE_CHECK Errors Detected: []
+index-DSbIgsAu.js:10 [FIX:PERSIST_FIELDS] {type: 'income', contribution_type: 'DÍZIMO', payment_method: 'PIX'}
+index-DSbIgsAu.js:10 💾 SALVANDO MATCH (TransactionStatus) {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:06:40.140Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:12 [SSE:Realtime] Evento recebido da VPS: {type: 'TRANSACTION_UPDATED', action: 'UPDATE', txId: '2803a56d-a1b0-4d2b-81ea-33394cb7d275'}
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: true}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:11  GET https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+(anônimo) @ index-DSbIgsAu.js:12
+await in (anônimo)
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:11 [AutoRegister] Efetuando cadastro com CPF na VPS para: ALOISIO DA SILVA UCHOA
+index-DSbIgsAu.js:11  POST https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+await in i
+(anônimo) @ index-DSbIgsAu.js:12
+await in (anônimo)
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:10 [ID:WRITE] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', payloadUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b'}
+index-DSbIgsAu.js:10 [WRITE:START] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', transactionId: '35f64c15-99c3-4160-adff-b0783b4337dd', payload: {…}}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] EXPLICIT PARAMETERS PASSED TO updateTransactionStatus:
+index-DSbIgsAu.js:10 - transactionId: 35f64c15-99c3-4160-adff-b0783b4337dd
+index-DSbIgsAu.js:10 - status: identified
+index-DSbIgsAu.js:10 - churchId: 7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc
+index-DSbIgsAu.js:10 - bankId: ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc
+index-DSbIgsAu.js:10 - contributorId: undefined
+index-DSbIgsAu.js:10 - type (financeiro): income
+index-DSbIgsAu.js:10 - pixKey: undefined
+index-DSbIgsAu.js:10 - contribution_type (religioso): DÍZIMO
+index-DSbIgsAu.js:10 - payment_method (forma): PIX
+index-DSbIgsAu.js:10 [DIAGNOSTIC] safeUpdateData final: {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:06:40.739Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] TYPE_CHECK Errors Detected: []
+index-DSbIgsAu.js:10 [FIX:PERSIST_FIELDS] {type: 'income', contribution_type: 'DÍZIMO', payment_method: 'PIX'}
+index-DSbIgsAu.js:10 💾 SALVANDO MATCH (TransactionStatus) {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:06:40.739Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:12 [SSE:Realtime] Evento recebido da VPS: {type: 'TRANSACTION_UPDATED', action: 'UPDATE', txId: '35f64c15-99c3-4160-adff-b0783b4337dd'}
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: true}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:BUSY] Hidratação já em andamento, agendando re-tentativa.
+index-DSbIgsAu.js:11  GET https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+(anônimo) @ index-DSbIgsAu.js:12
+await in (anônimo)
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:11 [AutoRegister] Efetuando cadastro com CPF na VPS para: ALOISIO DA SILVA UCHOA
+index-DSbIgsAu.js:11  POST https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+await in i
+(anônimo) @ index-DSbIgsAu.js:12
+await in (anônimo)
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:10 [ID:WRITE] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', payloadUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b'}
+index-DSbIgsAu.js:10 [WRITE:START] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', transactionId: '5fbc931e-dd4e-4633-a8fb-7c30c3ebb497', payload: {…}}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] EXPLICIT PARAMETERS PASSED TO updateTransactionStatus:
+index-DSbIgsAu.js:10 - transactionId: 5fbc931e-dd4e-4633-a8fb-7c30c3ebb497
+index-DSbIgsAu.js:10 - status: identified
+index-DSbIgsAu.js:10 - churchId: 7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc
+index-DSbIgsAu.js:10 - bankId: ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc
+index-DSbIgsAu.js:10 - contributorId: undefined
+index-DSbIgsAu.js:10 - type (financeiro): income
+index-DSbIgsAu.js:10 - pixKey: undefined
+index-DSbIgsAu.js:10 - contribution_type (religioso): DÍZIMO
+index-DSbIgsAu.js:10 - payment_method (forma): PIX
+index-DSbIgsAu.js:10 [DIAGNOSTIC] safeUpdateData final: {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:06:42.653Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] TYPE_CHECK Errors Detected: []
+index-DSbIgsAu.js:10 [FIX:PERSIST_FIELDS] {type: 'income', contribution_type: 'DÍZIMO', payment_method: 'PIX'}
+index-DSbIgsAu.js:10 💾 SALVANDO MATCH (TransactionStatus) {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:06:42.653Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:12 [SSE:Realtime] Evento recebido da VPS: {type: 'TRANSACTION_UPDATED', action: 'UPDATE', txId: '5fbc931e-dd4e-4633-a8fb-7c30c3ebb497'}
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: true}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:BUSY] Hidratação já em andamento, agendando re-tentativa.
+index-DSbIgsAu.js:10 [IA-LEARN] Chamou função de aprendizado {entrada: {…}}
+index-DSbIgsAu.js:10 [IA-LEARN] Chamou função de aprendizado {entrada: {…}}
+index-DSbIgsAu.js:10 [IA-LEARN] Chamou função de aprendizado {entrada: {…}}
+index-DSbIgsAu.js:10 [IA-LEARN] Salvando aprendizado {dados: {…}}
+index-DSbIgsAu.js:10 [WRITE:FIX] Persistindo learned_association com effectiveUserId: 1e812dc4-ace8-4631-9e4e-c22612a33c5b no VPS
+index-DSbIgsAu.js:10 [IA-LEARN] Salvando aprendizado {dados: {…}}
+index-DSbIgsAu.js:10 [WRITE:FIX] Persistindo learned_association com effectiveUserId: 1e812dc4-ace8-4631-9e4e-c22612a33c5b no VPS
+index-DSbIgsAu.js:10 [IA-LEARN] Salvando aprendizado {dados: {…}}
+index-DSbIgsAu.js:10 [WRITE:FIX] Persistindo learned_association com effectiveUserId: 1e812dc4-ace8-4631-9e4e-c22612a33c5b no VPS
+index-DSbIgsAu.js:10 [PostReconstruct:BLOCK] Pulando AutoProcess em resposta a atualização atômica.
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1683, …}
+index-DSbIgsAu.js:10 [CloudSync:BUSY] Hidratação já em andamento, agendando re-tentativa.
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:10 [PostReconstruct:WAIT_STABLE] {signatureChanged: true}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [PostReconstruct:STABLE] 4990
+index-DSbIgsAu.js:10 [AutoProcess:FINAL_TRIGGER]
+index-DSbIgsAu.js:11 [AutoProcess:START]
+index-DSbIgsAu.js:11 [AutoProcess:PROCESSING]
+index-DSbIgsAu.js:11 [AutoProcess:DONE]
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [PostReconstruct:WAIT_STABLE] {signatureChanged: true}
+index-DSbIgsAu.js:10 [PostReconstruct:STABLE] 4990
+index-DSbIgsAu.js:10 [AutoProcess:FINAL_TRIGGER]
+index-DSbIgsAu.js:11 [AutoProcess:START]
+index-DSbIgsAu.js:11 [AutoProcess:PROCESSING]
+index-DSbIgsAu.js:11 [AutoProcess:DONE]
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+The specified value "2026-11-04T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-04T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-04T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-04T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-04T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-04T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-04T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-04T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-04T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+index-DSbIgsAu.js:11  GET https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+(anônimo) @ index-DSbIgsAu.js:12
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:11 [AutoRegister] Efetuando cadastro com CPF na VPS para: ALOISIO DA SILVA UCHOA
+index-DSbIgsAu.js:11  POST https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+await in i
+(anônimo) @ index-DSbIgsAu.js:12
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:10 [ID:WRITE] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', payloadUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b'}
+index-DSbIgsAu.js:10 [WRITE:START] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', transactionId: 'cd5018bc-6ee9-44d0-8a64-c9327786e9cb', payload: {…}}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] EXPLICIT PARAMETERS PASSED TO updateTransactionStatus:
+index-DSbIgsAu.js:10 - transactionId: cd5018bc-6ee9-44d0-8a64-c9327786e9cb
+index-DSbIgsAu.js:10 - status: identified
+index-DSbIgsAu.js:10 - churchId: 7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc
+index-DSbIgsAu.js:10 - bankId: ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc
+index-DSbIgsAu.js:10 - contributorId: undefined
+index-DSbIgsAu.js:10 - type (financeiro): income
+index-DSbIgsAu.js:10 - pixKey: undefined
+index-DSbIgsAu.js:10 - contribution_type (religioso): DÍZIMO
+index-DSbIgsAu.js:10 - payment_method (forma): PIX
+index-DSbIgsAu.js:10 [DIAGNOSTIC] safeUpdateData final: {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:07:06.003Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] TYPE_CHECK Errors Detected: []
+index-DSbIgsAu.js:10 [FIX:PERSIST_FIELDS] {type: 'income', contribution_type: 'DÍZIMO', payment_method: 'PIX'}
+index-DSbIgsAu.js:10 💾 SALVANDO MATCH (TransactionStatus) {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:07:06.003Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:12 [SSE:Realtime] Evento recebido da VPS: {type: 'TRANSACTION_UPDATED', action: 'UPDATE', txId: 'cd5018bc-6ee9-44d0-8a64-c9327786e9cb'}
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: true}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:11  GET https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+(anônimo) @ index-DSbIgsAu.js:12
+await in (anônimo)
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:11 [AutoRegister] Efetuando cadastro com CPF na VPS para: ALOISIO DA SILVA UCHOA
+index-DSbIgsAu.js:11  POST https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+await in i
+(anônimo) @ index-DSbIgsAu.js:12
+await in (anônimo)
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:10 [ID:WRITE] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', payloadUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b'}
+index-DSbIgsAu.js:10 [WRITE:START] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', transactionId: '61223804-6674-46b8-bd72-bfa22f355430', payload: {…}}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] EXPLICIT PARAMETERS PASSED TO updateTransactionStatus:
+index-DSbIgsAu.js:10 - transactionId: 61223804-6674-46b8-bd72-bfa22f355430
+index-DSbIgsAu.js:10 - status: identified
+index-DSbIgsAu.js:10 - churchId: 7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc
+index-DSbIgsAu.js:10 - bankId: ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc
+index-DSbIgsAu.js:10 - contributorId: undefined
+index-DSbIgsAu.js:10 - type (financeiro): income
+index-DSbIgsAu.js:10 - pixKey: undefined
+index-DSbIgsAu.js:10 - contribution_type (religioso): DÍZIMO
+index-DSbIgsAu.js:10 - payment_method (forma): PIX
+index-DSbIgsAu.js:10 [DIAGNOSTIC] safeUpdateData final: {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:07:06.623Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] TYPE_CHECK Errors Detected: []
+index-DSbIgsAu.js:10 [FIX:PERSIST_FIELDS] {type: 'income', contribution_type: 'DÍZIMO', payment_method: 'PIX'}
+index-DSbIgsAu.js:10 💾 SALVANDO MATCH (TransactionStatus) {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:07:06.623Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:12 [SSE:Realtime] Evento recebido da VPS: {type: 'TRANSACTION_UPDATED', action: 'UPDATE', txId: '61223804-6674-46b8-bd72-bfa22f355430'}
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: true}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:BUSY] Hidratação já em andamento, agendando re-tentativa.
+index-DSbIgsAu.js:10 [IA-LEARN] Chamou função de aprendizado {entrada: {…}}
+index-DSbIgsAu.js:10 [IA-LEARN] Chamou função de aprendizado {entrada: {…}}
+index-DSbIgsAu.js:10 [PostReconstruct:BLOCK] Pulando AutoProcess em resposta a atualização atômica.
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:10 [PostReconstruct:WAIT_STABLE] {signatureChanged: true}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [PostReconstruct:STABLE] 4990
+index-DSbIgsAu.js:10 [AutoProcess:FINAL_TRIGGER]
+index-DSbIgsAu.js:11 [AutoProcess:START]
+index-DSbIgsAu.js:11 [AutoProcess:PROCESSING]
+index-DSbIgsAu.js:11 [AutoProcess:DONE]
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:10 [PostReconstruct:WAIT_STABLE] {signatureChanged: true}
+index-DSbIgsAu.js:10 [IA-LEARN] Salvando aprendizado {dados: {…}}
+index-DSbIgsAu.js:10 [WRITE:FIX] Persistindo learned_association com effectiveUserId: 1e812dc4-ace8-4631-9e4e-c22612a33c5b no VPS
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1683, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [PostReconstruct:STABLE] 4990
+index-DSbIgsAu.js:10 [AutoProcess:FINAL_TRIGGER]
+index-DSbIgsAu.js:11 [AutoProcess:START]
+index-DSbIgsAu.js:11 [AutoProcess:PROCESSING]
+index-DSbIgsAu.js:11 [AutoProcess:DONE]
+index-DSbIgsAu.js:10 [PostReconstruct:BLOCK] Pulando AutoProcess em resposta a atualização atômica.
+index-DSbIgsAu.js:10 [IA-LEARN] Salvando aprendizado {dados: {…}}
+index-DSbIgsAu.js:10 [WRITE:FIX] Persistindo learned_association com effectiveUserId: 1e812dc4-ace8-4631-9e4e-c22612a33c5b no VPS
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:BUSY] Hidratação já em andamento, agendando re-tentativa.
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:10 [PostReconstruct:WAIT_STABLE] {signatureChanged: true}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [PostReconstruct:STABLE] 4990
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:11  GET https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+(anônimo) @ index-DSbIgsAu.js:12
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:11 [AutoRegister] Efetuando cadastro com CPF na VPS para: ALOISIO DA SILVA UCHOA
+index-DSbIgsAu.js:11  POST https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+await in i
+(anônimo) @ index-DSbIgsAu.js:12
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:10 [ID:WRITE] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', payloadUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b'}
+index-DSbIgsAu.js:10 [WRITE:START] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', transactionId: '985a6373-729d-4bf1-9264-49e553b4980c', payload: {…}}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] EXPLICIT PARAMETERS PASSED TO updateTransactionStatus:
+index-DSbIgsAu.js:10 - transactionId: 985a6373-729d-4bf1-9264-49e553b4980c
+index-DSbIgsAu.js:10 - status: identified
+index-DSbIgsAu.js:10 - churchId: 7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc
+index-DSbIgsAu.js:10 - bankId: ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc
+index-DSbIgsAu.js:10 - contributorId: undefined
+index-DSbIgsAu.js:10 - type (financeiro): income
+index-DSbIgsAu.js:10 - pixKey: undefined
+index-DSbIgsAu.js:10 - contribution_type (religioso): DÍZIMO
+index-DSbIgsAu.js:10 - payment_method (forma): PIX
+index-DSbIgsAu.js:10 [DIAGNOSTIC] safeUpdateData final: {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:07:33.635Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] TYPE_CHECK Errors Detected: []
+index-DSbIgsAu.js:10 [FIX:PERSIST_FIELDS] {type: 'income', contribution_type: 'DÍZIMO', payment_method: 'PIX'}
+index-DSbIgsAu.js:10 💾 SALVANDO MATCH (TransactionStatus) {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:07:33.635Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:12 [SSE:Realtime] Evento recebido da VPS: {type: 'TRANSACTION_UPDATED', action: 'UPDATE', txId: '985a6373-729d-4bf1-9264-49e553b4980c'}
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: true}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:11  GET https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+(anônimo) @ index-DSbIgsAu.js:12
+await in (anônimo)
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:11 [AutoRegister] Efetuando cadastro com CPF na VPS para: ALOISIO DA SILVA UCHOA
+index-DSbIgsAu.js:11  POST https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+await in i
+(anônimo) @ index-DSbIgsAu.js:12
+await in (anônimo)
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:10 [ID:WRITE] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', payloadUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b'}
+index-DSbIgsAu.js:10 [WRITE:START] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', transactionId: '6b95f820-6b37-4053-8603-9c1b35f251ad', payload: {…}}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] EXPLICIT PARAMETERS PASSED TO updateTransactionStatus:
+index-DSbIgsAu.js:10 - transactionId: 6b95f820-6b37-4053-8603-9c1b35f251ad
+index-DSbIgsAu.js:10 - status: identified
+index-DSbIgsAu.js:10 - churchId: 7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc
+index-DSbIgsAu.js:10 - bankId: ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc
+index-DSbIgsAu.js:10 - contributorId: undefined
+index-DSbIgsAu.js:10 - type (financeiro): income
+index-DSbIgsAu.js:10 - pixKey: undefined
+index-DSbIgsAu.js:10 - contribution_type (religioso): DÍZIMO
+index-DSbIgsAu.js:10 - payment_method (forma): PIX
+index-DSbIgsAu.js:10 [DIAGNOSTIC] safeUpdateData final: {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:07:34.219Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] TYPE_CHECK Errors Detected: []
+index-DSbIgsAu.js:10 [FIX:PERSIST_FIELDS] {type: 'income', contribution_type: 'DÍZIMO', payment_method: 'PIX'}
+index-DSbIgsAu.js:10 💾 SALVANDO MATCH (TransactionStatus) {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:07:34.219Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:12 [SSE:Realtime] Evento recebido da VPS: {type: 'TRANSACTION_UPDATED', action: 'UPDATE', txId: '6b95f820-6b37-4053-8603-9c1b35f251ad'}
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: true}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:BUSY] Hidratação já em andamento, agendando re-tentativa.
+index-DSbIgsAu.js:11  GET https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+(anônimo) @ index-DSbIgsAu.js:12
+await in (anônimo)
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:11 [AutoRegister] Efetuando cadastro com CPF na VPS para: ALOISIO DA SILVA UCHOA
+index-DSbIgsAu.js:11  POST https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+await in i
+(anônimo) @ index-DSbIgsAu.js:12
+await in (anônimo)
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:10 [ID:WRITE] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', payloadUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b'}
+index-DSbIgsAu.js:10 [WRITE:START] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', transactionId: 'd58a875c-fcfb-47ab-b4cd-783d8eabfc13', payload: {…}}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] EXPLICIT PARAMETERS PASSED TO updateTransactionStatus:
+index-DSbIgsAu.js:10 - transactionId: d58a875c-fcfb-47ab-b4cd-783d8eabfc13
+index-DSbIgsAu.js:10 - status: identified
+index-DSbIgsAu.js:10 - churchId: 7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc
+index-DSbIgsAu.js:10 - bankId: ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc
+index-DSbIgsAu.js:10 - contributorId: undefined
+index-DSbIgsAu.js:10 - type (financeiro): income
+index-DSbIgsAu.js:10 - pixKey: undefined
+index-DSbIgsAu.js:10 - contribution_type (religioso): DÍZIMO
+index-DSbIgsAu.js:10 - payment_method (forma): PIX
+index-DSbIgsAu.js:10 [DIAGNOSTIC] safeUpdateData final: {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:07:35.627Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] TYPE_CHECK Errors Detected: []
+index-DSbIgsAu.js:10 [FIX:PERSIST_FIELDS] {type: 'income', contribution_type: 'DÍZIMO', payment_method: 'PIX'}
+index-DSbIgsAu.js:10 💾 SALVANDO MATCH (TransactionStatus) {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:07:35.627Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:12 [SSE:Realtime] Evento recebido da VPS: {type: 'TRANSACTION_UPDATED', action: 'UPDATE', txId: 'd58a875c-fcfb-47ab-b4cd-783d8eabfc13'}
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: true}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:BUSY] Hidratação já em andamento, agendando re-tentativa.
+index-DSbIgsAu.js:10 [IA-LEARN] Chamou função de aprendizado {entrada: {…}}
+index-DSbIgsAu.js:10 [IA-LEARN] Chamou função de aprendizado {entrada: {…}}
+index-DSbIgsAu.js:10 [IA-LEARN] Chamou função de aprendizado {entrada: {…}}
+index-DSbIgsAu.js:10 [IA-LEARN] Salvando aprendizado {dados: {…}}
+index-DSbIgsAu.js:10 [WRITE:FIX] Persistindo learned_association com effectiveUserId: 1e812dc4-ace8-4631-9e4e-c22612a33c5b no VPS
+index-DSbIgsAu.js:10 [IA-LEARN] Salvando aprendizado {dados: {…}}
+index-DSbIgsAu.js:10 [WRITE:FIX] Persistindo learned_association com effectiveUserId: 1e812dc4-ace8-4631-9e4e-c22612a33c5b no VPS
+index-DSbIgsAu.js:10 [IA-LEARN] Salvando aprendizado {dados: {…}}
+index-DSbIgsAu.js:10 [WRITE:FIX] Persistindo learned_association com effectiveUserId: 1e812dc4-ace8-4631-9e4e-c22612a33c5b no VPS
+index-DSbIgsAu.js:10 [PostReconstruct:BLOCK] Pulando AutoProcess em resposta a atualização atômica.
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1683, …}
+index-DSbIgsAu.js:10 [CloudSync:BUSY] Hidratação já em andamento, agendando re-tentativa.
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:10 [PostReconstruct:WAIT_STABLE] {signatureChanged: true}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [PostReconstruct:STABLE] 4990
+index-DSbIgsAu.js:10 [AutoProcess:FINAL_TRIGGER]
+index-DSbIgsAu.js:11 [AutoProcess:START]
+index-DSbIgsAu.js:11 [AutoProcess:PROCESSING]
+index-DSbIgsAu.js:11 [AutoProcess:DONE]
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:10 [PostReconstruct:WAIT_STABLE] {signatureChanged: true}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [PostReconstruct:STABLE] 4990
+index-DSbIgsAu.js:10 [AutoProcess:FINAL_TRIGGER]
+index-DSbIgsAu.js:11 [AutoProcess:START]
+index-DSbIgsAu.js:11 [AutoProcess:PROCESSING]
+index-DSbIgsAu.js:11 [AutoProcess:DONE]
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+The specified value "2026-11-06T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-06T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-06T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-06T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-06T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-06T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-06T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-06T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-06T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-06T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-06T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-06T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-06T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-06T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-06T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-06T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-06T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+index-DSbIgsAu.js:11  GET https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+(anônimo) @ index-DSbIgsAu.js:12
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:11 [AutoRegister] Efetuando cadastro com CPF na VPS para: ALOISIO DA SILVA UCHOA
+index-DSbIgsAu.js:11  POST https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+await in i
+(anônimo) @ index-DSbIgsAu.js:12
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:10 [ID:WRITE] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', payloadUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b'}
+index-DSbIgsAu.js:10 [WRITE:START] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', transactionId: '7b69f3c0-f819-4a55-ac73-6e1edaf7fc6d', payload: {…}}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] EXPLICIT PARAMETERS PASSED TO updateTransactionStatus:
+index-DSbIgsAu.js:10 - transactionId: 7b69f3c0-f819-4a55-ac73-6e1edaf7fc6d
+index-DSbIgsAu.js:10 - status: identified
+index-DSbIgsAu.js:10 - churchId: 7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc
+index-DSbIgsAu.js:10 - bankId: ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc
+index-DSbIgsAu.js:10 - contributorId: undefined
+index-DSbIgsAu.js:10 - type (financeiro): income
+index-DSbIgsAu.js:10 - pixKey: undefined
+index-DSbIgsAu.js:10 - contribution_type (religioso): DÍZIMO
+index-DSbIgsAu.js:10 - payment_method (forma): PIX
+index-DSbIgsAu.js:10 [DIAGNOSTIC] safeUpdateData final: {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:08:02.381Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] TYPE_CHECK Errors Detected: []
+index-DSbIgsAu.js:10 [FIX:PERSIST_FIELDS] {type: 'income', contribution_type: 'DÍZIMO', payment_method: 'PIX'}
+index-DSbIgsAu.js:10 💾 SALVANDO MATCH (TransactionStatus) {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:08:02.381Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:12 [SSE:Realtime] Evento recebido da VPS: {type: 'TRANSACTION_UPDATED', action: 'UPDATE', txId: '7b69f3c0-f819-4a55-ac73-6e1edaf7fc6d'}
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: true}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:11  GET https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+(anônimo) @ index-DSbIgsAu.js:12
+await in (anônimo)
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:11 [AutoRegister] Efetuando cadastro com CPF na VPS para: ALOISIO DA SILVA UCHOA
+index-DSbIgsAu.js:11  POST https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+await in i
+(anônimo) @ index-DSbIgsAu.js:12
+await in (anônimo)
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:10 [ID:WRITE] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', payloadUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b'}
+index-DSbIgsAu.js:10 [WRITE:START] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', transactionId: '0c632ec5-52bd-41cf-9351-1af7f77fcd45', payload: {…}}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] EXPLICIT PARAMETERS PASSED TO updateTransactionStatus:
+index-DSbIgsAu.js:10 - transactionId: 0c632ec5-52bd-41cf-9351-1af7f77fcd45
+index-DSbIgsAu.js:10 - status: identified
+index-DSbIgsAu.js:10 - churchId: 7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc
+index-DSbIgsAu.js:10 - bankId: ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc
+index-DSbIgsAu.js:10 - contributorId: undefined
+index-DSbIgsAu.js:10 - type (financeiro): income
+index-DSbIgsAu.js:10 - pixKey: undefined
+index-DSbIgsAu.js:10 - contribution_type (religioso): DÍZIMO
+index-DSbIgsAu.js:10 - payment_method (forma): PIX
+index-DSbIgsAu.js:10 [DIAGNOSTIC] safeUpdateData final: {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:08:02.963Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] TYPE_CHECK Errors Detected: []
+index-DSbIgsAu.js:10 [FIX:PERSIST_FIELDS] {type: 'income', contribution_type: 'DÍZIMO', payment_method: 'PIX'}
+index-DSbIgsAu.js:10 💾 SALVANDO MATCH (TransactionStatus) {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:08:02.963Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:12 [SSE:Realtime] Evento recebido da VPS: {type: 'TRANSACTION_UPDATED', action: 'UPDATE', txId: '0c632ec5-52bd-41cf-9351-1af7f77fcd45'}
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: true}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:BUSY] Hidratação já em andamento, agendando re-tentativa.
+index-DSbIgsAu.js:11  GET https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+(anônimo) @ index-DSbIgsAu.js:12
+await in (anônimo)
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:11 [AutoRegister] Efetuando cadastro com CPF na VPS para: ALOISIO DA SILVA UCHOA
+index-DSbIgsAu.js:11  POST https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+await in i
+(anônimo) @ index-DSbIgsAu.js:12
+await in (anônimo)
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:10 [ID:WRITE] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', payloadUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b'}
+index-DSbIgsAu.js:10 [WRITE:START] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', transactionId: 'd6f4da40-0eb3-4779-9fe9-5b3525bf1578', payload: {…}}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] EXPLICIT PARAMETERS PASSED TO updateTransactionStatus:
+index-DSbIgsAu.js:10 - transactionId: d6f4da40-0eb3-4779-9fe9-5b3525bf1578
+index-DSbIgsAu.js:10 - status: identified
+index-DSbIgsAu.js:10 - churchId: 7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc
+index-DSbIgsAu.js:10 - bankId: ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc
+index-DSbIgsAu.js:10 - contributorId: undefined
+index-DSbIgsAu.js:10 - type (financeiro): income
+index-DSbIgsAu.js:10 - pixKey: undefined
+index-DSbIgsAu.js:10 - contribution_type (religioso): DÍZIMO
+index-DSbIgsAu.js:10 - payment_method (forma): PIX
+index-DSbIgsAu.js:10 [DIAGNOSTIC] safeUpdateData final: {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:08:03.892Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] TYPE_CHECK Errors Detected: []
+index-DSbIgsAu.js:10 [FIX:PERSIST_FIELDS] {type: 'income', contribution_type: 'DÍZIMO', payment_method: 'PIX'}
+index-DSbIgsAu.js:10 💾 SALVANDO MATCH (TransactionStatus) {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:08:03.892Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:12 [SSE:Realtime] Evento recebido da VPS: {type: 'TRANSACTION_UPDATED', action: 'UPDATE', txId: 'd6f4da40-0eb3-4779-9fe9-5b3525bf1578'}
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: true}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:BUSY] Hidratação já em andamento, agendando re-tentativa.
+index-DSbIgsAu.js:11  GET https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+(anônimo) @ index-DSbIgsAu.js:12
+await in (anônimo)
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:11 [AutoRegister] Efetuando cadastro com CPF na VPS para: ALOISIO DA SILVA UCHOA
+index-DSbIgsAu.js:11  POST https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+await in i
+(anônimo) @ index-DSbIgsAu.js:12
+await in (anônimo)
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:10 [ID:WRITE] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', payloadUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b'}
+index-DSbIgsAu.js:10 [WRITE:START] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', transactionId: 'a693b4aa-dd5c-4689-ac5b-4715622b2892', payload: {…}}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] EXPLICIT PARAMETERS PASSED TO updateTransactionStatus:
+index-DSbIgsAu.js:10 - transactionId: a693b4aa-dd5c-4689-ac5b-4715622b2892
+index-DSbIgsAu.js:10 - status: identified
+index-DSbIgsAu.js:10 - churchId: 7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc
+index-DSbIgsAu.js:10 - bankId: ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc
+index-DSbIgsAu.js:10 - contributorId: undefined
+index-DSbIgsAu.js:10 - type (financeiro): income
+index-DSbIgsAu.js:10 - pixKey: undefined
+index-DSbIgsAu.js:10 - contribution_type (religioso): DÍZIMO
+index-DSbIgsAu.js:10 - payment_method (forma): PIX
+index-DSbIgsAu.js:10 [DIAGNOSTIC] safeUpdateData final: {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:08:06.249Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] TYPE_CHECK Errors Detected: []
+index-DSbIgsAu.js:10 [FIX:PERSIST_FIELDS] {type: 'income', contribution_type: 'DÍZIMO', payment_method: 'PIX'}
+index-DSbIgsAu.js:10 💾 SALVANDO MATCH (TransactionStatus) {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:08:06.249Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:12 [SSE:Realtime] Evento recebido da VPS: {type: 'TRANSACTION_UPDATED', action: 'UPDATE', txId: 'a693b4aa-dd5c-4689-ac5b-4715622b2892'}
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: true}
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:11  GET https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+(anônimo) @ index-DSbIgsAu.js:12
+await in (anônimo)
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:11 [AutoRegister] Efetuando cadastro com CPF na VPS para: ALOISIO DA SILVA UCHOA
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [PostReconstruct:WAIT_STABLE] {signatureChanged: true}
+index-DSbIgsAu.js:10 [CloudSync:BUSY] Hidratação já em andamento, agendando re-tentativa.
+index-DSbIgsAu.js:11  POST https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+await in i
+(anônimo) @ index-DSbIgsAu.js:12
+await in (anônimo)
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:10 [ID:WRITE] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', payloadUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b'}
+index-DSbIgsAu.js:10 [WRITE:START] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', transactionId: '5013333f-a7b1-4b4c-8629-dd967be24045', payload: {…}}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] EXPLICIT PARAMETERS PASSED TO updateTransactionStatus:
+index-DSbIgsAu.js:10 - transactionId: 5013333f-a7b1-4b4c-8629-dd967be24045
+index-DSbIgsAu.js:10 - status: identified
+index-DSbIgsAu.js:10 - churchId: 7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc
+index-DSbIgsAu.js:10 - bankId: ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc
+index-DSbIgsAu.js:10 - contributorId: undefined
+index-DSbIgsAu.js:10 - type (financeiro): income
+index-DSbIgsAu.js:10 - pixKey: undefined
+index-DSbIgsAu.js:10 - contribution_type (religioso): DÍZIMO
+index-DSbIgsAu.js:10 - payment_method (forma): PIX
+index-DSbIgsAu.js:10 [DIAGNOSTIC] safeUpdateData final: {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:08:08.238Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] TYPE_CHECK Errors Detected: []
+index-DSbIgsAu.js:10 [FIX:PERSIST_FIELDS] {type: 'income', contribution_type: 'DÍZIMO', payment_method: 'PIX'}
+index-DSbIgsAu.js:10 💾 SALVANDO MATCH (TransactionStatus) {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:08:08.238Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:10 [PostReconstruct:STABLE] 4990
+index-DSbIgsAu.js:10 [AutoProcess:FINAL_TRIGGER]
+index-DSbIgsAu.js:11 [AutoProcess:START]
+index-DSbIgsAu.js:11 [AutoProcess:PROCESSING]
+index-DSbIgsAu.js:11 [AutoProcess:DONE]
+index-DSbIgsAu.js:12 [SSE:Realtime] Evento recebido da VPS: {type: 'TRANSACTION_UPDATED', action: 'UPDATE', txId: '5013333f-a7b1-4b4c-8629-dd967be24045'}
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: true}
+index-DSbIgsAu.js:10 [IA-LEARN] Chamou função de aprendizado {entrada: {…}}
+index-DSbIgsAu.js:10 [IA-LEARN] Chamou função de aprendizado {entrada: {…}}
+index-DSbIgsAu.js:10 [IA-LEARN] Chamou função de aprendizado {entrada: {…}}
+index-DSbIgsAu.js:10 [IA-LEARN] Chamou função de aprendizado {entrada: {…}}
+index-DSbIgsAu.js:10 [IA-LEARN] Chamou função de aprendizado {entrada: {…}}
+index-DSbIgsAu.js:10 [IA-LEARN] Salvando aprendizado {dados: {…}}
+index-DSbIgsAu.js:10 [WRITE:FIX] Persistindo learned_association com effectiveUserId: 1e812dc4-ace8-4631-9e4e-c22612a33c5b no VPS
+index-DSbIgsAu.js:10 [IA-LEARN] Salvando aprendizado {dados: {…}}
+index-DSbIgsAu.js:10 [WRITE:FIX] Persistindo learned_association com effectiveUserId: 1e812dc4-ace8-4631-9e4e-c22612a33c5b no VPS
+index-DSbIgsAu.js:10 [IA-LEARN] Salvando aprendizado {dados: {…}}
+index-DSbIgsAu.js:10 [WRITE:FIX] Persistindo learned_association com effectiveUserId: 1e812dc4-ace8-4631-9e4e-c22612a33c5b no VPS
+index-DSbIgsAu.js:10 [IA-LEARN] Salvando aprendizado {dados: {…}}
+index-DSbIgsAu.js:10 [WRITE:FIX] Persistindo learned_association com effectiveUserId: 1e812dc4-ace8-4631-9e4e-c22612a33c5b no VPS
+index-DSbIgsAu.js:10 [IA-LEARN] Salvando aprendizado {dados: {…}}
+index-DSbIgsAu.js:10 [WRITE:FIX] Persistindo learned_association com effectiveUserId: 1e812dc4-ace8-4631-9e4e-c22612a33c5b no VPS
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:BUSY] Hidratação já em andamento, agendando re-tentativa.
+index-DSbIgsAu.js:10 [PostReconstruct:BLOCK] Pulando AutoProcess em resposta a atualização atômica.
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1683, …}
+index-DSbIgsAu.js:10 [CloudSync:BUSY] Hidratação já em andamento, agendando re-tentativa.
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:10 [PostReconstruct:WAIT_STABLE] {signatureChanged: true}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [PostReconstruct:STABLE] 4990
+index-DSbIgsAu.js:10 [AutoProcess:FINAL_TRIGGER]
+index-DSbIgsAu.js:11 [AutoProcess:START]
+index-DSbIgsAu.js:11 [AutoProcess:PROCESSING]
+index-DSbIgsAu.js:11 [AutoProcess:DONE]
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [PostReconstruct:WAIT_STABLE] {signatureChanged: true}
+index-DSbIgsAu.js:10 [PostReconstruct:STABLE] 4990
+index-DSbIgsAu.js:10 [AutoProcess:FINAL_TRIGGER]
+index-DSbIgsAu.js:11 [AutoProcess:START]
+index-DSbIgsAu.js:11 [AutoProcess:PROCESSING]
+index-DSbIgsAu.js:11 [AutoProcess:DONE]
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+The specified value "2026-11-09T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-09T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-09T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-09T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-09T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-09T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-09T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-09T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-09T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-09T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+The specified value "2026-11-09T00:00:00.000Z" does not conform to the required format, "yyyy-MM-dd".
+index-DSbIgsAu.js:11  GET https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+(anônimo) @ index-DSbIgsAu.js:12
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:11 [AutoRegister] Efetuando cadastro com CPF na VPS para: ALOISIO DA SILVA UCHOA
+index-DSbIgsAu.js:11  POST https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+await in i
+(anônimo) @ index-DSbIgsAu.js:12
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:10 [ID:WRITE] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', payloadUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b'}
+index-DSbIgsAu.js:10 [WRITE:START] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', transactionId: '0579fe51-2c69-40a4-b637-9e4ef3a703f5', payload: {…}}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] EXPLICIT PARAMETERS PASSED TO updateTransactionStatus:
+index-DSbIgsAu.js:10 - transactionId: 0579fe51-2c69-40a4-b637-9e4ef3a703f5
+index-DSbIgsAu.js:10 - status: identified
+index-DSbIgsAu.js:10 - churchId: 7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc
+index-DSbIgsAu.js:10 - bankId: ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc
+index-DSbIgsAu.js:10 - contributorId: undefined
+index-DSbIgsAu.js:10 - type (financeiro): income
+index-DSbIgsAu.js:10 - pixKey: undefined
+index-DSbIgsAu.js:10 - contribution_type (religioso): DÍZIMO
+index-DSbIgsAu.js:10 - payment_method (forma): PIX
+index-DSbIgsAu.js:10 [DIAGNOSTIC] safeUpdateData final: {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:08:34.014Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] TYPE_CHECK Errors Detected: []
+index-DSbIgsAu.js:10 [FIX:PERSIST_FIELDS] {type: 'income', contribution_type: 'DÍZIMO', payment_method: 'PIX'}
+index-DSbIgsAu.js:10 💾 SALVANDO MATCH (TransactionStatus) {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:08:34.014Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:12 [SSE:Realtime] Evento recebido da VPS: {type: 'TRANSACTION_UPDATED', action: 'UPDATE', txId: '0579fe51-2c69-40a4-b637-9e4ef3a703f5'}
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: true}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:11  GET https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+(anônimo) @ index-DSbIgsAu.js:12
+await in (anônimo)
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:11 [AutoRegister] Efetuando cadastro com CPF na VPS para: ALOISIO DA SILVA UCHOA
+index-DSbIgsAu.js:11  POST https://identificapix.com.br/api/v1/contributors 401 (Unauthorized)
+i @ index-DSbIgsAu.js:11
+await in i
+(anônimo) @ index-DSbIgsAu.js:12
+await in (anônimo)
+wa @ index-DSbIgsAu.js:558
+_f @ vendor-VZ-Yj73K.js:29
+Pf @ vendor-VZ-Yj73K.js:29
+Nf @ vendor-VZ-Yj73K.js:29
+li @ vendor-VZ-Yj73K.js:29
+$s @ vendor-VZ-Yj73K.js:29
+(anônimo) @ vendor-VZ-Yj73K.js:29
+So @ vendor-VZ-Yj73K.js:32
+ps @ vendor-VZ-Yj73K.js:29
+Rl @ vendor-VZ-Yj73K.js:29
+Xu @ vendor-VZ-Yj73K.js:29
+$f @ vendor-VZ-Yj73K.js:29
+index-DSbIgsAu.js:10 [ID:WRITE] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', payloadUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b'}
+index-DSbIgsAu.js:10 [WRITE:START] {userId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', transactionId: '0c06a4d7-aa8e-4632-9fad-7f6b087b6a6f', payload: {…}}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] EXPLICIT PARAMETERS PASSED TO updateTransactionStatus:
+index-DSbIgsAu.js:10 - transactionId: 0c06a4d7-aa8e-4632-9fad-7f6b087b6a6f
+index-DSbIgsAu.js:10 - status: identified
+index-DSbIgsAu.js:10 - churchId: 7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc
+index-DSbIgsAu.js:10 - bankId: ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc
+index-DSbIgsAu.js:10 - contributorId: undefined
+index-DSbIgsAu.js:10 - type (financeiro): income
+index-DSbIgsAu.js:10 - pixKey: undefined
+index-DSbIgsAu.js:10 - contribution_type (religioso): DÍZIMO
+index-DSbIgsAu.js:10 - payment_method (forma): PIX
+index-DSbIgsAu.js:10 [DIAGNOSTIC] safeUpdateData final: {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:08:34.588Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:10 [DIAGNOSTIC] TYPE_CHECK Errors Detected: []
+index-DSbIgsAu.js:10 [FIX:PERSIST_FIELDS] {type: 'income', contribution_type: 'DÍZIMO', payment_method: 'PIX'}
+index-DSbIgsAu.js:10 💾 SALVANDO MATCH (TransactionStatus) {status: 'identified', user_id: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', updated_at: '2026-11-09T21:08:34.588Z', church_id: '7c2c3212-3cb8-4bf2-9a87-2ceec6fb82bc', bank_id: 'ee50b3e7-148a-4b5a-80de-9fdb53e6e2fc', …}
+index-DSbIgsAu.js:12 [SSE:Realtime] Evento recebido da VPS: {type: 'TRANSACTION_UPDATED', action: 'UPDATE', txId: '0c06a4d7-aa8e-4632-9fad-7f6b087b6a6f'}
+index-DSbIgsAu.js:12 [AppContext:RealtimeRefresh] Sincronização em tempo real acionada. {force: true}
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:BUSY] Hidratação já em andamento, agendando re-tentativa.
+index-DSbIgsAu.js:10 [IA-LEARN] Chamou função de aprendizado {entrada: {…}}
+index-DSbIgsAu.js:10 [IA-LEARN] Chamou função de aprendizado {entrada: {…}}
+index-DSbIgsAu.js:10 [IA-LEARN] Salvando aprendizado {dados: {…}}
+index-DSbIgsAu.js:10 [WRITE:FIX] Persistindo learned_association com effectiveUserId: 1e812dc4-ace8-4631-9e4e-c22612a33c5b no VPS
+index-DSbIgsAu.js:10 [IA-LEARN] Salvando aprendizado {dados: {…}}
+index-DSbIgsAu.js:10 [WRITE:FIX] Persistindo learned_association com effectiveUserId: 1e812dc4-ace8-4631-9e4e-c22612a33c5b no VPS
+index-DSbIgsAu.js:10 [PostReconstruct:BLOCK] Pulando AutoProcess em resposta a atualização atômica.
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1683, …}
+index-DSbIgsAu.js:10 [CloudSync:BUSY] Hidratação já em andamento, agendando re-tentativa.
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:10 [PostReconstruct:WAIT_STABLE] {signatureChanged: true}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [PostReconstruct:STABLE] 4990
+index-DSbIgsAu.js:10 [AutoProcess:FINAL_TRIGGER]
+index-DSbIgsAu.js:11 [AutoProcess:START]
+index-DSbIgsAu.js:11 [AutoProcess:PROCESSING]
+index-DSbIgsAu.js:11 [AutoProcess:DONE]
+index-DSbIgsAu.js:10 [CloudSync:ATOM_EFFECT_TRIGGER] {isReady: true, activeReportId: null, effectiveUserId: '1e812dc4-ace8-4631-9e4e-c22612a33c5b', churchesCount: 25, assocCount: 1685, …}
+index-DSbIgsAu.js:10 [CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:10 [PostReconstruct:WAIT_STABLE] {signatureChanged: true}
+index-DSbIgsAu.js:10 [PostReconstruct:STABLE] 4990
+index-DSbIgsAu.js:10 [AutoProcess:FINAL_TRIGGER]
+index-DSbIgsAu.js:11 [AutoProcess:START]
+index-DSbIgsAu.js:11 [AutoProcess:PROCESSING]
+index-DSbIgsAu.js:11 [AutoProcess:DONE]
+index-DSbIgsAu.js:10 [PostReconstruct:WAIT_STABLE] {signatureChanged: true}
+index-DSbIgsAu.js:10 [PostReconstruct:WAIT_STABLE] {signatureChanged: true}
+index-DSbIgsAu.js:10 [Hydration:FINISHED]
+index-DSbIgsAu.js:10 [PostReconstruct:WAIT_STABLE] {signatureChanged: true}
+index-DSbIgsAu.js:10 [PostReconstruct:STABLE] 4991

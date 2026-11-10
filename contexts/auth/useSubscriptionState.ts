@@ -29,21 +29,53 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
     const [subscription, setSubscription] = useState<SubscriptionStatus>(() => {
         try {
             const rawUser = typeof window !== 'undefined' ? localStorage.getItem('iggestor_vps_user') : null;
-            const rawSub = typeof window !== 'undefined' ? localStorage.getItem(SUBSCRIPTION_STORAGE_KEY) : null;
             let u: any = null;
             if (rawUser) {
                 try { u = JSON.parse(rawUser); } catch {}
             }
+
+            const userSubKey = u?.id ? `${SUBSCRIPTION_STORAGE_KEY}_${u.id}` : SUBSCRIPTION_STORAGE_KEY;
+            const rawSub = typeof window !== 'undefined' ? (localStorage.getItem(userSubKey) || localStorage.getItem(SUBSCRIPTION_STORAGE_KEY)) : null;
             let cached: any = null;
             if (rawSub) {
-                try { cached = JSON.parse(rawSub); } catch {}
+                try { 
+                    const parsed = JSON.parse(rawSub);
+                    if (!parsed.userId || !u?.id || parsed.userId === u.id) {
+                        cached = parsed;
+                    }
+                } catch {}
             }
 
             const hasSeparateOwner = Boolean(u?.owner_id && u?.owner_id !== u?.id);
             const role = normalizeRole(u?.role, hasSeparateOwner);
             const ownerId = u?.owner_id || (role === 'owner' ? u?.id : '');
+            const userEmail = String(u?.email || '').toLowerCase().trim();
+            const isPlatformAdmin = userEmail === 'identificapix@gmail.com' || 
+                                    u?.role === 'superadmin' || 
+                                    u?.role === 'super_admin' || 
+                                    u?.role === 'admin' ||
+                                    role === 'admin';
 
-            // 🛡️ Prioridade de hidratação: Cache de assinatura persistido para evitar reset em deploy
+            // 👑 Admin Dono possui acesso vitalício permanente e nunca expira
+            if (isPlatformAdmin) {
+                return {
+                    plan: 'lifetime',
+                    daysRemaining: 9999,
+                    totalDays: 9999,
+                    isExpired: false,
+                    isBlocked: false,
+                    isLifetime: true,
+                    aiLimit: 999999,
+                    aiUsage: 0,
+                    maxChurches: 9999,
+                    maxBanks: 9999,
+                    role: 'admin',
+                    ownerId: u?.id || '',
+                    permissions: { all: true }
+                };
+            }
+
+            // 🛡️ Prioridade de hidratação: Cache de assinatura persistido individual do usuário
             if (cached) {
                 let dynamicDays = cached.daysRemaining;
                 let dynamicPlan = cached.plan || 'trial';
@@ -138,8 +170,14 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
         try {
             const raw = localStorage.getItem('iggestor_vps_user');
             if (raw) localUser = JSON.parse(raw);
-            const rawSub = localStorage.getItem(SUBSCRIPTION_STORAGE_KEY);
-            if (rawSub) cachedSub = JSON.parse(rawSub);
+            const userSubKey = userId ? `${SUBSCRIPTION_STORAGE_KEY}_${userId}` : SUBSCRIPTION_STORAGE_KEY;
+            const rawSub = localStorage.getItem(userSubKey) || localStorage.getItem(SUBSCRIPTION_STORAGE_KEY);
+            if (rawSub) {
+                const parsed = JSON.parse(rawSub);
+                if (!parsed.userId || !userId || parsed.userId === userId) {
+                    cachedSub = parsed;
+                }
+            }
         } catch {}
 
         try {
@@ -154,6 +192,35 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
             if (!p.role && localUser?.role) p.role = localUser.role;
             if (!p.owner_id && localUser?.owner_id) p.owner_id = localUser.owner_id;
             if (!p.permissions && localUser?.permissions) p.permissions = localUser.permissions;
+
+            const userEmail = String(p.email || localUser?.email || '').toLowerCase().trim();
+            const isPlatformAdmin = userEmail === 'identificapix@gmail.com' || 
+                                    p.role === 'admin' || 
+                                    p.role === 'superadmin' || 
+                                    p.role === 'super_admin' || 
+                                    localUser?.role === 'admin' || 
+                                    localUser?.role === 'superadmin';
+
+            // 👑 Admin Dono possui acesso vitalício permanente e nunca expira
+            if (isPlatformAdmin) {
+                const adminSubscription: SubscriptionStatus = {
+                    plan: 'lifetime',
+                    daysRemaining: 9999,
+                    totalDays: 9999,
+                    isExpired: false,
+                    isBlocked: false,
+                    isLifetime: true,
+                    aiLimit: 999999,
+                    aiUsage: 0,
+                    maxChurches: 9999,
+                    maxBanks: 9999,
+                    role: 'admin',
+                    ownerId: userId || '',
+                    permissions: { all: true }
+                };
+                setSubscription(adminSubscription);
+                return;
+            }
 
             // 🔗 HIERARCHY LOGIC: Secondary users inherit subscription from Principal
             // If the user has an owner_id different from their own ID, they are a secondary user.
@@ -176,13 +243,13 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
                 }
             }
 
-            // 🛡️ Se o perfil remoto não trouxe dados de assinatura válidos, preserva os dados de assinatura em cache
+            // 🛡️ Se o perfil remoto não trouxe dados de assinatura válidos, preserva os dados de assinatura em cache estritamente deste usuário
             if (!p.subscription_ends_at && !p.trial_ends_at) {
-                if (cachedSub?.subscription_ends_at || cachedSub?.trial_ends_at) {
+                if (cachedSub && cachedSub.userId === userId && (cachedSub.subscription_ends_at || cachedSub.trial_ends_at)) {
                     p.subscription_status = cachedSub.plan || p.subscription_status;
                     p.subscription_ends_at = cachedSub.subscription_ends_at;
                     p.trial_ends_at = cachedSub.trial_ends_at;
-                } else if (localUser?.subscription_ends_at || localUser?.trial_ends_at) {
+                } else if (localUser && localUser.id === userId && (localUser.subscription_ends_at || localUser.trial_ends_at)) {
                     p.subscription_status = localUser.subscription_status || p.subscription_status;
                     p.subscription_ends_at = localUser.subscription_ends_at;
                     p.trial_ends_at = localUser.trial_ends_at;
@@ -282,14 +349,19 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
                 permissions: permissions
             };
 
-            // 🛡️ Salva estado no localStorage para manter a fidelidade dos dias em deploys
+            // 🛡️ Salva estado no localStorage para manter a fidelidade dos dias em deploys de forma estritamente individual
             try {
-                localStorage.setItem(SUBSCRIPTION_STORAGE_KEY, JSON.stringify({
+                const subPayload = {
                     ...newSubscription,
+                    userId,
                     subscription_ends_at: p.subscription_ends_at || null,
                     trial_ends_at: p.trial_ends_at || null
-                }));
-                if (localUser) {
+                };
+                if (userId) {
+                    localStorage.setItem(`${SUBSCRIPTION_STORAGE_KEY}_${userId}`, JSON.stringify(subPayload));
+                }
+                localStorage.setItem(SUBSCRIPTION_STORAGE_KEY, JSON.stringify(subPayload));
+                if (localUser && (!localUser.id || localUser.id === userId)) {
                     localUser.subscription_status = status;
                     localUser.subscription_ends_at = p.subscription_ends_at || null;
                     localUser.trial_ends_at = p.trial_ends_at || null;
