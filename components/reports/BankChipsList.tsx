@@ -9,18 +9,18 @@ interface BankChipsListProps {
 
 export const BankChipsList: React.FC<BankChipsListProps> = ({ list, selectedId, onSelect }) => (
     <div className="w-full">
-        <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto custom-scrollbar pb-1 px-1 touch-pan-x">
+        <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto custom-scrollbar p-1 touch-pan-x bg-slate-100/80 dark:bg-slate-900/60 rounded-xl border border-slate-200/80 dark:border-slate-800">
             <button
                 type="button"
                 onClick={() => onSelect(null)}
-                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl border transition-all duration-200 text-[11px] cursor-pointer ${
+                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all duration-150 text-xs cursor-pointer ${
                     !selectedId || selectedId === 'all'
-                    ? 'bg-gradient-to-r from-emerald-500 to-teal-600 border-emerald-600 text-white shadow-xs font-black' 
-                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-emerald-400 font-bold'
+                    ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white shadow-xs font-semibold' 
+                    : 'bg-transparent border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-medium'
                 }`}
             >
-                {(!selectedId || selectedId === 'all') && <div className="w-1.5 h-1.5 rounded-full bg-white shadow-xs"></div>}
-                <span className="uppercase tracking-wider">Todos os Bancos</span>
+                {(!selectedId || selectedId === 'all') && <div className="w-1.5 h-1.5 rounded-full bg-orange-600"></div>}
+                <span className="uppercase tracking-wider text-[10px]">Todos os Bancos</span>
             </button>
 
             {list.map(item => (
@@ -28,14 +28,14 @@ export const BankChipsList: React.FC<BankChipsListProps> = ({ list, selectedId, 
                     key={item.id}
                     type="button"
                     onClick={() => onSelect(item.id)}
-                    className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl border transition-all duration-200 text-[11px] cursor-pointer ${
+                    className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all duration-150 text-xs cursor-pointer ${
                         selectedId === item.id 
-                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 border-blue-600 text-white shadow-xs font-black' 
-                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-blue-400 font-bold'
+                        ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white shadow-xs font-semibold' 
+                        : 'bg-transparent border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-medium'
                     }`}
                 >
-                    {selectedId === item.id && <div className="w-1.5 h-1.5 rounded-full bg-white shadow-xs"></div>}
-                    <span className="truncate max-w-[150px] uppercase tracking-wider">{item.name}</span>
+                    {selectedId === item.id && <div className="w-1.5 h-1.5 rounded-full bg-orange-600"></div>}
+                    <span className="truncate max-w-[150px] uppercase tracking-wider text-[10px]">{item.name}</span>
                 </button>
             ))}
         </div>

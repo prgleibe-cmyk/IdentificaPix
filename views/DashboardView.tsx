@@ -116,10 +116,10 @@ export const DashboardView: React.FC = memo(() => {
 
             <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-3 xl:gap-4">
                 <div 
-                    className="bg-white dark:bg-slate-800 rounded-[2rem] shadow-card border border-slate-100 dark:border-slate-700 flex flex-col overflow-hidden animate-fade-in-up fill-mode-backwards"
+                    className="bg-white dark:bg-slate-800 rounded-xl shadow-card border border-slate-200/90 dark:border-slate-700 flex flex-col overflow-hidden animate-fade-in-up fill-mode-backwards"
                     style={{ animationDelay: '300ms' }}
                 >
-                     <div className="px-5 py-3 border-b border-slate-50 dark:border-slate-700/50 flex justify-between items-center shrink-0">
+                     <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-700/60 flex justify-between items-center shrink-0">
                         <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">{t('dashboard.matchMethodBreakdown')}</h3>
                         <div className="p-1.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg text-slate-400 border border-slate-100 dark:border-slate-700">
                             <ChartPieIcon className="w-3.5 h-3.5" />

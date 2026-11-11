@@ -98,15 +98,15 @@ export const ReportToolbar: React.FC<ReportToolbarProps> = ({
             )}
 
             {/* Grupo de Automações & Comunicação (WhatsApp Recibos + Conciliação Inteligente) */}
-            <div className="flex items-center gap-1.5 p-1 bg-amber-500/10 dark:bg-amber-950/30 rounded-2xl border border-amber-300/50 dark:border-amber-700/40 shadow-xs">
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-xs">
                 {/* Configuração de WhatsApp */}
                 <button 
                     type="button"
                     onClick={handleWhatsAppClick} 
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] uppercase font-black tracking-wider text-emerald-900 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-950/80 border border-emerald-400/80 dark:border-emerald-700 hover:bg-emerald-200 dark:hover:bg-emerald-900/80 transition-all shadow-xs cursor-pointer group active:scale-95"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold tracking-wide text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 hover:bg-slate-50 border border-slate-200 dark:border-slate-600 transition-all shadow-xs cursor-pointer group active:scale-95"
                     title={`Configurar Mensagens e Recibos do WhatsApp (Modelo Ativo: ${activeModelLabel})`}
                 >
-                    <MessageCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 fill-emerald-600/20 group-hover:scale-110 transition-transform" />
+                    <MessageCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 group-hover:scale-105 transition-transform" />
                     <span>Recibos</span>
                 </button>
 
@@ -114,7 +114,7 @@ export const ReportToolbar: React.FC<ReportToolbarProps> = ({
                     <button 
                         type="button"
                         onClick={onAiClick} 
-                        className="relative flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] uppercase font-black tracking-wider text-white bg-gradient-to-r from-orange-500 via-amber-600 to-amber-700 hover:from-orange-600 hover:to-amber-800 shadow-xs transition-all active:scale-95 group cursor-pointer border border-orange-400/40" 
+                        className="relative flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold uppercase tracking-wider text-white bg-orange-600 hover:bg-orange-700 shadow-xs transition-all active:scale-95 group cursor-pointer" 
                         title="Conciliação Automática de Vínculos"
                     >
                         <SparklesIcon className="w-3.5 h-3.5 group-hover:rotate-12 transition-transform" />

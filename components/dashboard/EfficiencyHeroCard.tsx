@@ -14,26 +14,24 @@ export const EfficiencyHeroCard: React.FC<EfficiencyHeroCardProps> = ({ rate, ti
 
     return (
         <div 
-            className="relative overflow-hidden bg-gradient-to-br from-white to-slate-50/50 dark:from-slate-800 dark:to-slate-900 rounded-[2rem] shadow-card border border-slate-200/50 dark:border-slate-700 p-6 xl:p-8 hover:shadow-premium hover:-translate-y-1 transition-all duration-500 group animate-fade-in-up fill-mode-backwards"
+            className="relative overflow-hidden bg-white dark:bg-slate-800 rounded-xl shadow-card border border-slate-200/90 dark:border-slate-700 p-5 hover:shadow-soft transition-all duration-200 group animate-fade-in-up fill-mode-backwards"
             style={{ animationDelay: '100ms' }}
         >
-            <div className="absolute top-0 right-0 w-32 h-32 bg-brand-blue/5 rounded-full blur-[50px] pointer-events-none"></div>
-            
             <div className="flex justify-between items-start h-full relative z-10">
                 <div className="flex flex-col justify-between h-full">
                     <div>
-                        <div className="flex items-center gap-2 mb-2">
-                            <div className="p-1.5 bg-brand-blue/10 dark:bg-brand-blue/20 text-brand-blue rounded-lg">
+                        <div className="flex items-center gap-2 mb-1.5">
+                            <div className="p-1.5 bg-orange-50 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 rounded-md">
                                 <SparklesIcon className="w-3.5 h-3.5" />
                             </div>
-                            <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">{title}</p>
+                            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{title}</p>
                         </div>
-                        <span className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-brand-graphite to-slate-600 dark:from-white dark:to-slate-300 tabular-nums tracking-tighter">
+                        <span className="text-4xl font-bold text-slate-900 dark:text-white tabular-nums tracking-tight">
                             {rate.toFixed(1)}%
                         </span>
                     </div>
-                    <div className="mt-4">
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold bg-white dark:bg-slate-700 text-brand-blue border border-slate-200 dark:border-slate-600 shadow-sm uppercase tracking-wide">
+                    <div className="mt-3">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border border-orange-200/60 dark:border-orange-900/40 uppercase tracking-wider">
                             Taxa de Eficiência
                         </span>
                     </div>

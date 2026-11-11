@@ -40,6 +40,30 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
+/* IgGestor Design System Utilities */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  -moz-font-feature-settings: "tnum";
+  -webkit-font-feature-settings: "tnum";
+  font-feature-settings: "tnum";
+}
+
+.card-premium {
+  @apply bg-white dark:bg-[#0F172A] border border-slate-200/90 dark:border-white/5 rounded-xl shadow-[0_1px_3px_0_rgba(15,23,42,0.06),0_1px_2px_-1px_rgba(15,23,42,0.06)];
+}
+
+.input-premium {
+  @apply bg-white dark:bg-[#1E293B] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all;
+}
+
+.btn-primary-ig {
+  @apply inline-flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 active:bg-orange-800 text-white font-medium text-sm rounded-lg px-4 py-2 transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30;
+}
+
+.btn-secondary-ig {
+  @apply inline-flex items-center justify-center gap-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 font-medium text-sm rounded-lg px-4 py-2 transition-all shadow-sm;
+}
+
 /* Tablet & Mobile Touch Kinetic Scrolling & Pinch-Zoom Engine */
 #main-scroll-container {
   -webkit-overflow-scrolling: touch;

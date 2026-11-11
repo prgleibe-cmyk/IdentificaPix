@@ -202,20 +202,15 @@ export const Sidebar: React.FC = memo(() => {
                 />
             )}
 
-            <aside className={`fixed md:relative inset-y-0 left-0 h-[100dvh] flex flex-col transition-all duration-500 z-[80] ${isCollapsed ? 'w-24' : 'w-72'} ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} bg-gradient-to-b from-[#E6EFEA] via-[#D8E8DF] to-[#CADFD4] dark:from-[#0B1411] dark:to-[#050D0A] text-slate-800 dark:text-slate-200 border-r border-emerald-200/50 dark:border-white/5 shadow-2xl shadow-emerald-950/5 overflow-hidden`}>
+            <aside className={`fixed md:relative inset-y-0 left-0 h-[100dvh] flex flex-col transition-all duration-300 z-[80] ${isCollapsed ? 'w-20' : 'w-64'} ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} bg-white dark:bg-[#0B0F17] text-slate-800 dark:text-slate-200 border-r border-slate-200/90 dark:border-white/5 shadow-sm overflow-hidden`}>
                 
-                <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.05]">
-                    <ChartBarIcon className="absolute -top-12 -right-12 w-64 h-64 text-emerald-600 dark:text-emerald-400 transform rotate-12" />
-                    <TableCellsIcon className="absolute top-[30%] -left-16 w-56 h-56 text-emerald-600 dark:text-emerald-400 transform -rotate-12" />
-                </div>
-
                 <div className="relative z-10 flex flex-col h-full">
                     
-                    <div className={`flex items-center transition-all duration-300 border-b border-emerald-200/40 dark:border-white/5 ${isCollapsed ? 'justify-center py-4 px-2' : 'gap-3 px-5 py-4'}`}>
+                    <div className={`flex items-center transition-all duration-300 border-b border-slate-200/80 dark:border-white/5 ${isCollapsed ? 'justify-center py-4 px-2' : 'gap-3 px-5 py-4'}`}>
                         <div className="relative group cursor-pointer shrink-0 z-50" onClick={() => setActiveView('dashboard')}>
                             <img 
                                 src={logoImg} 
-                                className={`${isCollapsed ? 'h-8' : 'h-8 md:h-10'} w-auto object-contain transition-all duration-300 drop-shadow-sm group-hover:scale-105`} 
+                                className={`${isCollapsed ? 'h-7' : 'h-8'} w-auto object-contain transition-all duration-300 group-hover:scale-105`} 
                                 alt="Logo" 
                                 loading="eager"
                                 decoding="async"
@@ -223,14 +218,14 @@ export const Sidebar: React.FC = memo(() => {
                         </div>
                         {!isCollapsed && (
                             <div className="cursor-pointer min-w-0" onClick={() => setActiveView('dashboard')}>
-                                <span className="font-display font-black text-xl tracking-tight text-slate-800 dark:text-white block leading-none">
-                                    Ig<span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-amber-500">Gestor</span>
+                                <span className="font-display font-black text-xl tracking-tight text-slate-900 dark:text-white block leading-none">
+                                    Ig<span className="text-orange-600">Gestor</span>
                                 </span>
                             </div>
                         )}
                     </div>
 
-                    <nav className="flex-1 px-4 space-y-1.5 py-2 overflow-y-auto custom-scrollbar relative z-20 min-h-0">
+                    <nav className="flex-1 px-3 space-y-1 py-3 overflow-y-auto custom-scrollbar relative z-20 min-h-0">
                         {/* Botão Dashboard */}
                         <button
                             type="button"
@@ -238,16 +233,16 @@ export const Sidebar: React.FC = memo(() => {
                             onMouseEnter={() => preloadView('dashboard')}
                             onTouchStart={() => preloadView('dashboard')}
                             onFocus={() => preloadView('dashboard')}
-                            className={`relative w-full flex items-center px-4 py-2.5 rounded-xl transition-all duration-150 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} ${
+                            className={`relative w-full flex items-center px-3 py-2 rounded-lg transition-all duration-150 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} ${
                                 activeView === 'dashboard' 
-                                    ? 'bg-gradient-to-r from-orange-500/12 to-amber-500/8 text-orange-700 dark:text-orange-400 border border-orange-500/25 font-bold shadow-[0_4px_12px_rgba(249,115,22,0.04)]' 
-                                    : 'text-slate-600 dark:text-emerald-100/70 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-500/5 dark:hover:bg-white/5 border border-transparent'
+                                    ? 'bg-orange-50 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 font-semibold' 
+                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/70 dark:hover:bg-white/5 font-medium'
                             }`}
                         >
-                            <HomeIcon className={`w-5 h-5 transition-transform ${activeView === 'dashboard' ? 'scale-110 text-orange-600 dark:text-orange-400' : 'group-hover:scale-110'}`} />
-                            {!isCollapsed && <span className="text-xs font-bold tracking-wide truncate">{t('nav.dashboard')}</span>}
+                            <HomeIcon className={`w-5 h-5 transition-transform ${activeView === 'dashboard' ? 'scale-105 text-orange-600 dark:text-orange-400' : 'text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
+                            {!isCollapsed && <span className="text-xs tracking-tight truncate">{t('nav.dashboard')}</span>}
                             {activeView === 'dashboard' && !isCollapsed && (
-                                <div className="absolute right-3 w-1.5 h-1.5 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.8)]"></div>
+                                <div className="absolute right-2.5 w-1.5 h-1.5 rounded-full bg-orange-600"></div>
                             )}
                         </button>
 
@@ -259,16 +254,16 @@ export const Sidebar: React.FC = memo(() => {
                                 onMouseEnter={() => preloadView(item.view)}
                                 onTouchStart={() => preloadView(item.view)}
                                 onFocus={() => preloadView(item.view)}
-                                className={`relative w-full flex items-center px-4 py-2.5 rounded-xl transition-all duration-150 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} ${
+                                className={`relative w-full flex items-center px-3 py-2 rounded-lg transition-all duration-150 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} ${
                                     activeView === item.view 
-                                        ? 'bg-gradient-to-r from-orange-500/12 to-amber-500/8 text-orange-700 dark:text-orange-400 border border-orange-500/25 font-bold shadow-[0_4px_12px_rgba(249,115,22,0.04)]' 
-                                        : 'text-slate-600 dark:text-emerald-100/70 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-500/5 dark:hover:bg-white/5 border border-transparent'
+                                        ? 'bg-orange-50 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 font-semibold' 
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/70 dark:hover:bg-white/5 font-medium'
                                 }`}
                             >
-                                {React.cloneElement(item.icon as React.ReactElement<any>, { className: `w-5 h-5 transition-transform ${activeView === item.view ? 'scale-110 text-orange-600 dark:text-orange-400' : 'group-hover:scale-110'}` })}
-                                {!isCollapsed && <span className="text-xs font-bold tracking-wide truncate">{item.labelKey.includes('.') ? t(item.labelKey as any) : item.labelKey}</span>}
+                                {React.cloneElement(item.icon as React.ReactElement<any>, { className: `w-5 h-5 transition-transform ${activeView === item.view ? 'scale-105 text-orange-600 dark:text-orange-400' : 'text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300'}` })}
+                                {!isCollapsed && <span className="text-xs tracking-tight truncate">{item.labelKey.includes('.') ? t(item.labelKey as any) : item.labelKey}</span>}
                                 {activeView === item.view && !isCollapsed && (
-                                    <div className="absolute right-3 w-1.5 h-1.5 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.8)]"></div>
+                                    <div className="absolute right-2.5 w-1.5 h-1.5 rounded-full bg-orange-600"></div>
                                 )}
                             </button>
                         ))}
@@ -280,51 +275,51 @@ export const Sidebar: React.FC = memo(() => {
                                 onMouseEnter={() => preloadView('users')}
                                 onTouchStart={() => preloadView('users')}
                                 onFocus={() => preloadView('users')}
-                                className={`relative w-full flex items-center px-4 py-2.5 rounded-xl transition-all duration-150 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} ${
+                                className={`relative w-full flex items-center px-3 py-2 rounded-lg transition-all duration-150 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} ${
                                     activeView === 'users' 
-                                        ? 'bg-gradient-to-r from-orange-500/12 to-amber-500/8 text-orange-700 dark:text-orange-400 border border-orange-500/25 font-bold shadow-[0_4px_12px_rgba(249,115,22,0.04)]' 
-                                        : 'text-slate-600 dark:text-emerald-100/70 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-500/5 dark:hover:bg-white/5 border border-transparent'
+                                        ? 'bg-orange-50 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 font-semibold' 
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/70 dark:hover:bg-white/5 font-medium'
                                 }`}
                             >
-                                <UserIcon className={`w-5 h-5 transition-transform ${activeView === 'users' ? 'scale-110 text-orange-600 dark:text-orange-400' : 'group-hover:scale-110'}`} />
-                                {!isCollapsed && <span className="text-xs font-bold tracking-wide truncate">Usuários</span>}
+                                <UserIcon className={`w-5 h-5 transition-transform ${activeView === 'users' ? 'scale-105 text-orange-600 dark:text-orange-400' : 'text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
+                                {!isCollapsed && <span className="text-xs tracking-tight truncate">Usuários</span>}
                                 {activeView === 'users' && !isCollapsed && (
-                                    <div className="absolute right-3 w-1.5 h-1.5 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.8)]"></div>
+                                    <div className="absolute right-2.5 w-1.5 h-1.5 rounded-full bg-orange-600"></div>
                                 )}
                             </button>
                         )}
                     </nav>
 
-                    <div className="mt-auto border-t border-emerald-200/60 dark:border-white/5 bg-[#C2D6CD]/95 dark:bg-[#070D0B]/95 backdrop-blur-md p-4 flex flex-col gap-3 relative z-20">
+                    <div className="mt-auto border-t border-slate-200/80 dark:border-white/5 bg-slate-50/70 dark:bg-[#070D0B]/95 p-3 flex flex-col gap-2 relative z-20">
                         
                         {deferredPrompt && (
                             <button 
                                 onClick={handleInstallApp}
-                                className={`flex items-center justify-center rounded-xl text-orange-700 dark:text-orange-400 hover:text-white bg-orange-500/10 border border-orange-500/20 hover:bg-orange-500 transition-all ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'w-full py-2.5 gap-2'}`}
+                                className={`flex items-center justify-center rounded-lg text-orange-600 dark:text-orange-400 hover:text-white bg-orange-50 border border-orange-200 hover:bg-orange-600 transition-all ${isCollapsed ? 'p-2 w-9 h-9 mx-auto' : 'w-full py-2 gap-2'}`}
                                 title="Instalar IgGestor como App"
                             >
                                 <CloudArrowUpIcon className="w-4 h-4" />
-                                {!isCollapsed && <span className="text-[9px] font-black uppercase tracking-widest">Instalar App</span>}
+                                {!isCollapsed && <span className="text-[10px] font-bold uppercase tracking-wider">Instalar App</span>}
                             </button>
                         )}
 
                         <div className="flex gap-2">
                             <button 
                                 onClick={() => window.open(`https://wa.me/${systemSettings.supportNumber}`, '_blank')} 
-                                className={`flex items-center justify-center rounded-xl text-slate-600 dark:text-emerald-100/70 hover:text-emerald-800 dark:hover:text-white bg-white/60 dark:bg-white/5 border border-emerald-200/50 dark:border-white/10 hover:bg-emerald-500/10 transition-colors ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : isSecondaryUser ? 'w-full py-2.5 gap-2' : 'flex-1 py-2.5 gap-2'}`}
+                                className={`flex items-center justify-center rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 transition-colors ${isCollapsed ? 'p-2 w-9 h-9 mx-auto' : isSecondaryUser ? 'w-full py-2 gap-2' : 'flex-1 py-2 gap-2'}`}
                             >
-                                <WhatsAppIcon className="w-4 h-4" />
-                                {!isCollapsed && <span className="text-[10px] font-bold uppercase tracking-wide">Suporte</span>}
+                                <WhatsAppIcon className="w-4 h-4 text-emerald-600" />
+                                {!isCollapsed && <span className="text-[10px] font-semibold tracking-tight">Suporte</span>}
                             </button>
                             
                             {!isSecondaryUser && (
                                 <button 
                                     onClick={openPaymentModal} 
-                                    className={`flex items-center justify-center rounded-xl transition-all border shadow-sm ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'flex-1 py-2.5 gap-2'} ${getStatusStyle()}`}
+                                    className={`flex items-center justify-center rounded-lg transition-all border ${isCollapsed ? 'p-2 w-9 h-9 mx-auto' : 'flex-1 py-2 gap-1.5'} ${getStatusStyle()}`}
                                 >
-                                    <StatusIcon className="w-4 h-4" />
+                                    <StatusIcon className="w-3.5 h-3.5" />
                                     {!isCollapsed && (
-                                        <span className="text-[10px] font-black uppercase tracking-wider">
+                                        <span className="text-[10px] font-semibold tracking-tight">
                                             {`${subscription.daysRemaining} dias`}
                                         </span>
                                     )}
@@ -332,23 +327,23 @@ export const Sidebar: React.FC = memo(() => {
                             )}
                         </div>
 
-                        <div className="flex items-center justify-between pt-2 border-t border-emerald-200/60 dark:border-white/5">
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-200/70 dark:border-white/5">
                             <div 
-                                className={`flex items-center gap-3 min-w-0 group ${!isSecondaryUser ? 'cursor-pointer' : ''} ${isCollapsed ? 'mx-auto' : ''}`} 
+                                className={`flex items-center gap-2.5 min-w-0 group ${!isSecondaryUser ? 'cursor-pointer' : ''} ${isCollapsed ? 'mx-auto' : ''}`} 
                                 onClick={() => (!isCollapsed && !isSecondaryUser) && setActiveView('settings')}
                             >
-                                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center text-xs font-black text-white shadow-md border border-white/20 group-hover:ring-2 group-hover:ring-orange-500/30 transition-all">
+                                <div className="w-8 h-8 rounded-lg bg-orange-600 flex items-center justify-center text-xs font-bold text-white shadow-sm shrink-0">
                                     {user?.email?.charAt(0).toUpperCase()}
                                 </div>
                                 {!isCollapsed && (
                                     <div className="flex flex-col min-w-0">
-                                        <span className="text-xs font-bold text-slate-800 dark:text-white truncate max-w-[120px]">Minha Conta</span>
-                                        <span className="text-[10px] text-slate-500 dark:text-emerald-100/50 truncate max-w-[120px] font-medium">{user?.email}</span>
+                                        <span className="text-xs font-semibold text-slate-800 dark:text-white truncate max-w-[120px]">Minha Conta</span>
+                                        <span className="text-[10px] text-slate-500 truncate max-w-[120px] font-normal">{user?.email}</span>
                                     </div>
                                 )}
                             </div>
-                            <button type="button" onClick={handleLogout} disabled={isLoggingOut} className={`p-2.5 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-500/10 transition-colors ${isCollapsed ? 'mx-auto mt-2' : 'ml-auto shrink-0'} ${isLoggingOut ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                                {isLoggingOut ? <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <ArrowLeftOnRectangleIcon className="w-5 h-5 stroke-[2]" />}
+                            <button type="button" onClick={handleLogout} disabled={isLoggingOut} className={`p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors ${isCollapsed ? 'mx-auto mt-2' : 'ml-auto shrink-0'} ${isLoggingOut ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                {isLoggingOut ? <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <ArrowLeftOnRectangleIcon className="w-4 h-4 stroke-[2]" />}
                             </button>
                         </div>
                     </div>

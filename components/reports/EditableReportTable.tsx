@@ -655,14 +655,9 @@ const IncomeRow = memo(({
                     <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2 flex-wrap">
                             {(row.contributor || isGhost) ? <UserIcon className="w-3.5 h-3.5 text-indigo-500 shrink-0" /> : <BanknotesIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
-                            <span className={`text-xs font-bold break-words uppercase ${confirmed ? 'text-slate-500/70' : isGhost ? 'text-slate-500' : 'text-slate-900 dark:text-white'}`}>{displayName}</span>
-                            {isManualRow && (
-                                <span className="text-[9px] font-bold px-1.5 py-0.2 bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 rounded border border-amber-200 dark:border-amber-800 uppercase tracking-wider shrink-0">
-                                    Manual
-                                </span>
-                            )}
+                            <span className={`text-xs font-semibold break-words uppercase ${confirmed ? 'text-slate-500/70' : isGhost ? 'text-slate-500' : 'text-slate-900 dark:text-white'}`}>{displayName}</span>
                             {hasSplits && (
-                                <span className="text-[8.5px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80 shrink-0">
+                                <span className="text-[8.5px] font-bold uppercase px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80 shrink-0">
                                     Lançamento Rateado ({row.splits!.length} divisões abaixo)
                                 </span>
                             )}
@@ -784,17 +779,17 @@ const IncomeRow = memo(({
                 </td>
                 <td className="px-4 py-2.5 text-center">
                     {confirmed ? (
-                        <span className="text-[9px] font-bold px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100 uppercase flex items-center justify-center gap-1">
+                        <span className="text-[10px] font-semibold px-2 py-0.5 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 rounded-md border border-indigo-200/60 dark:border-indigo-800/40 uppercase flex items-center justify-center gap-1">
                             <LockClosedIcon className="w-2.5 h-2.5" /> Fechado
                         </span>
                     ) : isIdentified ? (
                         isManualRow ? (
-                            <span className="text-[9px] font-bold px-2 py-0.5 bg-amber-50 text-amber-800 rounded-full border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 uppercase">Manual</span>
+                            <span className="text-[10px] font-semibold px-2 py-0.5 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 rounded-md border border-slate-200 dark:border-slate-700 uppercase">Manual</span>
                         ) : (
-                            <span className="text-[9px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100 uppercase">Auto</span>
+                            <span className="text-[10px] font-semibold px-2 py-0.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 rounded-md border border-emerald-200/60 dark:border-emerald-800/40 uppercase">Auto</span>
                         )
                     ) : (
-                        <span className="text-[9px] font-bold px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full border border-amber-100 uppercase">Pendente</span>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 rounded-md border border-amber-200/60 dark:border-amber-800/40 uppercase">Pendente</span>
                     )}
                 </td>
                 <td className="px-4 py-2.5">
@@ -1385,16 +1380,16 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
             <BulkActionToolbar selectedIds={selectedIds} results={data} onClear={() => setSelectedIds([])} />
             
             {/* Desktop Table View */}
-            <div className="hidden md:block flex-1 w-full overflow-auto custom-scrollbar relative">
+            <div className="hidden md:block flex-1 w-full overflow-auto custom-scrollbar relative border-t border-slate-200 dark:border-slate-800">
                 <table className="w-full text-left border-collapse">
-                    <thead className="bg-slate-200 dark:bg-slate-950 sticky top-0 z-20 shadow-sm">
+                    <thead className="bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-sm sticky top-0 z-20 border-b border-slate-200 dark:border-slate-800 shadow-xs">
                         <tr>
                             <th className="px-4 py-3 w-10 text-center">
                                 <input 
                                     type="checkbox" 
                                     onChange={toggleAll}
                                     checked={selectedIds.length > 0 && selectedIds.length === data.length}
-                                    className="w-4 h-4 rounded-full border-slate-300 text-brand-blue cursor-pointer accent-blue-600"
+                                    className="w-4 h-4 rounded border-slate-300 text-orange-600 cursor-pointer accent-orange-600"
                                 />
                             </th>
                             <SortableHeader sortKey="transaction.date" title={t('table.date')} sortConfig={sortConfig} onSort={onSort} className="w-[8%]" align="left" />

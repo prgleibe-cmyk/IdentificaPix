@@ -362,24 +362,24 @@ export const ReportsView: React.FC = () => {
                         </div>
 
                         {/* Grupo de Ações Financeiras Primárias (Lançar + Livro Caixa) */}
-                        <div className="flex items-center gap-1.5 p-1 bg-orange-500/10 dark:bg-orange-950/30 rounded-2xl border border-orange-200/80 dark:border-orange-800/50 shadow-xs ml-auto">
+                        <div className="flex items-center gap-2 ml-auto">
                             <button
                                 type="button"
                                 onClick={() => handleManualLaunch('entrada')}
-                                className="flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-black uppercase tracking-wider text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 shadow-xs hover:shadow-sm transition-all cursor-pointer active:scale-95 border border-orange-400/30"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider text-white bg-orange-600 hover:bg-orange-700 shadow-sm transition-all cursor-pointer active:scale-95"
                                 title="Criar Novo Lançamento Manual"
                             >
-                                <PlusCircleIcon className="w-3.5 h-3.5" />
+                                <PlusCircleIcon className="w-4 h-4" />
                                 <span>Lançar</span>
                             </button>
 
                             <button
                                 type="button"
                                 onClick={() => setActiveView('livro_caixa')}
-                                className="flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 shadow-xs transition-all cursor-pointer active:scale-95"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/60 shadow-sm transition-all cursor-pointer active:scale-95"
                                 title="Abrir Visão do Livro Caixa"
                             >
-                                <BookOpen className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                <BookOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                                 <span>Livro Caixa</span>
                             </button>
                         </div>
