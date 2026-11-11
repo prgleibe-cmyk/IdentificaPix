@@ -28,7 +28,8 @@ export const ChurchLeaderboard: React.FC<ChurchLeaderboardProps> = ({ data, maxV
              </div>
              
              {data.length > 0 ? (
-                <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-2">
+                <>
+                <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-2 max-h-[360px]">
                     {data.map(([name, value], index) => {
                         const widthPercentage = maxValue > 0 ? (value / maxValue) * 100 : 0;
                         
@@ -67,6 +68,11 @@ export const ChurchLeaderboard: React.FC<ChurchLeaderboardProps> = ({ data, maxV
                         );
                     })}
                 </div>
+                <div className="px-5 py-2.5 bg-slate-50/70 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mt-auto shrink-0">
+                    <span>Total de congregações</span>
+                    <span className="font-bold tabular-nums text-slate-700 dark:text-slate-200">{data.length} registradas</span>
+                </div>
+                </>
              ) : (
                 <div className="flex flex-col items-center justify-center flex-1 text-slate-400 italic bg-slate-50/30 dark:bg-slate-900/30 m-4 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
                     <p className="text-xs font-medium">Nenhum valor identificado para exibir.</p>

@@ -202,11 +202,11 @@ export const Sidebar: React.FC = memo(() => {
                 />
             )}
 
-            <aside className={`fixed md:relative inset-y-0 left-0 h-[100dvh] flex flex-col transition-all duration-300 z-[80] ${isCollapsed ? 'w-20' : 'w-64'} ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} bg-white dark:bg-[#0B0F17] text-slate-800 dark:text-slate-200 border-r border-slate-200/90 dark:border-white/5 shadow-sm overflow-hidden`}>
+            <aside className={`fixed md:relative inset-y-0 left-0 h-[100dvh] flex flex-col transition-all duration-300 z-[80] ${isCollapsed ? 'w-20' : 'w-64'} ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} bg-[#F8FAFC] dark:bg-[#0B0F17] text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-white/5 shadow-[1px_0_3px_rgba(0,0,0,0.02)] overflow-hidden`}>
                 
                 <div className="relative z-10 flex flex-col h-full">
                     
-                    <div className={`flex items-center transition-all duration-300 border-b border-slate-200/80 dark:border-white/5 ${isCollapsed ? 'justify-center py-4 px-2' : 'gap-3 px-5 py-4'}`}>
+                    <div className={`flex items-center transition-all duration-300 border-b border-slate-200/80 dark:border-white/5 bg-slate-100/40 dark:bg-white/5 ${isCollapsed ? 'justify-center py-4 px-2' : 'gap-3 px-5 py-4'}`}>
                         <div className="relative group cursor-pointer shrink-0 z-50" onClick={() => setActiveView('dashboard')}>
                             <img 
                                 src={logoImg} 
@@ -235,8 +235,8 @@ export const Sidebar: React.FC = memo(() => {
                             onFocus={() => preloadView('dashboard')}
                             className={`relative w-full flex items-center px-3 py-2 rounded-lg transition-all duration-150 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} ${
                                 activeView === 'dashboard' 
-                                    ? 'bg-orange-50 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 font-semibold' 
-                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/70 dark:hover:bg-white/5 font-medium'
+                                    ? 'bg-white dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 font-semibold shadow-xs border border-orange-200/80 dark:border-orange-900/40' 
+                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/5 hover:shadow-xs font-medium'
                             }`}
                         >
                             <HomeIcon className={`w-5 h-5 transition-transform ${activeView === 'dashboard' ? 'scale-105 text-orange-600 dark:text-orange-400' : 'text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
@@ -252,12 +252,13 @@ export const Sidebar: React.FC = memo(() => {
                                 key={item.view}
                                 onClick={() => setActiveView(item.view)}
                                 onMouseEnter={() => preloadView(item.view)}
+                                touch-action="manipulation"
                                 onTouchStart={() => preloadView(item.view)}
                                 onFocus={() => preloadView(item.view)}
                                 className={`relative w-full flex items-center px-3 py-2 rounded-lg transition-all duration-150 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} ${
                                     activeView === item.view 
-                                        ? 'bg-orange-50 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 font-semibold' 
-                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/70 dark:hover:bg-white/5 font-medium'
+                                        ? 'bg-white dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 font-semibold shadow-xs border border-orange-200/80 dark:border-orange-900/40' 
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/5 hover:shadow-xs font-medium'
                                 }`}
                             >
                                 {React.cloneElement(item.icon as React.ReactElement<any>, { className: `w-5 h-5 transition-transform ${activeView === item.view ? 'scale-105 text-orange-600 dark:text-orange-400' : 'text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300'}` })}
@@ -273,12 +274,13 @@ export const Sidebar: React.FC = memo(() => {
                             <button
                                 onClick={handleUsersClick}
                                 onMouseEnter={() => preloadView('users')}
+                                touch-action="manipulation"
                                 onTouchStart={() => preloadView('users')}
                                 onFocus={() => preloadView('users')}
                                 className={`relative w-full flex items-center px-3 py-2 rounded-lg transition-all duration-150 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} ${
                                     activeView === 'users' 
-                                        ? 'bg-orange-50 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 font-semibold' 
-                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/70 dark:hover:bg-white/5 font-medium'
+                                        ? 'bg-white dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 font-semibold shadow-xs border border-orange-200/80 dark:border-orange-900/40' 
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/5 hover:shadow-xs font-medium'
                                 }`}
                             >
                                 <UserIcon className={`w-5 h-5 transition-transform ${activeView === 'users' ? 'scale-105 text-orange-600 dark:text-orange-400' : 'text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
@@ -290,7 +292,7 @@ export const Sidebar: React.FC = memo(() => {
                         )}
                     </nav>
 
-                    <div className="mt-auto border-t border-slate-200/80 dark:border-white/5 bg-slate-50/70 dark:bg-[#070D0B]/95 p-3 flex flex-col gap-2 relative z-20">
+                    <div className="mt-auto border-t border-slate-200/80 dark:border-white/5 bg-slate-100/70 dark:bg-[#070D0B]/95 p-3 flex flex-col gap-2 relative z-20">
                         
                         {deferredPrompt && (
                             <button 

@@ -29,26 +29,26 @@ export const DashboardView: React.FC = memo(() => {
     }
 
     return (
-        <div className="flex flex-col min-h-full gap-4 animate-fade-in pb-8 md:pb-4">
+        <div className="flex flex-col min-h-full gap-3 animate-fade-in pb-8 md:pb-4">
             {/* Header Card */}
-            <div className="bg-white dark:bg-slate-900 px-5 py-4 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-card flex-shrink-0">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-orange-50 dark:bg-orange-950/40 border border-orange-200/60 dark:border-orange-900/40 rounded-xl flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
-                            <LayoutDashboard className="w-5 h-5 stroke-[2]" />
+            <div className="bg-white dark:bg-slate-900 px-4 py-2.5 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex-shrink-0">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 bg-orange-50 dark:bg-orange-950/40 border border-orange-200/60 dark:border-orange-900/40 rounded-lg flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
+                            <LayoutDashboard className="w-4 h-4 stroke-[2]" />
                         </div>
                         <div>
-                            <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-tight">
+                            <h1 className="text-base font-bold text-slate-900 dark:text-white tracking-tight leading-tight">
                                 Dashboard
                             </h1>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
                                 Visão geral e indicadores das conciliações e finanças.
                             </p>
                         </div>
                     </div>
                     {summary.isHistorical && (
-                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200/70 dark:border-amber-900/50 rounded-lg text-xs font-medium">
-                            <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200/70 dark:border-amber-900/50 rounded-md text-[11px] font-medium">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
                             Modo Histórico Ativo
                         </div>
                     )}
@@ -92,7 +92,7 @@ export const DashboardView: React.FC = memo(() => {
                 </div>
             ) : (
                 <>
-                    <div className="flex-shrink-0 grid grid-cols-1 md:grid-cols-3 gap-3 xl:gap-4">
+                    <div className="flex-shrink-0 grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3">
                 <SummaryCard
                     title={t('dashboard.identifiedContributions')}
                     count={summary.identifiedCount}
@@ -119,9 +119,9 @@ export const DashboardView: React.FC = memo(() => {
                 />
             </div>
 
-            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-3 xl:gap-4">
+            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-2.5 sm:gap-3 items-start">
                 <div 
-                    className="bg-white dark:bg-slate-800 rounded-2xl shadow-card border border-slate-200/90 dark:border-slate-700/80 flex flex-col overflow-hidden animate-fade-in-up fill-mode-backwards"
+                    className="bg-white dark:bg-slate-800 rounded-2xl shadow-card border border-slate-200/90 dark:border-slate-700/80 flex flex-col justify-between overflow-hidden animate-fade-in-up fill-mode-backwards"
                     style={{ animationDelay: '300ms' }}
                 >
                      <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-700/60 flex justify-between items-center shrink-0">
@@ -130,8 +130,12 @@ export const DashboardView: React.FC = memo(() => {
                             <ChartPieIcon className="w-3.5 h-3.5" />
                         </div>
                      </div>
-                     <div className="flex-1 min-h-0 relative">
+                     <div className="flex-1 min-h-0 relative flex flex-col justify-center">
                         <DonutChart data={pieChartData} />
+                     </div>
+                     <div className="px-5 py-2.5 bg-slate-50/70 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 shrink-0">
+                        <span>Métodos de conciliação</span>
+                        <span className="font-bold tabular-nums text-slate-700 dark:text-slate-200">{pieChartData.filter(d => d.value > 0).length || 1} ativos</span>
                      </div>
                 </div>
 

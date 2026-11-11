@@ -15,8 +15,8 @@ export const DonutChart: React.FC<DonutChartProps> = ({ data }) => {
     let accumulatedOffset = 0;
 
     return (
-        <div className="flex flex-col items-center h-full justify-between py-2">
-            <div className="relative w-32 h-32 flex-shrink-0 group mt-2">
+        <div className="flex flex-col items-center justify-center py-4 px-2 w-full">
+            <div className="relative w-36 h-36 flex-shrink-0 group my-2">
                 <div className="absolute inset-0 bg-brand-blue/5 rounded-full blur-2xl transform scale-90"></div>
                 
                 <svg className="w-full h-full transform -rotate-90 relative z-10" viewBox="0 0 160 160">
