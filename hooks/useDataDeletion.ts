@@ -34,7 +34,13 @@ export const useDataDeletion = ({
             switch (type) {
                 case 'bank': {
                     console.log(`[WRITE:FIX] Excluindo banco com effectiveUserId: ${effectiveUserId} no VPS`);
-                    const res = await fetch(`/api/v1/banks/${id}`, { method: 'DELETE' });
+                    const token = await getAuthToken();
+                    const res = await fetch(`/api/v1/banks/${id}`, { 
+                        method: 'DELETE',
+                        headers: {
+                            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                        }
+                    });
                     if (!res.ok) throw new Error("Erro ao excluir banco do VPS");
                     if (referenceData?.setBanks) {
                         referenceData.setBanks((prev: any[]) => prev.filter(b => b.id !== id));
@@ -44,7 +50,13 @@ export const useDataDeletion = ({
                 }
                 case 'church': {
                     console.log(`[WRITE:FIX] Excluindo igreja com effectiveUserId: ${effectiveUserId} no VPS`);
-                    const res = await fetch(`/api/v1/churches/${id}`, { method: 'DELETE' });
+                    const token = await getAuthToken();
+                    const res = await fetch(`/api/v1/churches/${id}`, { 
+                        method: 'DELETE',
+                        headers: {
+                            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                        }
+                    });
                     if (!res.ok) throw new Error("Erro ao excluir igreja do VPS");
                     if (referenceData?.setChurches) {
                         referenceData.setChurches((prev: any[]) => prev.filter(c => c.id !== id));

@@ -5221,6 +5221,8 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
     if (equivalentIds.length > 0) {
       banksParams.push(equivalentIds);
       banksQuery += ` AND user_id::text = ANY($1)`;
+    } else if (cleanUserId) {
+      banksQuery += ` AND 1=0`;
     }
     banksQuery += ' ORDER BY created_at DESC';
 
@@ -5232,6 +5234,8 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
       if (equivalentIds.length > 0) {
         churchesParams.push(equivalentIds);
         churchesQuery += ` AND user_id::text = ANY($1)`;
+      } else if (cleanUserId) {
+        churchesQuery += ` AND 1=0`;
       }
       if (ctx.isSecondaryUser) {
         churchesParams.push(ctx.allowedChurchIds);
@@ -5318,10 +5322,14 @@ app.get('/api/v1/banks', async (req: Request, res: Response) => {
 
     let query = 'SELECT id, name, user_id, bank_key, account_name, accepted_contribution_types, created_at FROM banks WHERE 1=1';
     const params: any[] = [];
-    if (cleanUserId && !ctx.isSuperAdmin) {
+    if (cleanUserId) {
       const userIds = await getEquivalentUserIds(cleanUserId);
-      params.push(userIds);
-      query += ` AND user_id::text = ANY($1)`;
+      if (userIds.length > 0) {
+        params.push(userIds);
+        query += ` AND user_id::text = ANY($${params.length})`;
+      } else {
+        query += ` AND 1=0`;
+      }
     }
     query += ' ORDER BY created_at DESC';
     const result = await pool.query(query, params);
@@ -5353,14 +5361,15 @@ app.post('/api/v1/banks', async (req: Request, res: Response) => {
       }
     }
 
-    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
+    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : (user_id || ctx.ownerId || ctx.userId);
 
     if (!name || !effectiveUserId) {
       return res.status(400).json({ error: 'VALIDATION_ERROR' });
     }
+    const generatedBankId = crypto.randomUUID();
     const result = await pool.query(
-      'INSERT INTO banks (name, user_id, bank_key, account_name, accepted_contribution_types) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [name, effectiveUserId, bank_key || null, account_name || name, Array.isArray(accepted_contribution_types) ? accepted_contribution_types : null]
+      'INSERT INTO banks (id, name, user_id, bank_key, account_name, accepted_contribution_types) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [generatedBankId, name, effectiveUserId, bank_key || null, account_name || name, Array.isArray(accepted_contribution_types) ? accepted_contribution_types : null]
     );
     const createdBank = result.rows[0];
     await logAudit(pool, {
@@ -5502,10 +5511,14 @@ app.get('/api/v1/churches', async (req: Request, res: Response) => {
 
     let query = 'SELECT * FROM churches WHERE 1=1';
     const params: any[] = [];
-    if (cleanUserId && !ctx.isSuperAdmin) {
+    if (cleanUserId) {
       const userIds = await getEquivalentUserIds(cleanUserId);
-      params.push(userIds);
-      query += ` AND user_id::text = ANY($1)`;
+      if (userIds.length > 0) {
+        params.push(userIds);
+        query += ` AND user_id::text = ANY($${params.length})`;
+      } else {
+        query += ` AND 1=0`;
+      }
     }
     if (ctx.isSecondaryUser) {
       params.push(ctx.allowedChurchIds);

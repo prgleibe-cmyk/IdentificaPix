@@ -18,10 +18,11 @@ export default () => {
             const vpsUrl = process.env.CONTRIBUTORS_API_URL || (process.env.INTEGRATED_MODE === 'true' ? `http://127.0.0.1:${defaultPort}` : 'http://127.0.0.1:3010');
             const cleanVpsUrl = vpsUrl.endsWith('/') ? vpsUrl.slice(0, -1) : vpsUrl;
 
+            const authHeader = req.headers.authorization ? { 'Authorization': req.headers.authorization } : {};
             const [banksRes, churchesRes, associationsRes] = await Promise.all([
-                fetch(`${cleanVpsUrl}/api/v1/banks?user_id=${effectiveOwnerId}`),
-                fetch(`${cleanVpsUrl}/api/v1/churches?user_id=${effectiveOwnerId}`),
-                fetch(`${cleanVpsUrl}/api/v1/learned_associations?user_id=${effectiveOwnerId}`)
+                fetch(`${cleanVpsUrl}/api/v1/banks?user_id=${effectiveOwnerId}`, { headers: authHeader }),
+                fetch(`${cleanVpsUrl}/api/v1/churches?user_id=${effectiveOwnerId}`, { headers: authHeader }),
+                fetch(`${cleanVpsUrl}/api/v1/learned_associations?user_id=${effectiveOwnerId}`, { headers: authHeader })
             ]);
 
             const banks = banksRes.ok ? await banksRes.json() : [];

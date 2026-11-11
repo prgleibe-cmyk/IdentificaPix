@@ -367,9 +367,13 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         const account_name = name;
         setBanks(prev => prev.map(b => b.id === bankId ? { ...b, name, account_name, accepted_contribution_types } : b));
         console.log(`[WRITE:UPDATE] Atualizando banco name, account_name e accepted_contribution_types (ID: ${bankId}) no VPS`);
+        const token = await getAuthToken();
         await fetch(`/api/v1/banks/${bankId}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
             body: JSON.stringify({ name, account_name, accepted_contribution_types })
         });
         showToast('Banco atualizado.', 'success');
@@ -414,9 +418,13 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         }
 
         console.log(`[WRITE:FIX] Adicionando banco com effectiveUserId: ${effectiveUserId} no VPS`);
+        const token = await getAuthToken();
         const res = await fetch('/api/v1/banks', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
             body: JSON.stringify({
                 name,
                 user_id: effectiveUserId,
