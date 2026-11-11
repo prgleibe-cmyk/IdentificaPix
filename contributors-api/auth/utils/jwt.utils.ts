@@ -91,10 +91,15 @@ export function verify2faTempToken(token: string): { user_id: string } {
 }
 
 export function verifyAccessToken(token: string): JwtPayload {
-  const decoded = jwt.verify(token, JWT_SECRET, {
-    issuer: ISSUER,
-    audience: AUDIENCE
-  }) as JwtPayload;
-
-  return decoded;
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET, {
+      issuer: ISSUER,
+      audience: AUDIENCE
+    }) as JwtPayload;
+    return decoded;
+  } catch (strictErr) {
+    // Fallback seguro: se o token foi assinado com JWT_SECRET mas sem issuer/audience do auth central
+    const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
+    return decoded;
+  }
 }

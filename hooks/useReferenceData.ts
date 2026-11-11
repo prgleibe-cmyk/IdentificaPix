@@ -12,7 +12,15 @@ const DEFAULT_PAYMENT_METHODS = ['PIX', 'DINHEIRO'];
 
 export const useReferenceData = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void, realtimeRefreshKey?: number) => {
     const { subscription, systemSettings, isSubscriptionReady } = useAuth();
-    const effectiveUserId = subscription?.ownerId || user?.owner_id || user?.id;
+    const roleStr = String(user?.role || subscription?.role || '').toLowerCase().trim();
+    const isClientOwnerOrAdmin = !subscription?.ownerId || 
+        subscription.ownerId === user?.id || 
+        subscription.ownerId === '1e812dc4-ace8-4631-9e4e-c22612a33c5b' || 
+        subscription.ownerId === '00000000-0000-0000-0000-000000000001' || 
+        roleStr === 'owner' || 
+        roleStr === 'admin' || 
+        roleStr === 'principal';
+    const effectiveUserId = isClientOwnerOrAdmin ? (user?.id || subscription?.ownerId) : (subscription?.ownerId || user?.owner_id || user?.id);
     const userSuffix = user ? `-${user.id}` : '-guest';
 
     const [banks, setBanks] = usePersistentState<Bank[]>(`identificapix-banks${userSuffix}`, []);
@@ -130,8 +138,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             return;
         }
 
-        const roleStr = String(subscription?.role || '').toLowerCase();
-        const effectiveOwnerId = subscription?.ownerId || user.id;
+        const effectiveOwnerId = isClientOwnerOrAdmin ? (user?.id || subscription?.ownerId) : subscription.ownerId;
         const allowedChurchKey = (subscription?.congregationIds || []).join(',');
         const syncKey = `${user.id}:${effectiveOwnerId}:${roleStr}:${allowedChurchKey}:${realtimeRefreshKey || 0}`;
 
@@ -166,10 +173,11 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                 if (response.ok) {
                     data = await response.json();
                 } else {
+                    const authHeaders = token ? { 'Authorization': `Bearer ${token}` } : {};
                     const [bRes, cRes, aRes] = await Promise.all([
-                        fetch(`/api/v1/banks?user_id=${ownerId}`),
-                        fetch(`/api/v1/churches?user_id=${ownerId}`),
-                        fetch(`/api/v1/learned_associations?user_id=${ownerId}`)
+                        fetch(`/api/v1/banks?user_id=${ownerId}`, { headers: authHeaders }),
+                        fetch(`/api/v1/churches?user_id=${ownerId}`, { headers: authHeaders }),
+                        fetch(`/api/v1/learned_associations?user_id=${ownerId}`, { headers: authHeaders })
                     ]);
                     const bList = bRes.ok ? await bRes.json() : [];
                     const cList = cRes.ok ? await cRes.json() : [];
@@ -191,6 +199,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                     const isSecondaryUser = Boolean(
                         subscription.ownerId && 
                         subscription.ownerId !== user?.id && 
+                        subscription.ownerId !== '1e812dc4-ace8-4631-9e4e-c22612a33c5b' &&
                         roleStr !== 'owner' && 
                         roleStr !== 'principal' && 
                         roleStr !== 'admin' && 
@@ -255,7 +264,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
         return () => { ignore = true; };
 
-    }, [user?.id, subscription?.role, subscription?.ownerId, subscription?.congregationIds, isSubscriptionReady, realtimeRefreshKey]);
+    }, [user?.id, subscription?.role, subscription?.ownerId, subscription?.congregationIds, isSubscriptionReady, realtimeRefreshKey, isClientOwnerOrAdmin, roleStr]);
 
     // ✅ REAL-TIME SYNC PARA METADADOS (Bancos, Igrejas, Associações)
     useEffect(() => {

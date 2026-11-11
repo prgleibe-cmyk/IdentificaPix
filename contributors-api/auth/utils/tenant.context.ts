@@ -225,15 +225,21 @@ export function getTenantContext(req: Request): TenantContext {
   // Se o usuário está autenticado com token JWT válido:
   if (user) {
     const userId = user.user_id || user.id || null;
-    const ownerId = user.owner_id || user.ownerId || userId;
+    let ownerId = user.owner_id || user.ownerId || userId;
     const role = user.role || 'user';
     const userEmail = String(user.email || '').toLowerCase().trim();
     const isSuperAdmin = Boolean(
       user.is_superadmin || 
       user.isSuperAdmin || 
       userEmail === 'identificapix@gmail.com' ||
-      ['superadmin', 'super_admin', 'admin', 'administrador_geral'].includes(String(role).toLowerCase().trim())
+      ['superadmin', 'super_admin', 'administrador_geral'].includes(String(role).toLowerCase().trim())
     );
+
+    // 🛡️ ISOLAMENTO DE TENANTS: O Platform Admin Dono ('1e812dc4-ace8-4631-9e4e-c22612a33c5b')
+    // ou placeholder não é o proprietário contábil do tenant cliente.
+    if (!isSuperAdmin && (ownerId === '1e812dc4-ace8-4631-9e4e-c22612a33c5b' || ownerId === '00000000-0000-0000-0000-000000000001')) {
+      ownerId = userId;
+    }
 
     // Congregações e bancos permitidos derivam estritamente do token assinado
     const allowedChurchIds = extractContextAllowedChurchIds(user);
