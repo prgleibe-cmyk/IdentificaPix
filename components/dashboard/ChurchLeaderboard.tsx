@@ -14,16 +14,16 @@ interface ChurchLeaderboardProps {
 export const ChurchLeaderboard: React.FC<ChurchLeaderboardProps> = ({ data, maxValue, language, title }) => {
     return (
         <div 
-            className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-xl shadow-card border border-slate-200/90 dark:border-slate-700 flex flex-col overflow-hidden animate-fade-in-up fill-mode-backwards"
+            className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl shadow-card border border-slate-200/90 dark:border-slate-700/80 flex flex-col overflow-hidden animate-fade-in-up fill-mode-backwards"
             style={{ animationDelay: '400ms' }}
         >
-             <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-700/60 flex justify-between items-center bg-white dark:bg-slate-800 z-10 shrink-0">
-                <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
+             <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-700/60 flex justify-between items-center bg-white dark:bg-slate-800 z-10 shrink-0">
+                <h3 className="text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-2">
                     {title}
                 </h3>
-                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-md border border-slate-200 dark:border-slate-600">
-                    <TrophyIcon className="w-3.5 h-3.5 text-orange-600" />
-                    <span className="text-[10px] font-semibold uppercase tracking-wider">Top Entidades</span>
+                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300 rounded-lg border border-slate-200/60 dark:border-slate-700 text-xs font-medium">
+                    <TrophyIcon className="w-3.5 h-3.5 text-orange-600 shrink-0" />
+                    <span>Top Entidades</span>
                 </div>
              </div>
              
@@ -33,31 +33,31 @@ export const ChurchLeaderboard: React.FC<ChurchLeaderboardProps> = ({ data, maxV
                         const widthPercentage = maxValue > 0 ? (value / maxValue) * 100 : 0;
                         
                         let rankStyle = "bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-700 dark:text-slate-400 dark:border-slate-600";
-                        if (index === 0) rankStyle = "bg-gradient-to-br from-yellow-300 to-amber-400 text-amber-900 border-amber-300 shadow-amber-200/50";
-                        if (index === 1) rankStyle = "bg-gradient-to-br from-slate-200 to-slate-300 text-slate-700 border-slate-300 shadow-slate-200/50";
-                        if (index === 2) rankStyle = "bg-gradient-to-br from-orange-200 to-orange-300 text-orange-800 border-orange-300 shadow-orange-200/50";
+                        if (index === 0) rankStyle = "bg-amber-100 text-amber-800 border-amber-200";
+                        if (index === 1) rankStyle = "bg-slate-200 text-slate-700 border-slate-300";
+                        if (index === 2) rankStyle = "bg-orange-100 text-orange-800 border-orange-200";
 
                         return (
-                            <div key={name} className="relative group px-4 py-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-all duration-300 border border-transparent hover:border-slate-100 dark:hover:border-slate-700/50 hover:shadow-sm">
+                            <div key={name} className="relative group px-3.5 py-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-all duration-200 border border-transparent hover:border-slate-100 dark:hover:border-slate-700/50">
                                 <div className="flex justify-between items-center mb-1.5 relative z-10">
-                                    <div className="flex items-center gap-3">
-                                        <div className={`flex items-center justify-center w-5 h-5 rounded-md text-[9px] font-bold border shadow-sm shrink-0 ${rankStyle}`}>
+                                    <div className="flex items-center gap-2.5">
+                                        <div className={`flex items-center justify-center w-5 h-5 rounded-md text-[10px] font-bold border shadow-xs shrink-0 ${rankStyle}`}>
                                             {index + 1}
                                         </div>
-                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate max-w-[180px] sm:max-w-xs">{name}</span>
+                                        <span className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate max-w-[180px] sm:max-w-xs">{name}</span>
                                     </div>
-                                    <span className="text-[10px] font-bold text-brand-graphite dark:text-white font-mono bg-white dark:bg-slate-900 px-2 py-0.5 rounded-lg border border-slate-100 dark:border-slate-700">
+                                    <span className="text-xs font-semibold text-slate-900 dark:text-white tabular-nums bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md border border-slate-200/80 dark:border-slate-700 shadow-xs">
                                         {formatCurrency(value, language)}
                                     </span>
                                 </div>
                                 
-                                <div className="h-1 w-full bg-slate-100 dark:bg-slate-700/50 rounded-full overflow-hidden">
+                                <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-700/50 rounded-full overflow-hidden">
                                     <div 
-                                        className="h-full rounded-full transition-all duration-1000 ease-out relative group-hover:brightness-110"
+                                        className="h-full rounded-full transition-all duration-1000 ease-out relative group-hover:brightness-105"
                                         style={{ 
                                             width: `${widthPercentage}%`,
                                             background: index < 3 
-                                                ? 'linear-gradient(90deg, #6366F1 0%, #A855F7 100%)' 
+                                                ? 'linear-gradient(90deg, #EA580C 0%, #F97316 100%)' 
                                                 : 'linear-gradient(90deg, #94a3b8 0%, #cbd5e1 100%)' 
                                         }} 
                                     >

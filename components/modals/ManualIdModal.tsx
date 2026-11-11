@@ -1034,13 +1034,13 @@ export const ManualIdModal: React.FC = () => {
                                 type="button"
                                 onClick={handleConfirm}
                                 disabled={!manualType || !selectedChurchId || !selectedBankId || !selectedType.trim() || isSaving}
-                                className={`flex items-center gap-1.5 px-4 py-1.5 text-[11px] font-black text-white rounded-xl shadow-xs transition-all tracking-wider uppercase border border-orange-400/30 active:scale-95 ${
+                                className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white rounded-lg shadow-sm transition-all tracking-wider uppercase active:scale-95 ${
                                     !manualType || !selectedChurchId || !selectedBankId || !selectedType.trim() || isSaving
-                                        ? 'bg-slate-400 dark:bg-slate-700 opacity-60 cursor-not-allowed'
-                                        : 'bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 hover:opacity-95 cursor-pointer shadow-orange-500/20'
+                                        ? 'bg-slate-300 dark:bg-slate-700 opacity-60 cursor-not-allowed'
+                                        : 'bg-orange-600 hover:bg-orange-700 cursor-pointer shadow-orange-600/20'
                                 }`}
                             >
-                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <CheckCircle2 className="w-4 h-4" />
                                 <span>{isSaving ? 'Salvando...' : 'Salvar Lançamento'}</span>
                             </button>
                         </div>
@@ -1048,15 +1048,15 @@ export const ManualIdModal: React.FC = () => {
                 </div>
 
                 {/* Main Content Card - Idêntico ao Livro Caixa */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl p-4 md:p-5 shadow-xs space-y-3.5">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-white/5 rounded-xl p-4 md:p-5 shadow-card space-y-4">
                     {/* Header de Controle Interno */}
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 pb-3 border-b border-slate-100 dark:border-white/5">
                         <div>
-                            <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                                <PlusCircle className="w-4 h-4 text-orange-500" />
+                            <h3 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                                <PlusCircle className="w-4 h-4 text-orange-600" />
                                 Formulário de Lançamento
                             </h3>
-                            <p className="text-xs text-slate-400">Preencha as informações contábeis para registro no Livro Caixa.</p>
+                            <p className="text-xs text-slate-500 mt-0.5">Preencha as informações contábeis para registro no Livro Caixa.</p>
                         </div>
 
                         {/* Alternador Rápido de Tipo: Entrada / Saída */}
@@ -1064,27 +1064,27 @@ export const ManualIdModal: React.FC = () => {
                             <button
                                 type="button"
                                 onClick={() => handleTypeSwitch('entrada')}
-                                className={`py-2 px-3 rounded-xl font-black uppercase text-[11px] flex items-center justify-center gap-1.5 transition-all border cursor-pointer select-none ${
+                                className={`py-2 px-3 rounded-lg font-semibold text-xs flex items-center justify-center gap-1.5 transition-all border cursor-pointer select-none ${
                                     manualType === 'entrada'
-                                        ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-600/30'
-                                        : 'bg-emerald-50 hover:bg-emerald-100/80 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/80 font-bold'
+                                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                                        : 'bg-emerald-50 hover:bg-emerald-100/80 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/80'
                                 }`}
                                 id="modal-btn-entrada"
                             >
-                                <ArrowUpRight className={`w-3.5 h-3.5 ${manualType === 'entrada' ? 'text-white' : 'text-emerald-600 dark:text-emerald-400'}`} />
+                                <ArrowUpRight className="w-4 h-4" />
                                 <span>Entrada (Receita)</span>
                             </button>
                             <button
                                 type="button"
                                 onClick={() => handleTypeSwitch('saida')}
-                                className={`py-2 px-3 rounded-xl font-black uppercase text-[11px] flex items-center justify-center gap-1.5 transition-all border cursor-pointer select-none ${
+                                className={`py-2 px-3 rounded-lg font-semibold text-xs flex items-center justify-center gap-1.5 transition-all border cursor-pointer select-none ${
                                     manualType === 'saida'
-                                        ? 'bg-rose-600 text-white border-rose-500 shadow-md shadow-rose-600/30'
-                                        : 'bg-rose-50 hover:bg-rose-100/80 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/80 font-bold'
+                                        ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                                        : 'bg-rose-50 hover:bg-rose-100/80 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/80'
                                 }`}
                                 id="modal-btn-saida"
                             >
-                                <ArrowDownRight className={`w-3.5 h-3.5 ${manualType === 'saida' ? 'text-white' : 'text-rose-600 dark:text-rose-400'}`} />
+                                <ArrowDownRight className="w-4 h-4" />
                                 <span>Saída (Despesa)</span>
                             </button>
                         </div>
@@ -1182,20 +1182,20 @@ export const ManualIdModal: React.FC = () => {
                     )}
 
                     {/* Linha 1: Data e Valor */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <div className="space-y-1">
                             <div className="flex items-center justify-between">
-                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
-                                    Data
+                                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
+                                    Data do Lançamento
                                 </label>
                                 {lastAutoFilledDoc?.date && (
-                                    <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                    <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                                         ✨ Lido do documento
                                     </span>
                                 )}
                             </div>
                             <div className="relative group">
-                                <Calendar className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-orange-500 transition-colors pointer-events-none" />
+                                <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
                                 <input
                                     type="date"
                                     value={toYmd(selectedDate)}
@@ -1207,31 +1207,31 @@ export const ManualIdModal: React.FC = () => {
                                             bulkIdentificationTxs[0].date = val;
                                         }
                                     }}
-                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2.5 pl-10 pr-3 transition-all outline-none text-xs font-bold"
+                                    className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 pl-9 pr-3 transition-all outline-none text-xs font-semibold"
                                 />
                             </div>
                         </div>
 
-                        <div className="space-y-1.5">
+                        <div className="space-y-1">
                             <div className="flex items-center justify-between">
-                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
+                                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                                     Valor (R$)
                                 </label>
                                 {lastAutoFilledDoc?.amount && (
-                                    <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                    <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                                         ✨ Lido do documento
                                     </span>
                                 )}
                             </div>
                             <div className="relative group">
-                                <DollarSign className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-orange-500 transition-colors pointer-events-none" />
+                                <DollarSign className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
                                 <input
                                     type="text"
                                     inputMode="numeric"
                                     value={manualAmount}
                                     onChange={handleAmountChange}
                                     placeholder="0,00"
-                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2.5 pl-10 pr-3 transition-all outline-none text-xs font-bold font-mono placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                                    className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 pl-9 pr-3 transition-all outline-none text-xs font-bold tabular-nums placeholder:text-slate-400"
                                     id="manual-launch-amount-input"
                                 />
                             </div>
@@ -1239,23 +1239,23 @@ export const ManualIdModal: React.FC = () => {
                     </div>
 
                     {/* Linha 2: Busca de Contribuinte / Favorecido */}
-                    <div className="space-y-1.5" id="manual-description-container">
+                    <div className="space-y-1" id="manual-description-container">
                         <div className="flex items-center justify-between flex-wrap gap-1">
-                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
-                                {manualType === 'saida' ? 'Favorecido / Razão Social / Fornecedor' : 'Buscar Contribuinte Cadastrado / Nome'}
+                            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
+                                {manualType === 'saida' ? 'Favorecido / Razão Social' : 'Nome do Contribuinte'}
                             </label>
                             {lastAutoFilledDoc?.recipient ? (
-                                <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                                     ✨ Lido do documento
                                 </span>
                             ) : (
-                                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                                     ⚡ Selecionar preenche a igreja automaticamente
                                 </span>
                             )}
                         </div>
                         <div className="relative group">
-                            <FileText className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-orange-500 transition-colors pointer-events-none" />
+                            <FileText className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
                             <input
                                 type="text"
                                 value={manualDescription}
@@ -1265,7 +1265,6 @@ export const ManualIdModal: React.FC = () => {
                                     setManualDescription(val);
                                     setShowSuggestions(true);
                                     
-                                    // Se o texto digitado corresponder exatamente a um cadastro existente, unifica e auto-preenche a igreja
                                     const valNorm = val.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
                                     const exactMatch = valNorm.length >= 3 ? allContributors.find(c => {
                                         const cName = (c.name || c.canonical_name || c.cleanedName || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -1280,7 +1279,6 @@ export const ManualIdModal: React.FC = () => {
                                             setSelectedChurchId(exactMatch._churchId);
                                         }
                                     } else {
-                                        // Nome digitado manualmente não corresponde a cadastro existente: preserva como novo/manual
                                         setSelectedAssociationType('create_new');
                                         setSelectedUnifiedField('');
                                     }
@@ -1292,7 +1290,7 @@ export const ManualIdModal: React.FC = () => {
                                 }}
                                 onFocus={() => setShowSuggestions(true)}
                                 placeholder="Digite o nome ou CPF do contribuinte..."
-                                className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2.5 pl-10 pr-3 transition-all outline-none text-xs font-bold placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                                className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 pl-9 pr-3 transition-all outline-none text-xs font-medium placeholder:text-slate-400"
                             />
                             {showSuggestions && filteredContributors.length > 0 && (
                                 <div className="absolute left-0 right-0 top-[105%] z-50 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl overflow-hidden max-h-56 overflow-y-auto custom-scrollbar">

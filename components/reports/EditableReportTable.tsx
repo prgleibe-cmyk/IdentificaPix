@@ -396,7 +396,7 @@ const MobileCard = memo(({
                 </div>
             </div>
 
-                    <div className="flex items-center justify-end gap-2 w-full flex-wrap">
+                    <div className="flex items-center justify-end gap-1.5 w-full flex-wrap pt-2 border-t border-slate-100 dark:border-slate-700/60">
                         <button 
                             type="button"
                             onClick={() => {
@@ -412,10 +412,10 @@ const MobileCard = memo(({
                                     });
                                 }
                             }}
-                            className={`p-2.5 rounded-xl font-bold text-[10px] uppercase tracking-wider flex items-center justify-center transition-all border ${
+                            className={`p-2 rounded-lg font-semibold text-xs flex items-center justify-center transition-all border ${
                                 waSent
-                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100'
-                                    : 'bg-emerald-600 text-white hover:bg-emerald-700 border-transparent shadow-xs'
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300'
+                                    : 'bg-white hover:bg-slate-50 text-slate-700 dark:bg-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700 shadow-xs'
                             }`}
                             title={waSent ? "WhatsApp Enviado (Reenviar)" : "Disparar WhatsApp"}
                             aria-label={waSent ? "WhatsApp Enviado (Reenviar)" : "Disparar WhatsApp"}
@@ -423,7 +423,7 @@ const MobileCard = memo(({
                             {waSent ? (
                                 <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                             ) : (
-                                <MessageCircle className="w-4 h-4" />
+                                <MessageCircle className="w-4 h-4 text-emerald-600" />
                             )}
                         </button>
 
@@ -432,22 +432,22 @@ const MobileCard = memo(({
                             return (
                                 <button 
                                     onClick={() => onGenerateReceipt(row)} 
-                                    className={`px-3.5 py-2 rounded-xl font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                                    className={`px-3 py-1.5 rounded-lg font-medium text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer border ${
                                         hasSignedReceipt
-                                            ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-800'
-                                            : 'text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400'
+                                            ? 'text-emerald-700 bg-emerald-50 dark:bg-emerald-950/50 dark:text-emerald-300 border-emerald-300/80 dark:border-emerald-800'
+                                            : 'text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
                                     }`} 
                                     title={hasSignedReceipt ? "Recibo Assinado Digitalmente na Tela (Clique para visualizar/assinar)" : "Gerar e Assinar Recibo na Tela"}
                                 >
-                                    <Printer className="w-3.5 h-3.5" />
+                                    <Printer className="w-3.5 h-3.5 text-slate-500" />
                                     <span>{hasSignedReceipt ? 'Recibo ✓' : 'Recibo'}</span>
                                 </button>
                             );
                         })()}
                         {confirmed ? (
                             (!isClosedPeriod && canConfirmFinal) && (
-                                <button onClick={() => onToggleLock(row.transaction.id, false)} className="flex-1 py-2 rounded-xl text-indigo-600 bg-indigo-50 font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-2">
-                                    <LockOpenIcon className="w-3.5 h-3.5" /> Abrir Registro
+                                <button onClick={() => onToggleLock(row.transaction.id, false)} className="flex-1 py-1.5 rounded-lg text-slate-700 bg-slate-100 hover:bg-slate-200 font-medium text-xs flex items-center justify-center gap-1.5">
+                                    <LockOpenIcon className="w-3.5 h-3.5" /> Abrir
                                 </button>
                             )
                         ) : (
@@ -456,22 +456,28 @@ const MobileCard = memo(({
                                     {isManualRow && onEdit && (
                                         <button 
                                             onClick={() => onEdit(row)} 
-                                            className="px-3.5 py-2 rounded-xl text-amber-700 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 font-bold text-[10px] uppercase tracking-wider flex items-center gap-1.5 transition-colors border border-amber-200/60 dark:border-amber-800/40"
+                                            className="px-2.5 py-1.5 rounded-lg text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 border border-slate-200 dark:border-slate-700 font-medium text-xs flex items-center gap-1 transition-colors"
                                             title="Editar Lançamento Manual"
                                         >
-                                            <Pencil className="w-3.5 h-3.5" /> Editar
+                                            <Pencil className="w-3.5 h-3.5 text-orange-600" /> Editar
                                         </button>
                                     )}
-                                    {canDeleteRow && (
-                                        <button onClick={() => onDelete(row)} className="p-2.5 rounded-xl text-rose-600 bg-rose-50" title="Excluir"><TrashIcon className="w-4 h-4" /></button>
-                                    )}
-                                    {isIdentified && canUndoIdentification && <button onClick={() => onUndo(row.transaction.id)} className="p-2.5 rounded-xl text-amber-600 bg-amber-50" title="Desfazer auto-identificação"><ArrowUturnLeftIcon className="w-4 h-4" /></button>}
                                     {onSplit && (
                                         <button 
                                             onClick={() => onSplit(row)} 
-                                            className="px-3.5 py-2 rounded-xl text-indigo-600 bg-indigo-50 hover:bg-indigo-100 font-bold text-[10px] uppercase tracking-wider flex items-center gap-1.5 transition-colors"
+                                            className="px-2.5 py-1.5 rounded-lg text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 border border-slate-200 dark:border-slate-700 font-medium text-xs flex items-center gap-1 transition-colors"
                                         >
-                                            <GitFork className="w-3.5 h-3.5" /> Ratear
+                                            <GitFork className="w-3.5 h-3.5 text-indigo-500" /> Ratear
+                                        </button>
+                                    )}
+                                    {isIdentified && canUndoIdentification && (
+                                        <button onClick={() => onUndo(row.transaction.id)} className="p-2 rounded-lg text-slate-500 hover:text-slate-700 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700" title="Desfazer auto-identificação">
+                                            <ArrowUturnLeftIcon className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
+                                    {canDeleteRow && (
+                                        <button onClick={() => onDelete(row)} className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 transition-colors" title="Excluir">
+                                            <TrashIcon className="w-3.5 h-3.5" />
                                         </button>
                                     )}
                                 </>

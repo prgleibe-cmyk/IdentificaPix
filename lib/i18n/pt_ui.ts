@@ -51,7 +51,7 @@ export const ptUi = {
     'dashboard.unidentified': 'Não Identificadas',
     'dashboard.autoConfirmed': 'Confirmados Automaticamente',
     'dashboard.manualConfirmed': 'Confirmados Manualmente',
-    'dashboard.pending': 'Pendentes de Conciliación',
+    'dashboard.pending': 'Pendentes de Conciliação',
     'dashboard.resultsTitle': 'Resultados da Conciliação',
     'dashboard.visualAnalysis': 'Análise Visual',
     'dashboard.identificationRatio': 'Proporção de Identificação',

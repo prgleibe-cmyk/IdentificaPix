@@ -53,8 +53,8 @@ export const DonutChart: React.FC<DonutChartProps> = ({ data }) => {
                     })}
                 </svg>
                  <div className="absolute inset-0 flex items-center justify-center flex-col pointer-events-none z-20">
-                    <span className="text-2xl font-black text-brand-graphite dark:text-white tracking-tighter tabular-nums transition-transform duration-500 group-hover:scale-110">{total}</span>
-                    <span className="text-[8px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Registros</span>
+                    <span className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight tabular-nums transition-transform duration-500 group-hover:scale-110">{total}</span>
+                    <span className="text-[10px] text-slate-400 font-medium mt-0.5">Registros</span>
                 </div>
             </div>
             
@@ -63,12 +63,12 @@ export const DonutChart: React.FC<DonutChartProps> = ({ data }) => {
                     {data.map((item, index) => (
                         <div key={index} className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-700/50 hover:border-slate-200 dark:hover:border-slate-600 transition-all group/item">
                             <div className="flex items-center gap-2 min-w-0">
-                                <span className="w-1.5 h-6 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }}></span>
-                                <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase truncate tracking-wide group-hover/item:text-slate-800 dark:group-hover/item:text-slate-200 transition-colors">
+                                <span className="w-1.5 h-5 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }}></span>
+                                <span className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate group-hover/item:text-slate-900 dark:group-hover/item:text-white transition-colors">
                                     {item.name}
                                 </span>
                             </div>
-                            <span className="text-[10px] font-black text-slate-700 dark:text-white tabular-nums bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-100 dark:border-slate-700 shadow-sm">
+                            <span className="text-xs font-semibold text-slate-900 dark:text-white tabular-nums bg-white dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200/80 dark:border-slate-700 shadow-xs">
                                 {((item.value / total) * 100).toFixed(1)}%
                             </span>
                         </div>

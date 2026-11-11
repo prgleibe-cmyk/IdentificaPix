@@ -20,7 +20,7 @@ export const AuthView: React.FC = () => {
     };
   
     return (
-        <div className="h-[100dvh] w-full flex flex-col bg-gradient-to-b from-[#E6EFEA] via-[#D8E8DF] to-[#CADFD4] dark:from-[#0B1411] dark:to-[#050D0A] text-slate-800 dark:text-slate-200 relative overflow-hidden font-sans selection:bg-orange-500/30">
+        <div className="h-[100dvh] w-full flex flex-col bg-slate-50 dark:bg-[#0B0F17] text-slate-800 dark:text-slate-200 relative overflow-hidden font-sans selection:bg-orange-500/20">
             <AuthBackground />
 
             {/* Scrollable Container with explicit touch support */}
@@ -41,12 +41,12 @@ export const AuthView: React.FC = () => {
                         id="credentials-form"
                         className="flex flex-col items-center md:items-end md:pr-4 lg:pr-12 pb-12 md:pb-0 scroll-mt-6"
                     >
-                        <div className="bg-white rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl w-full max-w-[420px] p-6 sm:p-8 relative overflow-hidden border border-slate-100/50">
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-card w-full max-w-[420px] p-6 sm:p-8 relative overflow-hidden border border-slate-200/90 dark:border-white/5">
                             <div className="text-center mb-5 sm:mb-6">
-                                <h2 className="text-xl sm:text-2xl font-black text-slate-800 mb-1 sm:mb-2 tracking-tight">
+                                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white mb-1 tracking-tight">
                                     {auth.isRecoveryMode ? 'Recuperar Senha' : (auth.isLogin ? 'Bem-vindo' : 'Criar Conta')}
                                 </h2>
-                                <p className="text-slate-500 text-xs sm:text-sm font-medium">
+                                <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm font-normal">
                                     {auth.isRecoveryMode ? 'Informe seu email para receber o link de recuperação.' : (auth.isLogin ? 'Faça login para continuar.' : 'Preencha os dados abaixo.')}
                                 </p>
                             </div>
@@ -57,16 +57,16 @@ export const AuthView: React.FC = () => {
                                         onClick={auth.handleGoogleLogin}
                                         type="button"
                                         disabled={auth.loading}
-                                        className="w-full flex items-center justify-center gap-3 py-3 sm:py-3.5 bg-white border border-slate-200/80 hover:bg-slate-50 text-slate-700 rounded-2xl font-bold text-xs uppercase tracking-wider transition-all shadow-sm mb-4 sm:mb-6 active:scale-[0.99] hover:shadow-md cursor-pointer"
+                                        className="w-full flex items-center justify-center gap-2.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 rounded-lg font-semibold text-xs tracking-wide transition-all shadow-xs mb-4 active:scale-[0.99] cursor-pointer"
                                     >
-                                        <GoogleIcon className="w-4 h-4 sm:w-5 sm:h-5" />
+                                        <GoogleIcon className="w-4 h-4" />
                                         <span>Entrar com Google</span>
                                     </button>
 
-                                    <div className="relative flex py-1 sm:py-2 items-center mb-4 sm:mb-6">
-                                        <div className="flex-grow border-t border-slate-100"></div>
-                                        <span className="flex-shrink-0 mx-4 text-[10px] font-bold text-slate-300 uppercase tracking-widest">Ou Email</span>
-                                        <div className="flex-grow border-t border-slate-100"></div>
+                                    <div className="relative flex py-1 items-center mb-4">
+                                        <div className="flex-grow border-t border-slate-200 dark:border-slate-700"></div>
+                                        <span className="flex-shrink-0 mx-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">ou e-mail</span>
+                                        <div className="flex-grow border-t border-slate-200 dark:border-slate-700"></div>
                                     </div>
                                 </>
                             )}

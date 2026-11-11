@@ -13,14 +13,14 @@ export const BankChipsList: React.FC<BankChipsListProps> = ({ list, selectedId, 
             <button
                 type="button"
                 onClick={() => onSelect(null)}
-                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all duration-150 text-xs cursor-pointer ${
+                className={`flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all duration-150 text-xs cursor-pointer ${
                     !selectedId || selectedId === 'all'
                     ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white shadow-xs font-semibold' 
                     : 'bg-transparent border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-medium'
                 }`}
             >
                 {(!selectedId || selectedId === 'all') && <div className="w-1.5 h-1.5 rounded-full bg-orange-600"></div>}
-                <span className="uppercase tracking-wider text-[10px]">Todos os Bancos</span>
+                <span>Todos os bancos</span>
             </button>
 
             {list.map(item => (
@@ -28,14 +28,14 @@ export const BankChipsList: React.FC<BankChipsListProps> = ({ list, selectedId, 
                     key={item.id}
                     type="button"
                     onClick={() => onSelect(item.id)}
-                    className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all duration-150 text-xs cursor-pointer ${
+                    className={`flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all duration-150 text-xs cursor-pointer ${
                         selectedId === item.id 
                         ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white shadow-xs font-semibold' 
                         : 'bg-transparent border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-medium'
                     }`}
                 >
                     {selectedId === item.id && <div className="w-1.5 h-1.5 rounded-full bg-orange-600"></div>}
-                    <span className="truncate max-w-[150px] uppercase tracking-wider text-[10px]">{item.name}</span>
+                    <span className="truncate max-w-[150px]">{item.name}</span>
                 </button>
             ))}
         </div>
