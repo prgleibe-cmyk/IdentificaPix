@@ -22,6 +22,7 @@ import { PastorAutomation } from '../types/domain';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { Language } from '../types/ui';
 import { WhatsAppTemplateConfig } from './WhatsAppTemplateConfig';
+import { getAuthToken } from '../services/auth/authAdapter';
 
 interface PastorAutomationTabProps {
     user: any;
@@ -268,9 +269,13 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
         };
 
         try {
+            const token = await getAuthToken();
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+
             const res = await fetch('/api/v1/financial_records', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 body: JSON.stringify(payload)
             });
             if (!res.ok) throw new Error('Erro ao registrar adiantamento');
@@ -321,9 +326,13 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
                 recurrence: 'none'
             };
 
+            const token = await getAuthToken();
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+
             const expRes = await fetch('/api/v1/financial_records', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 body: JSON.stringify(expensePayload)
             });
 
@@ -351,7 +360,7 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
 
                 const incRes = await fetch('/api/v1/financial_records', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify(incomePayload)
                 });
 

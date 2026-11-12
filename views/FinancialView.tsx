@@ -206,7 +206,11 @@ export const FinancialView: React.FC = memo(() => {
         if (!user?.id) return;
         setLoading(true);
         try {
-            const res = await fetch(`/api/v1/financial_records?user_id=${user.id}`);
+            const token = await getAuthToken();
+            const headers: Record<string, string> = {};
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+            const targetUserId = subscription?.ownerId || user?.owner_id || user.id;
+            const res = await fetch(`/api/v1/financial_records?user_id=${targetUserId}`, { headers });
             if (!res.ok) throw new Error('Falha ao buscar registros');
             const data = await res.json();
             setRecords(data);
@@ -292,7 +296,10 @@ export const FinancialView: React.FC = memo(() => {
     const handleDelete = async (id: string) => {
         if (!confirm('Deseja realmente excluir este registro financeiro?')) return;
         try {
-            const res = await fetch(`/api/v1/financial_records/${id}`, { method: 'DELETE' });
+            const token = await getAuthToken();
+            const headers: Record<string, string> = {};
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+            const res = await fetch(`/api/v1/financial_records/${id}`, { method: 'DELETE', headers });
             if (!res.ok) throw new Error('Falha ao excluir registro');
             showToast('Registro excluído com sucesso!', 'success');
             fetchRecords();
@@ -308,9 +315,13 @@ export const FinancialView: React.FC = memo(() => {
         const newPaymentDate = newStatus === 'paid' ? new Date().toISOString().split('T')[0] : null;
 
         try {
+            const token = await getAuthToken();
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+
             const res = await fetch(`/api/v1/financial_records/${record.id}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 body: JSON.stringify({
                     status: newStatus,
                     payment_date: newPaymentDate
@@ -641,9 +652,13 @@ export const FinancialView: React.FC = memo(() => {
     const handleLinkRecord = async (recordId: string, transaction: any) => {
         setLoading(true);
         try {
+            const token = await getAuthToken();
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+
             const res = await fetch(`/api/v1/financial_records/${recordId}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 body: JSON.stringify({
                     status: 'paid',
                     payment_date: transaction.date ? new Date(transaction.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
@@ -666,9 +681,13 @@ export const FinancialView: React.FC = memo(() => {
     const handleUnlinkRecord = async (record: FinancialRecord) => {
         setLoading(true);
         try {
+            const token = await getAuthToken();
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+
             const res = await fetch(`/api/v1/financial_records/${record.id}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 body: JSON.stringify({
                     status: 'pending',
                     payment_date: null,

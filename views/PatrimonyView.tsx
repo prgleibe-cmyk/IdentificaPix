@@ -41,6 +41,7 @@ import {
     CalendarDays,
     RefreshCw
 } from 'lucide-react';
+import { getAuthToken } from '../services/auth/authAdapter';
 
 export interface PatrimonyDocument {
     id: string;
@@ -419,10 +420,14 @@ export const PatrimonyView: React.FC = memo(() => {
                 recurrence: commitment.recurrence || 'none'
             };
 
+            const token = await getAuthToken();
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+
             if (commitment.financialRecordId) {
                 const res = await fetch(`/api/v1/financial_records/${commitment.financialRecordId}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify(payload)
                 });
                 if (res.ok) return commitment.financialRecordId;
@@ -430,7 +435,7 @@ export const PatrimonyView: React.FC = memo(() => {
 
             const res = await fetch('/api/v1/financial_records', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 body: JSON.stringify(payload)
             });
 
