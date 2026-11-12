@@ -57,7 +57,7 @@ export const AuthView: React.FC = () => {
                                         onClick={auth.handleGoogleLogin}
                                         type="button"
                                         disabled={auth.loading}
-                                        className="w-full flex items-center justify-center gap-2.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 rounded-lg font-semibold text-xs tracking-wide transition-all shadow-xs mb-4 active:scale-[0.99] cursor-pointer"
+                                        className="w-full flex items-center justify-center gap-2.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 rounded-lg font-semibold text-xs tracking-wide transition-all shadow-xs mb-4 active:scale-[0.99] cursor-pointer"
                                     >
                                         <GoogleIcon className="w-4 h-4" />
                                         <span>Entrar com Google</span>
@@ -83,11 +83,14 @@ export const AuthView: React.FC = () => {
                             <button
                                 type="button"
                                 onClick={() => setIsTermsOpen(true)}
-                                className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-600 dark:text-slate-400 hover:text-brand-blue dark:hover:text-brand-blue transition-colors cursor-pointer"
+                                className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-600 dark:text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors cursor-pointer"
                             >
                                 <DocumentTextIcon className="w-3.5 h-3.5 text-brand-blue" />
                                 <span>Termos de Licença e Uso do Sistema</span>
                             </button>
+                            <p className="md:hidden text-slate-400 text-[11px] font-medium mt-3">
+                                © 2026 IgGestor. Segurança garantida.
+                            </p>
                         </div>
                     </div>
                 </div>

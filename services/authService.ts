@@ -101,14 +101,28 @@ export const authService = {
     return json;
   },
 
-  async googleOAuth(idToken: string): Promise<AuthResponse> {
+  async getGoogleAuthUrl(redirectUri: string): Promise<{ success: boolean; url?: string; error?: string }> {
+    const res = await fetch(`/api/v1/auth/google-url?redirect_uri=${encodeURIComponent(redirectUri)}`, {
+      method: 'GET'
+    });
+    const json = await res.json();
+    if (json.success && json.data?.url) {
+      return { success: true, url: json.data.url };
+    }
+    return { success: false, error: json.error || 'Erro ao iniciar autenticação com Google.' };
+  },
+
+  async googleOAuth(
+    payload: string | { code: string; state: string; redirectUri: string }
+  ): Promise<AuthResponse & { data?: { requiresTwoFactor?: boolean; tempToken?: string } }> {
+    const body = typeof payload === 'string' ? { idToken: payload } : payload;
     const res = await fetch('/api/v1/auth/google-oauth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idToken })
+      body: JSON.stringify(body)
     });
     const json = await res.json();
-    if (json.success && json.data) {
+    if (json.success && json.data && !json.data.requiresTwoFactor) {
       this.setAuthData(json.data);
     }
     return json;

@@ -9,7 +9,7 @@ interface AuthHeroProps {
 
 export const AuthHero: React.FC<AuthHeroProps> = ({ onScrollToForm }) => {
     return (
-        <div className="flex flex-col justify-center max-w-xl md:pl-4 lg:pl-12 space-y-6 md:space-y-8 lg:space-y-10 py-4 md:py-0">
+        <div className="flex flex-col justify-center w-full max-w-xl mx-auto md:mx-0 md:pl-4 lg:pl-12 space-y-6 md:space-y-8 lg:space-y-10 py-4 md:py-0">
             {/* Logo Section */}
             <div className="flex items-center gap-4 sm:gap-6 lg:gap-8 perspective-[1000px]">
                 <div className="relative group animate-pulse-soft flex-shrink-0">
@@ -42,7 +42,7 @@ export const AuthHero: React.FC<AuthHeroProps> = ({ onScrollToForm }) => {
                     <span className="text-transparent bg-clip-text bg-gradient-to-r from-slate-700 to-emerald-600">Absoluta.</span>
                 </h2>
                 
-                <div className="border-l-3 sm:border-l-4 border-orange-600 pl-4 sm:pl-6">
+                <div className="border-l-[3px] sm:border-l-4 border-orange-600 pl-4 sm:pl-6">
                     <p className="text-sm sm:text-base lg:text-lg text-slate-600 leading-relaxed font-normal">
                         Plataforma inteligente de conciliação bancária, controle de contribuições, despesas e relatórios em tempo real.
                     </p>
@@ -65,7 +65,7 @@ export const AuthHero: React.FC<AuthHeroProps> = ({ onScrollToForm }) => {
 
                 {/* Mobile / Tablet Quick Scroll Button (Sutil e Neutro, sem competir com o botão de Entrar) */}
                 {onScrollToForm && (
-                    <div className="block md:hidden pt-1">
+                    <div className="block md:hidden pt-1 w-full max-w-[420px] mx-auto">
                         <button
                             type="button"
                             onClick={onScrollToForm}

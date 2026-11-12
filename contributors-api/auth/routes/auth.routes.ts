@@ -39,6 +39,7 @@ export function createAuthRouter(pool: any): Router {
   router.post('/request-password-reset', resetLimiter, controller.requestPasswordReset);
   router.post('/reset-password', resetLimiter, controller.resetPassword);
   router.post('/verify-email', controller.verifyEmail);
+  router.get('/google-url', oauthLimiter, controller.googleAuthUrl);
   router.post('/google-oauth', oauthLimiter, controller.googleOAuth);
 
   // Authenticated Auth Routes

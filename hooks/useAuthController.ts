@@ -1,5 +1,8 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { authService } from '../services/authService';
+
+const GOOGLE_CALLBACK_PATH = '/auth/google/callback';
+const processedGoogleCodes = new Set<string>();
 
 export const useAuthController = () => {
     const [isLogin, setIsLogin] = useState(true);
@@ -19,13 +22,85 @@ export const useAuthController = () => {
         setMessage(null);
     }, []);
 
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const isCallbackPath = window.location.pathname === GOOGLE_CALLBACK_PATH;
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
+        const state = params.get('state');
+        const oauthError = params.get('error');
+
+        if (!isCallbackPath && !(code && state)) return;
+
+        if (oauthError) {
+            window.history.replaceState({}, document.title, '/');
+            setError(
+                oauthError === 'access_denied'
+                    ? 'Acesso com Google cancelado pelo usuário.'
+                    : 'Não foi possível concluir a autenticação com o Google.'
+            );
+            return;
+        }
+
+        if (!code || !state) {
+            window.history.replaceState({}, document.title, '/');
+            return;
+        }
+
+        if (processedGoogleCodes.has(code)) return;
+        processedGoogleCodes.add(code);
+
+        let active = true;
+        const completeGoogleLogin = async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                const redirectUri = `${window.location.origin}${GOOGLE_CALLBACK_PATH}`;
+                const res = await authService.googleOAuth({ code, state, redirectUri });
+
+                if (!res.success) {
+                    throw new Error(res.error || 'Erro ao autenticar com Google.');
+                }
+
+                if (res.data?.requiresTwoFactor) {
+                    window.history.replaceState({}, document.title, '/');
+                    if (active) {
+                        setError('Esta conta possui verificação em duas etapas (2FA) ativa. Utilize login com e-mail e senha.');
+                        setLoading(false);
+                    }
+                    return;
+                }
+
+                window.history.replaceState({}, document.title, '/');
+                window.location.reload();
+            } catch (err: any) {
+                console.error('Google OAuth callback error:', err);
+                window.history.replaceState({}, document.title, '/');
+                if (active) {
+                    setError(err?.message || 'Erro ao conectar com Google.');
+                    setLoading(false);
+                }
+            }
+        };
+
+        completeGoogleLogin();
+
+        return () => {
+            active = false;
+        };
+    }, []);
+
     const handleGoogleLogin = async () => {
         setLoading(true);
         setError(null);
+        setMessage(null);
         try {
-            // Google OAuth integration via VPS backend or notification
-            setError('Autenticação Google temporariamente indisponível. Utilize e-mail e senha.');
-            setLoading(false);
+            const redirectUri = `${window.location.origin}${GOOGLE_CALLBACK_PATH}`;
+            const res = await authService.getGoogleAuthUrl(redirectUri);
+            if (!res.success || !res.url) {
+                throw new Error(res.error || 'Não foi possível iniciar o login com Google.');
+            }
+            window.location.assign(res.url);
         } catch (err: any) {
             console.error("Google login error:", err);
             setError(err.message || 'Erro ao conectar com Google.');

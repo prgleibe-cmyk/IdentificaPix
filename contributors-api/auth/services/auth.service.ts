@@ -7,7 +7,9 @@ import {
   verifyAccessToken, 
   generateResetToken,
   generate2faTempToken,
-  verify2faTempToken
+  verify2faTempToken,
+  generateGoogleOAuthState,
+  verifyGoogleOAuthState
 } from '../utils/jwt.utils.js';
 import { 
   generateBase32Secret, 
@@ -858,30 +860,212 @@ export class AuthService {
     });
   }
 
-  // Abstração de Google OAuth
+  buildGoogleAuthUrl(redirectUri: string): string {
+    const clientId = (process.env.GOOGLE_CLIENT_ID || '').trim();
+    if (!clientId) {
+      throw new Error('Login com Google não configurado no servidor (GOOGLE_CLIENT_ID ausente).');
+    }
+
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(redirectUri);
+    } catch {
+      throw new Error('URI de redirecionamento inválida.');
+    }
+
+    const isLocalHost = parsedUrl.hostname === 'localhost' || parsedUrl.hostname === '127.0.0.1';
+    const isAllowedProtocol = parsedUrl.protocol === 'https:' || (parsedUrl.protocol === 'http:' && isLocalHost);
+    if (!isAllowedProtocol || parsedUrl.pathname !== '/auth/google/callback') {
+      throw new Error('URI de redirecionamento não permitida.');
+    }
+
+    const cleanRedirectUri = `${parsedUrl.origin}${parsedUrl.pathname}`;
+    const state = generateGoogleOAuthState(cleanRedirectUri);
+
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: cleanRedirectUri,
+      response_type: 'code',
+      scope: 'openid email profile',
+      state,
+      prompt: 'select_account'
+    });
+
+    return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+  }
+
+  private async verifyGoogleIdToken(
+    idToken: string,
+    expectedClientId: string
+  ): Promise<{ email: string; name?: string; googleId: string }> {
+    const infoRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
+    if (!infoRes.ok) {
+      throw new Error('Token do Google inválido ou expirado.');
+    }
+    const info = await infoRes.json() as any;
+    const validIssuers = ['accounts.google.com', 'https://accounts.google.com'];
+    const emailVerified = info.email_verified === true || info.email_verified === 'true';
+
+    if (info.aud !== expectedClientId || !validIssuers.includes(info.iss) || !emailVerified || !info.email || !info.sub) {
+      throw new Error('Falha na verificação de identidade da conta Google.');
+    }
+
+    return {
+      email: String(info.email),
+      name: info.name ? String(info.name) : undefined,
+      googleId: String(info.sub)
+    };
+  }
+
+  // Autenticação Google OAuth 2.0 validada criptograficamente junto aos servidores do Google
   async googleOAuthTokenExchange(
-    googlePayload: { email: string; name?: string; googleId: string },
+    oauthPayload: { code?: string; state?: string; redirectUri?: string; idToken?: string },
     ip?: string,
     userAgent?: string
   ): Promise<LoginResult> {
-    const email = sanitizeEmail(googlePayload.email);
+    const clientId = (process.env.GOOGLE_CLIENT_ID || '').trim();
+    if (!clientId) {
+      throw new Error('Login com Google não configurado no servidor (GOOGLE_CLIENT_ID ausente).');
+    }
+
+    let verifiedProfile: { email: string; name?: string; googleId: string };
+
+    if (oauthPayload.code && oauthPayload.state && oauthPayload.redirectUri) {
+      const clientSecret = (process.env.GOOGLE_CLIENT_SECRET || '').trim();
+      if (!clientSecret) {
+        throw new Error('Login com Google não configurado no servidor (GOOGLE_CLIENT_SECRET ausente).');
+      }
+
+      let stateData: { redirectUri: string };
+      try {
+        stateData = verifyGoogleOAuthState(oauthPayload.state);
+      } catch {
+        throw new Error('Sessão de login Google expirada ou inválida. Tente novamente.');
+      }
+
+      if (stateData.redirectUri !== oauthPayload.redirectUri) {
+        throw new Error('URI de redirecionamento divergente.');
+      }
+
+      const tokenBody = new URLSearchParams({
+        code: oauthPayload.code,
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: stateData.redirectUri,
+        grant_type: 'authorization_code'
+      });
+
+      const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: tokenBody.toString()
+      });
+
+      const tokenData = await tokenRes.json().catch(() => ({})) as any;
+      if (!tokenRes.ok || (!tokenData.id_token && !tokenData.access_token)) {
+        console.warn('[AuthService:GoogleOAuth] Token exchange failed:', tokenData?.error || tokenRes.status);
+        throw new Error('Não foi possível validar o código de autorização com o Google. Tente novamente.');
+      }
+
+      if (tokenData.id_token) {
+        verifiedProfile = await this.verifyGoogleIdToken(tokenData.id_token, clientId);
+      } else {
+        const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${tokenData.access_token}` }
+        });
+        if (!userInfoRes.ok) {
+          throw new Error('Falha ao obter dados do usuário no Google.');
+        }
+        const userInfo = await userInfoRes.json() as any;
+        if (!userInfo.email || !(userInfo.email_verified === true || userInfo.email_verified === 'true') || !userInfo.sub) {
+          throw new Error('E-mail da conta Google não verificado.');
+        }
+        verifiedProfile = {
+          email: String(userInfo.email),
+          name: userInfo.name ? String(userInfo.name) : undefined,
+          googleId: String(userInfo.sub)
+        };
+      }
+    } else if (oauthPayload.idToken) {
+      verifiedProfile = await this.verifyGoogleIdToken(oauthPayload.idToken, clientId);
+    } else {
+      throw new Error('Parâmetros de autenticação Google inválidos.');
+    }
+
+    const email = sanitizeEmail(verifiedProfile.email);
     let user = await this.repo.findUserByEmail(email);
 
     if (!user) {
-      // Auto-register via Google OAuth
+      // Auto-register via Google OAuth preservando perfil migrado ou usuário secundário pré-cadastrado
       const crypto = await import('crypto');
       const randomPassword = crypto.randomBytes(32).toString('hex');
       const passwordHash = await hashPassword(randomPassword);
+      const existingProfile = await this.repo.findProfileByEmail(email);
 
-      user = await this.repo.createUser({
+      const created = await this.repo.createUser({
+        id: existingProfile?.id || undefined,
         email,
         password_hash: passwordHash,
-        name: googlePayload.name,
-        role: 'user',
+        name: verifiedProfile.name || existingProfile?.name || null,
+        role: existingProfile?.role || 'user',
+        owner_id: existingProfile?.owner_id || null,
+        church_id: null,
+        permissions: [],
         is_active: true,
         is_verified: true
       });
+
+      user = (await this.repo.findUserByEmail(email)) || created;
     }
+
+    if (!user.is_active) {
+      await this.repo.createAuditLog({
+        user_id: user.id,
+        email: user.email,
+        event: 'GOOGLE_OAUTH_FAILED_INACTIVE',
+        ip_address: ip,
+        user_agent: userAgent
+      });
+      throw new Error('Conta inativa ou bloqueada.');
+    }
+
+    if (user.lock_until && user.lock_until > new Date()) {
+      const remainingMinutes = Math.ceil((user.lock_until.getTime() - Date.now()) / 60000);
+      await this.repo.createAuditLog({
+        user_id: user.id,
+        email: user.email,
+        event: 'GOOGLE_OAUTH_FAILED_LOCKED',
+        ip_address: ip,
+        user_agent: userAgent
+      });
+      throw new Error(`Conta temporariamente bloqueada. Tente novamente em ${remainingMinutes} minuto(s).`);
+    }
+
+    if (!user.is_verified) {
+      await this.repo.setUserVerified(user.id);
+      user.is_verified = true;
+    }
+
+    const isAdminRole = user.role === 'superadmin' || user.role === 'admin' || user.role === 'owner';
+    if (user.two_factor_enabled || isAdminRole) {
+      const secrets = await this.repo.getTotpSecrets(user.id);
+      if (secrets && secrets.totp_enabled) {
+        const tempToken = generate2faTempToken(user.id);
+        await this.repo.createAuditLog({
+          user_id: user.id,
+          email: user.email,
+          event: 'GOOGLE_OAUTH_2FA_REQUIRED',
+          ip_address: ip,
+          user_agent: userAgent
+        });
+        return {
+          requiresTwoFactor: true,
+          tempToken
+        };
+      }
+    }
+
+    await this.repo.updateUserLoginSuccess(user.id);
 
     const accessInfo = generateAccessToken({
       userId: user.id,
@@ -889,7 +1073,11 @@ export class AuthService {
       ownerId: user.owner_id || user.id,
       churchId: user.church_id,
       role: user.role,
-      permissions: user.permissions
+      permissions: user.permissions,
+      congregationIds: extractAllowedChurchIds(user),
+      allowedChurchIds: extractAllowedChurchIds(user),
+      bankIds: extractAllowedBankIds(user),
+      allowedBankIds: extractAllowedBankIds(user)
     });
 
     const refreshInfo = generateRefreshToken();
@@ -906,7 +1094,8 @@ export class AuthService {
       email: user.email,
       event: 'GOOGLE_OAUTH_SUCCESS',
       ip_address: ip,
-      user_agent: userAgent
+      user_agent: userAgent,
+      details: { googleId: verifiedProfile.googleId }
     });
 
     return {

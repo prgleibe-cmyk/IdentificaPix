@@ -90,6 +90,28 @@ export function verify2faTempToken(token: string): { user_id: string } {
   return { user_id: decoded.user_id };
 }
 
+export function generateGoogleOAuthState(redirectUri: string): string {
+  const claims = {
+    type: 'google_oauth_state',
+    redirectUri,
+    nonce: crypto.randomUUID(),
+    iss: ISSUER,
+    aud: AUDIENCE
+  };
+  return jwt.sign(claims, JWT_SECRET, { expiresIn: '10m' });
+}
+
+export function verifyGoogleOAuthState(state: string): { redirectUri: string } {
+  const decoded = jwt.verify(state, JWT_SECRET, {
+    issuer: ISSUER,
+    audience: AUDIENCE
+  }) as any;
+  if (decoded.type !== 'google_oauth_state' || !decoded.redirectUri) {
+    throw new Error('State OAuth inválido ou expirado.');
+  }
+  return { redirectUri: decoded.redirectUri };
+}
+
 export function verifyAccessToken(token: string): JwtPayload {
   try {
     const decoded = jwt.verify(token, JWT_SECRET, {

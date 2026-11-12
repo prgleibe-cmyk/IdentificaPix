@@ -230,15 +230,41 @@ export class AuthController {
     }
   };
 
+  googleAuthUrl = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const redirectUri = typeof req.query.redirect_uri === 'string' ? req.query.redirect_uri : '';
+      if (!redirectUri) {
+        return res.status(400).json({ success: false, error: 'redirect_uri é obrigatório.' });
+      }
+
+      const url = this.service.buildGoogleAuthUrl(redirectUri);
+
+      return res.status(200).json({
+        success: true,
+        data: { url }
+      });
+    } catch (err: any) {
+      const status = err?.message?.includes('não configurado') ? 503 : 400;
+      return res.status(status).json({
+        success: false,
+        error: err?.message || 'Erro ao gerar URL de autenticação Google.'
+      });
+    }
+  };
+
   googleOAuth = async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { email, name, googleId } = req.body;
-      if (!email || !googleId) {
+      const { code, state, redirectUri, idToken } = req.body || {};
+      if ((!code || !state || !redirectUri) && !idToken) {
         return res.status(400).json({ success: false, error: 'Parâmetros de OAuth inválidos.' });
       }
 
       const { ip, userAgent } = this.getClientInfo(req);
-      const result = await this.service.googleOAuthTokenExchange({ email, name, googleId }, ip, userAgent);
+      const result = await this.service.googleOAuthTokenExchange(
+        { code, state, redirectUri, idToken },
+        ip,
+        userAgent
+      );
 
       return res.status(200).json({
         success: true,
