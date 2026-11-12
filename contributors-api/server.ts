@@ -5159,7 +5159,6 @@ app.post('/api/v1/contributors/cleanup-invalids', async (req: Request, res: Resp
 // 🛡️ OTIMIZAÇÃO GARGALO 6 (CONSULTAS BACKEND): Cache de equivalência de IDs de usuários
 // Elimina subqueries correlacionadas em loop sobre tabelas volumosas e viabiliza busca indexada via ANY($N).
 const userEquivalenceCache = new Map<string, { ids: string[]; expires: number }>();
-const PLATFORM_ADMIN_DONO_ID = '1e812dc4-ace8-4631-9e4e-c22612a33c5b';
 const LEGACY_DEFAULT_PLACEHOLDER = '00000000-0000-0000-0000-000000000001';
 
 async function getEquivalentUserIds(userId: string): Promise<string[]> {
@@ -5173,8 +5172,7 @@ async function getEquivalentUserIds(userId: string): Promise<string[]> {
 
   const idsSet = new Set<string>([cleanId]);
   
-  // 🛡️ O Platform Admin Dono nunca deve herdar ou mesclar os IDs dos clientes cadastrados no sistema
-  if (cleanId === PLATFORM_ADMIN_DONO_ID || cleanId === LEGACY_DEFAULT_PLACEHOLDER) {
+  if (cleanId === LEGACY_DEFAULT_PLACEHOLDER) {
     const adminIds = [cleanId];
     userEquivalenceCache.set(cleanId, { ids: adminIds, expires: now + 120000 });
     return adminIds;
@@ -5184,30 +5182,28 @@ async function getEquivalentUserIds(userId: string): Promise<string[]> {
     const q = `
       SELECT id::text FROM app_users 
       WHERE (id::text = $1)
-         OR (owner_id::text = $1 AND role IN ('secondary', 'operador', 'colaborador') AND $1 != '${PLATFORM_ADMIN_DONO_ID}')
+         OR (owner_id::text = $1 AND role IN ('secondary', 'operador', 'colaborador'))
       UNION
       SELECT owner_id::text AS id FROM app_users 
       WHERE id::text = $1 
         AND role IN ('secondary', 'operador', 'colaborador')
         AND owner_id IS NOT NULL
-        AND owner_id::text != '${PLATFORM_ADMIN_DONO_ID}'
         AND owner_id::text != '${LEGACY_DEFAULT_PLACEHOLDER}'
       UNION
       SELECT id::text FROM profiles 
       WHERE (id::text = $1)
-         OR (owner_id::text = $1 AND role IN ('secondary', 'operador', 'colaborador') AND $1 != '${PLATFORM_ADMIN_DONO_ID}')
+         OR (owner_id::text = $1 AND role IN ('secondary', 'operador', 'colaborador'))
       UNION
       SELECT owner_id::text AS id FROM profiles 
       WHERE id::text = $1 
         AND role IN ('secondary', 'operador', 'colaborador')
         AND owner_id IS NOT NULL
-        AND owner_id::text != '${PLATFORM_ADMIN_DONO_ID}'
         AND owner_id::text != '${LEGACY_DEFAULT_PLACEHOLDER}'
     `;
     const res = await pool.query(q, [cleanId]);
     for (const r of (res.rows || [])) {
       const candidateId = r.id ? String(r.id).trim() : '';
-      if (candidateId && candidateId !== PLATFORM_ADMIN_DONO_ID && candidateId !== LEGACY_DEFAULT_PLACEHOLDER) {
+      if (candidateId && candidateId !== LEGACY_DEFAULT_PLACEHOLDER) {
         idsSet.add(candidateId);
       }
     }
@@ -5233,8 +5229,8 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
     }
 
     const cleanUserId = (paramOwnerId && typeof paramOwnerId === 'string' && paramOwnerId.trim())
-      ? (ctx.isSuperAdmin ? paramOwnerId.trim() : ((ctx.isSecondaryUser && ctx.ownerId && ctx.ownerId !== PLATFORM_ADMIN_DONO_ID) ? ctx.ownerId : ctx.userId))
-      : ((ctx.isSecondaryUser && ctx.ownerId && ctx.ownerId !== PLATFORM_ADMIN_DONO_ID) ? ctx.ownerId : (ctx.userId || ctx.ownerId || null));
+      ? (ctx.isSuperAdmin ? paramOwnerId.trim() : ((ctx.isSecondaryUser && ctx.ownerId) ? ctx.ownerId : ctx.userId))
+      : ((ctx.isSecondaryUser && ctx.ownerId) ? ctx.ownerId : (ctx.userId || ctx.ownerId || null));
 
     if (!cleanUserId && !ctx.isSuperAdmin) {
       return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'ownerId é obrigatório.' });
@@ -5340,7 +5336,7 @@ app.get('/api/v1/banks', async (req: Request, res: Response) => {
     }
 
     const cleanUserId = (!ctx.isSuperAdmin && ctx.userId)
-      ? ((ctx.isSecondaryUser && ctx.ownerId && ctx.ownerId !== PLATFORM_ADMIN_DONO_ID) ? ctx.ownerId : ctx.userId)
+      ? ((ctx.isSecondaryUser && ctx.ownerId) ? ctx.ownerId : ctx.userId)
       : (requestedUserId && requestedUserId.trim() ? requestedUserId.trim() : (ctx.ownerId || ctx.userId));
 
     if (!cleanUserId && !ctx.isSuperAdmin) {

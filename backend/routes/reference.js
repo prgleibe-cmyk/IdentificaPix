@@ -8,7 +8,7 @@ export default () => {
     router.get('/data/:ownerId', async (req, res) => {
         const userRole = String(req.user?.role || '').toLowerCase().trim();
         const isSuper = req.user?.is_superadmin || req.user?.isSuperAdmin || req.user?.email?.toLowerCase().trim() === 'identificapix@gmail.com';
-        const isSecondary = !isSuper && ['secondary', 'member', 'operador', 'colaborador'].includes(userRole) && Boolean(req.user?.owner_id && req.user.owner_id !== req.user.id && req.user.owner_id !== '1e812dc4-ace8-4631-9e4e-c22612a33c5b');
+        const isSecondary = !isSuper && ['secondary', 'member', 'operador', 'colaborador'].includes(userRole) && Boolean(req.user?.owner_id && req.user.owner_id !== req.user.id);
         const effectiveOwnerId = isSecondary ? req.user.owner_id : req.user.id;
 
         validateOwnerAccess(req, effectiveOwnerId);

@@ -15,7 +15,6 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const roleStr = String(user?.role || subscription?.role || '').toLowerCase().trim();
     const isClientOwnerOrAdmin = !subscription?.ownerId || 
         subscription.ownerId === user?.id || 
-        subscription.ownerId === '1e812dc4-ace8-4631-9e4e-c22612a33c5b' || 
         subscription.ownerId === '00000000-0000-0000-0000-000000000001' || 
         roleStr === 'owner' || 
         roleStr === 'admin' || 
@@ -199,7 +198,6 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                     const isSecondaryUser = Boolean(
                         subscription.ownerId && 
                         subscription.ownerId !== user?.id && 
-                        subscription.ownerId !== '1e812dc4-ace8-4631-9e4e-c22612a33c5b' &&
                         roleStr !== 'owner' && 
                         roleStr !== 'principal' && 
                         roleStr !== 'admin' && 

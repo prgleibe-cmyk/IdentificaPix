@@ -68,7 +68,7 @@ export const DashboardView: React.FC = memo(() => {
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-card flex-shrink-0">
                         <div>
                             <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-tight">
-                                {getGreeting()}, <span className="text-orange-600 dark:text-orange-400">{user?.user_metadata?.full_name?.split(' ')[0] || 'Visitante'}</span>!
+                                {getGreeting()}, <span className="text-orange-600 dark:text-orange-400">{user?.user_metadata?.full_name?.split(' ')[0] || user?.name?.split(' ')[0] || user?.email?.split('@')[0]?.split('.')[0] || 'Usuário'}</span>!
                             </h1>
                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-normal">
                                 Seu painel de controle financeiro inteligente da igreja.

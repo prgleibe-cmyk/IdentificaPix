@@ -235,9 +235,8 @@ export function getTenantContext(req: Request): TenantContext {
       ['superadmin', 'super_admin', 'administrador_geral'].includes(String(role).toLowerCase().trim())
     );
 
-    // 🛡️ ISOLAMENTO DE TENANTS: O Platform Admin Dono ('1e812dc4-ace8-4631-9e4e-c22612a33c5b')
-    // ou placeholder não é o proprietário contábil do tenant cliente.
-    if (!isSuperAdmin && (ownerId === '1e812dc4-ace8-4631-9e4e-c22612a33c5b' || ownerId === '00000000-0000-0000-0000-000000000001')) {
+    // 🛡️ ISOLAMENTO DE TENANTS: O placeholder legacy nulo não é o proprietário contábil do tenant cliente.
+    if (!isSuperAdmin && ownerId === '00000000-0000-0000-0000-000000000001') {
       ownerId = userId;
     }
 
