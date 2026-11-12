@@ -176,8 +176,8 @@ export const Sidebar: React.FC = memo(() => {
             <header className="md:hidden fixed top-0 left-0 right-0 h-16 bg-[#F8FAFC] dark:bg-[#0B0F17] border-b border-slate-200/80 dark:border-white/5 flex items-center justify-between px-4 z-[60] shadow-sm">
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveView('dashboard')}>
                     <img src={logoImg} className="h-8 w-auto object-contain" alt="Logo" loading="eager" decoding="async" />
-                    <span className="font-display font-black text-lg tracking-tight text-slate-800 dark:text-white">
-                        Ig<span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-blue to-amber-600">Gestor</span>
+                    <span className="font-display font-black text-lg tracking-tight text-slate-900 dark:text-white">
+                        Ig<span className="text-orange-600">Gestor</span>
                     </span>
                 </div>
                 <button 
@@ -351,7 +351,7 @@ export const Sidebar: React.FC = memo(() => {
                     </div>
                 </div>
 
-                <button onClick={() => setIsCollapsed(!isCollapsed)} className="hidden md:flex absolute -right-3 top-10 bg-[#CADFD4] dark:bg-[#091512] border border-emerald-300/40 dark:border-white/5 text-emerald-800 dark:text-emerald-200 hover:text-emerald-950 dark:hover:text-white p-1.5 rounded-full shadow-md z-50 hover:scale-110 transition-transform">
+                <button onClick={() => setIsCollapsed(!isCollapsed)} className="hidden md:flex absolute -right-3 top-10 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 p-1.5 rounded-full shadow-sm z-50 hover:scale-105 transition-all">
                     {isCollapsed ? <ChevronRightIcon className="w-3 h-3 stroke-[3]" /> : <ChevronLeftIcon className="w-3 h-3 stroke-[3]" />}
                 </button>
             </aside>

@@ -29,7 +29,7 @@ export const DashboardView: React.FC = memo(() => {
     }
 
     return (
-        <div className="flex flex-col min-h-full gap-3 animate-fade-in pb-8 md:pb-4">
+        <div className="flex flex-col min-h-full gap-3 animate-fade-in pb-16 md:pb-4">
             {/* Header Card */}
             <div className="bg-white dark:bg-slate-900 px-4 py-2.5 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex-shrink-0">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
@@ -56,8 +56,8 @@ export const DashboardView: React.FC = memo(() => {
             </div>
 
             {bankList.length > 0 && (
-                <div className="flex flex-col gap-1.5 px-1">
-                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 ml-1">Filtrar por banco</label>
+                <div className="flex flex-col gap-1 px-0.5">
+                    <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 ml-1">Filtrar por banco</label>
                     <BankChipsList list={bankList} selectedId={selectedBankId} onSelect={setSelectedBankId} />
                 </div>
             )}
@@ -119,12 +119,12 @@ export const DashboardView: React.FC = memo(() => {
                 />
             </div>
 
-            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-2.5 sm:gap-3 items-start">
+            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-2.5 sm:gap-3 items-stretch">
                 <div 
-                    className="bg-white dark:bg-slate-800 rounded-2xl shadow-card border border-slate-200/90 dark:border-slate-700/80 flex flex-col justify-between overflow-hidden animate-fade-in-up fill-mode-backwards"
+                    className="h-full bg-white dark:bg-slate-800 rounded-xl shadow-xs border border-slate-200/90 dark:border-slate-700/80 flex flex-col justify-between overflow-hidden animate-fade-in-up fill-mode-backwards"
                     style={{ animationDelay: '300ms' }}
                 >
-                     <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-700/60 flex justify-between items-center shrink-0">
+                     <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700/60 flex justify-between items-center shrink-0">
                         <h3 className="text-xs font-semibold text-slate-600 dark:text-slate-300">{t('dashboard.matchMethodBreakdown')}</h3>
                         <div className="p-1.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg text-slate-400 border border-slate-100 dark:border-slate-700">
                             <ChartPieIcon className="w-3.5 h-3.5" />
@@ -133,7 +133,7 @@ export const DashboardView: React.FC = memo(() => {
                      <div className="flex-1 min-h-0 relative flex flex-col justify-center">
                         <DonutChart data={pieChartData} />
                      </div>
-                     <div className="px-5 py-2.5 bg-slate-50/70 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 shrink-0">
+                     <div className="px-4 py-2.5 bg-slate-50/70 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 shrink-0">
                         <span>Métodos de conciliação</span>
                         <span className="font-bold tabular-nums text-slate-700 dark:text-slate-200">{pieChartData.filter(d => d.value > 0).length || 1} ativos</span>
                      </div>
