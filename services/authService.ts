@@ -16,6 +16,27 @@ const ACCESS_TOKEN_KEY = 'iggestor_vps_access_token';
 const REFRESH_TOKEN_KEY = 'iggestor_vps_refresh_token';
 const USER_KEY = 'iggestor_vps_user';
 
+async function safeParseJson(res: Response): Promise<AuthResponse & { data?: any }> {
+  const contentType = res.headers.get('content-type') || '';
+  const text = await res.text();
+  if (!text) {
+    return { success: false, error: `Erro de comunicação com o servidor (HTTP ${res.status}).` };
+  }
+  if (contentType.includes('application/json') || text.trim().startsWith('{') || text.trim().startsWith('[')) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { success: false, error: 'Resposta JSON inválida do servidor.' };
+    }
+  }
+  return {
+    success: false,
+    error: res.status === 404
+      ? 'Serviço de autenticação indisponível ou desatualizado no servidor.'
+      : `Servidor retornou resposta inesperada (HTTP ${res.status}).`
+  };
+}
+
 export const authService = {
   getAccessToken(): string | null {
     return localStorage.getItem(ACCESS_TOKEN_KEY);
@@ -81,7 +102,7 @@ export const authService = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
     });
-    const json = await res.json();
+    const json = await safeParseJson(res);
     if (json.success && json.data) {
       this.setAuthData(json.data);
     }
@@ -94,7 +115,7 @@ export const authService = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, name })
     });
-    const json = await res.json();
+    const json = await safeParseJson(res);
     if (json.success && json.data) {
       this.setAuthData(json.data);
     }
@@ -105,7 +126,7 @@ export const authService = {
     const res = await fetch(`/api/v1/auth/google-url?redirect_uri=${encodeURIComponent(redirectUri)}`, {
       method: 'GET'
     });
-    const json = await res.json();
+    const json = await safeParseJson(res);
     if (json.success && json.data?.url) {
       return { success: true, url: json.data.url };
     }
@@ -121,7 +142,7 @@ export const authService = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
-    const json = await res.json();
+    const json = await safeParseJson(res);
     if (json.success && json.data && !json.data.requiresTwoFactor) {
       this.setAuthData(json.data);
     }
@@ -134,7 +155,7 @@ export const authService = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email })
     });
-    return res.json();
+    return safeParseJson(res);
   },
 
   async resetPassword(token: string, newPassword: string): Promise<AuthResponse> {
@@ -143,7 +164,7 @@ export const authService = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ resetToken: token, newPassword })
     });
-    return res.json();
+    return safeParseJson(res);
   },
 
   async me(): Promise<AuthResponse> {
@@ -157,7 +178,7 @@ export const authService = {
         Authorization: `Bearer ${token}`
       }
     });
-    const json = await res.json();
+    const json = await safeParseJson(res);
     if (json.success && json.data?.user) {
       this.setAuthData({ user: json.data.user });
     }

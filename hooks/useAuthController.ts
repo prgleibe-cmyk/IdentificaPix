@@ -59,7 +59,12 @@ export const useAuthController = () => {
                 const res = await authService.googleOAuth({ code, state, redirectUri });
 
                 if (!res.success) {
-                    throw new Error(res.error || 'Erro ao autenticar com Google.');
+                    window.history.replaceState({}, document.title, '/');
+                    if (active) {
+                        setError(res.error || 'Erro ao autenticar com Google.');
+                        setLoading(false);
+                    }
+                    return;
                 }
 
                 if (res.data?.requiresTwoFactor) {
@@ -74,7 +79,7 @@ export const useAuthController = () => {
                 window.history.replaceState({}, document.title, '/');
                 window.location.reload();
             } catch (err: any) {
-                console.error('Google OAuth callback error:', err);
+                console.warn('Google OAuth callback error:', err);
                 window.history.replaceState({}, document.title, '/');
                 if (active) {
                     setError(err?.message || 'Erro ao conectar com Google.');
@@ -98,12 +103,14 @@ export const useAuthController = () => {
             const redirectUri = `${window.location.origin}${GOOGLE_CALLBACK_PATH}`;
             const res = await authService.getGoogleAuthUrl(redirectUri);
             if (!res.success || !res.url) {
-                throw new Error(res.error || 'Não foi possível iniciar o login com Google.');
+                setError(res.error || 'Não foi possível iniciar o login com Google.');
+                setLoading(false);
+                return;
             }
             window.location.assign(res.url);
         } catch (err: any) {
-            console.error("Google login error:", err);
-            setError(err.message || 'Erro ao conectar com Google.');
+            console.warn("Google login network error:", err);
+            setError(err?.message || 'Erro ao conectar com Google.');
             setLoading(false);
         }
     };
@@ -123,12 +130,13 @@ export const useAuthController = () => {
             try {
                 const res = await authService.requestPasswordReset(email);
                 if (!res.success) {
-                    throw new Error(res.error || 'Erro ao solicitar recuperação de senha.');
+                    setError(res.error || 'Erro ao solicitar recuperação de senha.');
+                    return;
                 }
                 setMessage('Instruções de recuperação enviadas! Verifique sua caixa de entrada.');
             } catch (err: any) {
-                console.error("Reset password error:", err);
-                setError(err.message || 'Erro ao enviar email de recuperação.');
+                console.warn("Reset password network error:", err);
+                setError(err?.message || 'Erro ao enviar email de recuperação.');
             } finally {
                 setLoading(false);
             }
@@ -145,19 +153,21 @@ export const useAuthController = () => {
             if (isLogin) {
                 const res = await authService.login(email, password);
                 if (!res.success) {
-                    throw new Error(res.error || 'Email ou senha incorretos.');
+                    setError(res.error || 'Email ou senha incorretos.');
+                    return;
                 }
                 window.location.reload();
             } else {
                 const res = await authService.signup(email, password, name);
                 if (!res.success) {
-                    throw new Error(res.error || 'Erro ao realizar cadastro.');
+                    setError(res.error || 'Erro ao realizar cadastro.');
+                    return;
                 }
                 window.location.reload();
             }
         } catch (err: any) {
-            console.error("Auth error:", err);
-            setError(err.message || 'Ocorreu um erro na autenticação.');
+            console.warn("Auth network error:", err);
+            setError(err?.message || 'Ocorreu um erro na autenticação.');
         } finally {
             setLoading(false);
         }
