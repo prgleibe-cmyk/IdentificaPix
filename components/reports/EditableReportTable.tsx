@@ -51,6 +51,20 @@ interface EditableReportTableProps {
 
 const ITEMS_PER_PAGE = 50;
 
+const splitDocumentPrefix = (rawName: string): { docBadge: string | null; cleanName: string } => {
+    const trimmed = (rawName || '').trim();
+    const match = trimmed.match(/^(\d{11}|\d{14})\s+(.+)$/);
+    if (!match) {
+        return { docBadge: null, cleanName: trimmed };
+    }
+    const digits = match[1];
+    const cleanName = match[2].trim();
+    const docBadge = digits.length === 11
+        ? `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`
+        : `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`;
+    return { docBadge, cleanName };
+};
+
 const SortableHeader: React.FC<{
     sortKey: string;
     title: string;
@@ -63,13 +77,13 @@ const SortableHeader: React.FC<{
     const justifyClass = align === 'center' ? 'justify-center' : align === 'right' ? 'justify-end' : 'justify-start';
     
     return (
-        <th scope="col" className={`px-4 py-3 text-[10px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider ${className}`}>
+        <th scope="col" className={`px-2.5 lg:px-3.5 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide ${className}`}>
             <button 
                 onClick={() => onSort(sortKey)} 
-                className={`flex items-center gap-1.5 group hover:text-black dark:hover:text-white transition-colors focus:outline-none w-full ${justifyClass}`}
+                className={`flex items-center gap-1.5 group hover:text-slate-900 dark:hover:text-white transition-colors focus:outline-none w-full ${justifyClass}`}
             >
                 <span>{title}</span>
-                <span className={`transition-all duration-200 ${isSorted ? 'opacity-100 text-brand-blue dark:text-blue-400' : 'opacity-0 group-hover:opacity-50'}`}>
+                <span className={`transition-all duration-200 ${isSorted ? 'opacity-100 text-orange-600 dark:text-orange-400' : 'opacity-0 group-hover:opacity-60'}`}>
                     {sortConfig?.direction === 'asc' ? <ChevronUpIcon className="w-3 h-3" /> : <ChevronDownIcon className="w-3 h-3" />}
                 </span>
             </button>
@@ -145,6 +159,7 @@ const MobileCard = memo(({
     const originalBankDate = formatDate(row.transaction.date);
 
     const displayName = getResolvedDisplayName(row) || '---';
+    const { docBadge, cleanName: visualName } = splitDocumentPrefix(displayName);
     const rawBankDesc = row.transaction?.rawDescription || row.transaction?.cleanedDescription || row.transaction?.description || '';
     const displayForm = resolvePaymentMethod(
         row.contributor?.paymentMethod || row.paymentMethod || row.transaction.paymentMethod,
@@ -169,61 +184,70 @@ const MobileCard = memo(({
     const receiptAtt = txAttachments.find(a => a !== serviceReceiptAtt && (a.documentRole === 'comprovante' || (a.extractedData && (a.extractedData.documentType === 'comprovante_pix' || a.extractedData.documentType === 'comprovante_pagamento'))));
     const identifiedCount = (nfAtt ? 1 : 0) + (invoiceAtt ? 1 : 0) + (receiptAtt ? 1 : 0) + (serviceReceiptAtt ? 1 : 0);
 
+    const rawChurchName = row.church?.name?.trim();
+    const hasChurch = Boolean(rawChurchName && rawChurchName !== '---' && rawChurchName !== '--');
+
     return (
-        <div className={`p-4 border-b border-slate-200 dark:border-slate-700 transition-colors ${
+        <div className={`px-4 py-3.5 transition-colors flex flex-col justify-between ${
             isSelected 
-                ? 'bg-blue-50/80 dark:bg-blue-900/30' 
+                ? 'bg-blue-50/75 dark:bg-blue-900/25' 
                 : isManualRow 
-                    ? 'bg-amber-50/40 dark:bg-amber-950/20 border-l-4 border-l-amber-500' 
-                    : 'bg-white dark:bg-slate-800'
+                    ? 'bg-white dark:bg-slate-900 border-l-3 border-l-amber-400' 
+                    : 'bg-white dark:bg-slate-900'
         }`}>
-            <div className="flex items-start justify-between gap-3 mb-3">
-                <div className="flex items-center gap-3">
+            <div>
+            <div className="flex items-start justify-between gap-2.5 mb-2.5">
+                <div className="flex items-start gap-2.5 min-w-0">
                     <input 
                         type="checkbox" 
                         checked={isSelected} 
                         onChange={() => onToggleSelection(row.transaction.id)}
-                        className="w-5 h-5 rounded-full border-slate-300 text-brand-blue cursor-pointer accent-blue-600"
+                        className="w-4 h-4 mt-0.5 rounded border-slate-300 text-orange-600 cursor-pointer accent-orange-600 shrink-0"
                     />
-                    <div className="flex flex-col">
-                        <div className="flex items-center gap-2">
+                    <div className="flex flex-col min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                             {hasRefDate ? (
-                                <div className="flex items-baseline gap-1.5 font-mono">
-                                    <span className="text-[10px] font-bold text-slate-800 dark:text-white uppercase tracking-wider" title={`Data de Referência (Competência): ${displayDate}`}>
+                                <div className="flex items-baseline gap-1.5 tabular-nums">
+                                    <span className="text-[11px] font-semibold text-slate-800 dark:text-white" title={`Data de Referência (Competência): ${displayDate}`}>
                                         {displayDate}
                                     </span>
-                                    <span className="text-[9px] font-normal text-slate-400 dark:text-slate-500" title={`Data no Banco: ${originalBankDate}`}>
+                                    <span className="text-[10px] font-normal text-slate-400 dark:text-slate-500" title={`Data no Banco: ${originalBankDate}`}>
                                         (Banco: {originalBankDate})
                                     </span>
                                 </div>
                             ) : (
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{displayDate}</span>
+                                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 tabular-nums">{displayDate}</span>
                             )}
-                            <span className={`px-1.5 py-0.2 rounded text-[8px] font-bold uppercase border ${
+                            <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-semibold border ${
                                 sourceInfo.isManual
                                     ? 'bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border-amber-300/80 dark:border-amber-700/60'
                                     : sourceInfo.isSms 
                                         ? 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border-sky-200 dark:border-sky-800' 
-                                        : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                                        : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700'
                             }`}>
                                 {sourceInfo.label}
                             </span>
+                            {docBadge && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700 tabular-nums">
+                                    {docBadge}
+                                </span>
+                            )}
                         </div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                            {(row.contributor || isGhost) ? <UserIcon className="w-3.5 h-3.5 text-indigo-500" /> : <BanknotesIcon className="w-3.5 h-3.5 text-slate-400" />}
-                            <span className={`text-sm font-black uppercase tracking-tight ${confirmed ? 'text-slate-500/70' : isGhost ? 'text-slate-500' : 'text-slate-900 dark:text-white'}`}>
-                                {displayName}
+                        <div className="flex items-center gap-1.5 mt-1.5 min-w-0">
+                            {(row.contributor || isGhost) ? <UserIcon className="w-3.5 h-3.5 text-orange-500 shrink-0" /> : <BanknotesIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
+                            <span className={`text-[13px] font-semibold tracking-tight leading-snug break-words ${confirmed ? 'text-slate-500/80' : 'text-slate-900 dark:text-white'}`}>
+                                {visualName}
                             </span>
                             {isManualRow && (
-                                <span className="text-[8px] font-bold px-1.5 py-0.2 bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 rounded border border-amber-200 dark:border-amber-800 uppercase tracking-wider">
+                                <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 rounded-md border border-amber-200 dark:border-amber-800 shrink-0">
                                     Manual
                                 </span>
                             )}
                         </div>
                         {!isManualRow && rawBankDesc && rawBankDesc !== displayName && (
-                            <div className="text-[10px] text-slate-400 dark:text-slate-500 font-normal tracking-tight pl-5.5 mt-0.5 leading-tight break-words" title={`Extrato Original: ${rawBankDesc}`}>
-                                <span className="text-[9px] font-semibold uppercase text-slate-400/80 mr-1">Extrato:</span>
-                                <span className="font-mono text-slate-500 dark:text-slate-400">{cleanDisplayDescription(rawBankDesc)}</span>
+                            <div className="text-[11px] text-slate-400 dark:text-slate-500 font-normal pl-5 mt-0.5 leading-snug break-words" title={`Extrato Original: ${rawBankDesc}`}>
+                                <span className="text-[10px] font-medium text-slate-400/90 mr-1">Extrato:</span>
+                                <span className="text-slate-500 dark:text-slate-400">{cleanDisplayDescription(rawBankDesc)}</span>
                             </div>
                         )}
                         {/* Documentos & Comprovantes de Saída / Despesa */}
@@ -350,140 +374,176 @@ const MobileCard = memo(({
                 </div>
                 <div className="text-right shrink-0">
                     {row.splits && row.splits.length > 0 && (
-                        <span className="text-[8px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider block mb-0.5">
+                        <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 block mb-0.5">
                             Total Original
                         </span>
                     )}
-                    <span className={`text-sm font-black tabular-nums ${isExpense ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>
+                    <span className={`text-sm font-bold tabular-nums ${isExpense ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>
                         {formatCurrency(displayAmount, language)}
                     </span>
                     <div className="mt-1 flex items-center justify-end gap-1">
                         {waSent && (
-                            <span className="text-[8px] font-black px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded-full border border-emerald-200 uppercase flex items-center gap-0.5" title="WhatsApp Enviado">
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded-md border border-emerald-200 flex items-center gap-0.5" title="WhatsApp Enviado">
                                 <MessageCircle className="w-2.5 h-2.5 text-emerald-600" />
-                                <CheckCircle2 className="w-2 h-2 text-emerald-600" />
+                                <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
                             </span>
                         )}
                         {confirmed ? (
-                            <span className="text-[8px] font-black px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100 uppercase inline-flex items-center gap-1">
-                                <LockClosedIcon className="w-2 h-2" /> Fechado
+                            <span className="text-[10px] font-semibold px-2 py-0.5 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 rounded-md border border-indigo-200/70 dark:border-indigo-800 inline-flex items-center gap-1">
+                                <LockClosedIcon className="w-2.5 h-2.5" /> Fechado
                             </span>
                         ) : isIdentified ? (
                             isManualRow ? (
-                                <span className="text-[8px] font-black px-2 py-0.5 bg-amber-50 text-amber-800 rounded-full border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 uppercase">Manual</span>
+                                <span className="text-[10px] font-semibold px-2 py-0.5 bg-amber-50 text-amber-800 rounded-md border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800">Manual</span>
                             ) : (
-                                <span className="text-[8px] font-black px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100 uppercase">Auto</span>
+                                <span className="text-[10px] font-semibold px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-md border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800">Auto</span>
                             )
                         ) : (
-                            <span className="text-[8px] font-black px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full border border-amber-100 uppercase">Pendente</span>
+                            <span className="text-[10px] font-semibold px-2 py-0.5 bg-amber-50 text-amber-700 rounded-md border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800">Pendente</span>
                         )}
                     </div>
                 </div>
             </div>
+            </div>
 
-            <div className="flex items-center justify-between gap-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-4">
+            <div>
+            <div className="flex items-center justify-between gap-3 text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/70">
                 <div className="flex items-center gap-1.5 truncate">
-                    <BuildingOfficeIcon className="w-3 h-3 shrink-0" />
-                    <span className="truncate">{row.church?.name || '---'}</span>
+                    <BuildingOfficeIcon className={`w-3.5 h-3.5 shrink-0 ${hasChurch ? 'text-orange-500' : 'text-slate-300 dark:text-slate-600'}`} />
+                    <span className={`truncate ${hasChurch ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400 italic'}`}>
+                        {hasChurch ? rawChurchName : 'Sem congregação'}
+                    </span>
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center gap-1.5 shrink-0">
                     {row.splits && row.splits.length > 0 ? (
-                        <span className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-100 dark:border-indigo-900/30 font-bold uppercase text-[9px]">Rateado</span>
+                        <span className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 px-2 py-0.5 rounded-md border border-indigo-100 dark:border-indigo-900/30 font-semibold text-[10px]">Rateado</span>
                     ) : (
-                        <span className="bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">{displayType}</span>
+                        <span className="bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 px-2 py-0.5 rounded-md text-[10px] font-semibold">{displayType}</span>
                     )}
-                    <span>{displayForm}</span>
+                    <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">{displayForm}</span>
                 </div>
             </div>
 
-                    <div className="flex items-center justify-end gap-1.5 w-full flex-wrap pt-2 border-t border-slate-100 dark:border-slate-700/60">
-                        <button 
-                            type="button"
-                            onClick={() => {
-                                if (openWhatsAppReceiptModal) {
-                                    openWhatsAppReceiptModal({
-                                        contributorName: displayName,
-                                        phone: row.contributor?.phone || row.contributor?.mobile || row.contributor?.whatsapp || '',
-                                        amount: displayAmount,
-                                        contributionType: displayType,
-                                        churchName: row.church?.name,
-                                        date: refDate || row.transaction.date,
-                                        transactionId: row.transaction.id
-                                    });
-                                }
-                            }}
-                            className={`p-2 rounded-lg font-semibold text-xs flex items-center justify-center transition-all border ${
-                                waSent
-                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300'
-                                    : 'bg-white hover:bg-slate-50 text-slate-700 dark:bg-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700 shadow-xs'
-                            }`}
-                            title={waSent ? "WhatsApp Enviado (Reenviar)" : "Disparar WhatsApp"}
-                            aria-label={waSent ? "WhatsApp Enviado (Reenviar)" : "Disparar WhatsApp"}
-                        >
-                            {waSent ? (
-                                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                            ) : (
-                                <MessageCircle className="w-4 h-4 text-emerald-600" />
-                            )}
-                        </button>
+            <div className="flex items-center justify-end gap-1.5 w-full pt-2 border-t border-slate-100 dark:border-slate-800/70">
+                <button
+                    type="button"
+                    onClick={() => {
+                        if (openWhatsAppReceiptModal) {
+                            openWhatsAppReceiptModal({
+                                contributorName: displayName,
+                                phone: row.contributor?.phone || row.contributor?.mobile || row.contributor?.whatsapp || '',
+                                amount: displayAmount,
+                                contributionType: displayType,
+                                churchName: row.church?.name,
+                                date: refDate || row.transaction.date,
+                                transactionId: row.transaction.id
+                            });
+                        }
+                    }}
+                    className={`relative w-8 h-8 rounded-lg inline-flex items-center justify-center transition-all border cursor-pointer ${
+                        waSent
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800'
+                            : 'bg-white hover:bg-emerald-50 text-emerald-600 dark:bg-slate-800 dark:text-emerald-400 border-slate-200/90 dark:border-slate-700 hover:border-emerald-300'
+                    }`}
+                    title={waSent ? "WhatsApp Enviado (Clique para reenviar)" : "Enviar WhatsApp"}
+                    aria-label={waSent ? "WhatsApp Enviado (Clique para reenviar)" : "Enviar WhatsApp"}
+                >
+                    {waSent ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    ) : (
+                        <MessageCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    )}
+                </button>
 
-                        {canPrintReceipt && (() => {
-                            const hasSignedReceipt = Boolean((row as any).receiptSignatures && Object.keys((row as any).receiptSignatures).length > 0) || Boolean(serviceReceiptAtt);
-                            return (
-                                <button 
-                                    onClick={() => onGenerateReceipt(row)} 
-                                    className={`px-3 py-1.5 rounded-lg font-medium text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer border ${
-                                        hasSignedReceipt
-                                            ? 'text-emerald-700 bg-emerald-50 dark:bg-emerald-950/50 dark:text-emerald-300 border-emerald-300/80 dark:border-emerald-800'
-                                            : 'text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
-                                    }`} 
-                                    title={hasSignedReceipt ? "Recibo Assinado Digitalmente na Tela (Clique para visualizar/assinar)" : "Gerar e Assinar Recibo na Tela"}
-                                >
-                                    <Printer className="w-3.5 h-3.5 text-slate-500" />
-                                    <span>{hasSignedReceipt ? 'Recibo ✓' : 'Recibo'}</span>
-                                </button>
-                            );
-                        })()}
-                        {confirmed ? (
-                            (!isClosedPeriod && canConfirmFinal) && (
-                                <button onClick={() => onToggleLock(row.transaction.id, false)} className="flex-1 py-1.5 rounded-lg text-slate-700 bg-slate-100 hover:bg-slate-200 font-medium text-xs flex items-center justify-center gap-1.5">
-                                    <LockOpenIcon className="w-3.5 h-3.5" /> Abrir
-                                </button>
-                            )
-                        ) : (
-                            !isClosedPeriod && (
-                                <>
-                                    {isManualRow && onEdit && (
-                                        <button 
-                                            onClick={() => onEdit(row)} 
-                                            className="px-2.5 py-1.5 rounded-lg text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 border border-slate-200 dark:border-slate-700 font-medium text-xs flex items-center gap-1 transition-colors"
-                                            title="Editar Lançamento Manual"
-                                        >
-                                            <Pencil className="w-3.5 h-3.5 text-orange-600" /> Editar
-                                        </button>
-                                    )}
-                                    {onSplit && (
-                                        <button 
-                                            onClick={() => onSplit(row)} 
-                                            className="px-2.5 py-1.5 rounded-lg text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 border border-slate-200 dark:border-slate-700 font-medium text-xs flex items-center gap-1 transition-colors"
-                                        >
-                                            <GitFork className="w-3.5 h-3.5 text-indigo-500" /> Ratear
-                                        </button>
-                                    )}
-                                    {isIdentified && canUndoIdentification && (
-                                        <button onClick={() => onUndo(row.transaction.id)} className="p-2 rounded-lg text-slate-500 hover:text-slate-700 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700" title="Desfazer auto-identificação">
-                                            <ArrowUturnLeftIcon className="w-3.5 h-3.5" />
-                                        </button>
-                                    )}
-                                    {canDeleteRow && (
-                                        <button onClick={() => onDelete(row)} className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 transition-colors" title="Excluir">
-                                            <TrashIcon className="w-3.5 h-3.5" />
-                                        </button>
-                                    )}
-                                </>
-                            )
-                        )}
-                    </div>
+                <span className="h-4 w-px bg-slate-200 dark:bg-slate-700 mx-0.5" aria-hidden="true" />
+
+                <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                    {canPrintReceipt && (() => {
+                        const hasSignedReceipt = Boolean((row as any).receiptSignatures && Object.keys((row as any).receiptSignatures).length > 0) || Boolean(serviceReceiptAtt);
+                        return (
+                            <button
+                                type="button"
+                                onClick={() => onGenerateReceipt(row)}
+                                className={`relative w-8 h-8 rounded-lg inline-flex items-center justify-center transition-colors cursor-pointer border ${
+                                    hasSignedReceipt
+                                        ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                                        : 'text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border-slate-200/90 dark:border-slate-700 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/40'
+                                }`}
+                                title={hasSignedReceipt ? "Recibo com Assinatura Digital na Tela (Clique para visualizar/assinar)" : "Gerar e Assinar Digitalmente o Recibo"}
+                                aria-label={hasSignedReceipt ? "Visualizar recibo assinado" : "Gerar recibo"}
+                            >
+                                <Printer className="w-4 h-4" />
+                                {hasSignedReceipt && (
+                                    <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" title="Assinado Digitalmente na Tela" />
+                                )}
+                            </button>
+                        );
+                    })()}
+                    {confirmed ? (
+                        (!isClosedPeriod && canConfirmFinal) && (
+                            <button
+                                type="button"
+                                onClick={() => onToggleLock(row.transaction.id, false)}
+                                className="w-8 h-8 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-300 border border-indigo-200/70 dark:border-indigo-800 inline-flex items-center justify-center transition-colors cursor-pointer"
+                                title="Remover Bloqueio"
+                                aria-label="Remover Bloqueio"
+                            >
+                                <LockOpenIcon className="w-4 h-4" />
+                            </button>
+                        )
+                    ) : (
+                        !isClosedPeriod && (
+                            <>
+                                {isManualRow && onEdit && (
+                                    <button
+                                        type="button"
+                                        onClick={() => onEdit(row)}
+                                        className="w-8 h-8 rounded-lg text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-900/30 border border-amber-200/70 dark:border-amber-800/40 inline-flex items-center justify-center transition-colors cursor-pointer"
+                                        title="Editar Lançamento Manual"
+                                        aria-label="Editar Lançamento Manual"
+                                    >
+                                        <Pencil className="w-4 h-4" />
+                                    </button>
+                                )}
+                                {onSplit && (
+                                    <button
+                                        type="button"
+                                        onClick={() => onSplit(row)}
+                                        className="w-8 h-8 rounded-lg text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-950/40 border border-slate-200/90 dark:border-slate-700 inline-flex items-center justify-center transition-colors cursor-pointer"
+                                        title="Desmembrar / Ratear Lançamento"
+                                        aria-label="Ratear Lançamento"
+                                    >
+                                        <GitFork className="w-4 h-4 text-indigo-500" />
+                                    </button>
+                                )}
+                                {isIdentified && canUndoIdentification && (
+                                    <button
+                                        type="button"
+                                        onClick={() => onUndo(row.transaction.id)}
+                                        className="w-8 h-8 rounded-lg text-amber-600 bg-white hover:bg-amber-50 dark:bg-slate-800 dark:text-amber-400 border border-slate-200/90 dark:border-slate-700 inline-flex items-center justify-center transition-colors cursor-pointer"
+                                        title="Desfazer auto-identificação"
+                                        aria-label="Desfazer auto-identificação"
+                                    >
+                                        <ArrowUturnLeftIcon className="w-4 h-4" />
+                                    </button>
+                                )}
+                                {canDeleteRow && (
+                                    <button
+                                        type="button"
+                                        onClick={() => onDelete(row)}
+                                        className="w-8 h-8 rounded-lg text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-slate-200/90 dark:border-slate-700 inline-flex items-center justify-center transition-colors cursor-pointer"
+                                        title="Excluir"
+                                        aria-label="Excluir"
+                                    >
+                                        <TrashIcon className="w-4 h-4" />
+                                    </button>
+                                )}
+                            </>
+                        )
+                    )}
+                </div>
+            </div>
+            </div>
         </div>
     );
 });
@@ -551,6 +611,7 @@ const IncomeRow = memo(({
     const originalBankDate = formatDate(row.transaction.date);
     
     const displayName = getResolvedDisplayName(row) || '---';
+    const { docBadge, cleanName: visualName } = splitDocumentPrefix(displayName);
     const rawBankDesc = row.transaction?.rawDescription || row.transaction?.cleanedDescription || row.transaction?.description || '';
 
     const displayForm = resolvePaymentMethod(
@@ -580,32 +641,29 @@ const IncomeRow = memo(({
 
     return (
         <React.Fragment key={row.transaction.id}>
-            <tr className={`group transition-colors border-b ${hasSplits ? 'border-indigo-100 dark:border-indigo-900/50 bg-indigo-50/15 dark:bg-indigo-950/15' : 'border-slate-200 dark:border-slate-700'} ${
+            <tr className={`group transition-colors border-b ${hasSplits ? 'border-indigo-100 dark:border-indigo-900/50 bg-indigo-50/15 dark:bg-indigo-950/15' : 'border-slate-100 dark:border-slate-800'} ${
                 confirmed 
                     ? 'bg-indigo-50/10 hover:bg-indigo-50/20' 
-                    : isGhost 
-                        ? 'bg-amber-50/50' 
-                        : isManualRow 
-                            ? 'bg-amber-50/40 dark:bg-amber-950/20 hover:bg-amber-100/60 dark:hover:bg-amber-900/30 border-l-4 border-l-amber-500' 
-                            : 'odd:bg-white even:bg-slate-50 hover:bg-blue-50/60 dark:hover:bg-blue-900/20'
-            } ${isSelected ? 'bg-blue-50/80 dark:bg-blue-900/30' : ''}`}>
-                <td className="px-4 py-2.5 text-center">
+                    : isManualRow 
+                        ? 'bg-white dark:bg-slate-900 hover:bg-amber-50/40 dark:hover:bg-amber-950/25 border-l-3 border-l-amber-400' 
+                        : 'odd:bg-white even:bg-slate-50/45 dark:odd:bg-slate-900 dark:even:bg-slate-800/35 hover:bg-orange-50/30 dark:hover:bg-slate-800/70'
+            } ${isSelected ? 'bg-blue-50/75 dark:bg-blue-900/30' : ''}`}>
+                <td className="px-2.5 lg:px-4 py-3 text-center">
                     <input 
                         type="checkbox" 
                         checked={isSelected} 
                         onChange={() => onToggleSelection(row.transaction.id)}
-                        className="w-4 h-4 rounded-full border-slate-300 text-brand-blue cursor-pointer accent-blue-600"
+                        className="w-4 h-4 rounded border-slate-300 text-orange-600 cursor-pointer accent-orange-600"
                     />
                 </td>
-                <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
+                <td className="px-2.5 lg:px-3.5 py-3 text-xs text-slate-600 dark:text-slate-300 tabular-nums whitespace-nowrap">
                     {hasRefDate ? (
                         <div className="flex flex-col leading-tight">
-                            <span className="font-bold text-slate-800 dark:text-white" title={`Data de Referência (Competência): ${displayDate}`}>
+                            <span className="font-semibold text-slate-800 dark:text-white" title={`Data de Referência (Competência): ${displayDate}`}>
                                 {displayDate}
                             </span>
-                            <span className="text-[9.5px] text-slate-400 dark:text-slate-500 font-normal mt-0.5" title={`Data no Banco: ${originalBankDate}`}>
-                                <span className="text-[8.5px] uppercase font-semibold text-slate-400 mr-0.5">Banco:</span>
-                                {originalBankDate}
+                            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5" title={`Data no Banco: ${originalBankDate}`}>
+                                Banco: {originalBankDate}
                             </span>
                         </div>
                     ) : (
@@ -657,21 +715,26 @@ const IncomeRow = memo(({
                         <span className="text-slate-300 dark:text-slate-700 text-[10px] font-bold block text-center">-</span>
                     )}
                 </td>
-                <td className="px-4 py-2.5">
-                    <div className="flex flex-col gap-1">
+                <td className="px-3.5 py-3">
+                    <div className="flex flex-col gap-0.5">
                         <div className="flex items-center gap-2 flex-wrap">
-                            {(row.contributor || isGhost) ? <UserIcon className="w-3.5 h-3.5 text-indigo-500 shrink-0" /> : <BanknotesIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
-                            <span className={`text-xs font-semibold break-words uppercase ${confirmed ? 'text-slate-500/70' : isGhost ? 'text-slate-500' : 'text-slate-900 dark:text-white'}`}>{displayName}</span>
+                            {(row.contributor || isGhost) ? <UserIcon className="w-3.5 h-3.5 text-orange-500 shrink-0" /> : <BanknotesIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
+                            <span className={`text-xs font-semibold break-words ${confirmed ? 'text-slate-500/70' : 'text-slate-900 dark:text-white'}`}>{visualName}</span>
+                            {docBadge && (
+                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100/90 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200/70 dark:border-slate-700 tabular-nums shrink-0">
+                                    {docBadge}
+                                </span>
+                            )}
                             {hasSplits && (
-                                <span className="text-[8.5px] font-bold uppercase px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80 shrink-0">
-                                    Lançamento Rateado ({row.splits!.length} divisões abaixo)
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80 shrink-0">
+                                    Rateado ({row.splits!.length} divisões)
                                 </span>
                             )}
                         </div>
                         {!isManualRow && rawBankDesc && rawBankDesc !== displayName && (
-                            <div className="text-[10px] text-slate-400 dark:text-slate-500 font-normal tracking-tight pl-5.5 leading-tight break-words max-w-md" title={`Extrato Original: ${rawBankDesc}`}>
-                                <span className="text-[9px] font-semibold uppercase text-slate-400/80 mr-1">Extrato:</span>
-                                <span className="font-mono text-slate-500 dark:text-slate-400">{cleanDisplayDescription(rawBankDesc)}</span>
+                            <div className="text-[11px] text-slate-400 dark:text-slate-500 font-normal pl-5.5 leading-snug break-words max-w-md" title={`Extrato Original: ${rawBankDesc}`}>
+                                <span className="text-[10px] font-medium text-slate-400/90 mr-1">Extrato:</span>
+                                <span className="text-slate-500 dark:text-slate-400">{cleanDisplayDescription(rawBankDesc)}</span>
                             </div>
                         )}
                         {/* Documentos & Comprovantes de Saída / Despesa */}
@@ -762,127 +825,136 @@ const IncomeRow = memo(({
                         )}
                     </div>
                 </td>
-                <td className="px-4 py-2.5 text-center">
-                    <span className={`inline-block text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wide border ${
+                <td className="hidden lg:table-cell px-3.5 py-3 text-center">
+                    <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-md border ${
                         sourceInfo.isManual
-                            ? 'bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border-amber-300/80 dark:border-amber-700/60 shadow-2xs'
+                            ? 'bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border-amber-300/80 dark:border-amber-700/60'
                             : sourceInfo.isSms 
                                 ? 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border-sky-200 dark:border-sky-800' 
-                                : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                                : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700'
                     }`}>
                         {sourceInfo.label}
                     </span>
                 </td>
-                <td className="px-4 py-2.5">
-                    <div className="flex items-center gap-2">
-                        <BuildingOfficeIcon className={`w-3.5 h-3.5 shrink-0 ${isIdentified ? 'text-indigo-400' : 'text-slate-300'}`} />
-                        <span className={`text-[11px] font-bold break-words ${isIdentified ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400'}`}>
-                            {hasSplits && new Set(row.splits!.map(s => s.churchName || s.churchId)).size > 1 
-                                ? `Múltiplas Igrejas (${new Set(row.splits!.map(s => s.churchName || s.churchId)).size})`
-                                : (row.church?.name || '---')}
-                        </span>
-                    </div>
+                <td className="px-2.5 lg:px-3.5 py-3">
+                    {(() => {
+                        const rawCh = row.church?.name?.trim();
+                        const hasCh = Boolean(rawCh && rawCh !== '---' && rawCh !== '--');
+                        return (
+                            <div className="flex items-center gap-1.5">
+                                <BuildingOfficeIcon className={`w-3.5 h-3.5 shrink-0 ${isIdentified && hasCh ? 'text-orange-500' : 'text-slate-300 dark:text-slate-600'}`} />
+                                <span className={`text-xs font-medium break-words ${isIdentified && hasCh ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400'}`}>
+                                    {hasSplits && new Set(row.splits!.map(s => s.churchName || s.churchId)).size > 1 
+                                        ? `Múltiplas Igrejas (${new Set(row.splits!.map(s => s.churchName || s.churchId)).size})`
+                                        : (hasCh ? rawCh : '---')}
+                                </span>
+                            </div>
+                        );
+                    })()}
                 </td>
-                <td className="px-4 py-2.5 text-center">
+                <td className="px-3.5 py-3 text-center">
                     {confirmed ? (
-                        <span className="text-[10px] font-semibold px-2 py-0.5 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 rounded-md border border-indigo-200/60 dark:border-indigo-800/40 uppercase flex items-center justify-center gap-1">
+                        <span className="text-[10px] font-semibold px-2 py-0.5 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 rounded-md border border-indigo-200/60 dark:border-indigo-800/40 inline-flex items-center justify-center gap-1">
                             <LockClosedIcon className="w-2.5 h-2.5" /> Fechado
                         </span>
                     ) : isIdentified ? (
                         isManualRow ? (
-                            <span className="text-[10px] font-semibold px-2 py-0.5 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 rounded-md border border-slate-200 dark:border-slate-700 uppercase">Manual</span>
+                            <span className="text-[10px] font-semibold px-2 py-0.5 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 rounded-md border border-slate-200 dark:border-slate-700">Manual</span>
                         ) : (
-                            <span className="text-[10px] font-semibold px-2 py-0.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 rounded-md border border-emerald-200/60 dark:border-emerald-800/40 uppercase">Auto</span>
+                            <span className="text-[10px] font-semibold px-2 py-0.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 rounded-md border border-emerald-200/60 dark:border-emerald-800/40">Auto</span>
                         )
                     ) : (
-                        <span className="text-[10px] font-semibold px-2 py-0.5 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 rounded-md border border-amber-200/60 dark:border-amber-800/40 uppercase">Pendente</span>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 rounded-md border border-amber-200/60 dark:border-amber-800/40">Pendente</span>
                     )}
                 </td>
-                <td className="px-4 py-2.5">
+                <td className="px-2.5 lg:px-3.5 py-3">
                     {hasSplits ? (
-                        <span className="text-[9px] font-bold uppercase bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-100 dark:border-indigo-900/30">
+                        <span className="text-[10px] font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 px-2 py-0.5 rounded-md border border-indigo-100 dark:border-indigo-900/30">
                             Rateado ({row.splits!.length})
                         </span>
                     ) : (
-                        <span className="text-[9px] font-bold uppercase bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-1.5 py-0.5 rounded">{displayType}</span>
+                        <span className="text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-2 py-0.5 rounded-md border border-slate-200/70 dark:border-slate-700">{displayType}</span>
                     )}
                 </td>
-                <td className="px-4 py-2.5"><span className="text-[10px] font-bold text-slate-500 uppercase">{displayForm}</span></td>
-                <td className="px-4 py-2.5 text-right font-mono text-xs font-bold tabular-nums">
+                <td className="hidden lg:table-cell px-3.5 py-3"><span className="text-xs font-medium text-slate-600 dark:text-slate-300">{displayForm}</span></td>
+                <td className="px-2.5 lg:px-3.5 py-3 text-right text-xs font-bold tabular-nums whitespace-nowrap">
                     {hasSplits ? (
                         <div className="flex flex-col items-end gap-0.5">
-                            <span className="text-[8px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.2 rounded border border-indigo-200/60 dark:border-indigo-800/40">
+                            <span className="text-[9px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded border border-indigo-200/60 dark:border-indigo-800/40">
                                 Total Original
                             </span>
-                            <span className={isExpense ? 'text-red-600 dark:text-red-400 font-black' : 'text-slate-900 dark:text-white font-black'} title="Valor Total Original da Movimentação Bancária">
+                            <span className={isExpense ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-slate-900 dark:text-white font-bold'} title="Valor Total Original da Movimentação Bancária">
                                 {formatCurrency(displayAmount, language)}
                             </span>
                         </div>
                     ) : (
-                        <span className={isExpense ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}>
+                        <span className={isExpense ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'}>
                             {formatCurrency(displayAmount, language)}
                         </span>
                     )}
                 </td>
-                <td className="px-4 py-2.5 text-center">
-                    <div className="flex gap-1.5 items-center justify-center">
-                        {/* Ações adicionais no hover */}
-                        <div className="flex gap-1 items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                            {canPrintReceipt && (() => {
-                                const hasSignedReceipt = Boolean((row as any).receiptSignatures && Object.keys((row as any).receiptSignatures).length > 0) || Boolean(serviceReceiptAtt);
-                                return (
-                                    <button 
-                                        onClick={() => onGenerateReceipt(row)} 
-                                        className={`relative p-1.5 rounded-lg transition-all cursor-pointer shadow-sm ${
-                                            hasSignedReceipt
-                                                ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
-                                                : 'text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400 dark:hover:bg-blue-900/30 border border-blue-100/50 dark:border-blue-900/20'
-                                        }`} 
-                                        title={hasSignedReceipt ? "Recibo com Assinatura Digital na Tela (Clique para visualizar/assinar)" : "Gerar e Assinar Digitalmente o Recibo"}
-                                    >
-                                        <Printer className="w-3.5 h-3.5" />
-                                        {hasSignedReceipt && (
-                                            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" title="Assinado Digitalmente na Tela" />
-                                        )}
-                                    </button>
-                                );
-                            })()}
+                <td className="px-3.5 py-3 text-center">
+                    <div className="flex gap-1 items-center justify-center opacity-90 group-hover:opacity-100 transition-opacity duration-150">
+                        {canPrintReceipt && (() => {
+                            const hasSignedReceipt = Boolean((row as any).receiptSignatures && Object.keys((row as any).receiptSignatures).length > 0) || Boolean(serviceReceiptAtt);
+                            return (
+                                <button 
+                                    onClick={() => onGenerateReceipt(row)} 
+                                    className={`relative p-1.5 rounded-lg transition-all cursor-pointer border ${
+                                        hasSignedReceipt
+                                            ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                                            : 'text-slate-600 bg-white hover:bg-blue-50 hover:text-blue-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-blue-950/40 border-slate-200/90 dark:border-slate-700'
+                                    }`} 
+                                    title={hasSignedReceipt ? "Recibo com Assinatura Digital na Tela (Clique para visualizar/assinar)" : "Gerar e Assinar Digitalmente o Recibo"}
+                                >
+                                    <Printer className="w-3.5 h-3.5" />
+                                    {hasSignedReceipt && (
+                                        <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" title="Assinado Digitalmente na Tela" />
+                                    )}
+                                </button>
+                            );
+                        })()}
 
-                            {confirmed ? (
-                                (!isClosedPeriod && canConfirmFinal) && (
-                                    <button onClick={() => onToggleLock(row.transaction.id, false)} className="p-1.5 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 cursor-pointer" title="Remover Bloqueio">
-                                        <LockOpenIcon className="w-3.5 h-3.5" />
-                                    </button>
-                                )
-                            ) : (
-                                !isClosedPeriod && (
-                                    <>
-                                        {isManualRow && onEdit && (
-                                            <button 
-                                                onClick={() => onEdit(row)} 
-                                                className="p-1.5 rounded-lg text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-900/30 transition-colors cursor-pointer border border-amber-200/60 dark:border-amber-800/40 shadow-xs" 
-                                                title="Editar Lançamento Manual"
-                                            >
-                                                <Pencil className="w-3.5 h-3.5" />
-                                            </button>
-                                        )}
-                                        {isIdentified && canUndoIdentification && <button onClick={() => onUndo(row.transaction.id)} className="p-1.5 rounded-lg text-amber-600 bg-amber-50 hover:bg-amber-100 cursor-pointer" title="Desfazer auto-identificação"><ArrowUturnLeftIcon className="w-3.5 h-3.5" /></button>}
-                                        {canDeleteRow && (
-                                            <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg text-rose-600 bg-rose-50 hover:bg-rose-100 cursor-pointer" title="Excluir"><TrashIcon className="w-3.5 h-3.5" /></button>
-                                        )}
-                                        {onSplit && (
-                                            <button 
-                                                onClick={() => onSplit(row)} 
-                                                className="p-1.5 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors cursor-pointer" 
-                                                title="Desmembrar / Ratear Lançamento"
-                                            >
-                                                <GitFork className="w-3.5 h-3.5" />
-                                            </button>
-                                        )}
-                                    </>
-                                )
-                            )}
-                        </div>
+                        {confirmed ? (
+                            (!isClosedPeriod && canConfirmFinal) && (
+                                <button onClick={() => onToggleLock(row.transaction.id, false)} className="p-1.5 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 border border-indigo-200/70 dark:border-indigo-800 cursor-pointer" title="Remover Bloqueio">
+                                    <LockOpenIcon className="w-3.5 h-3.5" />
+                                </button>
+                            )
+                        ) : (
+                            !isClosedPeriod && (
+                                <>
+                                    {isManualRow && onEdit && (
+                                        <button 
+                                            onClick={() => onEdit(row)} 
+                                            className="p-1.5 rounded-lg text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-900/30 transition-colors cursor-pointer border border-amber-200/70 dark:border-amber-800/40" 
+                                            title="Editar Lançamento Manual"
+                                        >
+                                            <Pencil className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
+                                    {isIdentified && canUndoIdentification && (
+                                        <button onClick={() => onUndo(row.transaction.id)} className="p-1.5 rounded-lg text-amber-600 bg-white hover:bg-amber-50 dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 cursor-pointer transition-colors" title="Desfazer auto-identificação">
+                                            <ArrowUturnLeftIcon className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
+                                    {onSplit && (
+                                        <button 
+                                            onClick={() => onSplit(row)} 
+                                            className="p-1.5 rounded-lg text-slate-600 bg-white hover:bg-indigo-50 hover:text-indigo-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-indigo-950/40 border border-slate-200/90 dark:border-slate-700 transition-colors cursor-pointer" 
+                                            title="Desmembrar / Ratear Lançamento"
+                                        >
+                                            <GitFork className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
+                                    {canDeleteRow && (
+                                        <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg text-slate-500 bg-white hover:bg-rose-50 hover:text-rose-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-rose-950/40 border border-slate-200/90 dark:border-slate-700 cursor-pointer transition-colors" title="Excluir">
+                                            <TrashIcon className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
+                                </>
+                            )
+                        )}
                     </div>
                 </td>
             </tr>
@@ -908,10 +980,10 @@ const IncomeRow = memo(({
                     >
                         {/* Checkbox col: marcador visual de divisão vinculada */}
                         <td className="px-4 py-2 text-center">
-                            <span className="text-indigo-400 dark:text-indigo-500 font-mono text-xs select-none pl-1" title="Divisão vinculada ao lançamento principal acima">↳</span>
+                            <span className="text-indigo-400 dark:text-indigo-500 text-xs select-none pl-1" title="Divisão vinculada ao lançamento principal acima">↳</span>
                         </td>
                         {/* Data col */}
-                        <td className="px-4 py-2 font-mono text-[10px] text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                        <td className="px-3.5 py-2 text-xs text-slate-500 dark:text-slate-400 tabular-nums whitespace-nowrap">
                             <div className="flex items-center gap-1">
                                 <span className="text-indigo-400 text-xs">↳</span>
                                 <span>{displayDate}</span>
@@ -944,69 +1016,69 @@ const IncomeRow = memo(({
                             )}
                         </td>
                         {/* Nome / Contribuinte col */}
-                        <td className="px-4 py-2">
+                        <td className="px-3.5 py-2">
                             <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-                                <span className="text-indigo-500 font-mono text-xs shrink-0">↳</span>
-                                <span className="text-xs font-bold uppercase text-slate-800 dark:text-slate-200">
+                                <span className="text-indigo-500 text-xs shrink-0">↳</span>
+                                <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
                                     {splitContributorName}
                                 </span>
-                                <span className="text-[8px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/60 shrink-0">
+                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/60 shrink-0">
                                     Divisão {sIdx + 1}/{row.splits!.length}
                                 </span>
                                 {s.description && (
-                                    <span className="text-[9.5px] text-slate-400 italic">
+                                    <span className="text-[11px] text-slate-400 italic">
                                         ({s.description})
                                     </span>
                                 )}
                             </div>
                         </td>
                         {/* Origem col */}
-                        <td className="px-4 py-2 text-center">
-                            <span className="inline-block text-[8px] font-bold px-1.5 py-0.2 rounded uppercase bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/40">
-                                RATEIO
+                        <td className="hidden lg:table-cell px-3.5 py-2 text-center">
+                            <span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/40">
+                                Rateio
                             </span>
                         </td>
                         {/* Igreja col */}
-                        <td className="px-4 py-2">
+                        <td className="px-2.5 lg:px-3.5 py-2">
                             <div className="flex items-center gap-1.5">
                                 <BuildingOfficeIcon className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
                                     {splitChurchName}
                                 </span>
                             </div>
                         </td>
                         {/* Status col */}
-                        <td className="px-4 py-2 text-center">
-                            <span className="text-[9px] font-bold px-2 py-0.5 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 rounded-full border border-indigo-200/60 dark:border-indigo-900/30 uppercase">
+                        <td className="px-2.5 lg:px-3.5 py-2 text-center">
+                            <span className="text-[10px] font-semibold px-2 py-0.5 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 rounded-md border border-indigo-200/60 dark:border-indigo-900/30">
                                 Rateado
                             </span>
                         </td>
                         {/* Descrição / Tipo de Contribuição col */}
-                        <td className="px-4 py-2">
-                            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">
+                        <td className="px-2.5 lg:px-3.5 py-2">
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">
                                 {splitType}
                             </span>
                         </td>
                         {/* Forma de Pagamento col */}
-                        <td className="px-4 py-2">
-                            <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase">
+                        <td className="hidden lg:table-cell px-3.5 py-2">
+                            <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
                                 {splitForm}
                             </span>
                         </td>
                         {/* Valor col: O VALOR EXATO DA DIVISÃO! */}
-                        <td className="px-4 py-2 text-right font-mono text-xs font-bold tabular-nums">
+                        <td className="px-3.5 py-2 text-right text-xs font-bold tabular-nums">
                             <div className="flex flex-col items-end">
-                                <span className={isSplitExp ? 'text-red-600 dark:text-red-400 font-black' : 'text-emerald-600 dark:text-emerald-400 font-black'}>
+                                <span className={isSplitExp ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-emerald-600 dark:text-emerald-400 font-bold'}>
                                     {formatCurrency(splitAmount, language)}
                                 </span>
-                                <span className="text-[8px] font-bold uppercase text-indigo-500/80">
+                                <span className="text-[10px] font-medium text-indigo-500/80">
                                     Fatia {sIdx + 1}
                                 </span>
                             </div>
                         </td>
                         {/* Ações col */}
-                        <td className="px-4 py-2 text-center">
-                            <div className="flex gap-1 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <td className="px-3.5 py-2 text-center">
+                            <div className="flex gap-1 items-center justify-center opacity-90 group-hover:opacity-100 transition-opacity duration-150">
                                 {canPrintReceipt && (
                                     <button 
                                         onClick={() => {
@@ -1036,10 +1108,10 @@ const IncomeRow = memo(({
                                             };
                                             onGenerateReceipt(splitReceiptRow);
                                         }} 
-                                        className="p-1 rounded text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-200/50 cursor-pointer shadow-2xs" 
+                                        className="p-1.5 rounded-lg text-slate-600 bg-white hover:bg-blue-50 hover:text-blue-600 dark:bg-slate-800 dark:text-slate-300 border border-slate-200/90 dark:border-slate-700 cursor-pointer" 
                                         title={`Imprimir Recibo da Divisão: ${splitType} (${formatCurrency(splitAmount, language)})`}
                                     >
-                                        <Printer className="w-3 h-3" />
+                                        <Printer className="w-3.5 h-3.5" />
                                     </button>
                                 )}
                             </div>
@@ -1385,12 +1457,12 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
         <div className="flex flex-col flex-1 w-full bg-white dark:bg-slate-900 relative min-h-[350px]">
             <BulkActionToolbar selectedIds={selectedIds} results={data} onClear={() => setSelectedIds([])} />
             
-            {/* Desktop Table View */}
-            <div className="hidden md:block flex-1 w-full overflow-auto custom-scrollbar relative border-t border-slate-200 dark:border-slate-800">
+            {/* Desktop & Tablet Table View (Formato Lista Padrão em md+) */}
+            <div className="hidden md:block flex-1 w-full overflow-auto custom-scrollbar relative">
                 <table className="w-full text-left border-collapse">
-                    <thead className="bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-sm sticky top-0 z-20 border-b border-slate-200 dark:border-slate-800 shadow-xs">
+                    <thead className="bg-slate-50/95 dark:bg-slate-800/80 backdrop-blur-sm sticky top-0 z-20 border-b border-slate-200/90 dark:border-slate-800">
                         <tr>
-                            <th className="px-4 py-3 w-10 text-center">
+                            <th className="px-2.5 lg:px-4 py-3 w-10 text-center">
                                 <input 
                                     type="checkbox" 
                                     onChange={toggleAll}
@@ -1409,16 +1481,16 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                                 title={reportType === 'income' ? 'Nome / Contribuinte' : 'Descrição'} 
                                 sortConfig={sortConfig} 
                                 onSort={onSort} 
-                                className="w-[20%]" 
-                                align="left"
+                                className="w-[22%] lg:w-[19%]" 
+                                align="left" 
                             />
-                            <SortableHeader sortKey="transaction.source" title="Origem" sortConfig={sortConfig} onSort={onSort} className="w-[10%]" align="center" />
-                            <SortableHeader sortKey="church.name" title="Igreja" sortConfig={sortConfig} onSort={onSort} className="w-[13%]" align="left" />
-                            <SortableHeader sortKey="status" title="Status" sortConfig={sortConfig} onSort={onSort} className="w-[9%]" align="center" />
+                            <SortableHeader sortKey="transaction.source" title="Origem" sortConfig={sortConfig} onSort={onSort} className="hidden lg:table-cell w-[9%]" align="center" />
+                            <SortableHeader sortKey="church.name" title="Igreja" sortConfig={sortConfig} onSort={onSort} className="w-[14%] lg:w-[13%]" align="left" />
+                            <SortableHeader sortKey="status" title="Status" sortConfig={sortConfig} onSort={onSort} className="w-[10%] lg:w-[9%]" align="center" />
                             <SortableHeader sortKey="contributionType" title="Descrição" sortConfig={sortConfig} onSort={onSort} className="w-[11%]" align="left" />
-                            <SortableHeader sortKey="paymentMethod" title="Forma" sortConfig={sortConfig} onSort={onSort} className="w-[10%]" align="left" />
-                            <SortableHeader sortKey="transaction.amount" title={t('table.amount')} sortConfig={sortConfig} onSort={onSort} className="w-[12%]" align="right" />
-                            <SortableHeader sortKey="status" title="Ações" sortConfig={sortConfig} onSort={onSort} className="w-[7%]" align="center" />
+                            <SortableHeader sortKey="paymentMethod" title="Forma" sortConfig={sortConfig} onSort={onSort} className="hidden lg:table-cell w-[9%]" align="left" />
+                            <SortableHeader sortKey="transaction.amount" title={t('table.amount')} sortConfig={sortConfig} onSort={onSort} className="w-[12%] lg:w-[11%]" align="right" />
+                            <SortableHeader sortKey="status" title="Ações" sortConfig={sortConfig} onSort={onSort} className="w-[11%] lg:w-[10%]" align="center" />
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
@@ -1456,57 +1528,63 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                 </table>
             </div>
 
-            {/* Mobile Card View */}
-            <div className="block md:hidden flex-1 w-full flex flex-col divide-y divide-slate-100 dark:divide-slate-800">
-                <div className="sticky top-0 z-20 bg-slate-50 dark:bg-slate-900 px-4 py-2 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+            {/* Mobile Vertical List View (< 768px) */}
+            <div className="block md:hidden flex-1 w-full flex flex-col bg-white dark:bg-slate-900">
+                <div className="sticky top-0 z-20 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-xs px-4 py-2.5 border-b border-slate-200/90 dark:border-slate-800 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
                         <input 
                             type="checkbox" 
                             onChange={toggleAll}
                             checked={selectedIds.length > 0 && selectedIds.length === data.length}
-                            className="w-5 h-5 rounded-full border-slate-300 text-brand-blue cursor-pointer accent-blue-600"
+                            className="w-4 h-4 rounded border-slate-300 text-orange-600 cursor-pointer accent-orange-600"
                         />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Selecionar Todos</span>
+                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Selecionar todos</span>
                     </div>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{data.length} registros</span>
+                    {selectedIds.length > 0 ? (
+                        <span className="text-xs font-semibold text-orange-600 dark:text-orange-400 tabular-nums">{selectedIds.length} selecionado(s)</span>
+                    ) : totalPages > 1 ? (
+                        <span className="text-xs font-medium text-slate-500 dark:text-slate-400 tabular-nums">Pág. {currentPage}/{totalPages}</span>
+                    ) : null}
                 </div>
-                {paginatedData.map(result => {
-                    const rowChurchId = result.church?.id || (result.transaction as any)?.church_id || (result as any).church_id;
-                    const rowDate = result.transaction?.date || result.contributor?.date;
-                    const isClosedPeriod = isSecondaryUser && Boolean(rowChurchId && isPeriodClosed(rowDate, undefined, rowChurchId));
-                    return (
-                        <MobileCard 
-                            key={result.transaction.id}
-                            result={result}
-                            language={language}
-                            isSelected={selectedIds.includes(result.transaction.id)}
-                            onToggleSelection={toggleSelection}
-                            onEdit={onEdit}
-                            onDelete={(row: MatchResult) => openDeleteConfirmation({ type: 'report-row', id: row.transaction.id, name: `Transação ${row.transaction.id}`, meta: { reportType } })}
-                            onUndo={undoIdentification}
-                            onToggleLock={(id: string, lock: boolean) => toggleConfirmation([id], lock)}
-                            onSplit={onSplit}
-                            onGenerateReceipt={setSelectedReceipt}
-                            isClosedPeriod={isClosedPeriod}
-                            canConfirmFinal={canConfirmFinal}
-                            canUndoIdentification={canUndoIdentification}
-                            canPrintReceipt={canPrintReceipt}
-                            waSent={!!waSentMap[result.transaction.id]}
-                            isSecondaryUser={isSecondaryUser}
-                            attachmentsMap={attachmentsMap}
-                            onPreviewAttachment={setPreviewAttachment}
-                            onQuickAttach={setQuickAttachTx}
-                            onServiceReceipt={setServiceReceiptTx}
-                        />
-                    );
-                })}
+                <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800">
+                    {paginatedData.map(result => {
+                        const rowChurchId = result.church?.id || (result.transaction as any)?.church_id || (result as any).church_id;
+                        const rowDate = result.transaction?.date || result.contributor?.date;
+                        const isClosedPeriod = isSecondaryUser && Boolean(rowChurchId && isPeriodClosed(rowDate, undefined, rowChurchId));
+                        return (
+                            <MobileCard 
+                                key={result.transaction.id}
+                                result={result}
+                                language={language}
+                                isSelected={selectedIds.includes(result.transaction.id)}
+                                onToggleSelection={toggleSelection}
+                                onEdit={onEdit}
+                                onDelete={(row: MatchResult) => openDeleteConfirmation({ type: 'report-row', id: row.transaction.id, name: `Transação ${row.transaction.id}`, meta: { reportType } })}
+                                onUndo={undoIdentification}
+                                onToggleLock={(id: string, lock: boolean) => toggleConfirmation([id], lock)}
+                                onSplit={onSplit}
+                                onGenerateReceipt={setSelectedReceipt}
+                                isClosedPeriod={isClosedPeriod}
+                                canConfirmFinal={canConfirmFinal}
+                                canUndoIdentification={canUndoIdentification}
+                                canPrintReceipt={canPrintReceipt}
+                                waSent={!!waSentMap[result.transaction.id]}
+                                isSecondaryUser={isSecondaryUser}
+                                attachmentsMap={attachmentsMap}
+                                onPreviewAttachment={setPreviewAttachment}
+                                onQuickAttach={setQuickAttachTx}
+                                onServiceReceipt={setServiceReceiptTx}
+                            />
+                        );
+                    })}
+                </div>
             </div>
             {data.length > ITEMS_PER_PAGE && (
-                <div className="flex-shrink-0 flex justify-between items-center px-4 py-3 bg-white border-t border-slate-200">
-                    <span className="text-[10px] font-bold text-slate-500">Página {currentPage} de {Math.ceil(data.length / ITEMS_PER_PAGE)}</span>
-                    <div className="flex items-center gap-2">
-                        <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 hover:bg-slate-100 rounded-lg disabled:opacity-30"><ChevronLeftIcon className="w-4 h-4" /></button>
-                        <button onClick={() => setCurrentPage(p => Math.min(Math.ceil(data.length / ITEMS_PER_PAGE), p + 1))} disabled={currentPage === Math.ceil(data.length / ITEMS_PER_PAGE)} className="p-1.5 hover:bg-slate-100 rounded-lg disabled:opacity-30"><ChevronRightIcon className="w-4 h-4" /></button>
+                <div className="flex-shrink-0 flex justify-between items-center px-4 py-2.5 bg-white dark:bg-slate-900 border-t border-slate-200/90 dark:border-slate-800">
+                    <span className="text-xs font-medium text-slate-500 dark:text-slate-400 tabular-nums">Página {currentPage} de {Math.ceil(data.length / ITEMS_PER_PAGE)}</span>
+                    <div className="flex items-center gap-1.5">
+                        <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg border border-slate-200/80 dark:border-slate-700 disabled:opacity-30 cursor-pointer transition-colors"><ChevronLeftIcon className="w-4 h-4" /></button>
+                        <button onClick={() => setCurrentPage(p => Math.min(Math.ceil(data.length / ITEMS_PER_PAGE), p + 1))} disabled={currentPage === Math.ceil(data.length / ITEMS_PER_PAGE)} className="p-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg border border-slate-200/80 dark:border-slate-700 disabled:opacity-30 cursor-pointer transition-colors"><ChevronRightIcon className="w-4 h-4" /></button>
                     </div>
                 </div>
             )}

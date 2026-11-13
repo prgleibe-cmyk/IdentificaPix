@@ -345,26 +345,39 @@ try {
                 const isLocalDirect = cleanBaseUrl.includes('127.0.0.1') || cleanBaseUrl.includes('localhost') || cleanBaseUrl.includes('contributors-api');
                 const timeoutMs = 30000;
 
-                try {
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+                const fetchWithStartupRetry = async (url, maxAttempts = 3) => {
+                    let lastErr;
+                    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+                        try {
+                            const resUpstream = await fetch(url, {
+                                ...fetchOptions,
+                                signal: controller.signal
+                            });
+                            clearTimeout(timeoutId);
+                            return resUpstream;
+                        } catch (err) {
+                            clearTimeout(timeoutId);
+                            lastErr = err;
+                            const code = err?.cause?.code || err?.code || '';
+                            const isConnRefused = code === 'ECONNREFUSED' || /econnrefused|fetch failed/i.test(String(err?.message || ''));
+                            if (!isConnRefused || attempt >= maxAttempts) {
+                                throw err;
+                            }
+                            await new Promise((r) => setTimeout(r, 500 * attempt));
+                        }
+                    }
+                    throw lastErr;
+                };
 
-                    response = await fetch(targetUrl, {
-                        ...fetchOptions,
-                        signal: controller.signal
-                    });
-                    clearTimeout(timeoutId);
+                try {
+                    response = await fetchWithStartupRetry(targetUrl, isLocalDirect ? 4 : 1);
                 } catch (fetchErr) {
                     if (!isLocalDirect) {
                         console.warn(`[Proxy Warning] Direct forward to ${targetUrl} failed: ${fetchErr.message}. Trying local fallback on http://127.0.0.1:3010...`);
                         const localUrl = `http://127.0.0.1:3010${req.originalUrl}`;
-                        const fallbackController = new AbortController();
-                        const fallbackTimeoutId = setTimeout(() => fallbackController.abort(), 30000);
-                        response = await fetch(localUrl, {
-                            ...fetchOptions,
-                            signal: fallbackController.signal
-                        });
-                        clearTimeout(fallbackTimeoutId);
+                        response = await fetchWithStartupRetry(localUrl, 3);
                     } else {
                         throw fetchErr;
                     }
@@ -382,7 +395,7 @@ try {
                 res.status(response.status).json(data || { error: 'Invalid Response from contributors-api' });
             } catch (error) {
                 console.error(`[Proxy Error] Fail to forward to contributors-api:`, error.message);
-                res.status(500).json({ error: 'CONTRIBUTORS_API_UNAVAILABLE' });
+                res.status(503).json({ error: 'CONTRIBUTORS_API_UNAVAILABLE' });
             }
         });
     }

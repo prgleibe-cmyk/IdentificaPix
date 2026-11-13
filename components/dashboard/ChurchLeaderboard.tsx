@@ -74,7 +74,7 @@ export const ChurchLeaderboard: React.FC<ChurchLeaderboardProps> = ({ data, maxV
                 </div>
                 </>
              ) : (
-                <div className="flex flex-col items-center justify-center flex-1 text-slate-400 italic bg-slate-50/30 dark:bg-slate-900/30 m-4 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+                <div className="flex flex-col items-center justify-center flex-1 py-12 px-4 text-slate-400 italic bg-slate-50/30 dark:bg-slate-900/30 m-4 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
                     <p className="text-xs font-medium">Nenhum valor identificado para exibir.</p>
                 </div>
              )}

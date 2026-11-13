@@ -1,4 +1,5 @@
 import { getAuthToken } from './auth/authAdapter';
+import { safeFetch, safeParseJson } from './utils/safeFetch';
 
 export interface ProfileData {
   id: string;
@@ -33,9 +34,9 @@ export const profileService = {
   getProfile: async (id: string): Promise<ProfileData | null> => {
     try {
       const headers = await getHeaders();
-      const response = await fetch(`/api/v1/profiles/${encodeURIComponent(id)}`, { method: 'GET', headers });
+      const response = await safeFetch(`/api/v1/profiles/${encodeURIComponent(id)}`, { method: 'GET', headers, cache: 'no-store' });
       if (!response.ok) return null;
-      const json = await response.json();
+      const json = await safeParseJson<any>(response, 'ProfileService.getProfile');
       return json.success ? json.data : null;
     } catch (err) {
       console.error(`[ProfileService] Erro ao buscar perfil ${id}:`, err);
@@ -46,13 +47,13 @@ export const profileService = {
   getProfilesByOwner: async (ownerId: string): Promise<ProfileData[]> => {
     try {
       const headers = await getHeaders();
-      const response = await fetch(`/api/v1/profiles?owner_id=${encodeURIComponent(ownerId)}`, { method: 'GET', headers });
+      const response = await safeFetch(`/api/v1/profiles?owner_id=${encodeURIComponent(ownerId)}`, { method: 'GET', headers, cache: 'no-store' });
       if (!response.ok) {
         const errorText = await response.text().catch(() => '');
         console.error(`[ProfileService] Erro HTTP ${response.status} ao buscar perfis do owner ${ownerId}:`, errorText);
         return [];
       }
-      const json = await response.json();
+      const json = await safeParseJson<any>(response, 'ProfileService.getProfilesByOwner');
       return json.success && Array.isArray(json.data) ? json.data : [];
     } catch (err) {
       console.error(`[ProfileService] Erro ao buscar perfis do owner ${ownerId}:`, err);
@@ -63,13 +64,13 @@ export const profileService = {
   getAllProfiles: async (): Promise<ProfileData[]> => {
     try {
       const headers = await getHeaders();
-      const response = await fetch('/api/v1/profiles', { method: 'GET', headers });
+      const response = await safeFetch('/api/v1/profiles', { method: 'GET', headers, cache: 'no-store' });
       if (!response.ok) {
         const errorText = await response.text().catch(() => '');
         console.error(`[ProfileService] Erro HTTP ${response.status} ao buscar todos os perfis:`, errorText);
         return [];
       }
-      const json = await response.json();
+      const json = await safeParseJson<any>(response, 'ProfileService.getAllProfiles');
       return json.success && Array.isArray(json.data) ? json.data : [];
     } catch (err) {
       console.error('[ProfileService] Erro ao buscar todos os perfis:', err);

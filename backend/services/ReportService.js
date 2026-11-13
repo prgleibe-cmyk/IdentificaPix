@@ -2,7 +2,10 @@ export class ReportService {
     static async listReports(req, effectiveOwnerId) {
         try {
             const defaultPort = process.env.PORT || '3000';
-            const vpsUrl = process.env.CONTRIBUTORS_API_URL || (process.env.INTEGRATED_MODE === 'true' ? `http://127.0.0.1:${defaultPort}` : 'http://127.0.0.1:3010');
+            const rawUrl = process.env.CONTRIBUTORS_API_URL;
+            const vpsUrl = (rawUrl && !rawUrl.includes('contributors-api:3010'))
+                ? rawUrl
+                : (process.env.INTEGRATED_MODE === 'true' ? `http://127.0.0.1:${defaultPort}` : 'http://127.0.0.1:3010');
             const cleanVpsUrl = vpsUrl.endsWith('/') ? vpsUrl.slice(0, -1) : vpsUrl;
 
             // Fetch saved reports from VPS

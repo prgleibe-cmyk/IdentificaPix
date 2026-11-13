@@ -2,6 +2,7 @@ import { profileService } from './profileService';
 import { Database } from '../types/supabase';
 import { DateResolver } from '../core/processors/DateResolver';
 import { getAuthSession, getAuthToken } from './auth/authAdapter';
+import { safeFetch, safeParseJson } from './utils/safeFetch';
 
 const ownerIdCache = new Map<string, string>();
 
@@ -36,15 +37,16 @@ export const consolidationService = {
         let allData: any[] = [];
         let offset = 0;
         let hasMore = true;
+        const headers = await getAuthHeaders();
 
         while (hasMore && (!maxRecords || allData.length < maxRecords)) {
             const url = urlBuilder(offset, step);
-            const res = await fetch(url);
+            const res = await safeFetch(url, { headers, cache: 'no-store' });
             if (!res.ok) {
-                throw new Error(`Erro ao buscar dados paginados da VPS: ${res.statusText}`);
+                throw new Error(`Erro ao buscar dados paginados da VPS: ${res.status} ${res.statusText}`);
             }
-            const data = await res.json();
-            if (data && data.length > 0) {
+            const data = await safeParseJson<any[]>(res, 'ConsolidationService._fetchPaginated');
+            if (Array.isArray(data) && data.length > 0) {
                 allData = [...allData, ...data];
                 offset += step;
                 if (data.length < step) hasMore = false;
@@ -609,11 +611,15 @@ export const consolidationService = {
         try {
             const chunkSize = 50; // Tamanho seguro para evitar URLs gigantes
             const confirmedIds: string[] = [];
+            const headers = await getAuthHeaders();
             
             for (let i = 0; i < ids.length; i += chunkSize) {
                 const chunk = ids.slice(i, i + chunkSize);
                 
-                const response = await fetch(`/api/v1/consolidated_transactions?user_id=${userId}&ids=${chunk.join(',')}`);
+                const response = await safeFetch(`/api/v1/consolidated_transactions?user_id=${userId}&ids=${chunk.join(',')}`, {
+                    headers,
+                    cache: 'no-store'
+                });
                 if (!response.ok) {
                     console.error("[Consolidation:CHECK_CONFIRMED_CHUNK_FAIL]", {
                         status: response.statusText,
@@ -623,9 +629,9 @@ export const consolidationService = {
                     continue;
                 }
                 
-                const data = await response.json();
-                if (data) {
-                    const foundConfirmedIds = (data as any[])
+                const data = await safeParseJson<any[]>(response, 'ConsolidationService.checkConfirmedTransactions');
+                if (Array.isArray(data)) {
+                    const foundConfirmedIds = data
                         .filter(d => d.is_confirmed === true || d.is_confirmed === 'true' || d.is_confirmed === 1)
                         .map(d => d.id);
                     confirmedIds.push(...foundConfirmedIds);

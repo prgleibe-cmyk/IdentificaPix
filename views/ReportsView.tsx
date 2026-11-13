@@ -7,7 +7,7 @@ import { EmptyState } from '../components/EmptyState';
 import { EditableReportTable } from '../components/reports/EditableReportTable';
 import { ChartBarIcon, PlusCircleIcon } from '../components/Icons';
 import { useReportsController } from '../hooks/useReportsController';
-import { Calendar, Check, Building2, BookOpen } from 'lucide-react';
+import { Calendar, Check, Building2, BookOpen, Wallet } from 'lucide-react';
 import { MatchResult, Transaction, ReconciliationStatus } from '../types';
 import { SplitTransactionModal } from '../components/modals/SplitTransactionModal';
 import { EditManualTransactionModal } from '../components/modals/EditManualTransactionModal';
@@ -185,27 +185,31 @@ export const ReportsView: React.FC = () => {
 
     if (isInitialLoading) {
         return (
-            <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full h-full flex flex-col animate-fade-in">
-                <div className="flex flex-col gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-white/5 shadow-sm">
-                    <div>
-                        <h1 className="text-xl font-black text-slate-800 dark:text-white flex items-center gap-2 tracking-tight">
-                            <Calendar className="w-5 h-5 text-orange-500" />
-                            Financeiro
-                        </h1>
-                        <p className="text-xs text-slate-400">
-                            Sincronizando e carregando lançamentos do período selecionado...
-                        </p>
+            <div className="flex flex-col min-h-full animate-fade-in gap-3 pb-16 md:pb-4">
+                <div className="bg-white dark:bg-slate-900 px-4 py-2.5 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex-shrink-0">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 bg-orange-50 dark:bg-orange-950/40 border border-orange-200/60 dark:border-orange-900/40 rounded-lg flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
+                            <Wallet className="w-4 h-4 stroke-[2]" />
+                        </div>
+                        <div>
+                            <h1 className="text-base font-bold text-slate-900 dark:text-white tracking-tight leading-tight">
+                                Financeiro
+                            </h1>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                Sincronizando e carregando lançamentos do período selecionado...
+                            </p>
+                        </div>
                     </div>
                 </div>
 
-                <div className="flex-1 flex flex-col items-center justify-center bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-8 rounded-2xl shadow-sm min-h-[400px] gap-4">
+                <div className="flex-1 flex flex-col items-center justify-center bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-8 rounded-xl shadow-xs min-h-[400px] gap-4">
                     <div className="relative flex items-center justify-center">
-                        <div className="w-16 h-16 border-4 border-orange-200 dark:border-orange-950/40 border-t-orange-500 rounded-full animate-spin" />
-                        <Calendar className="w-6 h-6 text-orange-500 absolute" />
+                        <div className="w-14 h-14 border-4 border-orange-100 dark:border-orange-950/40 border-t-orange-600 rounded-full animate-spin" />
+                        <Calendar className="w-5 h-5 text-orange-600 absolute" />
                     </div>
                     <div className="text-center space-y-1">
-                        <h3 className="text-base font-black text-slate-800 dark:text-white">Carregando dados do relatório...</h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Aguarde enquanto os lançamentos do período selecionado são processados.</p>
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-white">Carregando dados financeiros...</h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Aguarde enquanto os lançamentos do período selecionado são processados.</p>
                     </div>
                 </div>
             </div>
@@ -235,165 +239,172 @@ export const ReportsView: React.FC = () => {
     }
 
     return (
-        <div className="flex flex-col min-h-full animate-fade-in gap-2 pb-8 md:pb-4 px-1">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 flex-shrink-0">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                    <h2 className="text-lg font-black text-brand-deep dark:text-white tracking-tight leading-none">{t('reports.title')}</h2>
-                        <CategoryPills 
-                            activeCategory={ctrl.activeCategory} 
-                            onCategoryChange={ctrl.setActiveCategory} 
-                            counts={ctrl.counts} 
-                            role={subscription.role} 
-                            isSecondaryUser={isSecondaryUser}
-                            churchList={ctrl.churchList}
-                            selectedReportId={ctrl.selectedReportId}
-                            onSelectChurch={setSelectedIdSafe(ctrl)}
+        <div className="flex flex-col min-h-full animate-fade-in gap-3 pb-16 md:pb-4">
+            {/* Header Card Padronizado */}
+            <div className="bg-white dark:bg-slate-900 px-4 py-2.5 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex-shrink-0">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 bg-orange-50 dark:bg-orange-950/40 border border-orange-200/60 dark:border-orange-900/40 rounded-lg flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
+                            <Wallet className="w-4 h-4 stroke-[2]" />
+                        </div>
+                        <div className="min-w-0">
+                            <h1 className="text-base font-bold text-slate-900 dark:text-white tracking-tight leading-tight">
+                                Financeiro
+                            </h1>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+                                Acompanhe lançamentos, conciliações e movimentações do período.
+                            </p>
+                        </div>
+                    </div>
+
+                    {ctrl.activeCategory !== 'contributors' && (
+                        <ReportToolbar 
+                            onDownload={ctrl.handleDownload} 
+                            onDownloadExcel={ctrl.handleDownloadExcel}
+                            onDownloadPdf={ctrl.handleDownloadPdf}
+                            onDownloadOfx={ctrl.handleDownloadOfx}
+                            onPrint={ctrl.handlePrint}
+                            onSaveReport={ctrl.handleSaveReport}
+                            hasActiveReport={!!ctrl.activeReportId}
+                            role={subscription.role}
                         />
+                    )}
                 </div>
-                {ctrl.activeCategory !== 'contributors' && (
-                    <ReportToolbar 
-                        onAiClick={ctrl.runAiAutoIdentification} 
-                        onUpdateSource={() => ctrl.setActiveView('upload')}
-                        onDownload={ctrl.handleDownload} 
-                        onDownloadExcel={ctrl.handleDownloadExcel}
-                        onDownloadPdf={ctrl.handleDownloadPdf}
-                        onDownloadOfx={ctrl.handleDownloadOfx}
-                        onPrint={ctrl.handlePrint}
-                        onSaveReport={ctrl.handleSaveReport}
-                        hasActiveReport={!!ctrl.activeReportId}
-                        role={subscription.role}
-                    />
-                )}
             </div>
 
             {ctrl.activeCategory === 'contributors' ? (
-                <div className="flex-1 min-h-0">
+                <div className="flex-1 min-h-0 min-w-0">
                     <ContributorsReportSection />
                 </div>
             ) : (
                 <>
-                    {/* Barra de Ações Rápidas & Seleção de Mês e Período */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 shrink-0">
-                        {/* Filtro de Mês e Período (Lado Esquerdo) */}
-                        <div className="flex flex-wrap items-center gap-1.5 bg-slate-100/90 dark:bg-slate-800/90 p-1 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 text-xs shadow-xs">
-                            <div className="flex items-center gap-0.5 bg-white dark:bg-slate-900 p-0.5 rounded-xl font-bold shadow-xs border border-slate-100 dark:border-slate-800">
-                                <button
-                                    type="button"
-                                    onClick={() => setSelectionMode('month')}
-                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                                        selectionMode === 'month'
-                                            ? 'bg-orange-500 text-white shadow-xs'
-                                            : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                                    }`}
-                                >
-                                    Mês
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setSelectionMode('dates')}
-                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                                        selectionMode === 'dates'
-                                            ? 'bg-orange-500 text-white shadow-xs'
-                                            : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                                    }`}
-                                >
-                                    Período
-                                </button>
+                    {/* Painel Unificado de Categorias, Período, Bancos e Ações Rápidas */}
+                    <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col gap-2.5 shrink-0">
+                        {/* Linha 1: Categorias + Ações Primárias */}
+                        <div className="flex flex-wrap items-center justify-between gap-2.5">
+                            <div className="min-w-0 flex-1 basis-full sm:basis-auto">
+                                <CategoryPills 
+                                    activeCategory={ctrl.activeCategory} 
+                                    onCategoryChange={ctrl.setActiveCategory} 
+                                    counts={ctrl.counts} 
+                                    role={subscription.role} 
+                                    isSecondaryUser={isSecondaryUser}
+                                    churchList={ctrl.churchList}
+                                    selectedReportId={ctrl.selectedReportId}
+                                    onSelectChurch={setSelectedIdSafe(ctrl)}
+                                />
                             </div>
 
-                            {selectionMode === 'month' ? (
-                                <div className="flex items-center gap-1">
-                                    <select
-                                        value={selectedMonth}
-                                        onChange={(e) => handleMonthYearSelect(Number(e.target.value), selectedYear)}
-                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-white px-2.5 py-1 rounded-xl text-xs focus:outline-none focus:border-orange-500 cursor-pointer"
-                                    >
-                                        {monthsList.map(m => (
-                                            <option key={m.val} value={m.val}>{m.name}</option>
-                                        ))}
-                                    </select>
-                                    <select
-                                        value={selectedYear}
-                                        onChange={(e) => handleMonthYearSelect(selectedMonth, Number(e.target.value))}
-                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-white px-2.5 py-1 rounded-xl text-xs focus:outline-none focus:border-orange-500 cursor-pointer"
-                                    >
-                                        {yearsList.map(y => (
-                                            <option key={y} value={y}>{y}</option>
-                                        ))}
-                                    </select>
+                            <div className="flex items-center gap-2 shrink-0 ml-auto">
+                                <button
+                                    type="button"
+                                    onClick={() => handleManualLaunch('entrada')}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 shadow-xs transition-all cursor-pointer active:scale-95"
+                                    title="Criar Novo Lançamento Manual"
+                                >
+                                    <PlusCircleIcon className="w-3.5 h-3.5" />
+                                    <span>Lançar</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveView('livro_caixa')}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700/60 shadow-xs transition-all cursor-pointer active:scale-95"
+                                    title="Abrir Visão do Livro Caixa"
+                                >
+                                    <BookOpen className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                    <span>Livro Caixa</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Linha 2: Seletor de Mês/Período + Filtro de Banco inline */}
+                        <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+                            <div className="flex flex-wrap items-center gap-1.5 text-xs shrink-0">
+                                <div className="flex items-center gap-0.5 bg-slate-100/90 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200/80 dark:border-slate-700">
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            const now = new Date();
-                                            const prevM = now.getMonth() === 0 ? 12 : now.getMonth();
-                                            const prevY = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
-                                            handleMonthYearSelect(prevM, prevY);
-                                        }}
-                                        className="px-2.5 py-1 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 rounded-xl text-xs font-bold hover:bg-amber-100 transition-colors cursor-pointer shrink-0"
-                                        title="Ver lançamentos do mês anterior"
+                                        onClick={() => setSelectionMode('month')}
+                                        className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                                            selectionMode === 'month'
+                                                ? 'bg-orange-600 text-white shadow-xs'
+                                                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                                        }`}
                                     >
-                                        Mês Anterior
+                                        Mês
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectionMode('dates')}
+                                        className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                                            selectionMode === 'dates'
+                                                ? 'bg-orange-600 text-white shadow-xs'
+                                                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                                        }`}
+                                    >
+                                        Período
                                     </button>
                                 </div>
-                            ) : (
-                                <div className="flex items-center gap-1">
-                                    <input
-                                        type="date"
-                                        value={customStart}
-                                        onChange={(e) => setCustomStart(e.target.value)}
-                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-semibold text-slate-800 dark:text-white px-2 py-1 rounded-xl text-xs focus:outline-none focus:border-orange-500"
-                                    />
-                                    <span className="text-slate-400 font-bold text-[10px] uppercase">até</span>
-                                    <input
-                                        type="date"
-                                        value={customEnd}
-                                        onChange={(e) => setCustomEnd(e.target.value)}
-                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-semibold text-slate-800 dark:text-white px-2 py-1 rounded-xl text-xs focus:outline-none focus:border-orange-500"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={handleApplyCustomDates}
-                                        className="px-2.5 py-1 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-black uppercase text-[10px] tracking-wider rounded-xl shadow-xs transition-all cursor-pointer"
-                                    >
-                                        Aplicar
-                                    </button>
+
+                                {selectionMode === 'month' ? (
+                                    <div className="flex items-center gap-1.5">
+                                        <select
+                                            value={selectedMonth}
+                                            onChange={(e) => handleMonthYearSelect(Number(e.target.value), selectedYear)}
+                                            className="bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 font-semibold text-slate-800 dark:text-white px-2.5 py-1 rounded-lg text-xs focus:outline-none focus:border-orange-500 cursor-pointer"
+                                        >
+                                            {monthsList.map(m => (
+                                                <option key={m.val} value={m.val}>{m.name}</option>
+                                            ))}
+                                        </select>
+                                        <select
+                                            value={selectedYear}
+                                            onChange={(e) => handleMonthYearSelect(selectedMonth, Number(e.target.value))}
+                                            className="bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 font-semibold text-slate-800 dark:text-white px-2.5 py-1 rounded-lg text-xs focus:outline-none focus:border-orange-500 cursor-pointer tabular-nums"
+                                        >
+                                            {yearsList.map(y => (
+                                                <option key={y} value={y}>{y}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                        <input
+                                            type="date"
+                                            value={customStart}
+                                            onChange={(e) => setCustomStart(e.target.value)}
+                                            className="bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 font-medium text-slate-800 dark:text-white px-2 py-1 rounded-lg text-xs focus:outline-none focus:border-orange-500"
+                                        />
+                                        <span className="text-slate-400 font-medium text-xs">até</span>
+                                        <input
+                                            type="date"
+                                            value={customEnd}
+                                            onChange={(e) => setCustomEnd(e.target.value)}
+                                            className="bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 font-medium text-slate-800 dark:text-white px-2 py-1 rounded-lg text-xs focus:outline-none focus:border-orange-500"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={handleApplyCustomDates}
+                                            className="px-3 py-1 bg-orange-600 hover:bg-orange-700 text-white font-semibold text-xs rounded-lg shadow-xs transition-all cursor-pointer active:scale-95"
+                                        >
+                                            Aplicar
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            {ctrl.bankList.length > 0 && (
+                                <div className="flex items-center gap-2 min-w-0 lg:justify-end flex-1">
+                                    <span className="text-[11px] font-medium text-slate-400 shrink-0 hidden sm:inline">Banco:</span>
+                                    <div className="min-w-0 max-w-full">
+                                        <BankChipsList list={ctrl.bankList} selectedId={ctrl.selectedBankId} onSelect={ctrl.setSelectedBankId} />
+                                    </div>
                                 </div>
                             )}
                         </div>
-
-                        {/* Grupo de Ações Financeiras Primárias (Lançar + Livro Caixa) */}
-                        <div className="flex items-center gap-2 ml-auto">
-                            <button
-                                type="button"
-                                onClick={() => handleManualLaunch('entrada')}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider text-white bg-orange-600 hover:bg-orange-700 shadow-sm transition-all cursor-pointer active:scale-95"
-                                title="Criar Novo Lançamento Manual"
-                            >
-                                <PlusCircleIcon className="w-4 h-4" />
-                                <span>Lançar</span>
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => setActiveView('livro_caixa')}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/60 shadow-sm transition-all cursor-pointer active:scale-95"
-                                title="Abrir Visão do Livro Caixa"
-                            >
-                                <BookOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                                <span>Livro Caixa</span>
-                            </button>
-                        </div>
                     </div>
 
-
-                    {ctrl.bankList.length > 0 && (
-                        <div className="flex flex-col gap-1">
-                            <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2">Filtrar por Banco</label>
-                            <BankChipsList list={ctrl.bankList} selectedId={ctrl.selectedBankId} onSelect={ctrl.setSelectedBankId} />
-                        </div>
-                    )}
-
-                    <div className="flex-1 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-card overflow-hidden flex flex-col p-0 relative min-h-[500px]">
+                    <div className="flex-1 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs overflow-hidden flex flex-col p-0 relative min-h-[500px]">
                         <StatsStrip 
                             category={ctrl.activeCategory} 
                             reportName={reportDisplayName} 

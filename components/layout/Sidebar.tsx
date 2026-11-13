@@ -202,9 +202,9 @@ export const Sidebar: React.FC = memo(() => {
                 />
             )}
 
-            <aside className={`fixed md:relative inset-y-0 left-0 h-[100dvh] flex flex-col transition-all duration-300 z-[80] ${isCollapsed ? 'w-20' : 'w-64'} ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} bg-[#F8FAFC] dark:bg-[#0B0F17] text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-white/5 shadow-[1px_0_3px_rgba(0,0,0,0.02)] overflow-hidden`}>
+            <aside className={`fixed md:relative inset-y-0 left-0 h-[100dvh] flex flex-col transition-all duration-300 z-[80] ${isCollapsed ? 'w-20' : 'w-64'} ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} bg-[#F8FAFC] dark:bg-[#0B0F17] text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-white/5 shadow-[1px_0_3px_rgba(0,0,0,0.02)]`}>
                 
-                <div className="relative z-10 flex flex-col h-full">
+                <div className="relative z-10 flex flex-col h-full overflow-hidden">
                     
                     <div className={`flex items-center transition-all duration-300 border-b border-slate-200/80 dark:border-white/5 bg-slate-100/40 dark:bg-white/5 ${isCollapsed ? 'justify-center py-4 px-2' : 'gap-3 px-5 py-4'}`}>
                         <div className="relative group cursor-pointer shrink-0 z-50" onClick={() => setActiveView('dashboard')}>

@@ -135,7 +135,12 @@ export const DashboardView: React.FC = memo(() => {
                      </div>
                      <div className="px-4 py-2.5 bg-slate-50/70 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 shrink-0">
                         <span>Métodos de conciliação</span>
-                        <span className="font-bold tabular-nums text-slate-700 dark:text-slate-200">{pieChartData.filter(d => d.value > 0).length || 1} ativos</span>
+                        <span className="font-bold tabular-nums text-slate-700 dark:text-slate-200">
+                            {(() => {
+                                const activeMethods = pieChartData.filter(d => d.value > 0).length;
+                                return activeMethods === 1 ? '1 ativo' : `${activeMethods} ativos`;
+                            })()}
+                        </span>
                      </div>
                 </div>
 

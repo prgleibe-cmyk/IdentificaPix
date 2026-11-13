@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { batchState } from './reconciliation/useCloudSync';
 import { fetchWithMemoryCache } from '../services/clientDataCache';
 import { getCachedContributors } from '../services/contributorsCache';
+import { safeFetch, safeParseJson } from '../services/utils/safeFetch';
 
 const DEFAULT_PAYMENT_METHODS = ['PIX', 'DINHEIRO'];
 
@@ -149,38 +150,34 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             try {
                 const token = await getAuthToken();
                 const ownerId = effectiveOwnerId;
+                const authHeaders: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
 
-                let response = await fetch(`/api/v1/reference/data/${ownerId}?limit=50&offset=0`, {
+                let response = await safeFetch(`/api/v1/reference/data/${ownerId}?limit=50&offset=0`, {
                     method: 'GET',
                     cache: 'no-store',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
+                    headers: authHeaders
                 });
 
                 if (!response.ok) {
-                    response = await fetch(`/api/reference/data/${ownerId}?limit=50&offset=0`, {
+                    response = await safeFetch(`/api/reference/data/${ownerId}?limit=50&offset=0`, {
                         method: 'GET',
                         cache: 'no-store',
-                        headers: {
-                            'Authorization': `Bearer ${token}`
-                        }
+                        headers: authHeaders
                     });
                 }
 
                 let data: any = null;
                 if (response.ok) {
-                    data = await response.json();
+                    data = await safeParseJson(response, 'useReferenceData.referenceData');
                 } else {
-                    const authHeaders = token ? { 'Authorization': `Bearer ${token}` } : {};
                     const [bRes, cRes, aRes] = await Promise.all([
-                        fetch(`/api/v1/banks?user_id=${ownerId}`, { headers: authHeaders }),
-                        fetch(`/api/v1/churches?user_id=${ownerId}`, { headers: authHeaders }),
-                        fetch(`/api/v1/learned_associations?user_id=${ownerId}`, { headers: authHeaders })
+                        safeFetch(`/api/v1/banks?user_id=${ownerId}`, { headers: authHeaders, cache: 'no-store' }),
+                        safeFetch(`/api/v1/churches?user_id=${ownerId}`, { headers: authHeaders, cache: 'no-store' }),
+                        safeFetch(`/api/v1/learned_associations?user_id=${ownerId}`, { headers: authHeaders, cache: 'no-store' })
                     ]);
-                    const bList = bRes.ok ? await bRes.json() : [];
-                    const cList = cRes.ok ? await cRes.json() : [];
-                    const aList = aRes.ok ? await aRes.json() : [];
+                    const bList = bRes.ok ? await safeParseJson(bRes, 'useReferenceData.banks').catch(() => []) : [];
+                    const cList = cRes.ok ? await safeParseJson(cRes, 'useReferenceData.churches').catch(() => []) : [];
+                    const aList = aRes.ok ? await safeParseJson(aRes, 'useReferenceData.associations').catch(() => []) : [];
                     data = {
                         banks: Array.isArray(bList) ? bList : [],
                         churches: Array.isArray(cList) ? cList : [],

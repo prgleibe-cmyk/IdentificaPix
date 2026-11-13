@@ -4,6 +4,7 @@ import { PLACEHOLDER_CHURCH, strictNormalize, isInvalidOrNumericName } from '../
 import { consolidationService } from '../../services/ConsolidationService';
 import { getAuthToken } from '../../services/auth/authAdapter';
 import { syncAttachmentsToCache } from '../../services/expenseAttachmentService';
+import { safeFetch, safeParseJson } from '../../services/utils/safeFetch';
 
 interface UseCloudSyncProps {
     user: any;
@@ -221,14 +222,14 @@ export const useCloudSync = ({
                 let queryParams = `user_id=${encodeURIComponent(effectiveUserId)}&limit=${pageSize}`;
 
                 while (true) {
-                    const res = await fetch(`/api/v1/consolidated_transactions?${queryParams}&offset=${from}`, {
+                    const res = await safeFetch(`/api/v1/consolidated_transactions?${queryParams}&offset=${from}`, {
                         headers,
                         cache: 'no-store'
                     });
                     if (!res.ok) {
-                        throw new Error(`Erro ao buscar transações consolidadas do VPS: ${res.statusText}`);
+                        throw new Error(`Erro ao buscar transações consolidadas do VPS: ${res.status} ${res.statusText}`);
                     }
-                    const data = await res.json();
+                    const data = await safeParseJson<any[]>(res, 'useCloudSync.transactions');
                     if (!data || data.length === 0) break;
 
                     allTxs = [...allTxs, ...data];
@@ -249,12 +250,12 @@ export const useCloudSync = ({
                 try {
                     const token = await getAuthToken();
                     const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
-                    const resp = await fetch(`/api/v1/contributors`, {
+                    const resp = await safeFetch(`/api/v1/contributors`, {
                         headers,
                         cache: 'no-store'
                     });
                     if (resp.ok) {
-                        const list = await resp.json();
+                        const list = await safeParseJson<any[]>(resp, 'useCloudSync.contributors');
                         data = Array.isArray(list) ? list : [];
                     }
                 } catch (err) {

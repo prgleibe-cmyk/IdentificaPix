@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { getAuthToken } from '../services/auth/authAdapter';
 import { usePersistentState } from './usePersistentState';
 import { SavedReport, SearchFilters, SavingReportState, MatchResult, SpreadsheetData } from '../types';
+import { safeFetch, safeParseJson } from '../services/utils/safeFetch';
 
 const ENABLE_HEAVY_LOGS = false;
 
@@ -130,19 +131,20 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             
             try {
                 const token = await getAuthToken();
+                const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
 
-                const response = await fetch(`/api/v1/saved_reports?user_id=${apiOwnerId}&exclude_data=true`, {
+                const response = await safeFetch(`/api/v1/saved_reports?user_id=${apiOwnerId}&exclude_data=true`, {
                     method: 'GET',
                     cache: 'no-store',
-                    headers: { 'Authorization': `Bearer ${token}` }
+                    headers
                 });
 
                 if (response.ok) {
-                    const resData = await response.json();
+                    const resData = await safeParseJson<any[]>(response, 'useReportManager.fetchReports');
                     if (ignore) return;
-                    data = resData || [];
+                    data = Array.isArray(resData) ? resData : [];
                 } else {
-                    throw new Error("Falha ao buscar relatórios via API.");
+                    throw new Error(`Falha ao buscar relatórios via API (${response.status}).`);
                 }
 
                 if (data && !ignore) {
