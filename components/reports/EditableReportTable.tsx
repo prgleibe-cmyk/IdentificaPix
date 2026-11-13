@@ -235,7 +235,7 @@ const MobileCard = memo(({
                         </div>
                         <div className="flex items-center gap-1.5 mt-1.5 min-w-0">
                             {(row.contributor || isGhost) ? <UserIcon className="w-3.5 h-3.5 text-orange-500 shrink-0" /> : <BanknotesIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
-                            <span className={`text-[13px] font-semibold tracking-tight leading-snug break-words ${confirmed ? 'text-slate-500/80' : 'text-slate-900 dark:text-white'}`}>
+                            <span className={`min-w-0 text-[13px] font-semibold tracking-tight leading-snug break-words [overflow-wrap:anywhere] ${confirmed ? 'text-slate-500/80' : 'text-slate-900 dark:text-white'}`}>
                                 {visualName}
                             </span>
                             {isManualRow && (
@@ -245,7 +245,7 @@ const MobileCard = memo(({
                             )}
                         </div>
                         {!isManualRow && rawBankDesc && rawBankDesc !== displayName && (
-                            <div className="text-[11px] text-slate-400 dark:text-slate-500 font-normal pl-5 mt-0.5 leading-snug break-words" title={`Extrato Original: ${rawBankDesc}`}>
+                            <div className="text-[11px] text-slate-400 dark:text-slate-500 font-normal pl-5 mt-0.5 leading-snug break-words [overflow-wrap:anywhere]" title={`Extrato Original: ${rawBankDesc}`}>
                                 <span className="text-[10px] font-medium text-slate-400/90 mr-1">Extrato:</span>
                                 <span className="text-slate-500 dark:text-slate-400">{cleanDisplayDescription(rawBankDesc)}</span>
                             </div>
@@ -715,11 +715,11 @@ const IncomeRow = memo(({
                         <span className="text-slate-300 dark:text-slate-700 text-[10px] font-bold block text-center">-</span>
                     )}
                 </td>
-                <td className="px-3.5 py-3">
-                    <div className="flex flex-col gap-0.5">
-                        <div className="flex items-center gap-2 flex-wrap">
+                <td className="px-3.5 py-3 max-w-sm">
+                    <div className="flex flex-col gap-0.5 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap min-w-0">
                             {(row.contributor || isGhost) ? <UserIcon className="w-3.5 h-3.5 text-orange-500 shrink-0" /> : <BanknotesIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
-                            <span className={`text-xs font-semibold break-words ${confirmed ? 'text-slate-500/70' : 'text-slate-900 dark:text-white'}`}>{visualName}</span>
+                            <span className={`min-w-0 text-xs font-semibold break-words [overflow-wrap:anywhere] ${confirmed ? 'text-slate-500/70' : 'text-slate-900 dark:text-white'}`}>{visualName}</span>
                             {docBadge && (
                                 <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100/90 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200/70 dark:border-slate-700 tabular-nums shrink-0">
                                     {docBadge}
@@ -732,7 +732,7 @@ const IncomeRow = memo(({
                             )}
                         </div>
                         {!isManualRow && rawBankDesc && rawBankDesc !== displayName && (
-                            <div className="text-[11px] text-slate-400 dark:text-slate-500 font-normal pl-5.5 leading-snug break-words max-w-md" title={`Extrato Original: ${rawBankDesc}`}>
+                            <div className="text-[11px] text-slate-400 dark:text-slate-500 font-normal pl-5.5 leading-snug break-words [overflow-wrap:anywhere] max-w-md" title={`Extrato Original: ${rawBankDesc}`}>
                                 <span className="text-[10px] font-medium text-slate-400/90 mr-1">Extrato:</span>
                                 <span className="text-slate-500 dark:text-slate-400">{cleanDisplayDescription(rawBankDesc)}</span>
                             </div>
@@ -873,7 +873,7 @@ const IncomeRow = memo(({
                             Rateado ({row.splits!.length})
                         </span>
                     ) : (
-                        <span className="text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-2 py-0.5 rounded-md border border-slate-200/70 dark:border-slate-700">{displayType}</span>
+                        <span className="inline-block max-w-[210px] leading-snug text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-2 py-0.5 rounded-md border border-slate-200/70 dark:border-slate-700">{displayType}</span>
                     )}
                 </td>
                 <td className="hidden lg:table-cell px-3.5 py-3"><span className="text-xs font-medium text-slate-600 dark:text-slate-300">{displayForm}</span></td>

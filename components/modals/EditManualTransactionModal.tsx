@@ -86,7 +86,8 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
                   row.transaction?.reference_date || 
                   row.transaction?.date;
         if (!d) return new Date().toISOString().split('T')[0];
-        return d.includes('T') ? d.split('T')[0] : d;
+        const dStr = typeof d === 'string' ? d : String(d);
+        return dStr.includes('T') ? dStr.split('T')[0] : dStr;
     }, [row]);
 
     const initialChurchId = useMemo(() => {
@@ -244,15 +245,25 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
                 setIsCustomPaymentMethod(false);
             }
 
-            // Carrega anexos da linha ou do IndexedDB
+            // Carrega anexos da linha ou do IndexedDB/nuvem sob demanda
             const activeTxId = row.transaction?.id || (row as any)?.id;
             initializedRowIdRef.current = activeTxId || null;
             const existingAtts = row.attachments || row.transaction?.attachments;
             if (Array.isArray(existingAtts) && existingAtts.length > 0) {
                 setAttachments(existingAtts);
+                const needsHydration = existingAtts.some((a: any) => a && !a.dataUrl && a.hasDataUrl);
+                if (needsHydration && activeTxId) {
+                    getAttachmentsForTransaction(activeTxId).then(loaded => {
+                        if (initializedRowIdRef.current === activeTxId && Array.isArray(loaded) && loaded.length > 0) {
+                            setAttachments(loaded);
+                        }
+                    }).catch(() => {});
+                }
             } else if (activeTxId) {
                 getAttachmentsForTransaction(activeTxId).then(loaded => {
-                    setAttachments(loaded || []);
+                    if (initializedRowIdRef.current === activeTxId) {
+                        setAttachments(loaded || []);
+                    }
                 }).catch(() => setAttachments([]));
             } else {
                 setAttachments([]);
@@ -609,7 +620,7 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
                     </label>
                     <input 
                         type="date"
-                        value={date ? (date.includes('T') ? date.split('T')[0] : date) : ''}
+                        value={date ? (String(date).includes('T') ? String(date).split('T')[0] : String(date)) : ''}
                         onChange={(e) => setDate(e.target.value)}
                         className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2.5 px-3.5 transition-all outline-none text-xs font-bold"
                     />

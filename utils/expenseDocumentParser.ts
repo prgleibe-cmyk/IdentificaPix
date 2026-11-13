@@ -679,10 +679,10 @@ export function validateExpenseAgainstDocument(
         };
     }
 
-    const docAmount = extractedDoc.extractedAmount;
+    const rawDocAmount = extractedDoc.extractedAmount;
 
     // Se nenhum valor numérico foi extraído com clareza
-    if (docAmount === null || docAmount === undefined) {
+    if (rawDocAmount === null || rawDocAmount === undefined || rawDocAmount === ('' as any)) {
         return {
             status: 'manual_review',
             message: 'Documento anexado, mas o valor não pôde ser detectado automaticamente. Verificação visual recomendada.',
@@ -690,22 +690,36 @@ export function validateExpenseAgainstDocument(
         };
     }
 
-    const diff = Math.round(Math.abs(launchAmount - docAmount) * 100) / 100;
+    const docAmount = Number(rawDocAmount);
+    const safeLaunchAmount = Number.isFinite(Number(launchAmount)) ? Number(launchAmount) : 0;
+
+    if (!Number.isFinite(docAmount)) {
+        return {
+            status: 'manual_review',
+            message: 'Documento anexado, mas o valor não pôde ser detectado automaticamente. Verificação visual recomendada.',
+            diff: 0
+        };
+    }
+
+    const diff = Math.round(Math.abs(safeLaunchAmount - docAmount) * 100) / 100;
 
     // Se valor bate exatamente ou tolerância de centavos
     if (diff < 0.01) {
         return {
             status: 'validated',
-            message: `Valor do lançamento confere com o ${extractedDoc.documentTypeLabel} (R$ ${docAmount.toFixed(2)}).`,
+            message: `Valor do lançamento confere com o ${extractedDoc.documentTypeLabel || 'documento'} (R$ ${docAmount.toFixed(2)}).`,
             diff: 0
         };
     }
 
     // Se o valor lançado coincide com algum dos outros valores encontrados no documento
-    if (extractedDoc.allDetectedAmounts.some(amt => Math.abs(amt - launchAmount) < 0.01)) {
+    const detectedAmounts = Array.isArray(extractedDoc.allDetectedAmounts)
+        ? extractedDoc.allDetectedAmounts
+        : [];
+    if (detectedAmounts.some(amt => Math.abs(Number(amt) - safeLaunchAmount) < 0.01)) {
         return {
             status: 'validated',
-            message: `Valor de R$ ${launchAmount.toFixed(2)} validado com item/total do documento.`,
+            message: `Valor de R$ ${safeLaunchAmount.toFixed(2)} validado com item/total do documento.`,
             diff: 0
         };
     }
@@ -713,7 +727,7 @@ export function validateExpenseAgainstDocument(
     // Divergência de valor
     return {
         status: 'divergent',
-        message: `Divergência: Lançamento é R$ ${launchAmount.toFixed(2)}, mas o documento indica R$ ${docAmount.toFixed(2)} (Diferença de R$ ${diff.toFixed(2)}).`,
+        message: `Divergência: Lançamento é R$ ${safeLaunchAmount.toFixed(2)}, mas o documento indica R$ ${docAmount.toFixed(2)} (Diferença de R$ ${diff.toFixed(2)}).`,
         diff
     };
 }

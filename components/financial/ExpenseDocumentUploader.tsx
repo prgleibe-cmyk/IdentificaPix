@@ -57,7 +57,8 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
     language = 'pt',
     readOnly = false
 }) => {
-    const currentAmount = propCurrentAmount ?? (launchAmount ?? 0);
+    const rawCurrentAmount = propCurrentAmount ?? (launchAmount ?? 0);
+    const currentAmount = Number.isFinite(Number(rawCurrentAmount)) ? Number(rawCurrentAmount) : 0;
     const [isParsing, setIsParsing] = useState(false);
     const [parsingStatusText, setParsingStatusText] = useState<string>('Processando e extraindo dados do arquivo...');
     const [ocrProgress, setOcrProgress] = useState<number | null>(null);
@@ -214,16 +215,18 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
         onChangeAttachments(updated);
     };
 
+    const safeAttachments = Array.isArray(attachments) ? attachments.filter(Boolean) : [];
+
     // Classificação dos documentos carregados para status de auditoria
-    const nfDocs = attachments.filter(a => 
+    const nfDocs = safeAttachments.filter(a => 
         a.documentRole === 'nota_fiscal' || 
         (!a.documentRole && a.extractedData?.documentType === 'nota_fiscal')
     );
-    const invoiceDocs = attachments.filter(a => 
+    const invoiceDocs = safeAttachments.filter(a => 
         a.documentRole === 'fatura' || 
         (!a.documentRole && (a.extractedData?.documentType === 'fatura' || a.extractedData?.documentType === 'boleto'))
     );
-    const proofDocs = attachments.filter(a => 
+    const proofDocs = safeAttachments.filter(a => 
         a.documentRole === 'comprovante' || 
         (!a.documentRole && (a.extractedData?.documentType === 'comprovante_pix' || a.extractedData?.documentType === 'comprovante_pagamento' || a.extractedData?.documentType === 'recibo'))
     );
@@ -233,7 +236,7 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
     const hasProof = proofDocs.length > 0;
 
     // Validação global principal
-    const primaryAttachment = attachments[0] || null;
+    const primaryAttachment = safeAttachments[0] || null;
     const currentValidation = primaryAttachment 
         ? validateExpenseAgainstDocument(currentAmount, primaryAttachment.extractedData)
         : { status: 'pending_attachment' as ExpenseValidationStatus, message: 'Nenhum documento anexado.', diff: 0 };
@@ -545,16 +548,23 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
             )}
 
             {/* Lista de Anexos com Seletor de Papel e Diagnóstico */}
-            {attachments && attachments.length > 0 && (
+            {safeAttachments.length > 0 && (
                 <div className="space-y-2 mt-2">
-                    {attachments.map((att) => {
+                    {safeAttachments.map((att, attIdx) => {
                         const validation = validateExpenseAgainstDocument(currentAmount, att.extractedData);
                         const doc = att.extractedData;
-                        const currentRole = att.documentRole || inferDocumentRole(doc?.documentType || 'outro', att.fileName);
+                        const currentRole = att.documentRole || inferDocumentRole(doc?.documentType || 'outro', att.fileName || '');
+                        const numericExtractedAmount =
+                            doc?.extractedAmount !== null &&
+                            doc?.extractedAmount !== undefined &&
+                            doc?.extractedAmount !== ('' as any) &&
+                            Number.isFinite(Number(doc.extractedAmount))
+                                ? Number(doc.extractedAmount)
+                                : null;
 
                         return (
                             <div 
-                                key={att.id}
+                                key={att.id || `att-${attIdx}`}
                                 className={`p-3 rounded-xl border transition-all ${
                                     validation.status === 'validated'
                                         ? 'bg-emerald-50/30 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-900/30'
@@ -589,7 +599,7 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                                         <div className="min-w-0 flex-1">
                                             <div className="flex items-center gap-2 flex-wrap">
                                                 <span className="font-bold text-xs text-slate-800 dark:text-slate-200 truncate max-w-[200px] sm:max-w-xs block">
-                                                    {att.fileName}
+                                                    {att.fileName || 'Documento anexo'}
                                                 </span>
                                                 {doc?.documentTypeLabel && (
                                                     <span className="bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[8px] font-black uppercase px-1.5 py-0.5 rounded shrink-0">
@@ -601,7 +611,7 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                                                         ✓ XML Estruturado
                                                     </span>
                                                 )}
-                                                {att.fileSize && (
+                                                {typeof att.fileSize === 'number' && !isNaN(att.fileSize) && (
                                                     <span className="text-[8.5px] text-slate-400 font-mono">
                                                         {(att.fileSize / 1024).toFixed(0)} KB
                                                     </span>
@@ -610,9 +620,9 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                                             
                                             {/* Detalhes Extraídos */}
                                             <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 flex flex-wrap gap-x-3 gap-y-1">
-                                                {doc?.extractedAmount !== null && doc?.extractedAmount !== undefined && (
+                                                {numericExtractedAmount !== null && (
                                                     <span>
-                                                        Valor Detectado: <strong className="font-mono text-slate-700 dark:text-slate-200">{formatCurrency(doc.extractedAmount, language)}</strong>
+                                                        Valor Detectado: <strong className="font-mono text-slate-700 dark:text-slate-200">{formatCurrency(numericExtractedAmount, language)}</strong>
                                                     </span>
                                                 )}
                                                 {doc?.extractedRecipient && (
@@ -630,12 +640,12 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                                                         Nº: <strong className="font-mono text-slate-700 dark:text-slate-200">{doc.documentNumber}</strong>
                                                     </span>
                                                 )}
-                                                {doc?.extractedDate && (
+                                                {typeof doc?.extractedDate === 'string' && doc.extractedDate && (
                                                     <span>
                                                         Data: <strong>{doc.extractedDate.split('-').reverse().join('/')}</strong>
                                                     </span>
                                                 )}
-                                                {doc?.extractedDueDate && (
+                                                {typeof doc?.extractedDueDate === 'string' && doc.extractedDueDate && (
                                                     <span>
                                                         Vencimento: <strong className="text-amber-700 dark:text-amber-400">{doc.extractedDueDate.split('-').reverse().join('/')}</strong>
                                                     </span>
@@ -680,15 +690,15 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                                 </div>
 
                                 {/* Dados Extraídos do Documento */}
-                                {doc && (doc.extractedAmount || doc.extractedRecipient || doc.extractedDate || doc.extractedDueDate) && (
+                                {doc && (numericExtractedAmount !== null || doc.extractedRecipient || doc.extractedDate || doc.extractedDueDate) && (
                                     <div className="mt-2 px-2.5 py-1.5 bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/40 rounded-xl flex flex-wrap items-center gap-1.5 text-[10px]">
                                         <span className="font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1">
                                             <Sparkles className="w-3 h-3 text-amber-500" />
                                             Detectado:
                                         </span>
-                                        {doc.extractedAmount && (
+                                        {numericExtractedAmount !== null && (
                                             <span className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-800 font-bold text-slate-800 dark:text-white">
-                                                R$ {doc.extractedAmount.toFixed(2)}
+                                                R$ {numericExtractedAmount.toFixed(2)}
                                             </span>
                                         )}
                                         {doc.extractedRecipient && (
@@ -786,7 +796,7 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                                         ) : validation.status === 'divergent' ? (
                                             <span className="text-rose-600 dark:text-rose-400 font-bold flex items-center gap-1">
                                                 <AlertTriangle className="w-3 h-3" />
-                                                Lançamento R$ {currentAmount.toFixed(2)} vs Doc R$ {doc?.extractedAmount?.toFixed(2)}
+                                                Lançamento R$ {currentAmount.toFixed(2)} vs Doc R$ {(numericExtractedAmount ?? 0).toFixed(2)}
                                             </span>
                                         ) : (
                                             <span className="text-slate-500 dark:text-slate-400 font-medium">
@@ -797,14 +807,14 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
 
                                     {/* Ações de Auto-Preenchimento */}
                                     <div className="flex items-center gap-1.5">
-                                        {(validation.status === 'divergent' || currentAmount === 0 || !currentAmount) && doc?.extractedAmount && onApplyExtractedAmount && (
+                                        {(validation.status === 'divergent' || currentAmount === 0 || !currentAmount) && numericExtractedAmount !== null && numericExtractedAmount > 0 && onApplyExtractedAmount && (
                                             <button
                                                 type="button"
-                                                onClick={() => onApplyExtractedAmount(doc.extractedAmount!)}
+                                                onClick={() => onApplyExtractedAmount(numericExtractedAmount)}
                                                 className="px-2 py-0.5 bg-orange-500 hover:bg-orange-600 text-white rounded text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-sm"
                                             >
                                                 <Sparkles className="w-2.5 h-2.5" />
-                                                {currentAmount === 0 || !currentAmount ? 'Aplicar' : 'Ajustar para'} R$ {doc.extractedAmount.toFixed(2)}
+                                                {currentAmount === 0 || !currentAmount ? 'Aplicar' : 'Ajustar para'} R$ {numericExtractedAmount.toFixed(2)}
                                             </button>
                                         )}
                                         {doc?.extractedRecipient && onApplyExtractedRecipient && (
@@ -845,13 +855,13 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                         </div>
                         
                         <div className="flex-1 p-4 overflow-auto bg-slate-100 dark:bg-black/50 flex items-center justify-center min-h-[400px]">
-                            {previewAttachment.fileType === 'application/pdf' || previewAttachment.fileName.endsWith('.pdf') ? (
+                            {previewAttachment.fileType === 'application/pdf' || (previewAttachment.fileName || '').toLowerCase().endsWith('.pdf') ? (
                                 <iframe 
                                     src={previewAttachment.dataUrl} 
                                     className="w-full h-[600px] rounded-xl border border-slate-200 dark:border-slate-800 bg-white" 
                                     title="Visualização do PDF"
                                 />
-                            ) : previewAttachment.fileName.toLowerCase().endsWith('.xml') || previewAttachment.fileType.includes('xml') ? (
+                            ) : (previewAttachment.fileName || '').toLowerCase().endsWith('.xml') || (previewAttachment.fileType || '').includes('xml') ? (
                                 <div className="w-full h-[600px] rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 overflow-auto text-left space-y-4">
                                     <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                                         <div>
@@ -901,7 +911,7 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                                         <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase block">Data de Emissão</span>
                                             <span className="font-bold text-xs text-slate-800 dark:text-slate-100 block">
-                                                {previewAttachment.extractedData?.extractedDate
+                                                {typeof previewAttachment.extractedData?.extractedDate === 'string' && previewAttachment.extractedData.extractedDate
                                                     ? previewAttachment.extractedData.extractedDate.split('-').reverse().join('/')
                                                     : 'Não informada'}
                                             </span>
@@ -909,7 +919,7 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                                         <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase block">Data de Vencimento</span>
                                             <span className="font-bold text-xs text-slate-800 dark:text-slate-100 block">
-                                                {previewAttachment.extractedData?.extractedDueDate
+                                                {typeof previewAttachment.extractedData?.extractedDueDate === 'string' && previewAttachment.extractedData.extractedDueDate
                                                     ? previewAttachment.extractedData.extractedDueDate.split('-').reverse().join('/')
                                                     : 'À vista / Sem duplicata'}
                                             </span>
