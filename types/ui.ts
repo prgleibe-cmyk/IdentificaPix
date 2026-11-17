@@ -8,7 +8,7 @@ export type Language = 'pt';
 export type SettingsTab = 'params' | 'associations' | 'preferences' | 'automation';
 
 export interface DeletingItem {
-  type: 'bank' | 'church' | 'report-saved' | 'report-row' | 'report-row-bulk' | 'report-group' | 'uploaded-files' | 'match-results' | 'learned-associations' | 'all-data' | 'launched-item';
+  type: 'bank' | 'church' | 'payment-method' | 'contribution-type' | 'contributor-inactivate' | 'contributor-permanent' | 'custom-action' | 'report-saved' | 'report-row' | 'report-row-bulk' | 'report-group' | 'uploaded-files' | 'match-results' | 'learned-associations' | 'all-data' | 'launched-item';
   id: string;
   name: string;
   meta?: any;

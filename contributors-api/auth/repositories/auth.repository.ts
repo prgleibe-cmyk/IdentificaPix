@@ -41,14 +41,15 @@ export class AuthRepository {
         );
       `);
 
-      // Migration for existing table app_users
-      await client.query(`
-        ALTER TABLE app_users ADD COLUMN IF NOT EXISTS totp_secret_encrypted TEXT;
-        ALTER TABLE app_users ADD COLUMN IF NOT EXISTS totp_temp_secret_encrypted TEXT;
-        ALTER TABLE app_users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT FALSE;
-        ALTER TABLE app_users ADD COLUMN IF NOT EXISTS totp_recovery_codes JSONB DEFAULT '[]'::jsonb;
-        ALTER TABLE app_users ADD COLUMN IF NOT EXISTS owner_id UUID;
-      `);
+      // Migration for existing table app_users (individual statements for PostgreSQL + SQLite compatibility)
+      await client.query(`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS totp_secret_encrypted TEXT;`);
+      await client.query(`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS totp_temp_secret_encrypted TEXT;`);
+      await client.query(`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT FALSE;`);
+      await client.query(`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS totp_recovery_codes JSONB DEFAULT '[]'::jsonb;`);
+      await client.query(`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS owner_id UUID;`);
+      await client.query(`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'trial';`);
+      await client.query(`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS subscription_ends_at TIMESTAMPTZ;`);
+      await client.query(`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ;`);
 
       // Indexes
       await client.query('CREATE INDEX IF NOT EXISTS idx_app_users_email ON app_users(email);');

@@ -84,29 +84,96 @@ export async function getMonitoringStatus(
     }
   };
 
-  // 3. Database Check
+  // 3. Database Check (testa PostgreSQL real quando SmartPool está presente para evitar falso positivo do fallback SQLite)
   let dbCheck: ComponentHealth = { status: 'ok' };
   const dbStart = Date.now();
-  try {
-    const res = await pool.query('SELECT 1 as alive, NOW() as server_time');
-    const latencyMs = Date.now() - dbStart;
-    dbCheck = {
-      status: 'ok',
-      latencyMs,
-      serverTime: res.rows[0]?.server_time || null
-    };
-  } catch (err: any) {
-    dbCheck = {
-      status: 'critical',
-      latencyMs: Date.now() - dbStart,
-      error: 'PostgreSQL indisponível ou falha na consulta'
-    };
-    alerts.push({
-      severity: 'critical',
-      component: 'database',
-      message: 'Falha crítica no PostgreSQL: Conexão não responde',
-      timestamp: now.toISOString()
-    });
+  const smartPool = pool as any;
+  if (typeof smartPool?.checkPostgresHealth === 'function') {
+    try {
+      const pgHealth = await smartPool.checkPostgresHealth();
+      if (pgHealth.connected) {
+        dbCheck = {
+          status: 'ok',
+          engine: 'postgres',
+          postgresConnected: true,
+          sqliteOperational: Boolean(pgHealth.sqliteOperational),
+          latencyMs: pgHealth.latencyMs,
+          serverTime: pgHealth.serverTime || null
+        };
+      } else if (pgHealth.sqliteOperational) {
+        dbCheck = {
+          status: 'warning',
+          engine: 'sqlite_fallback',
+          postgresConnected: false,
+          sqliteOperational: true,
+          latencyMs: pgHealth.latencyMs,
+          serverTime: null,
+          error: pgHealth.error || 'PostgreSQL indisponível (fallback SQLite ativo)',
+          details: 'PostgreSQL indisponível — modo de contingência SQLite local ativo'
+        };
+        alerts.push({
+          severity: 'warning',
+          component: 'database',
+          message: 'PostgreSQL indisponível: sistema operando em contingência SQLite local',
+          timestamp: now.toISOString()
+        });
+      } else {
+        dbCheck = {
+          status: 'critical',
+          engine: 'offline',
+          postgresConnected: false,
+          sqliteOperational: false,
+          latencyMs: pgHealth.latencyMs,
+          error: pgHealth.error || 'PostgreSQL e motor SQLite local indisponíveis'
+        };
+        alerts.push({
+          severity: 'critical',
+          component: 'database',
+          message: 'Falha crítica no banco de dados: PostgreSQL e fallback local indisponíveis',
+          timestamp: now.toISOString()
+        });
+      }
+    } catch (err: any) {
+      dbCheck = {
+        status: 'critical',
+        engine: 'offline',
+        postgresConnected: false,
+        latencyMs: Date.now() - dbStart,
+        error: err?.message || 'Erro ao verificar saúde do banco de dados'
+      };
+      alerts.push({
+        severity: 'critical',
+        component: 'database',
+        message: 'Falha crítica no PostgreSQL: Erro ao verificar conexão',
+        timestamp: now.toISOString()
+      });
+    }
+  } else {
+    try {
+      const res = await pool.query('SELECT 1 as alive, NOW() as server_time');
+      const latencyMs = Date.now() - dbStart;
+      dbCheck = {
+        status: 'ok',
+        engine: 'postgres',
+        postgresConnected: true,
+        latencyMs,
+        serverTime: res.rows[0]?.server_time || null
+      };
+    } catch (err: any) {
+      dbCheck = {
+        status: 'critical',
+        engine: 'offline',
+        postgresConnected: false,
+        latencyMs: Date.now() - dbStart,
+        error: 'PostgreSQL indisponível ou falha na consulta'
+      };
+      alerts.push({
+        severity: 'critical',
+        component: 'database',
+        message: 'Falha crítica no PostgreSQL: Conexão não responde',
+        timestamp: now.toISOString()
+      });
+    }
   }
 
   // 4. Backup Check
@@ -214,7 +281,7 @@ export async function getMonitoringStatus(
 
   // 6. Security Auth Failures Check
   let authCheck: ComponentHealth = { status: 'ok' };
-  if (dbCheck.status === 'ok') {
+  if (dbCheck.status === 'ok' || (dbCheck.status === 'warning' && dbCheck.sqliteOperational)) {
     try {
       const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
       const res = await pool.query(
@@ -442,15 +509,20 @@ export async function getSecurityDashboardStatus(
   const now = new Date();
   const report = await getMonitoringStatus(pool, reqContext);
 
-  // 1. PostgreSQL Status
-  const pgConnected = report.checks.database.status === 'ok';
+  // 1. PostgreSQL Status (nunca reportar fallback SQLite como PostgreSQL operacional)
+  const pgConnected = report.checks.database.status === 'ok' && report.checks.database.postgresConnected !== false;
+  const isFallbackActive = Boolean(report.checks.database.sqliteOperational && !pgConnected);
   const postgresStatus = {
     label: 'Status do PostgreSQL',
     status: pgConnected ? ('Operacional' as const) : ('Crítico' as const),
-    value: pgConnected ? `Operacional (${report.checks.database.latencyMs || 0}ms)` : 'Indisponível',
-    latencyMs: report.checks.database.latencyMs || null,
+    value: pgConnected
+      ? `Operacional (${report.checks.database.latencyMs || 0}ms)`
+      : (isFallbackActive ? 'Indisponível (Fallback SQLite ativo)' : 'Indisponível'),
+    latencyMs: pgConnected ? (report.checks.database.latencyMs || null) : null,
     serverTime: report.checks.database.serverTime || null,
-    details: pgConnected ? 'Conexão ativa e estável com banco de dados' : (report.checks.database.error || 'Falha de conexão')
+    details: pgConnected
+      ? 'Conexão ativa e estável com banco de dados'
+      : (report.checks.database.error || 'Falha de conexão')
   };
 
   // 2. Último Backup & 3. Idade do Último Backup & 6. Teste de Restauração
@@ -520,7 +592,7 @@ export async function getSecurityDashboardStatus(
   let auditLogsCount = 0;
   let lastLogAt: string | null = null;
   let auditStatus: 'Operacional' | 'Não disponível' = 'Não disponível';
-  if (pgConnected) {
+  if (pgConnected || isFallbackActive) {
     try {
       const auditRes = await pool.query('SELECT COUNT(*) as total_count, MAX(created_at) as last_log FROM audit_logs');
       auditLogsCount = Number(auditRes.rows[0]?.total_count || 0);

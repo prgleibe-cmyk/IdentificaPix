@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useContext, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { getCachedContributors, invalidateContributorsCache, notifyContributorUpdated, subscribeToContributorUpdates } from '../../services/contributorsCache';
 import { formatDateToDmy, formatDateToYmd } from '../../portal/utils/portalFormatters';
 import { useUI } from '../../contexts/UIContext';
@@ -29,9 +30,17 @@ const authFetch = async (url: string, init: RequestInit = {}) => {
     return fetch(url, { ...init, headers });
 };
 
-export const ContributorsList: React.FC = () => {
+export const ContributorsList: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
     const { showToast } = useUI();
-    const { churches } = useContext(AppContext);
+    const {
+        churches,
+        customRoles = [],
+        supplierCategories = [],
+        addTenantOption,
+        renameTenantOption,
+        deleteTenantOption,
+        openDeleteConfirmation
+    } = useContext(AppContext);
     const { subscription, user, isSecondaryUser } = useAuth();
     
     // Principal User check: owner, admin, principal or ownerId matching user.id (strictly false for secondary users)
@@ -72,137 +81,74 @@ export const ContributorsList: React.FC = () => {
     const [contactPerson, setContactPerson] = useState('');
     const [category, setCategory] = useState('');
     
-    // Vínculo / Cargo States
-    const DEFAULT_ROLES_LIST = [
-        'Membro',
-        'Visitante',
-        'Pastor / Pastora',
-        'Diácono / Diaconisa',
-        'Presbítero / Evangelista',
-        'Obreiro / Obreira',
-        'Líder de Ministério / Célula',
-        'Voluntário',
-        'Dizimista',
-        'Músico / Louvor',
-        'Prestador de Serviços',
-        'Fornecedor / Empresa',
-        'Concessionária / Utilidades',
-        'Outro'
-    ];
-
-    const DEFAULT_SUPPLIER_CATEGORIES = [
-        'Construção e Reformas',
-        'Equipamentos de Som / Iluminação',
-        'Prestação de Serviços Técnicos',
-        'Água, Energia, Internet e Concessionárias',
-        'Alimentação, Eventos e Buffet',
-        'Gráfica, Comunicação Visual e Papelaria',
-        'Outros Fornecedores'
-    ];
-
     const [rolePosition, setRolePosition] = useState<string>('Membro');
-    const [customRoles, setCustomRoles] = useState<string[]>(() => {
-        try {
-            const saved = localStorage.getItem('iggestor_custom_roles_v1');
-            if (saved) {
-                const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-            }
-        } catch (e) {
-            console.error('Error loading custom roles', e);
-        }
-        return DEFAULT_ROLES_LIST;
-    });
 
-    const [supplierCategories, setSupplierCategories] = useState<string[]>(() => {
-        try {
-            const saved = localStorage.getItem('iggestor_supplier_categories_v1');
-            if (saved) {
-                const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-            }
-        } catch (e) {
-            console.error('Error loading supplier categories', e);
-        }
-        return DEFAULT_SUPPLIER_CATEGORIES;
-    });
-
-    const saveCustomRoles = (updated: string[]) => {
-        setCustomRoles(updated);
-        try {
-            localStorage.setItem('iggestor_custom_roles_v1', JSON.stringify(updated));
-        } catch (e) {
-            console.error('Error saving custom roles', e);
-        }
-    };
-
-    const handleAddRole = (newRole: string) => {
+    const handleAddRole = async (newRole: string) => {
         const trimmed = newRole.trim();
         if (!trimmed) return;
-        if (!customRoles.includes(trimmed)) {
-            const updated = [...customRoles, trimmed];
-            saveCustomRoles(updated);
-        }
-        setRolePosition(trimmed);
-        setCategory(trimmed);
-    };
-
-    const handleRenameRole = (oldRole: string, newRole: string) => {
-        const trimmed = newRole.trim();
-        if (!trimmed) return;
-        const updated = customRoles.map(r => r === oldRole ? trimmed : r);
-        saveCustomRoles(updated);
-        if (rolePosition === oldRole) {
+        const ok = addTenantOption ? await addTenantOption('contributor_role', trimmed) : true;
+        if (ok) {
             setRolePosition(trimmed);
             setCategory(trimmed);
         }
     };
 
-    const handleDeleteRole = (roleToDelete: string) => {
-        const updated = customRoles.filter(r => r !== roleToDelete);
-        saveCustomRoles(updated);
-        if (rolePosition === roleToDelete) {
+    const handleRenameRole = async (oldRole: string, newRole: string) => {
+        const trimmed = newRole.trim();
+        if (!trimmed) return;
+        const ok = renameTenantOption ? await renameTenantOption('contributor_role', oldRole, trimmed) : true;
+        if (ok && rolePosition === oldRole) {
+            setRolePosition(trimmed);
+            setCategory(trimmed);
+        }
+    };
+
+    const handleDeleteRole = async (roleToDelete: string) => {
+        const ok = deleteTenantOption ? await deleteTenantOption('contributor_role', roleToDelete) : true;
+        if (ok && rolePosition === roleToDelete) {
             setRolePosition('');
             setCategory('');
         }
     };
 
-    const saveSupplierCategories = (updated: string[]) => {
-        setSupplierCategories(updated);
-        try {
-            localStorage.setItem('iggestor_supplier_categories_v1', JSON.stringify(updated));
-        } catch (e) {
-            console.error('Error saving supplier categories', e);
-        }
-    };
-
-    const handleAddSupplierCategory = (newCat: string) => {
+    const handleAddSupplierCategory = async (newCat: string) => {
         const trimmed = newCat.trim();
         if (!trimmed) return;
-        if (!supplierCategories.includes(trimmed)) {
-            const updated = [...supplierCategories, trimmed];
-            saveSupplierCategories(updated);
-        }
-        setCategory(trimmed);
-    };
-
-    const handleRenameSupplierCategory = (oldCat: string, newCat: string) => {
-        const trimmed = newCat.trim();
-        if (!trimmed) return;
-        const updated = supplierCategories.map(c => c === oldCat ? trimmed : c);
-        saveSupplierCategories(updated);
-        if (category === oldCat) {
+        const ok = addTenantOption ? await addTenantOption('supplier_category', trimmed) : true;
+        if (ok) {
             setCategory(trimmed);
         }
     };
 
-    const handleDeleteSupplierCategory = (catToDelete: string) => {
-        const updated = supplierCategories.filter(c => c !== catToDelete);
-        saveSupplierCategories(updated);
-        if (category === catToDelete) {
+    const handleRenameSupplierCategory = async (oldCat: string, newCat: string) => {
+        const trimmed = newCat.trim();
+        if (!trimmed) return;
+        const ok = renameTenantOption ? await renameTenantOption('supplier_category', oldCat, trimmed) : true;
+        if (ok && category === oldCat) {
+            setCategory(trimmed);
+        }
+    };
+
+    const handleDeleteSupplierCategory = async (catToDelete: string) => {
+        const ok = deleteTenantOption ? await deleteTenantOption('supplier_category', catToDelete) : true;
+        if (ok && category === catToDelete) {
             setCategory('');
         }
     };
+
+    const availableCustomRoles = useMemo(() => {
+        if (rolePosition && !customRoles.includes(rolePosition)) {
+            return [...customRoles, rolePosition];
+        }
+        return customRoles;
+    }, [customRoles, rolePosition]);
+
+    const availableSupplierCategories = useMemo(() => {
+        if (category && !supplierCategories.includes(category)) {
+            return [...supplierCategories, category];
+        }
+        return supplierCategories;
+    }, [supplierCategories, category]);
 
     const [phone, setPhone] = useState('');
     const [email, setEmail] = useState('');
@@ -574,7 +520,7 @@ export const ContributorsList: React.FC = () => {
     const handleRepairChurchNames = async () => {
         setIsRepairingChurches(true);
         try {
-            const res = await fetch('/api/v1/contributors/repair-churches', {
+            const res = await authFetch('/api/v1/contributors/repair-churches', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' }
             });
@@ -656,23 +602,9 @@ export const ContributorsList: React.FC = () => {
 
         const savedCat = contributor.category || '';
         setCategory(savedCat);
-        if (savedCat && !supplierCategories.includes(savedCat)) {
-            const nextCats = [...supplierCategories, savedCat];
-            setSupplierCategories(nextCats);
-            try {
-                localStorage.setItem('iggestor_supplier_categories_v1', JSON.stringify(nextCats));
-            } catch(e) {}
-        }
 
         const savedRole = contributor.role_position || contributor.category || 'Membro';
         setRolePosition(savedRole);
-        if (savedRole && !customRoles.includes(savedRole)) {
-            const nextRoles = [...customRoles, savedRole];
-            setCustomRoles(nextRoles);
-            try {
-                localStorage.setItem('iggestor_custom_roles_v1', JSON.stringify(nextRoles));
-            } catch(e) {}
-        }
 
         setPhone(contributor.phone || '');
         setEmail(contributor.email || '');
@@ -704,49 +636,63 @@ export const ContributorsList: React.FC = () => {
         setIsModalOpen(true);
     };
 
-    const handleDeleteContributor = async (id: string, name: string) => {
-        if (!confirm(`Tem certeza que deseja inativar o contribuinte "${name}"?`)) {
-            return;
-        }
-        try {
-            const response = await authFetch(`/api/v1/contributors/${id}`, {
-                method: 'DELETE'
-            });
-            if (response.ok) {
-                showToast("Contribuinte inativado com sucesso.", "success");
-                invalidateContributorsCache();
-                fetchContributors(true);
-                notifyContributorUpdated();
-            } else {
-                showToast("Falha ao inativar contribuinte.", "error");
+    const handleDeleteContributor = (id: string, name: string) => {
+        openDeleteConfirmation({
+            type: 'contributor-inactivate',
+            id,
+            name,
+            meta: {
+                confirmLabel: 'Inativar',
+                onConfirm: async () => {
+                    try {
+                        const response = await authFetch(`/api/v1/contributors/${id}`, {
+                            method: 'DELETE'
+                        });
+                        if (response.ok) {
+                            showToast("Contribuinte inativado com sucesso.", "success");
+                            invalidateContributorsCache();
+                            fetchContributors(true);
+                            notifyContributorUpdated();
+                        } else {
+                            showToast("Falha ao inativar contribuinte.", "error");
+                        }
+                    } catch (error) {
+                        console.error('[ContributorsList] Error deleting contributor:', error);
+                        showToast("Falha ao inativar contribuinte.", "error");
+                    }
+                }
             }
-        } catch (error) {
-            console.error('[ContributorsList] Error deleting contributor:', error);
-            showToast("Falha ao inativar contribuinte.", "error");
-        }
+        });
     };
 
-    const handleDeletePermanent = async (id: string, name: string) => {
-        if (!confirm(`ATENÇÃO: Você deseja EXCLUIR DEFINITIVAMENTE o cadastro do contribuinte "${name}"?\nEsta ação é irreversível e removerá permanentemente o cadastro do banco de dados.`)) {
-            return;
-        }
-        try {
-            // Clear from the contributors table on VPS (which now internally unlinks transactions and deletes learned associations)
-            const response = await authFetch(`/api/v1/contributors/${id}?hard=true`, {
-                method: 'DELETE'
-            });
-            if (response.ok) {
-                showToast("Contribuinte excluído definitivamente.", "success");
-                invalidateContributorsCache();
-                fetchContributors(true);
-                notifyContributorUpdated();
-            } else {
-                showToast("Falha ao excluir contribuinte definitivamente.", "error");
+    const handleDeletePermanent = (id: string, name: string) => {
+        openDeleteConfirmation({
+            type: 'contributor-permanent',
+            id,
+            name,
+            meta: {
+                confirmLabel: 'Excluir Definitivamente',
+                onConfirm: async () => {
+                    try {
+                        // Clear from the contributors table on VPS (which now internally unlinks transactions and deletes learned associations)
+                        const response = await authFetch(`/api/v1/contributors/${id}?hard=true`, {
+                            method: 'DELETE'
+                        });
+                        if (response.ok) {
+                            showToast("Contribuinte excluído definitivamente.", "success");
+                            invalidateContributorsCache();
+                            fetchContributors(true);
+                            notifyContributorUpdated();
+                        } else {
+                            showToast("Falha ao excluir contribuinte definitivamente.", "error");
+                        }
+                    } catch (error) {
+                        console.error('[ContributorsList] Error hard deleting contributor:', error);
+                        showToast("Falha ao excluir contribuinte definitivamente.", "error");
+                    }
+                }
             }
-        } catch (error) {
-            console.error('[ContributorsList] Error hard deleting contributor:', error);
-            showToast("Falha ao excluir contribuinte definitivamente.", "error");
-        }
+        });
     };
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -808,6 +754,19 @@ export const ContributorsList: React.FC = () => {
             fileInputRef.current.value = '';
         }
     };
+
+    useEffect(() => {
+        if (!isModalOpen) return;
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                handleCloseModal();
+            }
+        };
+        window.addEventListener('keydown', onKeyDown, true);
+        return () => window.removeEventListener('keydown', onKeyDown, true);
+    }, [isModalOpen]);
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -1010,62 +969,72 @@ export const ContributorsList: React.FC = () => {
     }, [filteredContributors, displayLimit]);
 
     return (
-        <div className="h-full flex-1 min-h-[550px] flex flex-col animate-fade-in relative" id="contributors-container">
-            {isModalOpen ? (
-                /* INLINE NEW / EDIT CONTRIBUTOR FORM */
-                <div className="flex-shrink-0 bg-slate-50 dark:bg-slate-900/80 p-4 md:p-6 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-4 animate-fade-in mb-6 w-full" id="contributor-form-panel">
-                    <form onSubmit={handleSave} className="space-y-4 w-full" id="contributor-inline-form">
-                        
+        <div className={`${embedded ? 'min-h-0 flex-1' : 'h-full flex-1 min-h-[550px]'} flex flex-col animate-fade-in relative`} id="contributors-container">
+            {isModalOpen && typeof document !== 'undefined' && createPortal(
+                <div
+                    data-register-overlay="true"
+                    className="fixed inset-0 z-[56] flex items-center justify-center pt-16 md:pt-5 pb-3 md:pb-5 px-2 sm:px-6 bg-slate-900/55 backdrop-blur-[2px] animate-fade-in"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        handleCloseModal();
+                    }}
+                >
+                    <form
+                        onSubmit={handleSave}
+                        onClick={(e) => e.stopPropagation()}
+                        className="relative bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[calc(100dvh-5rem)] md:max-h-[min(88vh,calc(100dvh-3rem))] flex flex-col overflow-hidden animate-scale-in"
+                        id="contributor-form-panel"
+                    >
                         {/* Form Header */}
-                        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 flex-wrap gap-2">
-                            <div className="flex items-center space-x-3 flex-wrap gap-y-2">
-                                <div className="p-2.5 rounded-xl bg-slate-700 text-white shadow-md shadow-slate-500/20">
-                                    <UsersIcon className="w-4 h-4" />
+                        <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-start sm:items-center justify-between gap-3 flex-shrink-0 bg-white dark:bg-slate-900">
+                            <div className="flex-1 min-w-0 flex items-center gap-3 flex-wrap">
+                                <div className="w-9 h-9 rounded-xl bg-orange-50 dark:bg-orange-950/50 border border-orange-200/70 dark:border-orange-900/50 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
+                                    <UsersIcon className="w-5 h-5" />
                                 </div>
-                                <div>
-                                    <h4 className="text-xs md:text-sm font-black uppercase text-slate-800 dark:text-white tracking-wider" id="contributor-form-title">
+                                <div className="min-w-0">
+                                    <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight truncate" id="contributor-form-title">
                                         {editingContributor ? 'Editar Empresa / Pessoa' : 'Nova Empresa / Pessoa'}
-                                    </h4>
-                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mt-0.5">
-                                        Gerenciamento de Pessoas, Empresas e Fornecedores
-                                    </span>
+                                    </h3>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                                        Gerenciamento de pessoas, empresas e fornecedores.
+                                    </p>
                                 </div>
 
                                 {/* Switcher Pill PF / PJ */}
-                                <div className="inline-flex items-center p-0.5 rounded-xl bg-slate-200/80 dark:bg-slate-800 border border-slate-300/60 dark:border-slate-700 text-[10px] ml-2" id="toggle-person-type">
+                                <div className="inline-flex items-center p-1 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 gap-0.5 ml-1" id="toggle-person-type">
                                     <button
                                         type="button"
                                         onClick={() => setPersonType('PF')}
-                                        className={`px-3 py-1 rounded-lg text-[10px] font-extrabold uppercase transition-all cursor-pointer flex items-center space-x-1.5 ${
+                                        className={`px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                                             personType === 'PF'
                                                 ? 'bg-blue-600 text-white shadow-xs'
-                                                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                                                : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
                                         }`}
                                         id="btn-type-pf"
                                     >
-                                        <User className="w-3 h-3" />
-                                        <span>• Pessoa Física (PF)</span>
+                                        <User className="w-3.5 h-3.5" />
+                                        <span>Pessoa Física (PF)</span>
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => setPersonType('PJ')}
-                                        className={`px-3 py-1 rounded-lg text-[10px] font-extrabold uppercase transition-all cursor-pointer flex items-center space-x-1.5 ${
+                                        className={`px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                                             personType === 'PJ'
                                                 ? 'bg-amber-600 text-white shadow-xs'
-                                                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                                                : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
                                         }`}
                                         id="btn-type-pj"
                                     >
-                                        <Building2 className="w-3 h-3" />
-                                        <span>• Empresa / PJ</span>
+                                        <Building2 className="w-3.5 h-3.5" />
+                                        <span>Empresa / PJ</span>
                                     </button>
                                 </div>
                             </div>
 
-                            <button 
-                                type="button" 
-                                onClick={handleCloseModal} 
-                                className="p-1.5 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer" 
+                            <button
+                                type="button"
+                                onClick={handleCloseModal}
+                                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer shrink-0"
                                 id="btn-close-contributor-form"
                                 title="Fechar formulário"
                             >
@@ -1073,20 +1042,21 @@ export const ContributorsList: React.FC = () => {
                             </button>
                         </div>
 
-                        {/* Form Body with inputs - Full Width */}
-                        <div className="space-y-4 md:space-y-5 w-full">
+                        {/* Form Body with inputs - Scrollable */}
+                        <div className="p-4 sm:p-5 flex-1 min-h-0 overflow-y-auto custom-scrollbar w-full space-y-4">
+                            <div className="space-y-4 w-full">
                             
                             {/* BLOCO 1: DADOS DE IDENTIFICAÇÃO E FOTO/LOGO INTEGRADOS */}
-                            <div className="p-4 bg-white dark:bg-slate-900/60 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-4 shadow-xs">
-                                <div className="flex items-center space-x-2 text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider">
-                                    <Building2 className="w-4 h-4 text-brand-blue" />
-                                    <span>Identificação Principal & Foto / Logotipo</span>
+                            <div className="p-4 bg-white dark:bg-slate-900/70 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-4 shadow-xs">
+                                <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200 pb-2 border-b border-slate-100 dark:border-slate-800">
+                                    <Building2 className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                                    <span>Identificação Principal e Foto / Logotipo</span>
                                 </div>
 
                                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
                                     {/* Upload Foto / Logo */}
-                                    <div className="lg:col-span-3 flex flex-col items-center justify-center p-3 bg-slate-50 dark:bg-slate-900/80 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 text-center">
-                                        <div className="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden relative group flex items-center justify-center shadow-xs mb-2">
+                                    <div className="lg:col-span-3 flex flex-col items-center justify-center p-3 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-center">
+                                        <div className="w-20 h-20 md:w-24 md:h-24 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden relative group flex items-center justify-center shadow-xs mb-2">
                                             {photoPreview ? (
                                                 <img 
                                                     src={photoPreview} 
@@ -1100,7 +1070,7 @@ export const ContributorsList: React.FC = () => {
                                             )}
                                             <div 
                                                 onClick={() => fileInputRef.current?.click()}
-                                                className="absolute inset-0 bg-slate-900/60 text-white opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center cursor-pointer text-[10px] font-bold"
+                                                className="absolute inset-0 bg-slate-900/60 text-white opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center cursor-pointer text-[11px] font-semibold"
                                             >
                                                 <Camera className="w-4 h-4 mb-1" />
                                                 <span>Alterar</span>
@@ -1111,7 +1081,7 @@ export const ContributorsList: React.FC = () => {
                                             <button 
                                                 type="button" 
                                                 onClick={() => fileInputRef.current?.click()}
-                                                className="px-2.5 py-1 text-[9px] font-black uppercase text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 rounded-lg shadow-2xs cursor-pointer"
+                                                className="px-3 py-1 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 rounded-lg shadow-2xs cursor-pointer"
                                             >
                                                 {photoPreview ? 'Trocar' : 'Carregar'}
                                             </button>
@@ -1131,15 +1101,15 @@ export const ContributorsList: React.FC = () => {
                                             ref={fileInputRef} 
                                             onChange={handleFileChange} 
                                             accept="image/*" 
-                                            className="hidden" 
+                                            className="hidden"
                                         />
                                     </div>
 
                                     {/* Campos Principais */}
-                                    <div className="lg:col-span-9 grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        <div className="md:col-span-2">
-                                            <label htmlFor="contributor-name" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                                {personType === 'PF' ? 'Nome Completo / Canônico *' : 'Razão Social Completa *'}
+                                    <div className="lg:col-span-9 grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                        <div className="md:col-span-2 space-y-1">
+                                            <label htmlFor="contributor-name" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
+                                                {personType === 'PF' ? 'Nome Completo / Canônico' : 'Razão Social Completa'} <span className="text-rose-500">*</span>
                                             </label>
                                             <input 
                                                 type="text" 
@@ -1147,19 +1117,19 @@ export const ContributorsList: React.FC = () => {
                                                 value={fullName} 
                                                 onChange={(e) => setFullName(e.target.value)} 
                                                 placeholder={personType === 'PF' ? "Ex: JOÃO DA SILVA SANTOS" : "Ex: EMPRESA DISTRIBUIDORA LTDA"}
-                                                className={`block w-full rounded-xl border ${isNameInvalid ? 'border-red-500 focus:ring-red-500' : 'border-slate-200 dark:border-slate-700'} bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold uppercase`}
+                                                className={`block w-full rounded-lg border ${isNameInvalid ? 'border-red-500 focus:ring-red-500/20' : 'border-slate-300 dark:border-slate-700 focus:ring-orange-500/20 focus:border-orange-500'} bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-semibold uppercase transition-all`}
                                                 required
                                             />
                                             {isNameInvalid && (
-                                                <span className="text-[10px] text-red-500 font-bold mt-1 block">
+                                                <span className="text-xs text-red-500 font-medium mt-1 block">
                                                     O nome é obrigatório.
                                                 </span>
                                             )}
                                         </div>
 
                                         {personType === 'PJ' && (
-                                            <div>
-                                                <label htmlFor="contributor-tradename" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                            <div className="space-y-1">
+                                                <label htmlFor="contributor-tradename" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                                                     Nome Fantasia / Comercial
                                                 </label>
                                                 <input 
@@ -1168,20 +1138,20 @@ export const ContributorsList: React.FC = () => {
                                                     value={tradeName} 
                                                     onChange={(e) => setTradeName(e.target.value)} 
                                                     placeholder="Ex: Comercial Silva"
-                                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                                    className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-medium focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
                                                 />
                                             </div>
                                         )}
 
-                                        <div>
-                                            <label htmlFor="contributor-church" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                                Igreja / Congregação Vinculada *
+                                        <div className="space-y-1">
+                                            <label htmlFor="contributor-church" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
+                                                Igreja / Congregação Vinculada <span className="text-rose-500">*</span>
                                             </label>
                                             <select 
                                                 id="contributor-church" 
                                                 value={selectedChurchId} 
                                                 onChange={(e) => setSelectedChurchId(e.target.value)} 
-                                                className={`block w-full rounded-xl border ${isChurchInvalid ? 'border-red-500 focus:ring-red-500' : 'border-slate-200 dark:border-slate-700'} bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold`}
+                                                className={`block w-full rounded-lg border ${isChurchInvalid ? 'border-red-500 focus:ring-red-500/20' : 'border-slate-300 dark:border-slate-700 focus:ring-orange-500/20 focus:border-orange-500'} bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-semibold transition-all cursor-pointer`}
                                                 required
                                             >
                                                 {tempChurches.map((c: any) => (
@@ -1191,7 +1161,7 @@ export const ContributorsList: React.FC = () => {
                                                 ))}
                                             </select>
                                             {isChurchInvalid && (
-                                                <span className="text-[10px] text-red-500 font-bold mt-1 block">
+                                                <span className="text-xs text-red-500 font-medium mt-1 block">
                                                     Selecione uma igreja válida.
                                                 </span>
                                             )}
@@ -1205,9 +1175,9 @@ export const ContributorsList: React.FC = () => {
                                                     id="contributor-global" 
                                                     checked={isGlobal} 
                                                     onChange={(e) => setIsGlobal(e.target.checked)} 
-                                                    className="w-4 h-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue cursor-pointer"
+                                                    className="w-4 h-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500 cursor-pointer"
                                                 />
-                                                <label htmlFor="contributor-global" className="text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                                                <label htmlFor="contributor-global" className="text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">
                                                     Visível em todas as igrejas / congregações (Global)
                                                 </label>
                                             </div>
@@ -1215,20 +1185,20 @@ export const ContributorsList: React.FC = () => {
 
                                         {/* Status */}
                                         <div className="flex items-center space-x-2 pt-2">
-                                            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                            <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
                                                 Status:
                                             </label>
-                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${status === 'Ativo' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-600'}`}>
+                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold ${status === 'Ativo' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-600'}`}>
                                                 {status}
                                             </span>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className={`grid grid-cols-1 ${personType === 'PJ' ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-3 pt-2 border-t border-slate-100 dark:border-slate-800`}>
-                                    <div>
-                                        <label htmlFor="contributor-cpf" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                            {personType === 'PF' ? 'CPF' : 'CNPJ'} <span className="text-red-500 font-black">*</span>
+                                <div className={`grid grid-cols-1 ${personType === 'PJ' ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-3.5 pt-3 border-t border-slate-100 dark:border-slate-800`}>
+                                    <div className="space-y-1">
+                                        <label htmlFor="contributor-cpf" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
+                                            {personType === 'PF' ? 'CPF' : 'CNPJ'} <span className="text-rose-500">*</span>
                                         </label>
                                         <input 
                                             type="text" 
@@ -1236,23 +1206,23 @@ export const ContributorsList: React.FC = () => {
                                             value={cpf} 
                                             onChange={(e) => setCpf(formatCpfCnpj(e.target.value))} 
                                             placeholder={personType === 'PF' ? "000.000.000-00" : "00.000.000/0000-00"}
-                                            className={`block w-full rounded-xl border ${isCpfInvalid ? 'border-red-500 ring-1 ring-red-500 bg-red-50/20' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900'} text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-mono font-bold transition-all`}
+                                            className={`block w-full rounded-lg border ${isCpfInvalid ? 'border-red-500 ring-1 ring-red-500 bg-red-50/20' : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500'} text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-mono font-semibold transition-all`}
                                         />
                                         {isCpfInvalid && (
-                                            <span className="text-[9px] text-red-500 font-bold mt-1 block">
+                                            <span className="text-[11px] text-red-500 font-medium mt-1 block">
                                                 {personType === 'PF' ? 'CPF obrigatório com 11 dígitos.' : 'CNPJ obrigatório com 14 dígitos.'}
                                             </span>
                                         )}
                                         {existingContributorWithCpf && (
-                                            <span className="text-[9px] text-amber-500 font-bold mt-1 block">
+                                            <span className="text-[11px] text-amber-600 font-medium mt-1 block">
                                                 ⚠️ Já existe cadastro ativo com este documento: {existingContributorWithCpf.canonical_name}
                                             </span>
                                         )}
                                     </div>
 
                                     {personType === 'PJ' && (
-                                        <div>
-                                            <label htmlFor="contributor-rgie" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                        <div className="space-y-1">
+                                            <label htmlFor="contributor-rgie" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                                                 Inscrição Estadual (IE)
                                             </label>
                                             <input 
@@ -1261,13 +1231,13 @@ export const ContributorsList: React.FC = () => {
                                                 value={rgIe} 
                                                 onChange={(e) => setRgIe(e.target.value)} 
                                                 placeholder="Isento ou Nº IE"
-                                                className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                                className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-medium focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
                                             />
                                         </div>
                                     )}
 
-                                    <div>
-                                        <label htmlFor="contributor-birth" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                    <div className="space-y-1">
+                                        <label htmlFor="contributor-birth" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                                             {personType === 'PF' ? 'Data de Nascimento' : 'Data de Fundação'}
                                         </label>
                                         <input 
@@ -1275,12 +1245,12 @@ export const ContributorsList: React.FC = () => {
                                             id="contributor-birth" 
                                             value={birthDate} 
                                             onChange={(e) => setBirthDate(e.target.value)} 
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                            className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-medium focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
                                         />
                                     </div>
 
-                                    <div>
-                                        <label htmlFor="contributor-role" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                    <div className="space-y-1">
+                                        <label htmlFor="contributor-role" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                                             {personType === 'PF' ? 'Vínculo / Cargo Eclesiástico' : 'Categoria / Ramo de Atuação'}
                                         </label>
                                         {personType === 'PF' ? (
@@ -1290,7 +1260,7 @@ export const ContributorsList: React.FC = () => {
                                                     setRolePosition(val);
                                                     setCategory(val);
                                                 }}
-                                                roles={customRoles}
+                                                roles={availableCustomRoles}
                                                 onAddRole={handleAddRole}
                                                 onRenameRole={handleRenameRole}
                                                 onDeleteRole={handleDeleteRole}
@@ -1304,7 +1274,7 @@ export const ContributorsList: React.FC = () => {
                                                 onChange={(val) => {
                                                     setCategory(val);
                                                 }}
-                                                roles={supplierCategories}
+                                                roles={availableSupplierCategories}
                                                 onAddRole={handleAddSupplierCategory}
                                                 onRenameRole={handleRenameSupplierCategory}
                                                 onDeleteRole={handleDeleteSupplierCategory}
@@ -1318,16 +1288,16 @@ export const ContributorsList: React.FC = () => {
                             </div>
 
                             {/* BLOCO 2: CONTATO & ENDEREÇO */}
-                            <div className="p-4 bg-white dark:bg-slate-900/60 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-3 shadow-xs">
-                                <div className="flex items-center space-x-2 text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider">
+                            <div className="p-4 bg-white dark:bg-slate-900/70 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-3.5 shadow-xs">
+                                <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200 pb-2 border-b border-slate-100 dark:border-slate-800">
                                     <Phone className="w-4 h-4 text-emerald-500" />
-                                    <span>Contato & Endereço</span>
+                                    <span>Contato e Endereço</span>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
                                     {personType === 'PJ' && (
-                                        <div>
-                                            <label htmlFor="contributor-contact" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                        <div className="space-y-1">
+                                            <label htmlFor="contributor-contact" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                                                 Pessoa de Contato / Representante
                                             </label>
                                             <input 
@@ -1336,13 +1306,13 @@ export const ContributorsList: React.FC = () => {
                                                 value={contactPerson} 
                                                 onChange={(e) => setContactPerson(e.target.value)} 
                                                 placeholder="Ex: Carlos Oliveira (Gerente)"
-                                                className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                                className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-medium focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
                                             />
                                         </div>
                                     )}
 
-                                    <div>
-                                        <label htmlFor="contributor-phone" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                    <div className="space-y-1">
+                                        <label htmlFor="contributor-phone" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                                             Telefone / WhatsApp
                                         </label>
                                         <input 
@@ -1351,12 +1321,12 @@ export const ContributorsList: React.FC = () => {
                                             value={phone} 
                                             onChange={(e) => setPhone(e.target.value)} 
                                             placeholder="(00) 00000-0000"
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                            className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-medium focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
                                         />
                                     </div>
 
-                                    <div className={personType === 'PF' ? 'md:col-span-2' : ''}>
-                                        <label htmlFor="contributor-email" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                    <div className={`space-y-1 ${personType === 'PF' ? 'md:col-span-2' : ''}`}>
+                                        <label htmlFor="contributor-email" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                                             E-mail
                                         </label>
                                         <input 
@@ -1365,14 +1335,14 @@ export const ContributorsList: React.FC = () => {
                                             value={email} 
                                             onChange={(e) => setEmail(e.target.value)} 
                                             placeholder="exemplo@contato.com"
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                            className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-medium focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
                                         />
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-1 border-t border-slate-100 dark:border-slate-800">
-                                    <div>
-                                        <label htmlFor="contributor-cep" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-3.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                                    <div className="space-y-1">
+                                        <label htmlFor="contributor-cep" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                                             CEP
                                         </label>
                                         <input 
@@ -1381,12 +1351,12 @@ export const ContributorsList: React.FC = () => {
                                             value={addressCep} 
                                             onChange={(e) => setAddressCep(e.target.value)} 
                                             placeholder="00000-000"
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                            className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-medium focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
                                         />
                                     </div>
 
-                                    <div className="md:col-span-2">
-                                        <label htmlFor="contributor-street" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                    <div className="md:col-span-2 space-y-1">
+                                        <label htmlFor="contributor-street" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                                             Logradouro / Endereço
                                         </label>
                                         <input 
@@ -1395,12 +1365,12 @@ export const ContributorsList: React.FC = () => {
                                             value={addressStreet} 
                                             onChange={(e) => setAddressStreet(e.target.value)} 
                                             placeholder="Ex: Rua das Flores, Av. Central"
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                            className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-medium focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
                                         />
                                     </div>
 
-                                    <div>
-                                        <label htmlFor="contributor-number" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                    <div className="space-y-1">
+                                        <label htmlFor="contributor-number" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                                             Número / Bairro
                                         </label>
                                         <input 
@@ -1409,14 +1379,14 @@ export const ContributorsList: React.FC = () => {
                                             value={addressNumber} 
                                             onChange={(e) => setAddressNumber(e.target.value)} 
                                             placeholder="Nº 123, Bairro Centro"
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                            className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-medium focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
                                         />
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                                    <div className="md:col-span-3">
-                                        <label htmlFor="contributor-city" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-3.5">
+                                    <div className="md:col-span-3 space-y-1">
+                                        <label htmlFor="contributor-city" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                                             Cidade
                                         </label>
                                         <input 
@@ -1425,12 +1395,12 @@ export const ContributorsList: React.FC = () => {
                                             value={addressCity} 
                                             onChange={(e) => setAddressCity(e.target.value)} 
                                             placeholder="Ex: São Paulo"
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                            className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-medium focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
                                         />
                                     </div>
 
-                                    <div>
-                                        <label htmlFor="contributor-state" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                    <div className="space-y-1">
+                                        <label htmlFor="contributor-state" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                                             UF / Estado
                                         </label>
                                         <input 
@@ -1440,34 +1410,34 @@ export const ContributorsList: React.FC = () => {
                                             onChange={(e) => setAddressState(e.target.value.toUpperCase())} 
                                             placeholder="SP"
                                             maxLength={2}
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold uppercase"
+                                            className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-semibold uppercase focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
                                         />
                                     </div>
                                 </div>
                             </div>
 
                             {/* BLOCO 3: DADOS BANCÁRIOS & PIX (OCULTO POR PADRÃO / BOTÃO DISCRETO) */}
-                            <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/60 overflow-hidden shadow-xs transition-all">
+                            <div className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/70 overflow-hidden shadow-xs transition-all">
                                 <button
                                     type="button"
                                     onClick={() => setShowBankDetails(prev => !prev)}
                                     className="w-full p-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors cursor-pointer group"
                                 >
-                                    <div className="flex items-center space-x-2 text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider">
+                                    <div className="flex items-center space-x-2 text-xs font-bold text-slate-800 dark:text-slate-200">
                                         <Landmark className="w-4 h-4 text-cyan-500 group-hover:scale-110 transition-transform" />
-                                        <span>Dados Bancários & Chave Pix</span>
+                                        <span>Dados Bancários e Chave Pix</span>
                                         {(pixKey || bankName || bankAccount) ? (
-                                            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-full border border-emerald-200/60 dark:border-emerald-800/60">
+                                            <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-md border border-emerald-200/60 dark:border-emerald-800/60">
                                                 Preenchido
                                             </span>
                                         ) : (
-                                            <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 lowercase">
+                                            <span className="text-xs font-normal text-slate-400 dark:text-slate-500">
                                                 (opcional)
                                             </span>
                                         )}
                                     </div>
                                     <div className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300 transition-colors">
-                                        <span className="text-[11px] font-semibold hidden sm:inline">
+                                        <span className="text-xs font-semibold hidden sm:inline">
                                             {showBankDetails ? 'Recolher' : 'Adicionar / Visualizar'}
                                         </span>
                                         {showBankDetails ? (
@@ -1479,10 +1449,10 @@ export const ContributorsList: React.FC = () => {
                                 </button>
 
                                 {showBankDetails && (
-                                    <div className="p-4 pt-1 border-t border-slate-100 dark:border-slate-800/60 space-y-3">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                            <div>
-                                                <label htmlFor="contributor-pix" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                    <div className="p-4 pt-2 border-t border-slate-100 dark:border-slate-800/60 space-y-3.5">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                            <div className="space-y-1">
+                                                <label htmlFor="contributor-pix" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                                                     Chave Pix Principal
                                                 </label>
                                                 <input 
@@ -1491,12 +1461,12 @@ export const ContributorsList: React.FC = () => {
                                                     value={pixKey} 
                                                     onChange={(e) => setPixKey(e.target.value)} 
                                                     placeholder="E-mail, CPF/CNPJ, Telefone ou Aleatória"
-                                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                                    className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-medium focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
                                                 />
                                             </div>
 
-                                            <div>
-                                                <label htmlFor="contributor-bankname" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                            <div className="space-y-1">
+                                                <label htmlFor="contributor-bankname" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                                                     Instituição Bancária / Banco
                                                 </label>
                                                 <input 
@@ -1505,14 +1475,14 @@ export const ContributorsList: React.FC = () => {
                                                     value={bankName} 
                                                     onChange={(e) => setBankName(e.target.value)} 
                                                     placeholder="Ex: Itaú, Bradesco, Banco do Brasil, Nubank, Sicoob"
-                                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                                    className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-medium focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
                                                 />
                                             </div>
                                         </div>
 
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                            <div>
-                                                <label htmlFor="contributor-bankagency" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                            <div className="space-y-1">
+                                                <label htmlFor="contributor-bankagency" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                                                     Agência
                                                 </label>
                                                 <input 
@@ -1521,12 +1491,12 @@ export const ContributorsList: React.FC = () => {
                                                     value={bankAgency} 
                                                     onChange={(e) => setBankAgency(e.target.value)} 
                                                     placeholder="0000"
-                                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                                    className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-medium focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
                                                 />
                                             </div>
 
-                                            <div>
-                                                <label htmlFor="contributor-bankaccount" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                            <div className="space-y-1">
+                                                <label htmlFor="contributor-bankaccount" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                                                     Conta Corrente / Poupança
                                                 </label>
                                                 <input 
@@ -1535,7 +1505,7 @@ export const ContributorsList: React.FC = () => {
                                                     value={bankAccount} 
                                                     onChange={(e) => setBankAccount(e.target.value)} 
                                                     placeholder="00000-0"
-                                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                                    className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-medium focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
                                                 />
                                             </div>
                                         </div>
@@ -1544,8 +1514,8 @@ export const ContributorsList: React.FC = () => {
                             </div>
 
                             {/* BLOCO 4: OBSERVAÇÕES INTERNAS */}
-                            <div className="p-4 bg-white dark:bg-slate-900/60 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-2 shadow-xs">
-                                <label htmlFor="contributor-notes" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                            <div className="p-4 bg-white dark:bg-slate-900/70 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-2 shadow-xs">
+                                <label htmlFor="contributor-notes" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                                     Observações / Anotações Internas
                                 </label>
                                 <textarea 
@@ -1554,92 +1524,110 @@ export const ContributorsList: React.FC = () => {
                                     onChange={(e) => setNotes(e.target.value)} 
                                     rows={2}
                                     placeholder="Anotações sobre condições de pagamento, contratos ou histórico..."
-                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs p-2.5 outline-none font-medium resize-none"
+                                    className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs p-2.5 outline-none font-medium resize-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
                                 />
                             </div>
 
+                            </div>
                         </div>
 
                         {/* Form Actions Footer */}
-                        <div className="flex justify-end space-x-3 pt-3 border-t border-slate-200 dark:border-slate-800" id="contributor-form-actions">
-                            <button 
-                                type="button" 
-                                onClick={handleCloseModal} 
-                                className="px-5 py-2 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-xl shadow-xs hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer" 
+                        <div className="bg-slate-50/80 dark:bg-slate-900/70 px-5 py-3.5 flex justify-end gap-2.5 border-t border-slate-100 dark:border-slate-800 flex-shrink-0" id="contributor-form-actions">
+                            <button
+                                type="button"
+                                onClick={handleCloseModal}
+                                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-lg shadow-xs transition-colors cursor-pointer"
                                 id="btn-cancel-contributor"
                             >
                                 Cancelar
                             </button>
-                            <button 
-                                type="submit" 
-                                className="px-6 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                            <button
+                                type="submit"
+                                className="px-5 py-2 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-xs transition-all cursor-pointer active:scale-95"
                                 id="btn-save-contributor"
                             >
                                 Salvar
                             </button>
                         </div>
-
                     </form>
-                </div>
-            ) : (
-                <>
+                </div>,
+                document.body
+            )}
+
                     {/* Header Area */}
-                    <div className="flex-shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-100 dark:border-slate-700/50">
-                        <div className="flex items-center space-x-3">
-                            <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-2xl text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-slate-800/60">
-                                <UsersIcon className="w-6 h-6" />
+                    <div className={`flex-shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-3 ${embedded ? 'mb-4 pb-3' : 'mb-4 pb-4'} border-b border-slate-100 dark:border-slate-800`}>
+                        {embedded ? (
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700" title="Total de cadastros">
+                                    Total: {totalContributorsCount}
+                                </span>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/40" title="Pessoas Físicas">
+                                    PF: {pfContributorsCount}
+                                </span>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40" title="Empresas / Pessoa Jurídica">
+                                    PJ: {pjContributorsCount}
+                                </span>
                             </div>
-                            <div>
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    <h3 className="font-bold text-base text-slate-800 dark:text-white leading-none">
-                                        Empresas / Pessoas
-                                    </h3>
-                                    {/* Badges / Counters */}
-                                    <div className="flex items-center gap-1.5 ml-1">
-                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-black bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700" title="Total de cadastros">
-                                            Total: {totalContributorsCount}
-                                        </span>
-                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/40" title="Pessoas Físicas">
-                                            PF: {pfContributorsCount}
-                                        </span>
-                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40" title="Empresas / Pessoa Jurídica">
-                                            PJ: {pjContributorsCount}
-                                        </span>
-                                    </div>
+                        ) : (
+                            <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700 flex items-center justify-center shrink-0">
+                                    <UsersIcon className="w-5 h-5" />
                                 </div>
-                                <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1">
-                                    Gerenciamento de membros, congregados, parceiros, fornecedores, prestadores e favorecidos.
-                                </p>
+                                <div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white leading-tight">
+                                            Empresas / Pessoas
+                                        </h3>
+                                        {/* Badges / Counters */}
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700" title="Total de cadastros">
+                                                Total: {totalContributorsCount}
+                                            </span>
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/40" title="Pessoas Físicas">
+                                                PF: {pfContributorsCount}
+                                            </span>
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40" title="Empresas / Pessoa Jurídica">
+                                                PJ: {pjContributorsCount}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                        Gerenciamento de membros, congregados, parceiros, fornecedores, prestadores e favorecidos.
+                                    </p>
+                                </div>
                             </div>
-                        </div>
+                        )}
                         
                         {/* Buttons: Importar Lote, Vincular Igrejas & + Novo Contribuinte */}
                         <div className="flex-shrink-0 flex items-center gap-2 flex-wrap">
                             <button 
+                                type="button"
                                 onClick={handleRepairChurchNames}
                                 disabled={isRepairingChurches}
                                 title="Identifica cadastros anteriores do portal e vincula o nome da congregação correspondente"
-                                className="w-full sm:w-auto flex items-center justify-center space-x-1.5 px-4 py-2 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-2xl shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50"
+                                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/90 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 rounded-lg shadow-xs transition-colors cursor-pointer disabled:opacity-50"
                                 id="repair-churches-btn"
                             >
-                                <RefreshCw className={`w-3.5 h-3.5 text-orange-500 ${isRepairingChurches ? 'animate-spin' : ''}`} />
+                                <RefreshCw className={`w-3.5 h-3.5 text-orange-600 dark:text-orange-400 ${isRepairingChurches ? 'animate-spin' : ''}`} />
                                 <span>{isRepairingChurches ? 'Sincronizando...' : 'Vincular Igrejas'}</span>
                             </button>
                             <button 
+                                type="button"
                                 onClick={() => setIsImportModalOpen(true)}
-                                className="w-full sm:w-auto flex items-center justify-center space-x-1.5 px-5 py-2 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-2xl shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/90 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 rounded-lg shadow-xs transition-colors cursor-pointer"
                                 id="import-contributors-btn"
                             >
                                 <Upload className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                                 <span>Importar Lote</span>
                             </button>
                             <button 
+                                type="button"
                                 onClick={handleNewContributorClick}
-                                className="w-full md:w-auto flex items-center justify-center space-x-1.5 px-5 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-2xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 transition-all tracking-wider uppercase cursor-pointer"
+                                className="w-full md:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-xs transition-all cursor-pointer active:scale-95"
                                 id="new-contributor-btn"
                             >
                                 <PlusCircleIcon className="w-3.5 h-3.5" />
-                                <span>+ Nova Empresa / Pessoa</span>
+                                <span>Nova Empresa / Pessoa</span>
                             </button>
                         </div>
                     </div>
@@ -1855,7 +1843,7 @@ export const ContributorsList: React.FC = () => {
                                 </div>
                             )}
                         </div>
-                        <div className="flex space-x-3">
+                        <div className="flex gap-2.5">
                             <button 
                                 type="button" 
                                 onClick={() => {
@@ -1864,7 +1852,7 @@ export const ContributorsList: React.FC = () => {
                                     setParsedContributors([]);
                                 }} 
                                 disabled={isImporting}
-                                className="px-5 py-2 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-xl shadow-xs hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50"
+                                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-lg shadow-xs transition-colors cursor-pointer disabled:opacity-50"
                             >
                                 {importFile ? 'Voltar' : 'Fechar'}
                             </button>
@@ -1873,7 +1861,7 @@ export const ContributorsList: React.FC = () => {
                                     type="button" 
                                     onClick={handleExecuteImport}
                                     disabled={isImporting || parsedContributors.filter(c => !checkDuplicate(c.cpf, c.name, defaultImportChurchId)).length === 0}
-                                    className="px-6 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+                                    className="px-5 py-2 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-xs transition-all cursor-pointer active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
                                 >
                                     {isImporting ? 'Cadastrando...' : 'Confirmar Cadastro'}
                                 </button>
@@ -1884,15 +1872,15 @@ export const ContributorsList: React.FC = () => {
             )}
 
             {/* Visual Search input & Church Filter Selector below header */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6 flex-shrink-0">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-4 flex-shrink-0">
                 <div className="relative flex-1">
-                    <SearchIcon className="w-3.5 h-3.5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2" />
+                    <SearchIcon className="w-4 h-4 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2 pointer-events-none" />
                     <input 
                         type="text" 
                         placeholder="Buscar por nome, razão social, vínculo/cargo, CPF ou CNPJ..." 
                         value={search} 
                         onChange={e => setSearch(e.target.value)} 
-                        className="pl-8 p-2.5 block w-full rounded-2xl border border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 text-brand-graphite dark:text-slate-200 focus:border-brand-blue focus:ring-brand-blue transition-all shadow-sm focus:bg-white dark:focus:bg-slate-900 text-xs font-medium outline-none" 
+                        className="pl-9 pr-3 py-2 block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all shadow-xs text-xs font-medium outline-none" 
                         id="contributors-search"
                     />
                 </div>
@@ -1902,7 +1890,7 @@ export const ContributorsList: React.FC = () => {
                     <select
                         value={selectedChurchFilter}
                         onChange={(e) => setSelectedChurchFilter(e.target.value)}
-                        className="p-2.5 block w-full rounded-2xl border border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 text-slate-800 dark:text-slate-200 focus:border-brand-blue focus:ring-brand-blue transition-all shadow-sm focus:bg-white dark:focus:bg-slate-900 text-xs font-bold outline-none cursor-pointer"
+                        className="px-3 py-2 block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all shadow-xs text-xs font-semibold outline-none cursor-pointer"
                         id="contributors-church-filter"
                     >
                         <option value="all">⛪ Todas as Igrejas ({totalContributorsCount})</option>
@@ -1921,17 +1909,17 @@ export const ContributorsList: React.FC = () => {
             {/* Content list or empty states */}
             {isLoadingContributors ? (
                 <div className="flex-1 flex flex-col items-center justify-center p-8 animate-pulse text-center">
-                    <Loader2 className="w-8 h-8 text-brand-blue animate-spin mb-3" />
-                    <p className="text-slate-500 text-[11px] font-bold uppercase tracking-wider">
+                    <Loader2 className="w-8 h-8 text-orange-600 animate-spin mb-3" />
+                    <p className="text-slate-500 text-xs font-semibold">
                         Carregando empresas / pessoas...
                     </p>
                 </div>
             ) : filteredContributors.length === 0 ? (
-                <div className="flex-1 flex flex-col items-center justify-center p-8 bg-slate-50/50 dark:bg-slate-900/20 border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl min-h-[250px] animate-fade-in-up">
-                    <div className="p-4 bg-slate-100/80 dark:bg-slate-900 rounded-full mb-4">
-                        <UsersIcon className="w-8 h-8 text-slate-400 dark:text-slate-600" />
+                <div className={`flex-1 flex flex-col items-center justify-center p-6 sm:p-8 bg-slate-50/70 dark:bg-slate-900/20 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl ${embedded ? 'min-h-[200px]' : 'min-h-[250px]'} animate-fade-in-up`}>
+                    <div className="p-3.5 bg-slate-100/80 dark:bg-slate-900 rounded-xl mb-3">
+                        <UsersIcon className="w-7 h-7 text-slate-400 dark:text-slate-600" />
                     </div>
-                    <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">
+                    <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-1.5">
                         Nenhum registro encontrado.
                     </h4>
                     <p className="max-w-md text-center text-slate-500 dark:text-slate-400 text-xs leading-relaxed" id="contributors-message">
@@ -2143,8 +2131,6 @@ export const ContributorsList: React.FC = () => {
                         </div>
                     )}
                 </div>
-            )}
-            </>
             )}
         </div>
     );

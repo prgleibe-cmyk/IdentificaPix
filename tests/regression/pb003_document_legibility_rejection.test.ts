@@ -66,23 +66,19 @@ test('PB-003: Validação Rigorosa de Legibilidade Contábil e Rejeição de Doc
   });
 
   await t.test('[INVARIANTE COMPORTAMENTAL] IC-2: Orientação clara ao usuário e bloqueio de criação de anexo ilegível', () => {
-    // ManualIdModal deve emitir aviso e resetar input
+    // ManualIdModal delega o upload de anexos para ExpenseDocumentUploader
     assert.ok(
-      manualIdContent.includes('Documento ilegível: Não foi possível realizar a leitura do arquivo'),
-      'ManualIdModal não possui aviso textual explícito de "Documento ilegível"'
-    );
-    assert.ok(
-      manualIdContent.includes("showToast('Documento ilegível"),
-      'ManualIdModal não notifica via showToast de aviso/erro'
+      manualIdContent.includes('<ExpenseDocumentUploader'),
+      'ManualIdModal não utiliza ExpenseDocumentUploader para validação de anexos'
     );
 
-    // ExpenseDocumentUploader deve emitir aviso correspondente
+    // ExpenseDocumentUploader deve emitir aviso correspondente e notificar via showToast
     assert.ok(
       expenseUploaderContent.includes('Documento ilegível: Não foi possível realizar a leitura do arquivo'),
       'ExpenseDocumentUploader não possui aviso textual explícito de "Documento ilegível"'
     );
     assert.ok(
-      expenseUploaderContent.includes("appContext?.showToast?.(errorMsg"),
+      expenseUploaderContent.includes('showToast(errorMsg'),
       'ExpenseDocumentUploader não notifica via showToast'
     );
   });
@@ -119,11 +115,12 @@ test('PB-003: Validação Rigorosa de Legibilidade Contábil e Rejeição de Doc
     assert.equal(isDocumentTextLegible(boletoText, boletoParsed), true, 'Rejeitou indevidamente Boleto bancário legível');
   });
 
-  await t.test('[INVARIANTE COMPORTAMENTAL] IC-4: Validação ativa em ambos os pontos de entrada de documentos', () => {
-    // ManualIdModal
+  await t.test('[INVARIANTE COMPORTAMENTAL] IC-4: Validação ativa nos pontos de entrada de documentos (ManualIdModal -> ExpenseDocumentUploader)', () => {
+    // ManualIdModal delega o uploader nos dois fluxos (lançamento manual e identificação em lote)
+    const uploaderMatches = manualIdContent.match(/<ExpenseDocumentUploader/g) || [];
     assert.ok(
-      manualIdContent.includes('if (!isDocumentTextLegible(rawText, extractedData)) {'),
-      'ManualIdModal não executa a guarda de validação de legibilidade'
+      uploaderMatches.length >= 2,
+      'ManualIdModal não utiliza ExpenseDocumentUploader em ambos os fluxos'
     );
     // ExpenseDocumentUploader
     assert.ok(
@@ -132,20 +129,20 @@ test('PB-003: Validação Rigorosa de Legibilidade Contábil e Rejeição de Doc
     );
   });
 
-  await t.test('[GUARDA ESTRUTURAL] GE-1 a GE-4: Verificação das guardas técnicas em ManualIdModal, ExpenseDocumentUploader e imageOcrReader', () => {
-    // GE-1 e GE-3: ManualIdModal e ExpenseDocumentUploader resetam input e interrompem processamento
-    assert.ok(
-      manualIdContent.includes('if (e.target) e.target.value = \'\''),
-      'ManualIdModal não reseta e.target.value'
-    );
+  await t.test('[GUARDA ESTRUTURAL] GE-1 a GE-4: Verificação das guardas técnicas em ExpenseDocumentUploader e imageOcrReader', () => {
+    // GE-1 e GE-3: ExpenseDocumentUploader reseta fileInputRef.current e não invoca onChangeAttachments quando rejeitado
     assert.ok(
       expenseUploaderContent.includes('if (fileInputRef.current) fileInputRef.current.value = \'\''),
       'ExpenseDocumentUploader não reseta fileInputRef.current'
     );
+    assert.ok(
+      expenseUploaderContent.includes('if (hasAddedValidAttachment)'),
+      'ExpenseDocumentUploader não evita gravação de anexos quando nenhum documento foi legível'
+    );
 
     // GE-4: imageOcrReader não injeta o prefixo sintético 'ARQUIVO: ' que induzia a falso positivo
     assert.ok(
-      !ocrReaderContent.includes('rawText = `ARQUIVO: ${fileName}'),
+      !ocrReaderContent.includes('`ARQUIVO: ${fileName}'),
       'imageOcrReader ainda possui injeção sintética de nome de arquivo que mascara imagens ilegíveis'
     );
   });

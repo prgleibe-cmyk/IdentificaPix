@@ -1,4 +1,5 @@
 import { CommunicationEvent, CommunicationLog } from '../types';
+import { getAuthToken } from './auth/authAdapter';
 
 export interface PublishEventPayload {
   church_id?: string;
@@ -44,9 +45,13 @@ export const CommunicationEventService = {
         ...(data.payload || {})
       };
 
+      const token = await getAuthToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       const res = await fetch('/api/v1/communication_events', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           event_type: eventType,
           church_id: churchId,
@@ -82,8 +87,11 @@ export const CommunicationEventService = {
       if (params?.status) queryParams.append('status', params.status);
       if (params?.event_type) queryParams.append('event_type', params.event_type);
 
+      const token = await getAuthToken();
+      const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
+
       const url = `/api/v1/communication_events?${queryParams.toString()}`;
-      const res = await fetch(url);
+      const res = await fetch(url, { headers });
       if (!res.ok) return [];
       return await res.json();
     } catch (err) {
@@ -102,8 +110,11 @@ export const CommunicationEventService = {
       if (params?.status) queryParams.append('status', params.status);
       if (params?.event_type) queryParams.append('event_type', params.event_type);
 
+      const token = await getAuthToken();
+      const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
+
       const url = `/api/v1/communication_logs?${queryParams.toString()}`;
-      const res = await fetch(url);
+      const res = await fetch(url, { headers });
       if (!res.ok) return [];
       return await res.json();
     } catch (err) {

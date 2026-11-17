@@ -94,12 +94,8 @@ DATA: 25/10/2026
     const uploaderContent = readFileSync(resolve(process.cwd(), 'components/financial/ExpenseDocumentUploader.tsx'), 'utf-8');
 
     assert.ok(
-      manualModalContent.includes('!isDocumentTextLegible(rawText, extractedData)'),
-      'ManualIdModal não possui rejeição de documento ilegível'
-    );
-    assert.ok(
-      manualModalContent.includes('Documento ilegível: Não foi possível realizar a leitura do arquivo'),
-      'ManualIdModal não possui mensagem orientando sobre documento legível'
+      manualModalContent.includes('<ExpenseDocumentUploader'),
+      'ManualIdModal não monta ExpenseDocumentUploader para validação de documentos'
     );
 
     assert.ok(

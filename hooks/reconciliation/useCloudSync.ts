@@ -319,20 +319,15 @@ export const useCloudSync = ({
 
                 if (targetReport && targetReport.data && Array.isArray(targetReport.data.results)) {
                     targetReport.data.results.forEach((r: MatchResult) => {
-                        if (r?.transaction?.id) {
+                        const isGhost = typeof r?.transaction?.id === 'string' && r.transaction.id.startsWith('ghost-manual-');
+                        if (r?.transaction?.id && !isGhost) {
                             reportsMap.set(r.transaction.id, r);
                         }
                     });
                 }
 
                 if ((!txs || txs.length === 0) && (!activeReportId || reportsMap.size === 0)) {
-                    setMatchResults(prev => {
-                        const localDrafts = (prev || []).filter(r => Boolean(r.transaction?.id && typeof r.transaction.id === 'string' && r.transaction.id.startsWith('ghost-manual-')));
-                        if (localDrafts.length > 0) {
-                            return localDrafts;
-                        }
-                        return [];
-                    });
+                    setMatchResults(() => []);
                     if (!activeReportId) {
                         setHasActiveSession(false);
                     }
@@ -552,6 +547,8 @@ export const useCloudSync = ({
 
                 if (activeReportId) {
                     reportsMap.forEach((value, key) => {
+                        const isGhost = typeof value.transaction?.id === 'string' && value.transaction.id.startsWith('ghost-manual-');
+                        if (isGhost) return;
                         if (!reconstructedMap.has(key)) {
                             const txDate = value.contributor?.reference_date || value.reference_date || value.transaction?.reference_date || value.transaction?.date || (value as any).date;
                             if (txDate && (startStr || endStr)) {
@@ -637,18 +634,10 @@ export const useCloudSync = ({
                         hasChanges = true;
                     });
 
-                    // Preserva apenas rascunhos temporários não persistidos (ghost-manual) que ainda não foram salvos no banco
+                    // Descarta rascunhos temporários (ghost-manual-) do estado sincronizado (PB-002 IC-3)
                     prev.forEach(p => {
-                        if (isTxDeletedRecently(p.transaction?.id)) {
-                            return;
-                        }
-                        const isGhostDraft = Boolean(
-                            p.transaction?.id && 
-                            typeof p.transaction.id === 'string' && 
-                            p.transaction.id.startsWith('ghost-manual-')
-                        );
-                        if (!map.has(p.transaction.id) && isGhostDraft) {
-                            map.set(p.transaction.id, p);
+                        const isGhost = typeof p.transaction?.id === 'string' && p.transaction.id.startsWith('ghost-manual-');
+                        if (isGhost) {
                             hasChanges = true;
                         }
                     });
@@ -670,7 +659,12 @@ export const useCloudSync = ({
                 }
 
                 if (!isSecondaryUser) {
-                    fetch('/api/v1/consolidated_transactions/repair-churches').catch(() => {});
+                    const token = getAuthToken();
+                    if (token) {
+                        fetch('/api/v1/consolidated_transactions/repair-churches', {
+                            headers: { Authorization: `Bearer ${token}` }
+                        }).catch(() => {});
+                    }
                 }
 
                 if (pendingPromotions.length > 0) {

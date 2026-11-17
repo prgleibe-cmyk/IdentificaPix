@@ -1,4 +1,5 @@
 import { clear as clearIdb } from 'idb-keyval';
+import { invalidateClientCache } from './clientDataCache';
 
 export interface AuthResponse {
   success: boolean;
@@ -85,10 +86,16 @@ export const authService = {
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     Object.keys(localStorage).forEach(key => {
-      if (key.includes('supabase.auth.token') || key.includes('identificapix') || key.includes('iggestor_vps_subscription')) {
+      if (
+        key.includes('supabase.auth.token') ||
+        key.includes('identificapix') ||
+        key.startsWith('iggestor_') ||
+        key.includes('iggestor_')
+      ) {
         localStorage.removeItem(key);
       }
     });
+    invalidateClientCache();
     try {
       clearIdb().catch(() => {});
     } catch {

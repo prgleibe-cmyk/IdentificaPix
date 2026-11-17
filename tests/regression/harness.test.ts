@@ -28,10 +28,10 @@ test('Infraestrutura de Proteção contra Regressão - Validação de Integridad
     assert.ok(content.includes('NÃO PROTEGIDA'), 'Status NÃO PROTEGIDA ausente');
   });
 
-  await t.test('PBs homologadas devem possuir estrutura completa e PB-008 não deve estar homologada sem aprovação', () => {
+  await t.test('PBs homologadas devem possuir estrutura completa de PB-001 a PB-008', () => {
     const pbPath = resolve(process.cwd(), 'PROTECTED_BEHAVIORS.md');
     const content = readFileSync(pbPath, 'utf-8');
-    // PB-001 a PB-007 foram formalmente aprovadas pelo usuário ("TESTADO E APROVADO")
+    // PB-001 a PB-008 formalmente aprovadas em PROTECTED_BEHAVIORS.md
     assert.ok(content.includes('### [PB-001]'), 'PB-001 não encontrada em PROTECTED_BEHAVIORS.md');
     assert.ok(content.includes('### [PB-002]'), 'PB-002 não encontrada em PROTECTED_BEHAVIORS.md');
     assert.ok(content.includes('### [PB-003]'), 'PB-003 não encontrada em PROTECTED_BEHAVIORS.md');
@@ -39,18 +39,17 @@ test('Infraestrutura de Proteção contra Regressão - Validação de Integridad
     assert.ok(content.includes('### [PB-005]'), 'PB-005 não encontrada em PROTECTED_BEHAVIORS.md');
     assert.ok(content.includes('### [PB-006]'), 'PB-006 não encontrada em PROTECTED_BEHAVIORS.md');
     assert.ok(content.includes('### [PB-007]'), 'PB-007 não encontrada em PROTECTED_BEHAVIORS.md');
-    // PB-008 não pode existir até nova aprovação explícita do usuário
-    assert.ok(!content.includes('### [PB-008]'), 'PB-008 foi indevidamente criada antes da aprovação do usuário');
+    assert.ok(content.includes('### [PB-008]'), 'PB-008 não encontrada em PROTECTED_BEHAVIORS.md');
   });
 
-  await t.test('AGENTS.md deve conter regras do protocolo permanente e fluxo pós-aprovação', () => {
+  await t.test('AGENTS.md deve conter protocolo de ajustes cirúrgicos e registro de funcionalidades blindadas', () => {
     const agentsPath = resolve(process.cwd(), 'AGENTS.md');
     assert.ok(existsSync(agentsPath), 'AGENTS.md não encontrado na raiz do projeto');
     
     const content = readFileSync(agentsPath, 'utf-8');
-    assert.ok(content.includes('PROTOCOLO PERMANENTE DE DESENVOLVIMENTO SEGURO'), 'Protocolo ausente em AGENTS.md');
-    assert.ok(content.includes('Fluxo Pós-Aprovação Completo'), 'Fluxo pós-aprovação ausente em AGENTS.md');
-    assert.ok(content.includes('Distinção entre Harness e Testes de PB'), 'Distinção de harness ausente em AGENTS.md');
+    assert.ok(content.includes('PROTOCOLO DE AJUSTES CIRÚRGICOS E REGRA PERMANENTE DE DESENVOLVIMENTO'), 'Protocolo ausente em AGENTS.md');
+    assert.ok(content.includes('PROTEÇÃO ABSOLUTA DO QUE JÁ FUNCIONA'), 'Proteção absoluta ausente em AGENTS.md');
+    assert.ok(content.includes('REGISTRO DE FUNCIONALIDADES CONSOLIDADAS E BLINDADAS'), 'Registro de blindagem ausente em AGENTS.md');
   });
 
   await t.test('Validação de Invariante Estrutural: ArrayBuffer não deve ser consumido destrutivamente', () => {

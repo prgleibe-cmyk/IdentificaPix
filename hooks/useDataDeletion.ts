@@ -219,10 +219,34 @@ export const useDataDeletion = ({
                 }
                 case 'learned-associations': {
                     console.log(`[WRITE:FIX] Removendo learned_associations com effectiveUserId: ${effectiveUserId} no VPS`);
-                    const res = await fetch(`/api/v1/learned_associations/by-user/${effectiveUserId}`, { method: 'DELETE' });
+                    const token = getAuthToken();
+                    const res = await fetch(`/api/v1/learned_associations/by-user/${effectiveUserId}`, {
+                        method: 'DELETE',
+                        headers: token ? { Authorization: `Bearer ${token}` } : undefined
+                    });
                     if (!res.ok) throw new Error("Erro ao remover associações do VPS");
                     referenceData.setLearnedAssociations?.([]);
                     showToast("Associações aprendidas removidas.", "success");
+                    break;
+                }
+                case 'payment-method': {
+                    if (referenceData?.removePaymentMethod) {
+                        await referenceData.removePaymentMethod(id);
+                    }
+                    break;
+                }
+                case 'contribution-type': {
+                    if (referenceData?.removeContributionType) {
+                        await referenceData.removeContributionType(id);
+                    }
+                    break;
+                }
+                case 'contributor-inactivate':
+                case 'contributor-permanent':
+                case 'custom-action': {
+                    if (typeof meta?.onConfirm === 'function') {
+                        await meta.onConfirm();
+                    }
                     break;
                 }
                 default:

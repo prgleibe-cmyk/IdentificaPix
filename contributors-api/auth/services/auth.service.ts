@@ -492,6 +492,14 @@ export class AuthService {
     userAgent?: string
   ): Promise<LoginResult> {
     const email = sanitizeEmail(emailRaw);
+    const forbiddenRoles = new Set(['superadmin', 'super_admin', 'administrador_geral', 'admin']);
+    const normalizedRequestedRole = typeof role === 'string' ? role.trim().toLowerCase() : '';
+
+    if (normalizedRequestedRole && forbiddenRoles.has(normalizedRequestedRole)) {
+      const err: any = new Error('Não é permitido definir role administrativa no cadastro público.');
+      err.status = 403;
+      throw err;
+    }
 
     const passCheck = validatePasswordStrength(passwordRaw);
     if (!passCheck.valid) {
@@ -506,33 +514,55 @@ export class AuthService {
 
     let userToAuth = existing;
     if (existing) {
+      const existingRole = String(existing.role || '').trim().toLowerCase();
+      if (forbiddenRoles.has(existingRole)) {
+        const err: any = new Error('Contas administrativas não podem ser redefinidas pelo cadastro público.');
+        err.status = 403;
+        throw err;
+      }
+      if (ownerId && existing.owner_id !== ownerId) {
+        const err: any = new Error('Não é permitido alterar o vínculo de proprietário no cadastro público.');
+        err.status = 403;
+        throw err;
+      }
+
       await this.repo.updateUserPassword(existing.id, passwordHash);
-      if (role || ownerId || name || churchId) {
+      const safeName = !existing.name && name ? name : undefined;
+      const safeChurchId = !existing.church_id && churchId ? churchId : undefined;
+      if (safeName || safeChurchId) {
         await this.repo.updateUserMetadata(existing.id, {
-          name: name || undefined,
-          role: role || undefined,
-          owner_id: ownerId || undefined,
-          church_id: churchId || undefined
+          name: safeName,
+          church_id: safeChurchId
         });
       }
       userToAuth = {
         ...existing,
-        name: name || existing.name,
-        role: role || existing.role,
-        owner_id: ownerId || existing.owner_id,
-        church_id: churchId || existing.church_id,
+        name: safeName || existing.name,
+        church_id: safeChurchId || existing.church_id,
         password_hash: passwordHash
       };
     } else {
       const existingProfile = await this.repo.findProfileByEmail(email);
+      if (ownerId && (!existingProfile || existingProfile.owner_id !== ownerId)) {
+        const err: any = new Error('Não é permitido vincular cadastro a outro proprietário pelo cadastro público.');
+        err.status = 403;
+        throw err;
+      }
+
+      const profileRole = String(existingProfile?.role || '').trim().toLowerCase();
+      const safeRole = existingProfile
+        ? (forbiddenRoles.has(profileRole) ? 'user' : (existingProfile.role || 'member'))
+        : 'user';
+      const safeOwnerId = existingProfile?.owner_id || null;
+
       userToAuth = await this.repo.createUser({
         id: existingProfile?.id || undefined,
         email,
         password_hash: passwordHash,
         name: name || existingProfile?.name || null,
-        role: role || existingProfile?.role || 'user',
-        owner_id: ownerId || existingProfile?.owner_id || null,
-        church_id: churchId || null,
+        role: safeRole,
+        owner_id: safeOwnerId,
+        church_id: existingProfile ? (churchId || null) : null,
         permissions: [],
         is_active: true,
         is_verified: false

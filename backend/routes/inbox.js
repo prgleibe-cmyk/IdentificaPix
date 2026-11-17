@@ -1,10 +1,35 @@
 import express from 'express';
+import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import { validateOwnerAccess } from '../lib/validateOwnerAccess.js';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, resolveJwtSecret } from '../middleware/auth.js';
 
 const router = express.Router();
 
 const DEFAULT_INBOX_KEY = 'identificapix_sms_2026';
+
+function getActiveInboxKey() {
+    const envKey = (process.env.INBOX_API_KEY || '').trim();
+    if (envKey) return envKey;
+    if (process.env.NODE_ENV === 'production') {
+        return crypto
+            .createHmac('sha256', resolveJwtSecret())
+            .update('iggestor-inbox-webhook-v1')
+            .digest('hex')
+            .slice(0, 32);
+    }
+    return DEFAULT_INBOX_KEY;
+}
+
+function safeKeyEquals(provided, expected) {
+    if (typeof provided !== 'string' || typeof expected !== 'string' || !provided || !expected) {
+        return false;
+    }
+    const a = Buffer.from(provided, 'utf8');
+    const b = Buffer.from(expected, 'utf8');
+    if (a.length !== b.length) return false;
+    return crypto.timingSafeEqual(a, b);
+}
 
 // Função robusta de parsing para limpar e extrair dados de SMS e Notificações de Bancos (Sicoob, Sicredi, Nubank, Itaú, Bradesco, etc.)
 function parseSMS(text, bankHint = '') {
@@ -353,39 +378,62 @@ const resilientBodyParser = (req, res, next) => {
 
 export default (ai) => {
     router.get('/config', authMiddleware, (req, res) => {
-        const activeKey = (process.env.INBOX_API_KEY || '').trim() || DEFAULT_INBOX_KEY;
+        const activeKey = getActiveInboxKey();
         res.json({ key: activeKey });
     });
 
     router.post('/:userId/:bankId', resilientBodyParser, async (req, res) => {
         let { userId, bankId } = req.params;
+        const authHeader = req.headers['authorization'];
         let rawApiKey = req.headers['x-api-key'] || 
-                          req.headers['authorization'] || 
                           req.query?.key || 
                           req.query?.apiKey || 
                           req.query?.api_key || 
                           req.body?.key || 
                           req.body?.apiKey || 
                           req.body?.api_key;
+        if (!rawApiKey && typeof authHeader === 'string' && !authHeader.startsWith('Bearer ')) {
+            rawApiKey = authHeader;
+        }
         if (Array.isArray(rawApiKey)) {
             rawApiKey = rawApiKey.find(k => typeof k === 'string' && !k.includes('?')) || rawApiKey[0];
         }
         if (typeof rawApiKey === 'string' && rawApiKey.includes('?')) {
             rawApiKey = rawApiKey.split('?')[0];
         }
-        const envKey = (process.env.INBOX_API_KEY || '').trim();
-        
-        // Chaves aceitas: INBOX_API_KEY do ambiente e a chave padrão de instrução no app
-        const validKeys = [envKey, DEFAULT_INBOX_KEY].filter(Boolean);
 
-        // Resilient check if the provided API key matches any expected key
-        let isAuthorized = true; // Por padrão autoriza se nenhuma chave foi fornecida para retrocompatibilidade
-        if (rawApiKey && validKeys.length > 0) {
-            const providedKeys = Array.isArray(rawApiKey) 
-                ? rawApiKey.map(k => String(k).trim()) 
+        const activeKey = getActiveInboxKey();
+        let isAuthorized = false;
+
+        // 1. Verificar Bearer JWT se fornecido
+        if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+            const bearerToken = authHeader.substring(7).trim();
+            if (bearerToken) {
+                try {
+                    const decoded = jwt.verify(bearerToken, resolveJwtSecret());
+                    const tokenUserId = decoded.user_id || decoded.sub || decoded.id;
+                    if (tokenUserId) {
+                        req.user = {
+                            ...decoded,
+                            id: tokenUserId,
+                            role: decoded.role || 'user',
+                            owner_id: decoded.owner_id || tokenUserId,
+                            email: decoded.email || ''
+                        };
+                        isAuthorized = true;
+                    }
+                } catch (_) {
+                    isAuthorized = false;
+                }
+            }
+        }
+
+        // 2. Verificar API Key do Webhook (exige correspondência exata com a chave ativa)
+        if (!isAuthorized && rawApiKey && activeKey) {
+            const providedKeys = Array.isArray(rawApiKey)
+                ? rawApiKey.map(k => String(k).trim())
                 : String(rawApiKey).split(',').map(k => k.trim());
-            
-            isAuthorized = providedKeys.some(k => validKeys.includes(k));
+            isAuthorized = providedKeys.some(k => safeKeyEquals(k, activeKey));
         }
 
         // Resiliently extract the SMS body text from various potential payload keys or formats (including MacroDroid tags)
@@ -550,10 +598,15 @@ export default (ai) => {
 
                     req.forensic.persistenceCallTime = new Date().toISOString();
 
+                    const internalBearer = (typeof authHeader === 'string' && authHeader.startsWith('Bearer '))
+                        ? authHeader
+                        : `Bearer ${jwt.sign({ user_id: userId, owner_id: userId, role: 'owner', permissions: ['all'] }, resolveJwtSecret(), { expiresIn: '60s' })}`;
+
                     const resp = await fetch(targetUrl, {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            'Authorization': internalBearer
                         },
                         body: JSON.stringify({
                             user_id: userId,

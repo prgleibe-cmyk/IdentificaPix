@@ -63,23 +63,30 @@ test('PB-005: Persistência Real de Documentos e Anti-Wipeout Concorrente', asyn
     );
   });
 
-  await t.test('[INVARIANTE COMPORTAMENTAL] IC-3: Backend autoriza transações pendentes/não-identificadas da lista viva', () => {
-    // isAuthorizedForTransaction deve permitir transações onde church_id é nulo ou unidentified
+  await t.test('[INVARIANTE COMPORTAMENTAL] IC-3: Backend autoriza transações pendentes/não-identificadas da lista viva com isolamento multi-tenant', () => {
+    const authFnStart = serverContent.indexOf('async function isAuthorizedForTransaction');
+    const authFnEnd = serverContent.indexOf('async function isAuthorizedForFinancialRecord', authFnStart);
+    assert.ok(authFnStart !== -1 && authFnEnd !== -1, 'Função isAuthorizedForTransaction não encontrada');
+    const authFnBody = serverContent.slice(authFnStart, authFnEnd);
+
+    // isAuthorizedForTransaction distingue transações identificadas vs pendentes/não identificadas
     assert.ok(
-      serverContent.includes("!oldTx.church_id || oldTx.church_id === 'unidentified'"),
-      'isAuthorizedForTransaction não possui permissão explícita para lançamentos pendentes com church_id nulo ou unidentified'
+      authFnBody.includes("oldTx.church_id && oldTx.church_id !== 'unidentified'"),
+      'isAuthorizedForTransaction não distingue lançamentos com congregação pendente/unidentified'
     );
 
-    // Deve autorizar usuários secundários com base nos bancos permitidos ou congregações autorizadas
+    // Deve autorizar usuários secundários pertencentes à organização com base nos bancos permitidos
     assert.ok(
-      serverContent.includes('ctx.allowedBankIds && ctx.allowedBankIds.includes(oldTx.bank_id)'),
+      authFnBody.includes('ctx.allowedBankIds && ctx.allowedBankIds.length > 0 && oldTx.bank_id') &&
+      authFnBody.includes('ctx.allowedBankIds.includes(oldTx.bank_id)'),
       'isAuthorizedForTransaction não confere allowedBankIds para usuários secundários na lista viva'
     );
 
-    // Deve autorizar proprietários mesmo quando o item ainda não possui congregação vinculada
+    // Deve autorizar proprietários por vínculo de banco ou membro da organização sem liberar registros órfãos de terceiros
     assert.ok(
-      serverContent.includes("if (!oldTx.user_id || !oldTx.church_id || oldTx.church_id === 'unidentified') return true;"),
-      'isAuthorizedForTransaction não permite que o proprietário vincule ou visualize anexos de itens não identificados'
+      authFnBody.includes('SELECT id FROM banks WHERE id = $1 AND (user_id = $2 OR user_id = $3)') &&
+      authFnBody.includes('return false;'),
+      'isAuthorizedForTransaction não valida vínculo de organização/banco para proprietário'
     );
   });
 
@@ -96,7 +103,7 @@ test('PB-005: Persistência Real de Documentos e Anti-Wipeout Concorrente', asyn
       'SmartPool não inclui a coluna attachments no INSERT remoto de consolidated_transactions'
     );
     assert.ok(
-      serverContent.includes('EXCLUDED.attachments != \'[]\''),
+      serverContent.includes("EXCLUDED.attachments::text != '[]'") || serverContent.includes("EXCLUDED.attachments != '[]'"),
       'SmartPool não possui cláusula de preservação de attachments no ON CONFLICT'
     );
   });

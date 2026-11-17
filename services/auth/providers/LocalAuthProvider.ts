@@ -1,5 +1,6 @@
 import { IAuthProvider, AuthProviderType, AuthSession, AuthUser } from '../types';
 import { clear as clearIdb } from 'idb-keyval';
+import { invalidateClientCache } from '../../clientDataCache';
 
 const ACCESS_TOKEN_KEY = 'iggestor_vps_access_token';
 const REFRESH_TOKEN_KEY = 'iggestor_vps_refresh_token';
@@ -130,10 +131,16 @@ export class LocalAuthProvider implements IAuthProvider {
       localStorage.removeItem(REFRESH_TOKEN_KEY);
       localStorage.removeItem(USER_KEY);
       Object.keys(localStorage).forEach(key => {
-        if (key.includes('supabase.auth.token') || key.includes('identificapix')) {
+        if (
+          key.includes('supabase.auth.token') ||
+          key.includes('identificapix') ||
+          key.startsWith('iggestor_') ||
+          key.includes('iggestor_')
+        ) {
           localStorage.removeItem(key);
         }
       });
+      invalidateClientCache();
       try {
         clearIdb().catch(() => {});
       } catch {

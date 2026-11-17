@@ -21,44 +21,39 @@ export const RegisterTabButton: React.FC<RegisterTabButtonProps> = ({
     isActive, 
     onClick 
 }) => {
-    let activeClass = "";
-    let iconClass = "";
+    let iconColorClass = "";
     
     switch (colorTheme) {
-        case 'blue': 
-            activeClass = "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/30"; 
-            iconClass = isActive ? "text-white" : "text-blue-500"; 
+        case 'blue':
+            iconColorClass = isActive ? "text-blue-600 dark:text-blue-400" : "text-blue-500/80 dark:text-blue-400/80";
             break;
-        case 'emerald': 
-            activeClass = "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/30"; 
-            iconClass = isActive ? "text-white" : "text-emerald-500"; 
+        case 'emerald':
+            iconColorClass = isActive ? "text-emerald-600 dark:text-emerald-400" : "text-emerald-500/80 dark:text-emerald-400/80";
             break;
-        case 'violet': 
-            activeClass = "bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-md shadow-purple-500/30"; 
-            iconClass = isActive ? "text-white" : "text-violet-500"; 
+        case 'violet':
+            iconColorClass = isActive ? "text-violet-600 dark:text-violet-400" : "text-violet-500/80 dark:text-violet-400/80";
             break;
-        case 'amber': 
-            activeClass = "bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md shadow-orange-500/30"; 
-            iconClass = isActive ? "text-white" : "text-amber-500"; 
+        case 'amber':
+            iconColorClass = isActive ? "text-orange-600 dark:text-orange-400" : "text-amber-500/80 dark:text-amber-400/80";
             break;
-        default: 
-            activeClass = "bg-gradient-to-r from-slate-600 to-slate-800 text-white shadow-md"; 
-            iconClass = isActive ? "text-white" : "text-slate-500"; 
+        default:
+            iconColorClass = isActive ? "text-slate-700 dark:text-slate-200" : "text-slate-500 dark:text-slate-400";
             break;
     }
 
     return (
-        <button 
-            onClick={() => onClick(id)} 
+        <button
+            type="button"
+            onClick={() => onClick(id)}
             className={`
-                relative flex-shrink-0 flex items-center gap-2 px-5 py-2 rounded-xl transition-all duration-300 text-[10px] font-bold uppercase tracking-wide
-                ${isActive 
-                    ? `${activeClass} transform scale-105 z-10 border-transparent` 
-                    : "bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-50"
+                flex-shrink-0 inline-flex items-center gap-2 px-3.5 py-2 rounded-lg transition-all duration-150 text-xs font-semibold whitespace-nowrap cursor-pointer select-none
+                ${isActive
+                    ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs border border-slate-200/90 dark:border-slate-700"
+                    : "bg-transparent text-slate-600 dark:text-slate-400 border border-transparent hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white/60 dark:hover:bg-slate-800/50"
                 }
             `}
         >
-            <Icon className={`w-3.5 h-3.5 ${iconClass}`} />
+            <Icon className={`w-3.5 h-3.5 shrink-0 ${iconColorClass}`} />
             <span>{label}</span>
         </button>
     );

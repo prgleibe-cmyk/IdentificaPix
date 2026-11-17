@@ -20,16 +20,19 @@ test('PB-006: Persistência Real em Nuvem e Anti-Perda de Cadastros de Formas de
   const serverPath = resolve(process.cwd(), 'contributors-api/server.ts');
   const refDataPath = resolve(process.cwd(), 'hooks/useReferenceData.ts');
   const paymentListPath = resolve(process.cwd(), 'components/register/PaymentMethodsList.tsx');
+  const dataDeletionPath = resolve(process.cwd(), 'hooks/useDataDeletion.ts');
   const domainPath = resolve(process.cwd(), 'types/domain.ts');
 
   assert.ok(existsSync(serverPath), 'contributors-api/server.ts não encontrado');
   assert.ok(existsSync(refDataPath), 'hooks/useReferenceData.ts não encontrado');
   assert.ok(existsSync(paymentListPath), 'components/register/PaymentMethodsList.tsx não encontrado');
+  assert.ok(existsSync(dataDeletionPath), 'hooks/useDataDeletion.ts não encontrado');
   assert.ok(existsSync(domainPath), 'types/domain.ts não encontrado');
 
   const serverContent = readFileSync(serverPath, 'utf-8');
   const refDataContent = readFileSync(refDataPath, 'utf-8');
   const paymentListContent = readFileSync(paymentListPath, 'utf-8');
+  const dataDeletionContent = readFileSync(dataDeletionPath, 'utf-8');
   const domainContent = readFileSync(domainPath, 'utf-8');
 
   await t.test('[BACKEND] Rotas REST e Tabelas SQLite e PostgreSQL para payment_methods', () => {
@@ -104,16 +107,27 @@ test('PB-006: Persistência Real em Nuvem e Anti-Perda de Cadastros de Formas de
       paymentListContent.includes('await addPaymentMethod(payload)'),
       'PaymentMethodsList não cadastra via addPaymentMethod na nuvem'
     );
+
+    // 3. Exclusão segura via ConfirmDeleteModal (openDeleteConfirmation -> useDataDeletion -> removePaymentMethod)
     assert.ok(
-      paymentListContent.includes('await removePaymentMethod(targetId)'),
-      'PaymentMethodsList não remove via removePaymentMethod na nuvem'
+      paymentListContent.includes("openDeleteConfirmation({\n            type: 'payment-method'"),
+      'PaymentMethodsList não aciona ConfirmDeleteModal via openDeleteConfirmation'
+    );
+    assert.ok(
+      !paymentListContent.includes('window.confirm'),
+      'PaymentMethodsList ainda utiliza window.confirm nativo'
+    );
+    assert.ok(
+      dataDeletionContent.includes("case 'payment-method':") &&
+      dataDeletionContent.includes('await referenceData.removePaymentMethod(id)'),
+      'useDataDeletion não remove payment-method via removePaymentMethod na nuvem'
     );
   });
 
-  await t.test('[TIPAGEM] PaymentMethodItem e PaymentOperationType exportados em domain.ts', () => {
+  await t.test('[TIPAGEM] PaymentMethod e PaymentOperationType exportados em domain.ts', () => {
     assert.ok(
-      domainContent.includes('export interface PaymentMethodItem'),
-      'types/domain.ts não exporta interface PaymentMethodItem'
+      domainContent.includes('export interface PaymentMethod'),
+      'types/domain.ts não exporta interface PaymentMethod'
     );
     assert.ok(
       domainContent.includes('export type PaymentOperationType'),

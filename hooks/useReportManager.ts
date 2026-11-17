@@ -202,9 +202,12 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         setSavedReports(prev => prev.map(r => r.id === reportId ? { ...r, name: newName } : r));
         console.log(`[WRITE:ALREADY_CORRECT] Atualizando nome do relatório com effectiveUserId: ${effectiveUserId} no VPS`);
         try {
+            const token = await getAuthToken();
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
             const res = await fetch(`/api/v1/saved_reports/${reportId}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 body: JSON.stringify({ name: newName })
             });
             if (res.ok) {
@@ -223,8 +226,11 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         
         console.log(`[WRITE:ALREADY_CORRECT] Excluindo relatório com effectiveUserId: ${effectiveUserId} no VPS`);
         try {
+            const token = await getAuthToken();
+            const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
             const res = await fetch(`/api/v1/saved_reports/${reportId}`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers
             });
             if (res.ok) {
                 setSavedReports(prev => prev.filter(r => r.id !== reportId));

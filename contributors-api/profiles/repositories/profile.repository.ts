@@ -36,9 +36,9 @@ export class ProfileRepository {
       await this.pool.query(`CREATE INDEX IF NOT EXISTS idx_profiles_owner_id ON profiles(owner_id);`).catch(() => {});
       await this.pool.query(`CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email);`).catch(() => {});
       // 🛡️ Garante colunas de assinatura em app_users para redundância e resiliência total contra resets em deploy
-      await this.pool.query(`ALTER TABLE app_users ADD COLUMN subscription_status TEXT DEFAULT 'trial';`).catch(() => {});
-      await this.pool.query(`ALTER TABLE app_users ADD COLUMN subscription_ends_at TIMESTAMPTZ;`).catch(() => {});
-      await this.pool.query(`ALTER TABLE app_users ADD COLUMN trial_ends_at TIMESTAMPTZ;`).catch(() => {});
+      await this.pool.query(`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'trial';`).catch(() => {});
+      await this.pool.query(`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS subscription_ends_at TIMESTAMPTZ;`).catch(() => {});
+      await this.pool.query(`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ;`).catch(() => {});
     } catch (err: any) {
       console.warn('[ProfileRepository] Aviso ao verificar/criar tabela profiles:', err?.message || err);
     }

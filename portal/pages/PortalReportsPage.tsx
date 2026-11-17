@@ -102,7 +102,8 @@ export const PortalReportsPage: React.FC<PortalReportsPageProps> = ({ church, on
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         id: contributor.id,
-                        cpf: contributor.cpf
+                        cpf: contributor.cpf,
+                        church_id: church?.id || contributor.church_id
                     })
                 });
             }

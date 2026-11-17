@@ -99,7 +99,7 @@ export const consolidationService = {
                         source: t.source || 'file',
                         user_id: effectiveUserId || t.user_id,
                         church_id: isUuid((t as any).church_id) ? (t as any).church_id : null,
-                        bank_id: isUuid(t.bank_id) ? t.bank_id : null,
+                        bank_id: t.bank_id && t.bank_id !== 'virtual' ? t.bank_id : null,
                         status: t.status || 'pending',
                         row_hash: t.row_hash,
                         is_confirmed: typeof t.is_confirmed === 'boolean' ? t.is_confirmed : false,
@@ -251,8 +251,7 @@ export const consolidationService = {
                 console.warn(`[Consolidation] contributor_id não é UUID válido (${safeUpdateData.contributor_id}), sanitizando para null.`);
                 safeUpdateData.contributor_id = null;
             }
-            if (safeUpdateData.bank_id !== undefined && !isUuid(safeUpdateData.bank_id)) {
-                console.warn(`[Consolidation] bank_id não é UUID válido (${safeUpdateData.bank_id}), sanitizando para null.`);
+            if (safeUpdateData.bank_id === 'virtual') {
                 safeUpdateData.bank_id = null;
             }
 

@@ -415,21 +415,18 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
                     photo_url: contrib.photo_url || contrib.avatarUrl || null
                 };
 
-                let res = await fetch('/api/v1/contributors/update-profile', {
+                const res = await fetch('/api/v1/contributors/update-profile', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(updatePayload)
                 });
 
                 if (!res.ok) {
-                    res = await fetch(`/api/v1/contributors/${contrib.id}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(updatePayload)
-                    });
+                    const errUpdate = await res.json().catch(() => ({}));
+                    throw new Error(errUpdate.message || errUpdate.error || 'Falha ao atualizar cadastro do contribuinte.');
                 }
 
-                const updatedRecord = res.ok ? await res.json().catch(() => null) : null;
+                const updatedRecord = await res.json().catch(() => null);
                 const updatedObj: ContributorMockProfile = {
                     ...contrib,
                     id: updatedRecord?.id || contrib.id,
@@ -453,7 +450,7 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
                 return true;
             }
 
-            const response = await fetch('/api/v1/contributors', {
+            const response = await fetch('/api/v1/contributors/public-register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -479,13 +476,13 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
 
             if (!response.ok && response.status !== 409) {
                 const errData = await response.json().catch(() => ({}));
-                throw new Error(errData.error || 'Falha ao realizar cadastro do contribuinte.');
+                throw new Error(errData.message || errData.error || 'Falha ao realizar cadastro do contribuinte.');
             }
 
             const newRecord = await response.json().catch(() => ({}));
             const newContribObj: ContributorMockProfile = {
                 ...contrib,
-                id: newRecord?.id || contrib.id || `contrib-${Date.now()}`,
+                id: newRecord?.existingId || newRecord?.id || contrib.id || `contrib-${Date.now()}`,
                 isExisting: true,
                 church_id: targetChurchId
             };
@@ -522,10 +519,12 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
 
         try {
             if (merged.id) {
-                const res = await fetch(`/api/v1/contributors/${merged.id}`, {
-                    method: 'PUT',
+                const res = await fetch('/api/v1/contributors/update-profile', {
+                    method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
+                        id: merged.id,
+                        church_id: churchId || merged.church_id,
                         canonical_name: merged.name || merged.canonical_name,
                         name: merged.name,
                         cpf: merged.cpf,
@@ -580,7 +579,8 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         id: contrib.id,
-                        cpf: contrib.cpf
+                        cpf: contrib.cpf,
+                        church_id: churchId || contrib.church_id
                     })
                 });
             }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useUI } from '../../contexts/UIContext';
+import { getAuthToken } from '../../services/auth/authAdapter';
 import { 
   ShieldCheck, 
   Database, 
@@ -48,13 +49,19 @@ export const AdminSecurityTab: React.FC = () => {
   const [showBackupsList, setShowBackupsList] = useState<boolean>(false);
   const [schedulerData, setSchedulerData] = useState<any | null>(null);
 
+  const getAuthHeaders = useCallback(async () => {
+    const token = await getAuthToken();
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+  }, []);
+
   const fetchSecurityStatus = useCallback(async (isManualRefresh = false) => {
     if (isManualRefresh) setRefreshing(true);
     else setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch('/api/v1/admin/security-status');
+      const headers = await getAuthHeaders();
+      const response = await fetch('/api/v1/admin/security-status', { headers });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: Falha ao obter dados do painel de segurança`);
       }
@@ -71,11 +78,12 @@ export const AdminSecurityTab: React.FC = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [showToast]);
+  }, [getAuthHeaders, showToast]);
 
   const fetchSchedulerStatus = useCallback(async () => {
     try {
-      const res = await fetch('/api/v1/admin/scheduler/status');
+      const headers = await getAuthHeaders();
+      const res = await fetch('/api/v1/admin/scheduler/status', { headers });
       if (res.ok) {
         const json = await res.json();
         setSchedulerData(json);
@@ -83,12 +91,13 @@ export const AdminSecurityTab: React.FC = () => {
     } catch (err) {
       console.warn('[AdminSecurityTab] Could not load scheduler status:', err);
     }
-  }, []);
+  }, [getAuthHeaders]);
 
   const fetchBackupsList = useCallback(async () => {
     setLoadingBackups(true);
     try {
-      const res = await fetch('/api/v1/admin/backups');
+      const headers = await getAuthHeaders();
+      const res = await fetch('/api/v1/admin/backups', { headers });
       if (res.ok) {
         const json = await res.json();
         setBackupsData(json);
@@ -98,7 +107,7 @@ export const AdminSecurityTab: React.FC = () => {
     } finally {
       setLoadingBackups(false);
     }
-  }, []);
+  }, [getAuthHeaders]);
 
   useEffect(() => {
     fetchSecurityStatus();
@@ -109,7 +118,8 @@ export const AdminSecurityTab: React.FC = () => {
   const handleTestAlert = async () => {
     setTestingAlert(true);
     try {
-      const res = await fetch('/api/v1/monitoring/test-alert', { method: 'POST' });
+      const headers = await getAuthHeaders();
+      const res = await fetch('/api/v1/monitoring/test-alert', { method: 'POST', headers });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await res.json();
       showToast('Alerta de teste enviado com sucesso!', 'success');
@@ -125,7 +135,8 @@ export const AdminSecurityTab: React.FC = () => {
   const handleDownloadBackup = async () => {
     setIsDownloadingBackup(true);
     try {
-      const response = await fetch('/api/v1/admin/backup/download');
+      const headers = await getAuthHeaders();
+      const response = await fetch('/api/v1/admin/backup/download', { headers });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: Falha ao gerar backup`);
       }
@@ -162,7 +173,8 @@ export const AdminSecurityTab: React.FC = () => {
   const handleRunBackup = async () => {
     setIsRunningBackup(true);
     try {
-      const res = await fetch('/api/v1/admin/backup/run', { method: 'POST' });
+      const headers = await getAuthHeaders();
+      const res = await fetch('/api/v1/admin/backup/run', { method: 'POST', headers });
       if (!res.ok) {
         const errJson = await res.json().catch(() => null);
         throw new Error(errJson?.error || `HTTP ${res.status}`);
@@ -183,7 +195,8 @@ export const AdminSecurityTab: React.FC = () => {
   const handleOptimizeDatabase = async () => {
     setIsOptimizingDb(true);
     try {
-      const res = await fetch('/api/v1/admin/database/optimize', { method: 'POST' });
+      const headers = await getAuthHeaders();
+      const res = await fetch('/api/v1/admin/database/optimize', { method: 'POST', headers });
       if (!res.ok) {
         const errJson = await res.json().catch(() => null);
         throw new Error(errJson?.error || `HTTP ${res.status}`);

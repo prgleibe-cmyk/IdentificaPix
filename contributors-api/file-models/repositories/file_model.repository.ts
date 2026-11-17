@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { FileModelItem, CreateFileModelDTO, UpdateFileModelDTO } from '../models/file_model.model.js';
 
 export class FileModelRepository {
@@ -112,16 +113,18 @@ export class FileModelRepository {
     const mappingJson = typeof dto.mapping === 'object' ? JSON.stringify(dto.mapping) : dto.mapping;
     const parsingRulesJson = typeof dto.parsing_rules === 'object' ? JSON.stringify(dto.parsing_rules) : dto.parsing_rules;
 
+    const id = crypto.randomUUID();
     const query = `
       INSERT INTO file_models (
-        user_id, bank_id, name, version, lineage_id, is_active, status,
+        id, user_id, bank_id, name, version, lineage_id, is_active, status,
         fingerprint, mapping, parsing_rules, snippet, created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10::jsonb, $11, NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11::jsonb, $12, NOW())
       RETURNING *
     `;
 
     const params = [
+      id,
       dto.user_id,
       dto.bank_id || null,
       dto.name,

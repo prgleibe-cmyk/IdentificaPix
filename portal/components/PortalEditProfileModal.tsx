@@ -4,6 +4,7 @@ import { ContributorMockProfile, PortalChurch } from '../types/portal';
 import { checkProfileCompleteness } from '../utils/portalProfileCompleteness';
 import { formatCpf, formatPhone, validateCpfVisual, validatePhoneVisual, validateEmailVisual, formatDateToDmy } from '../utils/portalFormatters';
 import { invalidateContributorsCache, notifyContributorUpdated } from '../../services/contributorsCache';
+import { extractSlugFromLocation } from '../hooks/usePortalChurchResolver';
 import { 
     X, 
     Save, 
@@ -127,12 +128,20 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
     const [formErrors, setFormErrors] = useState<Record<string, string>>({});
     const [apiError, setApiError] = useState<string | null>(null);
 
-    // Load registered churches list
+    // Load registered churches list for the active organization
     useEffect(() => {
         let isMounted = true;
         const fetchChurches = async () => {
             try {
-                const res = await fetch('/api/v1/churches', { cache: 'no-store' });
+                const targetSlug = (church?.slug && church.slug !== 'igreja') ? church.slug : extractSlugFromLocation();
+                const targetId = (church?.id && church.id !== '00000000-0000-0000-0000-000000000001')
+                    ? church.id
+                    : (contributor?.church_id || '');
+                if (!targetId && !targetSlug) return;
+                const query = targetId
+                    ? `church_id=${encodeURIComponent(targetId)}`
+                    : `slug=${encodeURIComponent(targetSlug)}`;
+                const res = await fetch(`/api/v1/churches?${query}`, { cache: 'no-store' });
                 if (res.ok) {
                     const data = await res.json();
                     if (isMounted && Array.isArray(data) && data.length > 0) {
@@ -152,14 +161,19 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
         };
         fetchChurches();
         return () => { isMounted = false; };
-    }, []);
+    }, [church?.id, church?.slug, contributor?.church_id]);
 
     // Load registered roles list
     useEffect(() => {
         let isMounted = true;
         const fetchRoles = async () => {
             try {
-                const res = await fetch('/api/v1/contributors/roles', { cache: 'no-store' });
+                const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+                const targetId = church?.id || contributor?.church_id || '';
+                const rolesUrl = (targetId && uuidRegex.test(targetId))
+                    ? `/api/v1/contributors/roles?church_id=${encodeURIComponent(targetId)}`
+                    : '/api/v1/contributors/roles';
+                const res = await fetch(rolesUrl, { cache: 'no-store' });
                 if (res.ok) {
                     const data = await res.json();
                     if (isMounted && Array.isArray(data) && data.length > 0) {
@@ -178,7 +192,7 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
         };
         fetchRoles();
         return () => { isMounted = false; };
-    }, []);
+    }, [church?.id, contributor?.church_id]);
 
     // Initialize or reset form state when modal opens
     useEffect(() => {
@@ -430,14 +444,6 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                 });
 
                 if (!response.ok) {
-                    response = await fetch(`/api/v1/contributors/${contributor.id}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                }
-
-                if (!response.ok) {
                     // Fallback to update-profile without id
                     response = await fetch(`/api/v1/contributors/update-profile`, {
                         method: 'POST',
@@ -453,15 +459,15 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
                 resData = await response.json().catch(() => null);
                 if (resData && resData.id) updatedId = resData.id;
             } else {
-                // Register/create or update contributor record
-                let response = await fetch('/api/v1/contributors/update-profile', {
+                // Register/create via public-register; if already registered (409), update via update-profile
+                let response = await fetch('/api/v1/contributors/public-register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
 
-                if (!response.ok) {
-                    response = await fetch('/api/v1/contributors', {
+                if (response.status === 409) {
+                    response = await fetch('/api/v1/contributors/update-profile', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)

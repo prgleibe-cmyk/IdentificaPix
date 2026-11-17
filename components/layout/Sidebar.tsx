@@ -3,7 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { useUI } from '../../contexts/UIContext';
 import { AppContext } from '../../contexts/AppContext';
-import { ViewType, Transaction, MatchResult, ReconciliationStatus } from '../../types';
+import { ViewType, Transaction } from '../../types';
 import { preloadView } from '../../views/AppRouter';
 const logoImg = '/logo.png?v=15';
 import { BookmarkPlus, Building2, FileText, BookOpen } from 'lucide-react';
@@ -31,7 +31,7 @@ export const Sidebar: React.FC = memo(() => {
     const { activeView, setActiveView } = useUI();
     const { t } = useTranslation();
     const { signOut, user, subscription, systemSettings, isSecondaryUser } = useAuth();
-    const { openPaymentModal, setMatchResults, setBulkIdentificationTxs, bulkIdentificationTxs, churches } = useContext(AppContext);
+    const { openPaymentModal, setBulkIdentificationTxs, bulkIdentificationTxs } = useContext(AppContext);
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -74,18 +74,6 @@ export const Sidebar: React.FC = memo(() => {
             isConfirmed: false
         };
 
-        const defaultChurch = churches[0] || { id: '', name: 'Sem Igreja', address: '', logoUrl: '' };
-
-        const newMatchResult: MatchResult = {
-            transaction: newTx,
-            contributor: null,
-            status: ReconciliationStatus.PENDING,
-            church: defaultChurch,
-            isConfirmed: false,
-            updatedAt: new Date().toISOString()
-        };
-
-        setMatchResults((prev: any) => [...prev, newMatchResult]);
         setBulkIdentificationTxs([newTx]);
         setActiveView('novo_lancamento');
     };

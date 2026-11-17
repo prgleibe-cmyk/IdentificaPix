@@ -490,7 +490,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
 
                     const originDescription = isNegative
                         ? `[APORTE/FECHAMENTO] ${memoText} - COBERTURA DE SALDO PELO ${destChurch.name.toUpperCase()}`
-                        : `[FECHAMENTO] ${memoText} - TRANSP. SALDO PARA ${destChurch.name.toUpperCase()}`;
+                        : `[FECHAMENTO] ${memoText} - TRANSPORTE DE SALDO PARA ${destChurch.name.toUpperCase()}`;
 
                     const destDescription = isNegative
                         ? `[REPASSE/FECHAMENTO] ${memoText} - REPASSE DE COBERTURA PARA ${originChurch.name.toUpperCase()}`
@@ -528,6 +528,10 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                         updatedAt: new Date().toISOString()
                     };
 
+                    const destBankId = (banks || []).find((b: any) => b.church_id === d.churchId)?.id
+                        || (originBankId && originBankId !== 'all' ? originBankId : undefined)
+                        || (banks && banks.length > 0 ? banks[0].id : undefined);
+
                     const destMatch: MatchResult = {
                         transaction: {
                             id: destTxUuid,
@@ -538,6 +542,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                             amount: destAmount,
                             type: isNegative ? 'expense' : 'income',
                             isConfirmed: true,
+                            bank_id: destBankId,
                             source: 'closing',
                             row_hash: destRowHash,
                             contributionType: isNegative ? 'SAÍDA / TRANSFERÊNCIA' : 'ENTRADA / TRANSFERÊNCIA',

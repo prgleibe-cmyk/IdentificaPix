@@ -78,7 +78,7 @@ export const PortalIdentifyStep: React.FC<PortalIdentifyStepProps> = ({
     const [inputError, setInputError] = useState<string | null>(null);
     const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-    const { roles: availableRoles, defaultMembro } = usePortalRoles();
+    const { roles: availableRoles, defaultMembro } = usePortalRoles(church?.id);
     const [customRoleInput, setCustomRoleInput] = useState('');
 
     React.useEffect(() => {

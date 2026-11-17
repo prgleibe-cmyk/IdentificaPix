@@ -6,17 +6,9 @@ import {
     Eye, 
     CheckCircle2, 
     AlertTriangle, 
-    HelpCircle, 
-    Sparkles, 
-    Clock, 
-    ShieldCheck, 
-    FileCheck,
-    Receipt,
-    CreditCard,
-    Check,
-    Lock,
     Plus,
-    X
+    Receipt,
+    CreditCard
 } from 'lucide-react';
 import { 
     ExpenseAttachment, 
@@ -27,10 +19,11 @@ import {
     validateExpenseAgainstDocument,
     inferDocumentRole,
     compressImageIfNeeded,
-    ExpenseValidationStatus
+    isDocumentTextLegible
 } from '../../utils/expenseDocumentParser';
 import { processImageAndExtractText, renderPdfFirstPageToImage } from '../../utils/imageOcrReader';
 import { formatCurrency } from '../../utils/formatters';
+import { useUI } from '../../contexts/UIContext';
 
 interface ExpenseDocumentUploaderProps {
     currentAmount?: number;
@@ -57,47 +50,25 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
     language = 'pt',
     readOnly = false
 }) => {
+    const { showToast } = useUI();
     const rawCurrentAmount = propCurrentAmount ?? (launchAmount ?? 0);
     const currentAmount = Number.isFinite(Number(rawCurrentAmount)) ? Number(rawCurrentAmount) : 0;
     const [isParsing, setIsParsing] = useState(false);
     const [parsingStatusText, setParsingStatusText] = useState<string>('Processando e extraindo dados do arquivo...');
     const [ocrProgress, setOcrProgress] = useState<number | null>(null);
     const [previewAttachment, setPreviewAttachment] = useState<ExpenseAttachment | null>(null);
-    const [selectedRole, setSelectedRole] = useState<DocumentRole | null>(null);
-    const [selectionAlert, setSelectionAlert] = useState<string | null>(null);
-    const alertTimeoutRef = useRef<any>(null);
+    const [isDragging, setIsDragging] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const triggerSelectionAlert = () => {
-        setSelectionAlert('Selecione primeiro uma das opções acima (Nota Fiscal, Boleto/Fatura ou Comprovante) para liberar o carregamento do arquivo.');
-        if (alertTimeoutRef.current) clearTimeout(alertTimeoutRef.current);
-        alertTimeoutRef.current = setTimeout(() => {
-            setSelectionAlert(null);
-        }, 5000);
-    };
-
-    const triggerUploadForRole = (role: DocumentRole) => {
-        if (readOnly) return;
-        setSelectedRole(role);
-        setSelectionAlert(null);
-        setTimeout(() => {
-            fileInputRef.current?.click();
-        }, 50);
-    };
 
     const handleFileUpload = async (files: FileList | null, explicitRole?: DocumentRole) => {
         if (!files || files.length === 0 || readOnly) return;
 
-        if (explicitRole) {
-            setSelectedRole(explicitRole);
-        }
-
         setIsParsing(true);
-        setSelectionAlert(null);
         setParsingStatusText('Processando e analisando documento...');
         setOcrProgress(null);
 
         const newAttachmentsList: ExpenseAttachment[] = [...attachments];
+        let hasAddedValidAttachment = false;
 
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
@@ -164,14 +135,19 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                 }
 
                 const extractedData: ExtractedExpenseDoc = analyzeExpenseDocumentText(rawText);
+
+                if (!isDocumentTextLegible(rawText, extractedData)) {
+                    const errorMsg = 'Documento ilegível: Não foi possível realizar a leitura do arquivo. Por favor, envie uma foto ou PDF nítido e legível.';
+                    showToast(errorMsg, 'error');
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                    continue;
+                }
+
                 const validation = validateExpenseAgainstDocument(currentAmount, extractedData);
                 const autoRole = inferDocumentRole(extractedData.documentType, file.name);
 
-                // O documento é identificado pelo tipo selecionado ou inferido automaticamente!
-                const assignedRole: DocumentRole = explicitRole || selectedRole || (autoRole === 'outro' ? 'comprovante' : autoRole);
-                if (!selectedRole && assignedRole) {
-                    setSelectedRole(assignedRole);
-                }
+                // O documento é identificado pelo tipo informado ou inferido automaticamente
+                const assignedRole: DocumentRole = explicitRole || (autoRole === 'outro' ? 'comprovante' : autoRole);
 
                 const newAttachment: ExpenseAttachment = {
                     id: fileId,
@@ -187,6 +163,7 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                 };
 
                 newAttachmentsList.push(newAttachment);
+                hasAddedValidAttachment = true;
 
                 if (onDocumentDataExtracted) {
                     onDocumentDataExtracted(extractedData, newAttachment);
@@ -196,7 +173,9 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
             }
         }
 
-        onChangeAttachments(newAttachmentsList);
+        if (hasAddedValidAttachment) {
+            onChangeAttachments(newAttachmentsList);
+        }
         setIsParsing(false);
         setOcrProgress(null);
         setParsingStatusText('Processando e extraindo dados do arquivo...');
@@ -217,65 +196,50 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
 
     const safeAttachments = Array.isArray(attachments) ? attachments.filter(Boolean) : [];
 
-    // Classificação dos documentos carregados para status de auditoria
-    const nfDocs = safeAttachments.filter(a => 
-        a.documentRole === 'nota_fiscal' || 
-        (!a.documentRole && a.extractedData?.documentType === 'nota_fiscal')
-    );
-    const invoiceDocs = safeAttachments.filter(a => 
-        a.documentRole === 'fatura' || 
-        (!a.documentRole && (a.extractedData?.documentType === 'fatura' || a.extractedData?.documentType === 'boleto'))
-    );
-    const proofDocs = safeAttachments.filter(a => 
-        a.documentRole === 'comprovante' || 
-        (!a.documentRole && (a.extractedData?.documentType === 'comprovante_pix' || a.extractedData?.documentType === 'comprovante_pagamento' || a.extractedData?.documentType === 'recibo'))
-    );
-
-    const hasNf = nfDocs.length > 0;
-    const hasInvoice = invoiceDocs.length > 0;
-    const hasProof = proofDocs.length > 0;
-
-    // Validação global principal
-    const primaryAttachment = safeAttachments[0] || null;
-    const currentValidation = primaryAttachment 
-        ? validateExpenseAgainstDocument(currentAmount, primaryAttachment.extractedData)
-        : { status: 'pending_attachment' as ExpenseValidationStatus, message: 'Nenhum documento anexado.', diff: 0 };
-
     return (
-        <div className="space-y-3">
-            <div className="flex items-center justify-between">
-                <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] flex items-center gap-1.5">
-                    <FileText className="w-3.5 h-3.5 text-orange-500" />
-                    Documentação da Despesa (NF, Boleto e Comprovante)
-                </label>
-                
-                {/* Semáforo de Validação */}
-                <div className="flex items-center gap-1.5">
-                    {currentValidation.status === 'validated' && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40 animate-fade-in">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                            Validado com Documento
-                        </span>
-                    )}
-                    {currentValidation.status === 'divergent' && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-800/40 animate-fade-in">
-                            <AlertTriangle className="w-3 h-3 text-rose-500 animate-pulse" />
-                            Divergência de Valor
-                        </span>
-                    )}
-                    {currentValidation.status === 'manual_review' && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700 animate-fade-in">
-                            <HelpCircle className="w-3 h-3 text-slate-400" />
-                            Verificação Manual
-                        </span>
-                    )}
-                    {currentValidation.status === 'pending_attachment' && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40 animate-fade-in">
-                            <Clock className="w-3 h-3 text-amber-500" />
-                            Pendente de Anexo
-                        </span>
-                    )}
+        <div
+            className="space-y-2"
+            onDragOver={(e) => {
+                if (readOnly || safeAttachments.length === 0) return;
+                e.preventDefault();
+                e.stopPropagation();
+                if (!isDragging) setIsDragging(true);
+            }}
+            onDragLeave={(e) => {
+                if (readOnly || safeAttachments.length === 0) return;
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDragging(false);
+            }}
+            onDrop={(e) => {
+                if (readOnly || safeAttachments.length === 0) return;
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDragging(false);
+                handleFileUpload(e.dataTransfer.files);
+            }}
+        >
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Comprovantes e Documentos</span>
+                    </label>
+                    <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                        (opcional)
+                    </span>
                 </div>
+
+                {!readOnly && safeAttachments.length > 0 && (
+                    <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200/90 dark:border-slate-700 hover:border-orange-300 hover:text-orange-600 dark:hover:text-orange-400 transition-colors cursor-pointer shrink-0"
+                    >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Anexar outro</span>
+                    </button>
+                )}
             </div>
 
             {/* Input nativo oculto para acionamento do seletor de arquivos */}
@@ -288,268 +252,90 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                 onChange={(e) => handleFileUpload(e.target.files)}
             />
 
-            {/* Painel Triplo Integrado com Upload Direto em cada Card */}
-            <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
-                        <Upload className="w-3.5 h-3.5 text-orange-500" />
-                        <span>Clique no card ou arraste seu documento diretamente para a opção desejada:</span>
+            {/* Dropzone Única Limpa e Padrão (exibida quando ainda não há anexos) */}
+            {!readOnly && safeAttachments.length === 0 && (
+                <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => fileInputRef.current?.click()}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            fileInputRef.current?.click();
+                        }
+                    }}
+                    onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!isDragging) setIsDragging(true);
+                    }}
+                    onDragLeave={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsDragging(false);
+                    }}
+                    onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsDragging(false);
+                        handleFileUpload(e.dataTransfer.files);
+                    }}
+                    className={`group rounded-xl border border-dashed px-3.5 py-2.5 transition-all cursor-pointer select-none flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
+                        isDragging
+                            ? 'border-orange-500 bg-orange-50/50 dark:bg-orange-950/25'
+                            : 'border-slate-300 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/35 hover:border-orange-400 dark:hover:border-orange-500/70 hover:bg-orange-50/25 dark:hover:bg-orange-950/15'
+                    }`}
+                >
+                    <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-9 h-9 rounded-lg border flex items-center justify-center shrink-0 transition-colors ${
+                            isDragging
+                                ? 'bg-orange-600 border-orange-600 text-white'
+                                : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-700 text-slate-500 dark:text-slate-400 group-hover:text-orange-600 group-hover:border-orange-200 dark:group-hover:border-orange-800'
+                        }`}>
+                            <Upload className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                            <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 block">
+                                Clique ou arraste NF, Boleto ou Comprovante
+                            </span>
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
+                                Aceita PDF, XML ou imagem (identificação automática do documento)
+                            </span>
+                        </div>
+                    </div>
+
+                    <span className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200/90 dark:border-slate-700 group-hover:border-orange-300 group-hover:text-orange-600 dark:group-hover:text-orange-400 shadow-2xs transition-colors shrink-0">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Selecionar arquivo</span>
                     </span>
-                    {selectedRole && !readOnly && (
-                        <button
-                            type="button"
-                            onClick={() => setSelectedRole(null)}
-                            className="text-[9px] font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 underline cursor-pointer"
-                        >
-                            Limpar seleção
-                        </button>
-                    )}
                 </div>
+            )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                    {/* Slot 1: Nota Fiscal / Cupom (Compras) */}
-                    <div 
-                        id="btn-role-nota-fiscal"
-                        onClick={() => {
-                            if (readOnly) return;
-                            triggerUploadForRole('nota_fiscal');
-                        }}
-                        onDragOver={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                        }}
-                        onDrop={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setSelectedRole('nota_fiscal');
-                            handleFileUpload(e.dataTransfer.files, 'nota_fiscal');
-                        }}
-                        className={`p-3 rounded-xl border transition-all duration-200 flex flex-col justify-between gap-2.5 cursor-pointer select-none group relative overflow-hidden ${
-                            hasNf
-                                ? 'bg-indigo-50/60 dark:bg-indigo-950/40 border-indigo-400 dark:border-indigo-700 shadow-xs ring-1 ring-indigo-500/20'
-                                : 'bg-slate-50/80 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 hover:border-indigo-400 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 hover:shadow-xs'
-                        }`}
-                        title="Clique ou arraste para carregar Nota Fiscal (PDF, XML ou Foto)"
-                    >
-                        <div className="flex items-start justify-between gap-2">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                                <div className={`p-2 rounded-xl shrink-0 transition-colors ${
-                                    hasNf 
-                                        ? 'bg-indigo-600 text-white shadow-xs' 
-                                        : 'bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 group-hover:bg-indigo-600 group-hover:text-white'
-                                }`}>
-                                    <Receipt className="w-4 h-4" />
-                                </div>
-                                <div className="min-w-0">
-                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block truncate">
-                                        1. Nota Fiscal
-                                    </span>
-                                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block truncate">
-                                        Compra / Mercadorias
-                                    </span>
-                                </div>
-                            </div>
-                            
-                            <div className="shrink-0 flex items-center gap-1">
-                                {hasNf ? (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-indigo-600 text-white shadow-xs">
-                                        <Check className="w-2.5 h-2.5" /> Anexada
-                                    </span>
-                                ) : (
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80 group-hover:bg-indigo-600 group-hover:text-white transition-colors shadow-2xs">
-                                        <Upload className="w-3 h-3" />
-                                        <span>Carregar</span>
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="flex items-center justify-between pt-1.5 border-t border-indigo-100/60 dark:border-indigo-900/40 text-[9.5px]">
-                            <span className="text-slate-500 dark:text-slate-400 font-medium truncate max-w-[170px]">
-                                {hasNf 
-                                    ? `${nfDocs[0].fileName} ${nfDocs[0].extractedData?.extractedAmount ? `(${formatCurrency(nfDocs[0].extractedData.extractedAmount, language)})` : ''}` 
-                                    : 'Clique ou arraste o arquivo aqui'}
-                            </span>
-                            {!readOnly && (
-                                <span className="font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-0.5 group-hover:underline shrink-0">
-                                    <Plus className="w-2.5 h-2.5" />
-                                    <span>{hasNf ? 'Anexar outro' : 'Upload NF'}</span>
-                                </span>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Slot 2: Boleto / Fatura */}
-                    <div 
-                        id="btn-role-fatura"
-                        onClick={() => {
-                            if (readOnly) return;
-                            triggerUploadForRole('fatura');
-                        }}
-                        onDragOver={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                        }}
-                        onDrop={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setSelectedRole('fatura');
-                            handleFileUpload(e.dataTransfer.files, 'fatura');
-                        }}
-                        className={`p-3 rounded-xl border transition-all duration-200 flex flex-col justify-between gap-2.5 cursor-pointer select-none group relative overflow-hidden ${
-                            hasInvoice
-                                ? 'bg-amber-50/60 dark:bg-amber-950/40 border-amber-400 dark:border-amber-700 shadow-xs ring-1 ring-amber-500/20'
-                                : 'bg-slate-50/80 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 hover:border-amber-400 hover:bg-amber-50/30 dark:hover:bg-amber-950/20 hover:shadow-xs'
-                        }`}
-                        title="Clique ou arraste para carregar Boleto ou Fatura (PDF ou Foto)"
-                    >
-                        <div className="flex items-start justify-between gap-2">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                                <div className={`p-2 rounded-xl shrink-0 transition-colors ${
-                                    hasInvoice 
-                                        ? 'bg-amber-600 text-white shadow-xs' 
-                                        : 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 group-hover:bg-amber-600 group-hover:text-white'
-                                }`}>
-                                    <FileText className="w-4 h-4" />
-                                </div>
-                                <div className="min-w-0">
-                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block truncate">
-                                        2. Boleto / Fatura
-                                    </span>
-                                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block truncate">
-                                        Cobrança / Contas
-                                    </span>
-                                </div>
-                            </div>
-                            
-                            <div className="shrink-0 flex items-center gap-1">
-                                {hasInvoice ? (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-600 text-white shadow-xs">
-                                        <Check className="w-2.5 h-2.5" /> Anexado
-                                    </span>
-                                ) : (
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/80 group-hover:bg-amber-600 group-hover:text-white transition-colors shadow-2xs">
-                                        <Upload className="w-3 h-3" />
-                                        <span>Carregar</span>
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="flex items-center justify-between pt-1.5 border-t border-amber-100/60 dark:border-amber-900/40 text-[9.5px]">
-                            <span className="text-slate-500 dark:text-slate-400 font-medium truncate max-w-[170px]">
-                                {hasInvoice 
-                                    ? `${invoiceDocs[0].fileName} ${invoiceDocs[0].extractedData?.extractedAmount ? `(${formatCurrency(invoiceDocs[0].extractedData.extractedAmount, language)})` : ''}` 
-                                    : 'Clique ou arraste o arquivo aqui'}
-                            </span>
-                            {!readOnly && (
-                                <span className="font-bold text-amber-600 dark:text-amber-400 flex items-center gap-0.5 group-hover:underline shrink-0">
-                                    <Plus className="w-2.5 h-2.5" />
-                                    <span>{hasInvoice ? 'Anexar outro' : 'Upload Boleto'}</span>
-                                </span>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Slot 3: Comprovante de Pagamento */}
-                    <div 
-                        id="btn-role-comprovante"
-                        onClick={() => {
-                            if (readOnly) return;
-                            triggerUploadForRole('comprovante');
-                        }}
-                        onDragOver={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                        }}
-                        onDrop={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setSelectedRole('comprovante');
-                            handleFileUpload(e.dataTransfer.files, 'comprovante');
-                        }}
-                        className={`p-3 rounded-xl border transition-all duration-200 flex flex-col justify-between gap-2.5 cursor-pointer select-none group relative overflow-hidden ${
-                            hasProof
-                                ? 'bg-emerald-50/60 dark:bg-emerald-950/40 border-emerald-400 dark:border-emerald-700 shadow-xs ring-1 ring-emerald-500/20'
-                                : 'bg-slate-50/80 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 hover:border-emerald-400 hover:bg-emerald-50/30 dark:hover:bg-emerald-950/20 hover:shadow-xs'
-                        }`}
-                        title="Clique ou arraste para carregar Comprovante de Pagamento (PIX, TED, Recibo)"
-                    >
-                        <div className="flex items-start justify-between gap-2">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                                <div className={`p-2 rounded-xl shrink-0 transition-colors ${
-                                    hasProof 
-                                        ? 'bg-emerald-600 text-white shadow-xs' 
-                                        : 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 group-hover:bg-emerald-600 group-hover:text-white'
-                                }`}>
-                                    <CreditCard className="w-4 h-4" />
-                                </div>
-                                <div className="min-w-0">
-                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block truncate">
-                                        3. Comprovante (Quitação)
-                                    </span>
-                                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block truncate">
-                                        PIX / TED / Recibo
-                                    </span>
-                                </div>
-                            </div>
-                            
-                            <div className="shrink-0 flex items-center gap-1">
-                                {hasProof ? (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-600 text-white shadow-xs">
-                                        <Check className="w-2.5 h-2.5" /> Quitado
-                                    </span>
-                                ) : (
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/80 group-hover:bg-emerald-600 group-hover:text-white transition-colors shadow-2xs">
-                                        <Upload className="w-3 h-3" />
-                                        <span>Carregar</span>
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="flex items-center justify-between pt-1.5 border-t border-emerald-100/60 dark:border-emerald-900/40 text-[9.5px]">
-                            <span className="text-slate-500 dark:text-slate-400 font-medium truncate max-w-[170px]">
-                                {hasProof 
-                                    ? `${proofDocs[0].fileName} ${proofDocs[0].extractedData?.extractedAmount ? `(${formatCurrency(proofDocs[0].extractedData.extractedAmount, language)})` : ''}` 
-                                    : 'Clique ou arraste o arquivo aqui'}
-                            </span>
-                            {!readOnly && (
-                                <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5 group-hover:underline shrink-0">
-                                    <Plus className="w-2.5 h-2.5" />
-                                    <span>{hasProof ? 'Anexar outro' : 'Upload Comprovante'}</span>
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Banner de Leitura Óptica e OCR em Execução (Sem poluir a tela) */}
+            {/* Banner de Leitura Óptica e OCR em Execução */}
             {isParsing && (
-                <div className="p-3 bg-gradient-to-r from-orange-50 via-amber-50 to-orange-50 dark:from-orange-950/40 dark:via-amber-950/30 dark:to-orange-950/40 border border-orange-200 dark:border-orange-800/60 rounded-xl flex items-center justify-between gap-3 animate-fade-in shadow-xs">
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl flex items-center justify-between gap-3 animate-fade-in">
                     <div className="flex items-center gap-2.5 min-w-0">
                         <div className="w-4 h-4 border-2 border-orange-600 border-t-transparent rounded-full animate-spin shrink-0" />
                         <div className="min-w-0">
-                            <span className="text-xs font-bold text-orange-950 dark:text-orange-200 block truncate">
+                            <span className="text-xs font-semibold text-slate-800 dark:text-slate-100 block truncate">
                                 {parsingStatusText}
                             </span>
-                            <span className="text-[10px] text-orange-700 dark:text-orange-400 font-medium block truncate">
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400 block truncate">
                                 {ocrProgress !== null && ocrProgress > 0 
-                                    ? `Progresso do OCR no navegador: ${ocrProgress}% concluído...` 
-                                    : 'Identificando Favorecido, Valor e Data...'}
+                                    ? `Leitura do arquivo: ${ocrProgress}% concluído...` 
+                                    : 'Identificando favorecido, valor e data...'}
                             </span>
                         </div>
                     </div>
-                    <span className="text-[10px] font-black uppercase text-orange-700 dark:text-orange-300 bg-orange-100/80 dark:bg-orange-900/60 px-2 py-0.5 rounded-full shrink-0">
+                    <span className="text-[11px] font-semibold text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/50 border border-orange-200/80 dark:border-orange-800/50 px-2 py-0.5 rounded-md shrink-0">
                         Processando
                     </span>
                 </div>
             )}
 
-            {/* Lista de Anexos com Seletor de Papel e Diagnóstico */}
+            {/* Lista Compacta de Anexos (1 linha limpa por documento) */}
             {safeAttachments.length > 0 && (
-                <div className="space-y-2 mt-2">
+                <div className={`space-y-1.5 rounded-xl transition-colors ${isDragging ? 'ring-2 ring-orange-400/70' : ''}`}>
                     {safeAttachments.map((att, attIdx) => {
                         const validation = validateExpenseAgainstDocument(currentAmount, att.extractedData);
                         const doc = att.extractedData;
@@ -563,114 +349,126 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                                 : null;
 
                         return (
-                            <div 
+                            <div
                                 key={att.id || `att-${attIdx}`}
-                                className={`p-3 rounded-xl border transition-all ${
-                                    validation.status === 'validated'
-                                        ? 'bg-emerald-50/30 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-900/30'
-                                        : validation.status === 'divergent'
-                                        ? 'bg-rose-50/30 dark:bg-rose-950/10 border-rose-200 dark:border-rose-900/30'
-                                        : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700'
+                                className={`px-3 py-2 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${
+                                    validation.status === 'divergent'
+                                        ? 'bg-rose-50/30 dark:bg-rose-950/10 border-rose-200 dark:border-rose-900/40'
+                                        : 'bg-white dark:bg-slate-900/60 border-slate-200/90 dark:border-slate-700/80'
                                 }`}
                             >
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                        <div className={`p-2 rounded-lg ${
-                                            validation.status === 'validated' 
-                                                ? currentRole === 'nota_fiscal'
-                                                    ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300'
-                                                    : currentRole === 'fatura'
-                                                    ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-300'
-                                                    : 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-300'
-                                                : validation.status === 'divergent'
-                                                ? 'bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-300'
-                                                : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
-                                        }`}>
-                                            {currentRole === 'nota_fiscal' ? (
-                                                <Receipt className="w-4 h-4" />
-                                            ) : currentRole === 'fatura' ? (
-                                                <FileText className="w-4 h-4" />
-                                            ) : currentRole === 'comprovante' ? (
-                                                <CreditCard className="w-4 h-4" />
-                                            ) : (
-                                                <FileText className="w-4 h-4" />
-                                            )}
-                                        </div>
-                                        <div className="min-w-0 flex-1">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <span className="font-bold text-xs text-slate-800 dark:text-slate-200 truncate max-w-[200px] sm:max-w-xs block">
-                                                    {att.fileName || 'Documento anexo'}
-                                                </span>
-                                                {doc?.documentTypeLabel && (
-                                                    <span className="bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[8px] font-black uppercase px-1.5 py-0.5 rounded shrink-0">
-                                                        {doc.documentTypeLabel}
-                                                    </span>
-                                                )}
-                                                {doc?.confidenceLevel === 'high' && (
-                                                    <span className="bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[8px] font-black uppercase px-1.5 py-0.5 rounded shrink-0 border border-emerald-200 dark:border-emerald-800">
-                                                        ✓ XML Estruturado
-                                                    </span>
-                                                )}
-                                                {typeof att.fileSize === 'number' && !isNaN(att.fileSize) && (
-                                                    <span className="text-[8.5px] text-slate-400 font-mono">
-                                                        {(att.fileSize / 1024).toFixed(0)} KB
-                                                    </span>
-                                                )}
-                                            </div>
-                                            
-                                            {/* Detalhes Extraídos */}
-                                            <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 flex flex-wrap gap-x-3 gap-y-1">
-                                                {numericExtractedAmount !== null && (
-                                                    <span>
-                                                        Valor Detectado: <strong className="font-mono text-slate-700 dark:text-slate-200">{formatCurrency(numericExtractedAmount, language)}</strong>
-                                                    </span>
-                                                )}
-                                                {doc?.extractedRecipient && (
-                                                    <span className="truncate max-w-[180px]" title={doc.extractedRecipient}>
-                                                        Favorecido: <strong className="text-slate-700 dark:text-slate-200">{doc.extractedRecipient}</strong>
-                                                    </span>
-                                                )}
-                                                {doc?.extractedRecipientCnpjCpf && (
-                                                    <span>
-                                                        CNPJ/CPF: <strong className="font-mono text-slate-700 dark:text-slate-200">{doc.extractedRecipientCnpjCpf}</strong>
-                                                    </span>
-                                                )}
-                                                {doc?.documentNumber && (
-                                                    <span>
-                                                        Nº: <strong className="font-mono text-slate-700 dark:text-slate-200">{doc.documentNumber}</strong>
-                                                    </span>
-                                                )}
-                                                {typeof doc?.extractedDate === 'string' && doc.extractedDate && (
-                                                    <span>
-                                                        Data: <strong>{doc.extractedDate.split('-').reverse().join('/')}</strong>
-                                                    </span>
-                                                )}
-                                                {typeof doc?.extractedDueDate === 'string' && doc.extractedDueDate && (
-                                                    <span>
-                                                        Vencimento: <strong className="text-amber-700 dark:text-amber-400">{doc.extractedDueDate.split('-').reverse().join('/')}</strong>
-                                                    </span>
-                                                )}
-                                                {doc?.barcodeOrAuth && (
-                                                    <span className="truncate max-w-[220px]" title={doc.barcodeOrAuth}>
-                                                        Linha/Cód: <strong className="font-mono text-[9.5px] text-slate-700 dark:text-slate-200">{doc.barcodeOrAuth}</strong>
-                                                    </span>
-                                                )}
-                                                {doc?.items && doc.items.length > 0 && (
-                                                    <span className="text-indigo-600 dark:text-indigo-400 font-semibold">
-                                                        📦 {doc.items.length} {doc.items.length === 1 ? 'item' : 'itens'}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
+                                {/* Esquerda / Linha 1 (mobile): ícone + nome + tamanho */}
+                                <div className="flex items-center gap-2 min-w-0 flex-1 w-full sm:w-auto">
+                                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                                        validation.status === 'divergent'
+                                            ? 'bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-300'
+                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                                    }`}>
+                                        {currentRole === 'nota_fiscal' ? (
+                                            <Receipt className="w-3.5 h-3.5" />
+                                        ) : currentRole === 'fatura' ? (
+                                            <FileText className="w-3.5 h-3.5" />
+                                        ) : currentRole === 'comprovante' || currentRole === 'recibo' ? (
+                                            <CreditCard className="w-3.5 h-3.5" />
+                                        ) : (
+                                            <FileText className="w-3.5 h-3.5" />
+                                        )}
                                     </div>
 
-                                    {/* Ações */}
-                                    <div className="flex items-center gap-1 shrink-0">
+                                    <span
+                                        className="font-semibold text-xs text-slate-800 dark:text-slate-100 truncate min-w-0 flex-1 sm:flex-initial"
+                                        title={att.fileName || 'Documento anexo'}
+                                    >
+                                        {att.fileName || 'Documento anexo'}
+                                    </span>
+
+                                    {typeof att.fileSize === 'number' && !isNaN(att.fileSize) && (
+                                        <span className="text-[11px] text-slate-400 font-mono shrink-0">
+                                            {(att.fileSize / 1024).toFixed(0)} KB
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Direita / Linha 2 (mobile): tipo + status conciso + ações */}
+                                <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto shrink-0 flex-wrap">
+                                    {!readOnly ? (
+                                        <select
+                                            value={currentRole}
+                                            onChange={(e) => handleRoleChange(att.id, e.target.value as DocumentRole)}
+                                            aria-label="Tipo do documento"
+                                            className="text-[11px] font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/70 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700 rounded-md px-1.5 py-0.5 cursor-pointer outline-none focus:border-orange-400 shrink-0"
+                                        >
+                                            <option value="nota_fiscal">Nota Fiscal</option>
+                                            <option value="fatura">Boleto / Fatura</option>
+                                            <option value="comprovante">Comprovante</option>
+                                            <option value="recibo">Recibo</option>
+                                            <option value="outro">Outro</option>
+                                        </select>
+                                    ) : (
+                                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-md shrink-0">
+                                            {currentRole === 'nota_fiscal'
+                                                ? 'Nota Fiscal'
+                                                : currentRole === 'fatura'
+                                                ? 'Boleto / Fatura'
+                                                : currentRole === 'comprovante'
+                                                ? 'Comprovante'
+                                                : currentRole === 'recibo'
+                                                ? 'Recibo'
+                                                : 'Outro'}
+                                        </span>
+                                    )}
+
+                                    <div className="flex items-center gap-1.5 shrink-0 ml-auto sm:ml-0">
+                                        {validation.status === 'validated' && (
+                                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap mr-0.5">
+                                                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                                                <span>Valor confere</span>
+                                            </span>
+                                        )}
+
+                                        {validation.status === 'divergent' && (
+                                            <span
+                                                className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 dark:text-rose-400 whitespace-nowrap mr-0.5"
+                                                title={`Lançamento R$ ${currentAmount.toFixed(2)} vs Documento R$ ${(numericExtractedAmount ?? 0).toFixed(2)}`}
+                                            >
+                                                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                                                <span>Doc: {formatCurrency(numericExtractedAmount ?? 0, language)}</span>
+                                            </span>
+                                        )}
+
+                                        {(validation.status === 'divergent' || currentAmount === 0 || !currentAmount) &&
+                                            numericExtractedAmount !== null &&
+                                            numericExtractedAmount > 0 &&
+                                            onApplyExtractedAmount && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onApplyExtractedAmount(numericExtractedAmount)}
+                                                    className="px-2 py-0.5 bg-orange-600 hover:bg-orange-700 text-white rounded-md text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap"
+                                                >
+                                                    {currentAmount === 0 || !currentAmount
+                                                        ? `Aplicar ${formatCurrency(numericExtractedAmount, language)}`
+                                                        : 'Ajustar'}
+                                                </button>
+                                            )}
+
+                                        {doc?.extractedRecipient &&
+                                            onApplyExtractedRecipient &&
+                                            (!recipientName ||
+                                                recipientName.trim().toUpperCase() !== doc.extractedRecipient.trim().toUpperCase()) && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onApplyExtractedRecipient(doc.extractedRecipient!)}
+                                                    className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-md text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap"
+                                                >
+                                                    Copiar favorecido
+                                                </button>
+                                            )}
+
                                         {att.dataUrl && (
                                             <button
                                                 type="button"
                                                 onClick={() => setPreviewAttachment(att)}
-                                                className="p-1.5 text-slate-500 hover:text-orange-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+                                                className="p-1.5 text-slate-500 hover:text-orange-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
                                                 title="Visualizar documento"
                                             >
                                                 <Eye className="w-4 h-4" />
@@ -680,150 +478,10 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
                                             <button
                                                 type="button"
                                                 onClick={() => handleRemoveAttachment(att.id)}
-                                                className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors cursor-pointer"
+                                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors cursor-pointer"
                                                 title="Remover anexo"
                                             >
                                                 <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Dados Extraídos do Documento */}
-                                {doc && (numericExtractedAmount !== null || doc.extractedRecipient || doc.extractedDate || doc.extractedDueDate) && (
-                                    <div className="mt-2 px-2.5 py-1.5 bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/40 rounded-xl flex flex-wrap items-center gap-1.5 text-[10px]">
-                                        <span className="font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1">
-                                            <Sparkles className="w-3 h-3 text-amber-500" />
-                                            Detectado:
-                                        </span>
-                                        {numericExtractedAmount !== null && (
-                                            <span className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-800 font-bold text-slate-800 dark:text-white">
-                                                R$ {numericExtractedAmount.toFixed(2)}
-                                            </span>
-                                        )}
-                                        {doc.extractedRecipient && (
-                                            <span className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-800 font-bold text-slate-800 dark:text-white truncate max-w-[220px]" title={doc.extractedRecipient}>
-                                                {doc.extractedRecipient}
-                                            </span>
-                                        )}
-                                        {(doc.extractedDueDate || doc.extractedDate) && (
-                                            <span className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-800 font-mono text-slate-700 dark:text-slate-300">
-                                                {doc.extractedDueDate || doc.extractedDate}
-                                            </span>
-                                        )}
-                                        {doc.documentNumber && (
-                                            <span className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-800 text-slate-600 dark:text-slate-400">
-                                                Nº {doc.documentNumber}
-                                            </span>
-                                        )}
-                                    </div>
-                                )}
-
-                                {/* Barra de Papel do Documento + Diagnóstico */}
-                                <div className="mt-2.5 pt-2 border-t border-dashed border-slate-200 dark:border-slate-700/60 flex flex-wrap items-center justify-between gap-2 text-[10px]">
-                                    {/* Alternador de Papel: Nota Fiscal vs Fatura vs Comprovante */}
-                                    {!readOnly ? (
-                                        <div className="flex items-center gap-1 flex-wrap">
-                                            <span className="text-[9px] text-slate-400 uppercase font-semibold mr-0.5">Tipo:</span>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleRoleChange(att.id, 'nota_fiscal')}
-                                                className={`px-2 py-0.5 rounded text-[8.5px] font-bold transition-all cursor-pointer ${
-                                                    currentRole === 'nota_fiscal'
-                                                        ? 'bg-indigo-600 text-white shadow-xs'
-                                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                                                }`}
-                                                title="Definir como Nota Fiscal / Cupom Fiscal (compra de mercadorias ou serviços)"
-                                            >
-                                                🧾 Nota Fiscal
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleRoleChange(att.id, 'fatura')}
-                                                className={`px-2 py-0.5 rounded text-[8.5px] font-bold transition-all cursor-pointer ${
-                                                    currentRole === 'fatura'
-                                                        ? 'bg-amber-600 text-white shadow-xs'
-                                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                                                }`}
-                                                title="Definir como Boleto Bancário ou Fatura de cobrança"
-                                            >
-                                                📄 Boleto / Fatura
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleRoleChange(att.id, 'comprovante')}
-                                                className={`px-2 py-0.5 rounded text-[8.5px] font-bold transition-all cursor-pointer ${
-                                                    currentRole === 'comprovante'
-                                                        ? 'bg-emerald-600 text-white shadow-xs'
-                                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                                                }`}
-                                                title="Definir como Comprovante de Pagamento (PIX, TED, quitação)"
-                                            >
-                                                💳 Comprovante
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleRoleChange(att.id, 'outro')}
-                                                className={`px-1.5 py-0.5 rounded text-[8.5px] font-semibold transition-all cursor-pointer ${
-                                                    currentRole === 'outro'
-                                                        ? 'bg-slate-600 text-white'
-                                                        : 'text-slate-400 hover:text-slate-600'
-                                                }`}
-                                                title="Outro tipo de documento"
-                                            >
-                                                Outro
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <span className="text-[9px] font-bold uppercase text-slate-500">
-                                            {currentRole === 'nota_fiscal'
-                                                ? '🧾 Nota Fiscal (Compra)'
-                                                : currentRole === 'fatura'
-                                                ? '📄 Boleto / Fatura'
-                                                : currentRole === 'comprovante'
-                                                ? '💳 Comprovante de Quitação'
-                                                : 'Outro Documento'}
-                                        </span>
-                                    )}
-
-                                    {/* Diagnóstico de Validação */}
-                                    <div className="flex items-center gap-1.5 ml-auto">
-                                        {validation.status === 'validated' ? (
-                                            <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
-                                                <CheckCircle2 className="w-3 h-3" />
-                                                Valor confere ({formatCurrency(currentAmount, language)})
-                                            </span>
-                                        ) : validation.status === 'divergent' ? (
-                                            <span className="text-rose-600 dark:text-rose-400 font-bold flex items-center gap-1">
-                                                <AlertTriangle className="w-3 h-3" />
-                                                Lançamento R$ {currentAmount.toFixed(2)} vs Doc R$ {(numericExtractedAmount ?? 0).toFixed(2)}
-                                            </span>
-                                        ) : (
-                                            <span className="text-slate-500 dark:text-slate-400 font-medium">
-                                                {validation.message}
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    {/* Ações de Auto-Preenchimento */}
-                                    <div className="flex items-center gap-1.5">
-                                        {(validation.status === 'divergent' || currentAmount === 0 || !currentAmount) && numericExtractedAmount !== null && numericExtractedAmount > 0 && onApplyExtractedAmount && (
-                                            <button
-                                                type="button"
-                                                onClick={() => onApplyExtractedAmount(numericExtractedAmount)}
-                                                className="px-2 py-0.5 bg-orange-500 hover:bg-orange-600 text-white rounded text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-sm"
-                                            >
-                                                <Sparkles className="w-2.5 h-2.5" />
-                                                {currentAmount === 0 || !currentAmount ? 'Aplicar' : 'Ajustar para'} R$ {numericExtractedAmount.toFixed(2)}
-                                            </button>
-                                        )}
-                                        {doc?.extractedRecipient && onApplyExtractedRecipient && (
-                                            <button
-                                                type="button"
-                                                onClick={() => onApplyExtractedRecipient(doc.extractedRecipient!)}
-                                                className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded text-[9px] font-bold transition-all cursor-pointer"
-                                            >
-                                                Copiar Favorecido
                                             </button>
                                         )}
                                     </div>
@@ -836,7 +494,7 @@ export const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = (
 
             {/* Modal de Preview do Documento */}
             {previewAttachment && (
-                <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in">
                         <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900">
                             <div className="flex items-center gap-2">

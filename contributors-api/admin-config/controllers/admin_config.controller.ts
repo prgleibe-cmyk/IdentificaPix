@@ -1,6 +1,9 @@
 import { Request, Response } from 'express';
 import { AdminConfigService } from '../services/admin_config.service.js';
 import { AdminConfigValidator } from '../validators/admin_config.validator.js';
+import { getTenantContext } from '../../auth/utils/tenant.context.js';
+
+const PUBLIC_READ_KEYS = new Set(['system_settings']);
 
 export class AdminConfigController {
   private service: AdminConfigService;
@@ -11,19 +14,35 @@ export class AdminConfigController {
 
   /**
    * GET /api/v1/admin-config
-   * Se ?key=xxx for fornecido, filtra pela chave.
-   * Caso contrário, retorna todas as configurações.
+   * Se ?key=system_settings, permite leitura pública das configurações gerais do app.
+   * Outras chaves e listagem completa exigem SuperAdmin autenticado.
    */
   getAll = async (req: Request, res: Response) => {
     try {
+      const ctx = getTenantContext(req);
       const { key } = req.query;
       if (key && typeof key === 'string') {
+        if (!PUBLIC_READ_KEYS.has(key)) {
+          if (!ctx.isAuthenticated) {
+            return res.status(401).json({ success: false, error: 'UNAUTHORIZED', message: 'Autenticação necessária.' });
+          }
+          if (!ctx.isSuperAdmin) {
+            return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'Acesso restrito a administradores gerais.' });
+          }
+        }
         const item = await this.service.getByKey(key);
         return res.json({
           success: true,
           data: item ? [item] : [],
           config: item ? { [item.key]: item.value } : {}
         });
+      }
+
+      if (!ctx.isAuthenticated) {
+        return res.status(401).json({ success: false, error: 'UNAUTHORIZED', message: 'Autenticação necessária para listar configurações administrativas.' });
+      }
+      if (!ctx.isSuperAdmin) {
+        return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'Acesso restrito a administradores gerais.' });
       }
 
       const { configMap, items } = await this.service.getAll();
@@ -53,9 +72,19 @@ export class AdminConfigController {
         return res.status(400).json({ success: false, error: keyValidation.error });
       }
 
+      if (!PUBLIC_READ_KEYS.has(key)) {
+        const ctx = getTenantContext(req);
+        if (!ctx.isAuthenticated) {
+          return res.status(401).json({ success: false, error: 'UNAUTHORIZED', message: 'Autenticação necessária.' });
+        }
+        if (!ctx.isSuperAdmin) {
+          return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'Acesso restrito a administradores gerais.' });
+        }
+      }
+
       const item = await this.service.getByKey(key);
       if (!item) {
-        return res.status(440).json({
+        return res.status(404).json({
           success: false,
           error: 'CONFIGURACAO_NAO_ENCONTRADA',
           message: `Nenhuma configuração encontrada com a chave "${key}".`
@@ -79,10 +108,17 @@ export class AdminConfigController {
 
   /**
    * PUT /api/v1/admin-config
-   * Aceita { key, value } ou lote em lote
    */
   upsert = async (req: Request, res: Response) => {
     try {
+      const ctx = getTenantContext(req);
+      if (!ctx.isAuthenticated) {
+        return res.status(401).json({ success: false, error: 'UNAUTHORIZED', message: 'Autenticação necessária.' });
+      }
+      if (!ctx.isSuperAdmin) {
+        return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'Apenas administradores gerais podem alterar configurações globais.' });
+      }
+
       const validation = AdminConfigValidator.validateUpsert(req.body);
       if (!validation.isValid) {
         return res.status(400).json({ success: false, error: validation.error });
@@ -111,6 +147,14 @@ export class AdminConfigController {
    */
   patch = async (req: Request, res: Response) => {
     try {
+      const ctx = getTenantContext(req);
+      if (!ctx.isAuthenticated) {
+        return res.status(401).json({ success: false, error: 'UNAUTHORIZED', message: 'Autenticação necessária.' });
+      }
+      if (!ctx.isSuperAdmin) {
+        return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'Apenas administradores gerais podem alterar configurações globais.' });
+      }
+
       const { key, value } = req.body;
       const keyValidation = AdminConfigValidator.validateKey(key);
       if (!keyValidation.isValid) {
@@ -135,10 +179,17 @@ export class AdminConfigController {
 
   /**
    * POST /api/v1/admin-config/migrate
-   * Copia registros legado do Supabase para o PostgreSQL.
    */
   migrate = async (req: Request, res: Response) => {
     try {
+      const ctx = getTenantContext(req);
+      if (!ctx.isAuthenticated) {
+        return res.status(401).json({ success: false, error: 'UNAUTHORIZED', message: 'Autenticação necessária.' });
+      }
+      if (!ctx.isSuperAdmin) {
+        return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'Acesso restrito a administradores gerais.' });
+      }
+
       const rows = req.body?.rows || [];
       const result = await this.service.migrateFromSupabase(rows);
       return res.json({

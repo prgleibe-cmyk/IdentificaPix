@@ -23,6 +23,7 @@ import {
     Briefcase
 } from 'lucide-react';
 import { usePortalRoles } from '../hooks/usePortalRoles';
+import { extractSlugFromLocation } from '../hooks/usePortalChurchResolver';
 
 interface PortalRegisterPageProps {
     church?: PortalChurch | null;
@@ -58,7 +59,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
     const [photoUrl, setPhotoUrl] = useState<string | null>(null);
 
     // Vínculo / Cargo States (Loaded from system / database)
-    const { roles: availableRoles, defaultMembro } = usePortalRoles();
+    const { roles: availableRoles, defaultMembro } = usePortalRoles(church?.id);
     const [rolePosition, setRolePosition] = useState<string>('Membro');
     const [customRoleInput, setCustomRoleInput] = useState<string>('');
 
@@ -92,12 +93,18 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [apiError, setApiError] = useState<string | null>(null);
 
-    // Fetch all registered churches from backend so user has the complete relation to choose from
+    // Fetch registered churches of the portal's organization so user has the complete relation to choose from
     useEffect(() => {
         let isMounted = true;
         const fetchAllChurches = async () => {
             try {
-                const res = await fetch('/api/v1/churches', { cache: 'no-store' });
+                const targetSlug = (church?.slug && church.slug !== 'igreja') ? church.slug : extractSlugFromLocation();
+                const targetId = (church?.id && church.id !== '00000000-0000-0000-0000-000000000001') ? church.id : '';
+                if (!targetId && !targetSlug) return;
+                const query = targetId
+                    ? `church_id=${encodeURIComponent(targetId)}`
+                    : `slug=${encodeURIComponent(targetSlug)}`;
+                const res = await fetch(`/api/v1/churches?${query}`, { cache: 'no-store' });
                 if (res.ok) {
                     const data = await res.json();
                     if (isMounted && Array.isArray(data) && data.length > 0) {
@@ -117,7 +124,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
         };
         fetchAllChurches();
         return () => { isMounted = false; };
-    }, []);
+    }, [church?.id, church?.slug]);
 
     // Sync selected church with portal link church by default
     useEffect(() => {
@@ -473,25 +480,19 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                     is_global: true
                 };
 
-                let updateRes = await fetch('/api/v1/contributors/update-profile', {
+                const updateRes = await fetch('/api/v1/contributors/update-profile', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(updatePayload)
                 });
 
                 if (!updateRes.ok) {
-                    // Fallback to PUT /api/v1/contributors/:id
-                    updateRes = await fetch(`/api/v1/contributors/${contributorId}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(updatePayload)
-                    });
+                    const errUpdate = await updateRes.json().catch(() => ({}));
+                    throw new Error(errUpdate.message || errUpdate.error || 'Não foi possível atualizar o cadastro no momento.');
                 }
 
-                if (updateRes.ok) {
-                    const updateData = await updateRes.json().catch(() => null);
-                    if (updateData?.id) finalId = updateData.id;
-                }
+                const updateData = await updateRes.json().catch(() => null);
+                if (updateData?.id) finalId = updateData.id;
 
                 const updatedProfile: ContributorMockProfile = {
                     id: finalId || contributorId,
@@ -522,7 +523,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                 return;
             }
 
-            // If new contributor, perform CREATE (POST /api/v1/contributors)
+            // If new contributor, perform CREATE via dedicated public endpoint
             const payload = {
                 church_id: activeChurchId,
                 canonical_name: cleanName,
@@ -541,7 +542,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                 status: 'active'
             };
 
-            const response = await fetch('/api/v1/contributors', {
+            const response = await fetch('/api/v1/contributors/public-register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)

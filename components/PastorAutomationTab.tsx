@@ -68,7 +68,9 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
         if (!user?.id) return;
         setLoading(true);
         try {
-            const res = await fetch(`/api/v1/pastor_automations?user_id=${user.id}`);
+            const token = await getAuthToken();
+            const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
+            const res = await fetch(`/api/v1/pastor_automations?user_id=${user.id}`, { headers });
             if (!res.ok) throw new Error('Falha ao carregar regras de automação');
             const data = await res.json();
             setRules(data);
@@ -154,17 +156,21 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
         };
 
         try {
+            const token = await getAuthToken();
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+
             let res;
             if (editingRule) {
                 res = await fetch(`/api/v1/pastor_automations/${editingRule.id}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify(payload)
                 });
             } else {
                 res = await fetch('/api/v1/pastor_automations', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify(payload)
                 });
             }
@@ -183,8 +189,11 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
     const handleDeleteRule = async (id: string) => {
         if (!window.confirm('Tem certeza que deseja excluir esta regra de automação?')) return;
         try {
+            const token = await getAuthToken();
+            const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
             const res = await fetch(`/api/v1/pastor_automations/${id}`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers
             });
             if (!res.ok) throw new Error('Erro ao deletar regra');
             showToast('Regra de automação excluída com sucesso.', 'success');

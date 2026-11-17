@@ -59,6 +59,12 @@ export const useLiveListSync = ({
                 }
                 const finalBankId = bankId || 'virtual';
 
+                const isGenericType = (val?: string | null) => {
+                    if (!val) return true;
+                    const upper = String(val).trim().toUpperCase();
+                    return ['ENTRADA', 'ENTRADAS', 'SAÍDA', 'SAIDA', 'SAIDAS', 'INCOME', 'EXPENSE', '---', 'NONE', 'NULL', 'UNDEFINED'].includes(upper);
+                };
+
                 const tx: Transaction = {
                     id: t.id,
                     date: t.transaction_date,
@@ -66,7 +72,7 @@ export const useLiveListSync = ({
                     rawDescription: t.description,
                     amount: t.amount,
                     originalAmount: String(t.amount.toFixed(2)),
-                    contributionType: (t.contribution_type && !['ENTRADA', 'SAÍDA', 'SAIDA', 'INCOME', 'EXPENSE'].includes(String(t.contribution_type).trim().toUpperCase())) ? t.contribution_type : undefined,
+                    contributionType: !isGenericType(t.contribution_type) ? t.contribution_type : undefined,
                     paymentMethod: t.payment_method || t.pix_key || 'OUTROS',
                     cleanedDescription: t.description,
                     bank_id: t.bank_id,

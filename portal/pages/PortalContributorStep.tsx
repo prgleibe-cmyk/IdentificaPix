@@ -4,6 +4,7 @@ import { PortalButton } from '../components/PortalButton';
 import { ContributorMockProfile, PortalChurch } from '../types/portal';
 import { formatCpf, formatPhone, validateEmailVisual } from '../utils/portalFormatters';
 import { usePortalRoles } from '../hooks/usePortalRoles';
+import { extractSlugFromLocation } from '../hooks/usePortalChurchResolver';
 import { ChevronDown, Briefcase } from 'lucide-react';
 
 interface PortalContributorStepProps {
@@ -39,7 +40,15 @@ export const PortalContributorStep: React.FC<PortalContributorStepProps> = ({
         let isMounted = true;
         const fetchChurches = async () => {
             try {
-                const res = await fetch('/api/v1/churches', { cache: 'no-store' });
+                const targetSlug = (church?.slug && church.slug !== 'igreja') ? church.slug : extractSlugFromLocation();
+                const targetId = (church?.id && church.id !== '00000000-0000-0000-0000-000000000001')
+                    ? church.id
+                    : (contributor?.church_id || '');
+                if (!targetId && !targetSlug) return;
+                const query = targetId
+                    ? `church_id=${encodeURIComponent(targetId)}`
+                    : `slug=${encodeURIComponent(targetSlug)}`;
+                const res = await fetch(`/api/v1/churches?${query}`, { cache: 'no-store' });
                 if (res.ok) {
                     const data = await res.json();
                     if (isMounted && Array.isArray(data) && data.length > 0) {
@@ -59,7 +68,7 @@ export const PortalContributorStep: React.FC<PortalContributorStepProps> = ({
         };
         fetchChurches();
         return () => { isMounted = false; };
-    }, []);
+    }, [church?.id, church?.slug, contributor?.church_id]);
 
     // Ensure congregation defaults to church from portal link
     useEffect(() => {
@@ -70,7 +79,7 @@ export const PortalContributorStep: React.FC<PortalContributorStepProps> = ({
     }, [church, churchesList.length]);
 
     // Roles / Cargos loaded from system
-    const { roles: availableRoles, defaultMembro } = usePortalRoles();
+    const { roles: availableRoles, defaultMembro } = usePortalRoles(church?.id);
     const [customRoleInput, setCustomRoleInput] = useState('');
 
     useEffect(() => {

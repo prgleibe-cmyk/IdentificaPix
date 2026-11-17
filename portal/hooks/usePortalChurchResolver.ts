@@ -154,7 +154,15 @@ export const usePortalChurchResolver = (churchSlug?: string) => {
 
         const fetchChurches = async () => {
             try {
-                const response = await fetch('/api/v1/churches', { cache: 'no-store' });
+                const targetSlug = extractSlugFromLocation(churchSlug);
+                const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+                const queryParam = targetSlug
+                    ? (uuidRegex.test(targetSlug)
+                        ? `church_id=${encodeURIComponent(targetSlug)}`
+                        : `slug=${encodeURIComponent(targetSlug)}`)
+                    : '';
+                const url = queryParam ? `/api/v1/churches?${queryParam}` : '/api/v1/churches';
+                const response = await fetch(url, { cache: 'no-store' });
                 if (!response.ok) {
                     throw new Error(`Falha ao carregar dados das igrejas (${response.status})`);
                 }

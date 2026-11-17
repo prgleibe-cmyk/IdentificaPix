@@ -2,8 +2,35 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { JwtPayload } from '../types/auth.types.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || process.env.SUPABASE_JWT_SECRET || 'iggestor_vps_local_jwt_secret_key_2026';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'iggestor_vps_local_refresh_secret_key_2026';
+const DEV_FALLBACK_JWT_SECRET = 'iggestor_vps_local_jwt_secret_key_2026';
+const DEV_FALLBACK_REFRESH_SECRET = 'iggestor_vps_local_refresh_secret_key_2026';
+let jwtDevWarned = false;
+
+export function getJwtSecret(): string {
+  const configured = process.env.JWT_SECRET || process.env.SUPABASE_JWT_SECRET;
+  if (configured && configured.trim().length > 0) {
+    return configured;
+  }
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('[Auth] FATAL: JWT_SECRET ou SUPABASE_JWT_SECRET não configurado em produção.');
+  }
+  if (!jwtDevWarned) {
+    console.warn('[Auth] WARNING: JWT_SECRET não definido. Usando segredo exclusivo de desenvolvimento.');
+    jwtDevWarned = true;
+  }
+  return DEV_FALLBACK_JWT_SECRET;
+}
+
+export function getJwtRefreshSecret(): string {
+  const configured = process.env.JWT_REFRESH_SECRET;
+  if (configured && configured.trim().length > 0) {
+    return configured;
+  }
+  if (process.env.NODE_ENV === 'production') {
+    return crypto.createHmac('sha256', getJwtSecret()).update('iggestor-refresh-secret-v1').digest('hex');
+  }
+  return DEV_FALLBACK_REFRESH_SECRET;
+}
 
 const ISSUER = 'iggestor-vps-auth';
 const AUDIENCE = 'iggestor-vps-api';
@@ -40,7 +67,7 @@ export function generateAccessToken(payload: {
     jti
   };
 
-  const token = jwt.sign(claims, JWT_SECRET, {
+  const token = jwt.sign(claims, getJwtSecret(), {
     expiresIn: ACCESS_TOKEN_EXPIRY
   });
 
@@ -57,7 +84,7 @@ export function generateRefreshToken(): { rawToken: string; tokenHash: string; e
 }
 
 export function hashRefreshToken(rawToken: string): string {
-  return crypto.createHmac('sha256', JWT_REFRESH_SECRET).update(rawToken).digest('hex');
+  return crypto.createHmac('sha256', getJwtRefreshSecret()).update(rawToken).digest('hex');
 }
 
 export function generateResetToken(): { rawToken: string; tokenHash: string; expiresAt: Date } {
@@ -76,11 +103,11 @@ export function generate2faTempToken(userId: string): string {
     aud: AUDIENCE,
     jti: crypto.randomUUID()
   };
-  return jwt.sign(claims, JWT_SECRET, { expiresIn: '5m' });
+  return jwt.sign(claims, getJwtSecret(), { expiresIn: '5m' });
 }
 
 export function verify2faTempToken(token: string): { user_id: string } {
-  const decoded = jwt.verify(token, JWT_SECRET, {
+  const decoded = jwt.verify(token, getJwtSecret(), {
     issuer: ISSUER,
     audience: AUDIENCE
   }) as any;
@@ -98,11 +125,11 @@ export function generateGoogleOAuthState(redirectUri: string): string {
     iss: ISSUER,
     aud: AUDIENCE
   };
-  return jwt.sign(claims, JWT_SECRET, { expiresIn: '10m' });
+  return jwt.sign(claims, getJwtSecret(), { expiresIn: '10m' });
 }
 
 export function verifyGoogleOAuthState(state: string): { redirectUri: string } {
-  const decoded = jwt.verify(state, JWT_SECRET, {
+  const decoded = jwt.verify(state, getJwtSecret(), {
     issuer: ISSUER,
     audience: AUDIENCE
   }) as any;
@@ -113,15 +140,16 @@ export function verifyGoogleOAuthState(state: string): { redirectUri: string } {
 }
 
 export function verifyAccessToken(token: string): JwtPayload {
+  const secret = getJwtSecret();
   try {
-    const decoded = jwt.verify(token, JWT_SECRET, {
+    const decoded = jwt.verify(token, secret, {
       issuer: ISSUER,
       audience: AUDIENCE
     }) as JwtPayload;
     return decoded;
   } catch (strictErr) {
     // Fallback seguro: se o token foi assinado com JWT_SECRET mas sem issuer/audience do auth central
-    const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
+    const decoded = jwt.verify(token, secret) as JwtPayload;
     return decoded;
   }
 }

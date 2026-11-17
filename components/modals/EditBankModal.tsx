@@ -1,9 +1,11 @@
 import React, { useState, useContext, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { XMarkIcon, QrCodeIcon } from '../Icons';
 import { Building2, Landmark } from 'lucide-react';
 import { BANK_CATALOG } from '../../constants/bankCatalog';
+import { getAuthToken } from '../../services/auth/authAdapter';
 
 export const EditBankModal: React.FC = () => {
     const { editingBank, updateBank, closeEditBank } = useContext(AppContext);
@@ -36,7 +38,10 @@ export const EditBankModal: React.FC = () => {
         setIsLoadingPix(true);
         setErrorMessage(null);
 
-        fetch(`/api/v1/church-pix-keys?bank_id=${encodeURIComponent(editingBank.id)}`)
+        getAuthToken()
+            .then(token => fetch(`/api/v1/church-pix-keys?bank_id=${encodeURIComponent(editingBank.id)}`, {
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+            }))
             .then(res => res.ok ? res.json() : [])
             .then((keys: any[]) => {
                 if (!isMounted) return;
@@ -72,6 +77,19 @@ export const EditBankModal: React.FC = () => {
         };
     }, [editingBank]);
 
+    useEffect(() => {
+        if (!editingBank) return;
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && !isSaving) {
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                closeEditBank();
+            }
+        };
+        window.addEventListener('keydown', onKeyDown, true);
+        return () => window.removeEventListener('keydown', onKeyDown, true);
+    }, [editingBank, isSaving, closeEditBank]);
+
     if (!editingBank) return null;
 
     const catalogBank = BANK_CATALOG.find(b => b.key.toLowerCase() === (editingBank.bank_key || '').toLowerCase());
@@ -79,23 +97,28 @@ export const EditBankModal: React.FC = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setIsSaving(true);
         setErrorMessage(null);
 
+        if (enablePix && !pixKey.trim()) {
+            setErrorMessage('Por favor, informe a Chave Pix.');
+            return;
+        }
+
+        setIsSaving(true);
+
         try {
-            await updateBank(editingBank.id, name);
+            await updateBank(editingBank.id, name, editingBank.accepted_contribution_types ?? null);
+            const token = await getAuthToken();
+            const authHeaders: Record<string, string> = {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            };
 
             if (enablePix) {
-                if (!pixKey.trim()) {
-                    setErrorMessage('Por favor, informe a Chave Pix.');
-                    setIsSaving(false);
-                    return;
-                }
-
                 if (existingPixKeyId) {
                     const patchRes = await fetch(`/api/v1/church-pix-keys/${existingPixKeyId}`, {
                         method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: authHeaders,
                         body: JSON.stringify({
                             bank_id: editingBank.id,
                             church_id: null,
@@ -113,7 +136,7 @@ export const EditBankModal: React.FC = () => {
                 } else {
                     const postRes = await fetch('/api/v1/church-pix-keys', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: authHeaders,
                         body: JSON.stringify({
                             bank_id: editingBank.id,
                             church_id: null,
@@ -129,13 +152,17 @@ export const EditBankModal: React.FC = () => {
                     }
                 }
             } else if (existingPixKeyId) {
-                await fetch(`/api/v1/church-pix-keys/${existingPixKeyId}`, {
+                const deactivateRes = await fetch(`/api/v1/church-pix-keys/${existingPixKeyId}`, {
                     method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: authHeaders,
                     body: JSON.stringify({
                         is_active: false
                     })
                 });
+                if (!deactivateRes.ok) {
+                    const errData = await deactivateRes.json().catch(() => ({}));
+                    throw new Error(errData.message || 'Erro ao desativar chave Pix.');
+                }
             }
 
             closeEditBank();
@@ -147,63 +174,78 @@ export const EditBankModal: React.FC = () => {
         }
     };
 
-    return (
-        <div className="absolute inset-0 z-40 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full overflow-hidden">
-            <form onSubmit={handleSubmit} className="flex flex-col h-full w-full">
+    if (typeof document === 'undefined') return null;
+
+    return createPortal(
+        <div
+            data-register-overlay="true"
+            className="fixed inset-0 z-[56] flex items-center justify-center pt-16 md:pt-5 pb-3 md:pb-5 px-2 sm:px-6 bg-slate-900/55 backdrop-blur-[2px] animate-fade-in"
+            onClick={(e) => {
+                e.stopPropagation();
+                if (!isSaving) closeEditBank();
+            }}
+        >
+            <form
+                onSubmit={handleSubmit}
+                onClick={(e) => e.stopPropagation()}
+                className="relative bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[calc(100dvh-5rem)] md:max-h-[min(86vh,calc(100dvh-3rem))] flex flex-col overflow-hidden animate-scale-in"
+            >
                 {/* Header */}
-                <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div className="flex flex-row flex-wrap items-center gap-4 md:gap-8 w-full md:w-auto">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 rounded-2xl bg-brand-blue text-white shadow-lg shadow-blue-500/20 flex items-center justify-center">
-                                <Landmark className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight uppercase">
-                                    Editar Conta Bancária
-                                </h3>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">
-                                    Atualize a identificação e chaves de recebimento da conta
-                                </p>
-                            </div>
+                <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 flex-shrink-0 bg-white dark:bg-slate-900">
+                    <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-orange-50 dark:bg-orange-950/50 border border-orange-200/70 dark:border-orange-900/50 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
+                            <Landmark className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0">
+                            <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight truncate">
+                                Editar Conta Bancária
+                            </h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                                Atualize a identificação e chaves de recebimento da conta.
+                            </p>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2 self-end md:self-auto">
-                        <button type="button" onClick={closeEditBank} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors cursor-pointer">
-                            <XMarkIcon className="w-6 h-6" />
-                        </button>
-                    </div>
+                    <button
+                        type="button"
+                        onClick={closeEditBank}
+                        disabled={isSaving}
+                        className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer shrink-0"
+                        aria-label="Fechar"
+                    >
+                        <XMarkIcon className="w-5 h-5" />
+                    </button>
                 </div>
 
                 {/* Body */}
-                <div className="p-8 flex-1 overflow-y-auto w-full space-y-6">
+                <div className="p-4 sm:p-5 flex-1 min-h-0 overflow-y-auto custom-scrollbar w-full space-y-4">
                     {errorMessage && (
-                        <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-bold animate-fade-in">
+                        <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold animate-fade-in">
                             {errorMessage}
                         </div>
                     )}
 
                     {/* Seção: Instituição & Identificação da Conta */}
-                    <div className="p-6 bg-slate-50/50 dark:bg-slate-800/20 rounded-3xl border border-slate-100 dark:border-slate-800 space-y-4">
-                        <div className="flex items-center gap-2 mb-2">
-                            <Building2 className="w-4 h-4 text-brand-blue" />
-                            <h4 className="text-xs font-black uppercase text-slate-700 dark:text-slate-300 tracking-wider">
+                    <div className="p-4 bg-slate-50/70 dark:bg-slate-800/30 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-3.5">
+                        <div className="flex items-center gap-2 pb-2.5 border-b border-slate-200/70 dark:border-slate-800">
+                            <Building2 className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                            <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">
                                 Identificação da Conta Bancária
                             </h4>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-2">
-                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                            <div className="space-y-1">
+                                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                                     Instituição Bancária
                                 </label>
-                                <div className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-100/60 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 py-3.5 px-4 text-xs font-bold">
+                                <div className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100/70 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 py-2 px-3 text-xs font-semibold">
                                     {institutionDisplayName}
                                 </div>
                             </div>
 
-                            <div className="space-y-2">
-                                <label htmlFor="edit-bank-name" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
+                            <div className="space-y-1">
+                                <label htmlFor="edit-bank-name" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                                     Nome / Identificação da Conta
                                 </label>
                                 <input
@@ -212,31 +254,32 @@ export const EditBankModal: React.FC = () => {
                                     value={name}
                                     onChange={e => setName(e.target.value)}
                                     placeholder="Ex: Conta Principal, Dízimos, Ofertas..."
-                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-4 focus:ring-brand-blue/10 py-3.5 px-4 transition-all outline-none text-xs font-bold"
+                                    className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 px-3 transition-all outline-none text-xs font-medium"
                                     required
                                     autoFocus
+                                    disabled={isSaving}
                                 />
                             </div>
                         </div>
                     </div>
 
                     {/* Seção: Recebimento via Pix */}
-                    <div className="bg-slate-50/70 dark:bg-slate-900/60 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 space-y-6">
-                        <div className="flex items-center justify-between">
+                    <div className="bg-slate-50/70 dark:bg-slate-800/30 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-4">
+                        <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-3">
-                                <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                                <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/70 dark:border-emerald-900/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
                                     <QrCodeIcon className="w-5 h-5" />
                                 </div>
                                 <div>
-                                    <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider">
+                                    <h4 className="text-xs font-bold text-slate-800 dark:text-white">
                                         Recebimento via Pix (Portal do Contribuinte)
                                     </h4>
-                                    <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                                         Ative e configure a chave Pix associada a esta conta para exibição no Portal.
                                     </p>
                                 </div>
                             </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
+                            <label className="relative inline-flex items-center cursor-pointer shrink-0">
                                 <input
                                     type="checkbox"
                                     checked={enablePix}
@@ -246,8 +289,9 @@ export const EditBankModal: React.FC = () => {
                                         setIsActive(checked);
                                     }}
                                     className="sr-only peer"
+                                    disabled={isSaving}
                                 />
-                                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-emerald-500"></div>
+                                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-emerald-600"></div>
                             </label>
                         </div>
 
@@ -258,16 +302,17 @@ export const EditBankModal: React.FC = () => {
                         )}
 
                         {enablePix && !isLoadingPix && (
-                            <div className="space-y-4 pt-4 border-t border-slate-200/60 dark:border-slate-800 animate-fade-in">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] mb-1.5 ml-1">
+                            <div className="space-y-3.5 pt-3.5 border-t border-slate-200/70 dark:border-slate-800 animate-fade-in">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                    <div className="space-y-1">
+                                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                                             Tipo da Chave
                                         </label>
                                         <select
                                             value={pixType}
                                             onChange={e => setPixType(e.target.value as any)}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-4 focus:ring-brand-blue/10 py-3 px-4 text-xs font-bold outline-none cursor-pointer"
+                                            className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 px-3 text-xs font-semibold outline-none cursor-pointer"
+                                            disabled={isSaving}
                                         >
                                             <option value="cpf">CPF</option>
                                             <option value="cnpj">CNPJ</option>
@@ -277,8 +322,8 @@ export const EditBankModal: React.FC = () => {
                                         </select>
                                     </div>
 
-                                    <div>
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] mb-1.5 ml-1">
+                                    <div className="space-y-1">
+                                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                                             Chave Pix
                                         </label>
                                         <input
@@ -291,15 +336,16 @@ export const EditBankModal: React.FC = () => {
                                                 pixType === 'phone' ? '+55 11 99999-9999' :
                                                 pixType === 'email' ? 'financeiro@igreja.org' : 'Chave aleatória UUID'
                                             }
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-4 focus:ring-brand-blue/10 py-3 px-4 text-xs font-bold outline-none"
+                                            className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 px-3 text-xs font-medium outline-none"
                                             required={enablePix}
+                                            disabled={isSaving}
                                         />
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] mb-1.5 ml-1">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                    <div className="space-y-1">
+                                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                                             Titular da Chave
                                         </label>
                                         <input
@@ -307,18 +353,20 @@ export const EditBankModal: React.FC = () => {
                                             value={holderName}
                                             onChange={e => setHolderName(e.target.value)}
                                             placeholder="Nome do Titular ou Razão Social"
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-4 focus:ring-brand-blue/10 py-3 px-4 text-xs font-bold outline-none"
+                                            className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 px-3 text-xs font-medium outline-none"
+                                            disabled={isSaving}
                                         />
                                     </div>
 
-                                    <div>
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] mb-1.5 ml-1">
+                                    <div className="space-y-1">
+                                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                                             Status da Chave
                                         </label>
                                         <select
                                             value={isActive ? 'active' : 'inactive'}
                                             onChange={e => setIsActive(e.target.value === 'active')}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-4 focus:ring-brand-blue/10 py-3 px-4 text-xs font-bold outline-none cursor-pointer"
+                                            className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 px-3 text-xs font-semibold outline-none cursor-pointer"
+                                            disabled={isSaving}
                                         >
                                             <option value="active">Ativa</option>
                                             <option value="inactive">Inativa</option>
@@ -326,8 +374,8 @@ export const EditBankModal: React.FC = () => {
                                     </div>
                                 </div>
 
-                                <div>
-                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] mb-1.5 ml-1">
+                                <div className="space-y-1">
+                                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                                         Descrição (Opcional)
                                     </label>
                                     <input
@@ -335,7 +383,8 @@ export const EditBankModal: React.FC = () => {
                                         value={description}
                                         onChange={e => setDescription(e.target.value)}
                                         placeholder="Ex: Conta principal para dízimos e ofertas"
-                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-4 focus:ring-brand-blue/10 py-3 px-4 text-xs font-bold outline-none"
+                                        className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 px-3 text-xs font-medium outline-none"
+                                        disabled={isSaving}
                                     />
                                 </div>
                             </div>
@@ -344,13 +393,25 @@ export const EditBankModal: React.FC = () => {
                 </div>
 
                 {/* Footer */}
-                <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 border-t border-slate-100 dark:border-slate-800/50 mt-auto">
-                    <button type="button" onClick={closeEditBank} disabled={isSaving} className="px-6 py-2.5 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-2xl shadow-xs hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50">{t('common.cancel')}</button>
-                    <button type="submit" disabled={isSaving} className="px-8 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-2xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none">
+                <div className="bg-slate-50/80 dark:bg-slate-900/70 px-5 py-3.5 flex justify-end gap-2.5 border-t border-slate-100 dark:border-slate-800 flex-shrink-0">
+                    <button
+                        type="button"
+                        onClick={closeEditBank}
+                        disabled={isSaving}
+                        className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-lg shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                        {t('common.cancel')}
+                    </button>
+                    <button
+                        type="submit"
+                        disabled={isSaving}
+                        className="px-5 py-2 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-xs transition-all cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
+                    >
                         {isSaving ? 'Salvando...' : 'Salvar Alterações'}
                     </button>
                 </div>
             </form>
-        </div>
+        </div>,
+        document.body
     );
 };

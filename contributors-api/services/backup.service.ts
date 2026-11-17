@@ -34,10 +34,16 @@ export interface BackupResult {
 }
 
 export function getBackupEncryptionKey(): Buffer {
-  const passphrase = process.env.BACKUP_ENCRYPTION_KEY || process.env.BACKUP_KEY || process.env.JWT_SECRET || 'iggestor-default-secure-backup-key-2026';
-  if (!process.env.BACKUP_ENCRYPTION_KEY && !process.env.BACKUP_KEY) {
-    console.warn('[BackupService] WARNING: BACKUP_ENCRYPTION_KEY env variable not explicitly set. Using derived key from system secret.');
+  const configured = process.env.BACKUP_ENCRYPTION_KEY || process.env.BACKUP_KEY || process.env.JWT_SECRET;
+  if (!configured || configured.trim().length === 0) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('[BackupService] FATAL: BACKUP_ENCRYPTION_KEY, BACKUP_KEY ou JWT_SECRET não configurado em ambiente de produção.');
+    }
+    console.warn('[BackupService] WARNING: BACKUP_ENCRYPTION_KEY env variable not explicitly set. Using development fallback key.');
+  } else if (!process.env.BACKUP_ENCRYPTION_KEY && !process.env.BACKUP_KEY) {
+    console.warn('[BackupService] WARNING: BACKUP_ENCRYPTION_KEY env variable not explicitly set. Using derived key from JWT_SECRET.');
   }
+  const passphrase = (configured && configured.trim().length > 0) ? configured : 'iggestor-default-secure-backup-key-2026';
   // Derive a strong 32-byte key using scrypt
   return crypto.scryptSync(passphrase, 'iggestor-backup-salt-v1', 32);
 }

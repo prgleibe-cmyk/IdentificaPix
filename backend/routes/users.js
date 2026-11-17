@@ -43,8 +43,22 @@ export default () => {
         }
     };
 
-    // Rota de diagnóstico para verificar o ambiente
+    // Rota de diagnóstico para verificar o ambiente (Restrita a Superadministrador)
     router.get('/debug-env', (req, res) => {
+        const userRole = String(req.user?.role || '').toLowerCase().trim();
+        const userEmail = String(req.user?.email || '').toLowerCase().trim();
+        const isSuperAdmin = Boolean(
+            req.user?.is_superadmin ||
+            req.user?.isSuperAdmin ||
+            userEmail === 'identificapix@gmail.com' ||
+            ['superadmin', 'super_admin', 'administrador_geral'].includes(userRole)
+        );
+        if (!isSuperAdmin) {
+            return res.status(403).json({
+                error: 'FORBIDDEN',
+                message: 'Acesso restrito ao administrador geral do sistema.'
+            });
+        }
         res.json({
             vpsApiUrl: getVpsApiUrl(),
             envFileExists: fs.existsSync(path.join(process.cwd(), '.env')),

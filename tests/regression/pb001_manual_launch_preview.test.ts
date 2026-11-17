@@ -23,59 +23,64 @@ import { resolve } from 'node:path';
  */
 test('PB-001: Visualização Imediata de Documentos no Lançamento Manual', async (t) => {
   const manualIdModalPath = resolve(process.cwd(), 'components/modals/ManualIdModal.tsx');
+  const uploaderPath = resolve(process.cwd(), 'components/financial/ExpenseDocumentUploader.tsx');
   const previewModalPath = resolve(process.cwd(), 'components/financial/AttachmentPreviewModal.tsx');
 
   assert.ok(existsSync(manualIdModalPath), 'ManualIdModal.tsx não encontrado');
+  assert.ok(existsSync(uploaderPath), 'ExpenseDocumentUploader.tsx não encontrado');
   assert.ok(existsSync(previewModalPath), 'AttachmentPreviewModal.tsx não encontrado');
 
   const manualIdContent = readFileSync(manualIdModalPath, 'utf-8');
+  const uploaderContent = readFileSync(uploaderPath, 'utf-8');
   const previewModalContent = readFileSync(previewModalPath, 'utf-8');
 
-  await t.test('[GUARDA ESTRUTURAL] GE-1: AttachmentPreviewModal montado e conectado no retorno isManualLaunch', () => {
+  await t.test('[GUARDA ESTRUTURAL] GE-1: ExpenseDocumentUploader com preview montado e conectado no retorno isManualLaunch', () => {
     assert.ok(
-      manualIdContent.includes("import { AttachmentPreviewModal } from '../financial/AttachmentPreviewModal'"),
-      'AttachmentPreviewModal não importado em ManualIdModal.tsx'
+      manualIdContent.includes("import { ExpenseDocumentUploader } from '../financial/ExpenseDocumentUploader'"),
+      'ExpenseDocumentUploader não importado em ManualIdModal.tsx'
     );
 
-    // O bloco isManualLaunch inicia em "if (isManualLaunch) {" e encerra antes do segundo return principal
     const startIndex = manualIdContent.indexOf('if (isManualLaunch) {');
-    const endIndex = manualIdContent.indexOf('<div className="absolute inset-0 z-40', startIndex);
+    const endIndex = manualIdContent.indexOf('className="fixed inset-0 z-50', startIndex);
     assert.ok(startIndex !== -1 && endIndex !== -1, 'Delimitadores do bloco isManualLaunch não encontrados');
     const manualLaunchBlock = manualIdContent.slice(startIndex, endIndex);
 
     assert.ok(
-      manualLaunchBlock.includes('<AttachmentPreviewModal'),
-      'AttachmentPreviewModal NÃO está montado dentro do retorno de isManualLaunch'
+      manualLaunchBlock.includes('<ExpenseDocumentUploader'),
+      'ExpenseDocumentUploader NÃO está montado dentro do retorno de isManualLaunch'
     );
     assert.ok(
-      manualLaunchBlock.includes('isOpen={!!previewAttachment}'),
-      'AttachmentPreviewModal não está conectado ao estado previewAttachment em isManualLaunch'
+      uploaderContent.includes('previewAttachment && ('),
+      'ExpenseDocumentUploader não possui estado/renderização de previewAttachment'
     );
   });
 
-  await t.test('[GUARDA ESTRUTURAL] GE-2: O chip do documento possui a ação de visualização conectada', () => {
+  await t.test('[GUARDA ESTRUTURAL] GE-2: O chip do documento possui a ação única de visualização conectada', () => {
     assert.ok(
-      manualIdContent.includes('onClick={() => setPreviewAttachment(att)}'),
+      uploaderContent.includes('onClick={() => setPreviewAttachment(att)}'),
       'Ação setPreviewAttachment não vinculada ao clique do documento no chip'
     );
     assert.ok(
-      manualIdContent.includes('<Eye className="w-3 h-3" />'),
+      uploaderContent.includes('<Eye className="w-4 h-4" />') || uploaderContent.includes('<Eye className="w-3 h-3" />'),
       'Ícone Eye de visualização não presente no botão do chip'
     );
   });
 
   await t.test('[GUARDA ESTRUTURAL] GE-3: Ausência de botão duplicado/redundante "Visualizar Documento" fora do chip', () => {
-    // Garante que o botão avulso redundante não foi re-adicionado ao lado dos chips
     assert.ok(
-      !manualIdContent.includes('<span>Visualizar Documento</span>'),
+      !manualIdContent.includes('<span>Visualizar Documento</span>') && !uploaderContent.includes('<span>Visualizar Documento</span>'),
       'Botão redundante "Visualizar Documento" ainda está presente no código'
     );
   });
 
-  await t.test('[GUARDA ESTRUTURAL] GE-4: Overlay com z-[9999] em AttachmentPreviewModal para prioridade visual', () => {
+  await t.test('[GUARDA ESTRUTURAL] GE-4: Overlay com z-[9999] para prioridade visual acima dos modais', () => {
     assert.ok(
       previewModalContent.includes('z-[9999]'),
       'AttachmentPreviewModal não possui z-[9999] para sobreposição ao modal de lançamento'
+    );
+    assert.ok(
+      uploaderContent.includes('z-[9999]'),
+      'ExpenseDocumentUploader preview não possui z-[9999] para sobreposição ao modal de lançamento'
     );
   });
 

@@ -238,8 +238,23 @@ try {
         }
     });
 
-    // Endpoint de depuração do microserviço Contributors API
-    app.get('/api/admin/debug-contributors-api', async (req, res) => {
+    // Endpoint de depuração do microserviço Contributors API (Restrito a Superadministrador)
+    app.get('/api/admin/debug-contributors-api', authMiddleware, async (req, res) => {
+        const userRole = String(req.user?.role || '').toLowerCase().trim();
+        const userEmail = String(req.user?.email || '').toLowerCase().trim();
+        const isSuperAdmin = Boolean(
+            req.user?.is_superadmin ||
+            req.user?.isSuperAdmin ||
+            userEmail === 'identificapix@gmail.com' ||
+            ['superadmin', 'super_admin', 'administrador_geral'].includes(userRole)
+        );
+        if (!isSuperAdmin) {
+            return res.status(403).json({
+                error: 'FORBIDDEN',
+                message: 'Acesso restrito ao administrador geral do sistema.'
+            });
+        }
+
         const diagnostics = {
             status: contributorsApiStatus,
             currentTime: new Date().toISOString(),

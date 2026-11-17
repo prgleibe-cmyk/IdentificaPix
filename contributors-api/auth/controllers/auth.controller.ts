@@ -53,6 +53,14 @@ export class AuthController {
         return res.status(400).json({ success: false, errors: validation.errors });
       }
 
+      const requestedRole = typeof req.body?.role === 'string' ? req.body.role.trim().toLowerCase() : '';
+      if (requestedRole && ['superadmin', 'super_admin', 'administrador_geral', 'admin'].includes(requestedRole)) {
+        return res.status(403).json({
+          success: false,
+          error: 'Não é permitido definir role administrativa no cadastro público.'
+        });
+      }
+
       const { email, password, name, role, church_id, owner_id, ownerId } = req.body;
       const { ip, userAgent } = this.getClientInfo(req);
 
@@ -63,7 +71,8 @@ export class AuthController {
         data: result
       });
     } catch (err: any) {
-      return res.status(400).json({
+      const status = typeof err?.status === 'number' && err.status >= 400 && err.status < 600 ? err.status : 400;
+      return res.status(status).json({
         success: false,
         error: err?.message || 'Falha ao criar conta.'
       });

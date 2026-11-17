@@ -1,6 +1,6 @@
 
 import React, { useState, useContext, useEffect, useMemo, useCallback } from 'react';
-import { Calendar, FileText, DollarSign, PlusCircle, ArrowLeft, ArrowUpRight, ArrowDownRight, CheckCircle2, Sparkles, X, ChevronUp, ChevronDown, Building2, Landmark, CreditCard, Tag, User } from 'lucide-react';
+import { Calendar, DollarSign, PlusCircle, ArrowLeft, ArrowUpRight, ArrowDownRight, CheckCircle2, X, Building2, Landmark, CreditCard, Tag, User, SquarePen } from 'lucide-react';
 import { AppContext } from '../../contexts/AppContext';
 import { useUI } from '../../contexts/UIContext';
 import { useTranslation } from '../../contexts/I18nContext';
@@ -10,11 +10,12 @@ import { XMarkIcon, SparklesIcon, CheckBadgeIcon, BuildingOfficeIcon, ChevronDow
 import { Contributor, MatchResult, ReconciliationStatus, MatchMethod } from '../../types';
 import { extractNameAndCpf, findSimilarContributors } from '../../utils/contributorHelper';
 import { getStoredWhatsAppSettings } from './WhatsAppReceiptModal';
-import { getCachedContributors } from '../../services/contributorsCache';
+import { getCachedContributors, subscribeToContributorUpdates } from '../../services/contributorsCache';
 import { ExpenseDocumentUploader } from '../financial/ExpenseDocumentUploader';
 import { ExpenseAttachment } from '../../types/domain';
 import { ExtractedExpenseDoc } from '../../utils/expenseDocumentParser';
 import { getAttachmentsForTransaction, saveAttachmentsForTransaction } from '../../services/expenseAttachmentService';
+import { QuickRegisterModal, QuickRegisterEntity } from './QuickRegisterModal';
 
 const formatCpfCnpj = (value: string) => {
     const clean = value.replace(/\D/g, '');
@@ -74,6 +75,9 @@ export const ManualIdModal: React.FC = () => {
     const { subscription, user } = useAuth();
 
     const handleClose = () => {
+        if (setMatchResults) {
+            setMatchResults((prev: any) => Array.isArray(prev) ? prev.filter((r: any) => !r.transaction?.id?.startsWith('ghost-manual-')) : prev);
+        }
         closeManualIdentify();
         if (activeView === 'novo_lancamento') {
             setActiveView('reports');
@@ -101,7 +105,6 @@ export const ManualIdModal: React.FC = () => {
     const [manualDescription, setManualDescription] = useState<string>('');
     const [manualAmount, setManualAmount] = useState<string>('');
     const [manualType, setManualType] = useState<'entrada' | 'saida'>('entrada');
-    const [saidaMode, setSaidaMode] = useState<'upload' | 'manual'>('upload');
     const [lastAutoFilledDoc, setLastAutoFilledDoc] = useState<{
         fileName: string;
         fieldsCount: number;
@@ -110,10 +113,10 @@ export const ManualIdModal: React.FC = () => {
         date?: string | null;
         paymentMethod?: string | null;
     } | null>(null);
-    const [isBottomUploaderOpen, setIsBottomUploaderOpen] = useState(false);
     const [attachments, setAttachments] = useState<ExpenseAttachment[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     const isSavingRef = React.useRef<boolean>(false);
+    const [quickRegisterEntity, setQuickRegisterEntity] = useState<QuickRegisterEntity | null>(null);
 
     const handleAttachmentsChange = (next: ExpenseAttachment[]) => {
         setAttachments(next);
@@ -137,6 +140,13 @@ export const ManualIdModal: React.FC = () => {
     const isDateManuallyChangedRef = React.useRef<boolean>(false);
     const isAmountManuallyChangedRef = React.useRef<boolean>(false);
     const isDescManuallyChangedRef = React.useRef<boolean>(false);
+    const isChurchManuallyChangedRef = React.useRef<boolean>(false);
+
+    const isGenericOrInvalidType = (typeVal?: string | null) => {
+        if (!typeVal || typeof typeVal !== 'string') return true;
+        const clean = typeVal.trim().toUpperCase();
+        return ['ENTRADA', 'ENTRADAS', 'SAÍDA', 'SAIDA', 'SAIDAS', 'INCOME', 'EXPENSE', 'GERAL', 'DIVERSOS', '---', 'NONE', 'NULL', 'UNDEFINED'].includes(clean);
+    };
 
     const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         isAmountManuallyChangedRef.current = true;
@@ -163,14 +173,21 @@ export const ManualIdModal: React.FC = () => {
 
     useEffect(() => {
         let isMounted = true;
-        getCachedContributors().then(list => {
-            if (isMounted && Array.isArray(list)) {
-                setDbContributors(list);
-            }
-        }).catch(err => {
-            console.error('[ManualIdModal] Erro ao carregar contribuintes do banco:', err);
-        });
-        return () => { isMounted = false; };
+        const loadContributors = (forceRefresh = false) => {
+            getCachedContributors(forceRefresh).then(list => {
+                if (isMounted && Array.isArray(list)) {
+                    setDbContributors(list);
+                }
+            }).catch(err => {
+                console.error('[ManualIdModal] Erro ao carregar contribuintes do banco:', err);
+            });
+        };
+        loadContributors(false);
+        const unsubscribe = subscribeToContributorUpdates(() => loadContributors(true));
+        return () => {
+            isMounted = false;
+            unsubscribe();
+        };
     }, []);
 
     const allowedBankIds = useMemo(() => {
@@ -530,7 +547,7 @@ export const ManualIdModal: React.FC = () => {
             (col.church_name && ch.name && ch.name.trim().toLowerCase() === col.church_name.trim().toLowerCase())
         ) || (col._churchId && churches.some(ch => ch.id === col._churchId) ? { id: col._churchId, name: col._churchName } : null) || (churches && churches.length === 1 ? churches[0] : null);
 
-        if (targetChurch?.id) {
+        if (!isChurchManuallyChangedRef.current && targetChurch?.id) {
             setSelectedChurchId(targetChurch.id);
         }
 
@@ -585,7 +602,7 @@ export const ManualIdModal: React.FC = () => {
                         setSelectedAssociationType('unify');
                         setSelectedUnifiedField(best.contributor.id);
                         const chId = best.contributor._churchId || best.contributor.church_id || best.church?.id;
-                        if (chId) {
+                        if (chId && !isChurchManuallyChangedRef.current) {
                             setSelectedChurchId(chId);
                         }
                     } else {
@@ -622,6 +639,7 @@ export const ManualIdModal: React.FC = () => {
             isDateManuallyChangedRef.current = false;
             isAmountManuallyChangedRef.current = false;
             isDescManuallyChangedRef.current = false;
+            isChurchManuallyChangedRef.current = false;
 
             const existingAtts = tx.attachments || (findMatchResult ? findMatchResult(tx.id)?.attachments : null);
             if (Array.isArray(existingAtts) && existingAtts.length > 0) {
@@ -751,22 +769,16 @@ export const ManualIdModal: React.FC = () => {
                 (contributionTypes || []).some((ct: any) => ct.name?.toUpperCase() === matchedResult?.contributionType?.toUpperCase() && ct.type === 'saida') ||
                 isDescSaida;
 
-            const isGenericType = (str?: string) => {
-                if (!str || typeof str !== 'string') return true;
-                const clean = str.trim().toUpperCase();
-                return ['ENTRADA', 'SAÍDA', 'SAIDA', 'ENTRADAS', 'SAIDAS', 'INCOME', 'EXPENSE', 'GERAL', 'DIVERSOS'].includes(clean);
-            };
-
             if (isTxSaida) {
                 setManualType('saida');
-                if (matchedResult?.contributionType && !isGenericType(matchedResult.contributionType)) {
+                if (matchedResult?.contributionType && !isGenericOrInvalidType(matchedResult.contributionType)) {
                     setSelectedType(matchedResult.contributionType);
                 } else {
                     setSelectedType(defaultSaidaType);
                 }
             } else {
                 setManualType('entrada');
-                if (matchedResult?.contributionType && !isGenericType(matchedResult.contributionType)) {
+                if (matchedResult?.contributionType && !isGenericOrInvalidType(matchedResult.contributionType)) {
                     setSelectedType(matchedResult.contributionType);
                 } else {
                     setSelectedType(defaultEntradaType);
@@ -950,6 +962,11 @@ export const ManualIdModal: React.FC = () => {
             return;
         }
 
+        if (isGenericOrInvalidType(selectedType)) {
+            alert("Por favor, selecione ou informe uma Categoria contábil válida (ex: Dízimo, Oferta, Despesa Geral) em vez de um rótulo genérico.");
+            return;
+        }
+
         const effectiveDateToCheck = selectedDate || bulkIdentificationTxs?.[0]?.date || new Date().toISOString().split('T')[0];
 
         if (selectedChurchId && isPeriodClosed(effectiveDateToCheck, matchResults, selectedChurchId)) {
@@ -1098,85 +1115,24 @@ export const ManualIdModal: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Escolha Intuitiva de Modo para Saída (Despesa): Opção 1 */}
+                    {/* Anexo único opcional para Saída (Despesa) com preenchimento automático */}
                     {manualType === 'saida' && (
-                        <div className="space-y-3 animate-fade-in">
-                            <div className="bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 shadow-xs">
-                                <div>
-                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                                        <Sparkles className="w-3.5 h-3.5 text-orange-500" />
-                                        Como você prefere lançar esta despesa?
-                                    </span>
-                                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
-                                        Escolha entre leitura automática por documento ou digitação manual.
-                                    </span>
-                                </div>
-                                <div className="inline-grid grid-cols-2 gap-1 bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200/80 dark:border-slate-700 w-full sm:w-auto shrink-0">
-                                    <button
-                                        type="button"
-                                        onClick={() => setSaidaMode('upload')}
-                                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                                            saidaMode === 'upload'
-                                                ? 'bg-orange-600 text-white shadow-xs'
-                                                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                                        }`}
-                                    >
-                                        <Sparkles className="w-3.5 h-3.5" />
-                                        <span>Carregar Documento</span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setSaidaMode('manual')}
-                                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                                            saidaMode === 'manual'
-                                                ? 'bg-rose-600 text-white shadow-xs'
-                                                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                                        }`}
-                                    >
-                                        <FileText className="w-3.5 h-3.5" />
-                                        <span>Digitar Manual</span>
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* No modo Upload: Uploader no topo para preenchimento imediato */}
-                            {saidaMode === 'upload' && (
-                                <div className="space-y-2">
-                                    <ExpenseDocumentUploader
-                                        attachments={attachments}
-                                        onChangeAttachments={handleAttachmentsChange}
-                                        currentAmount={parsedCurrentAmount}
-                                        onApplyExtractedAmount={(val) => {
-                                            setManualAmount(val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-                                            isAmountManuallyChangedRef.current = true;
-                                        }}
-                                        onApplyExtractedRecipient={(recipient) => {
-                                            setManualDescription(recipient);
-                                            isDescManuallyChangedRef.current = true;
-                                        }}
-                                        onDocumentDataExtracted={handleDocumentDataExtracted}
-                                    />
-
-                                    {/* Feedback de sucesso e transparência */}
-                                    {lastAutoFilledDoc && (
-                                        <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-xl text-emerald-900 dark:text-emerald-200 flex items-center justify-between gap-2 animate-fade-in shadow-xs">
-                                            <div className="flex items-center gap-2 text-xs">
-                                                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                                                <span>
-                                                    <strong>Documento lido ({lastAutoFilledDoc.fileName}):</strong> {lastAutoFilledDoc.fieldsCount} dado(s) preenchido(s) automaticamente nos campos abaixo. Revise e clique em <strong>Salvar Lançamento</strong>.
-                                                </span>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => setLastAutoFilledDoc(null)}
-                                                className="text-emerald-700 hover:text-emerald-900 dark:text-emerald-300 p-0.5 rounded cursor-pointer"
-                                            >
-                                                <X className="w-3.5 h-3.5" />
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
+                        <div className="space-y-2 pt-1 animate-fade-in">
+                            <ExpenseDocumentUploader
+                                attachments={attachments}
+                                onChangeAttachments={handleAttachmentsChange}
+                                currentAmount={parsedCurrentAmount}
+                                recipientName={manualDescription}
+                                onApplyExtractedAmount={(val) => {
+                                    setManualAmount(val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+                                    isAmountManuallyChangedRef.current = true;
+                                }}
+                                onApplyExtractedRecipient={(recipient) => {
+                                    setManualDescription(recipient);
+                                    isDescManuallyChangedRef.current = true;
+                                }}
+                                onDocumentDataExtracted={handleDocumentDataExtracted}
+                            />
                         </div>
                     )}
 
@@ -1188,8 +1144,8 @@ export const ManualIdModal: React.FC = () => {
                                     Data do Lançamento
                                 </label>
                                 {lastAutoFilledDoc?.date && (
-                                    <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                                        ✨ Lido do documento
+                                    <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                                        Lido do documento
                                     </span>
                                 )}
                             </div>
@@ -1217,8 +1173,8 @@ export const ManualIdModal: React.FC = () => {
                                     Valor (R$)
                                 </label>
                                 {lastAutoFilledDoc?.amount && (
-                                    <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                                        ✨ Lido do documento
+                                    <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                                        Lido do documento
                                     </span>
                                 )}
                             </div>
@@ -1253,44 +1209,55 @@ export const ManualIdModal: React.FC = () => {
                                 </span>
                             )}
                         </div>
-                        <div className="relative group">
-                            <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
-                            <input
-                                type="text"
-                                value={manualDescription}
-                                onChange={e => {
-                                    const val = e.target.value;
-                                    isDescManuallyChangedRef.current = true;
-                                    setManualDescription(val);
-                                    setShowSuggestions(true);
-                                    
-                                    const valNorm = val.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                                    const exactMatch = valNorm.length >= 3 ? allContributors.find(c => {
-                                        const cName = (c.name || c.canonical_name || c.cleanedName || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                                        const cTrade = (c.trade_name || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                                        return cName === valNorm || cTrade === valNorm;
-                                    }) : null;
+                        <div className="relative flex items-stretch rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xs focus-within:ring-2 focus-within:ring-orange-500/20 focus-within:border-orange-500 transition-all">
+                            <div className="relative flex-1 min-w-0 group">
+                                <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
+                                <input
+                                    type="text"
+                                    value={manualDescription}
+                                    onChange={e => {
+                                        const val = e.target.value;
+                                        isDescManuallyChangedRef.current = true;
+                                        setManualDescription(val);
+                                        setShowSuggestions(true);
+                                        
+                                        const valNorm = val.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                                        const exactMatch = valNorm.length >= 3 ? allContributors.find(c => {
+                                            const cName = (c.name || c.canonical_name || c.cleanedName || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                                            const cTrade = (c.trade_name || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                                            return cName === valNorm || cTrade === valNorm;
+                                        }) : null;
 
-                                    if (exactMatch) {
-                                        setSelectedAssociationType('unify');
-                                        setSelectedUnifiedField(exactMatch.id);
-                                        if (exactMatch._churchId && churches.some(ch => ch.id === exactMatch._churchId)) {
-                                            setSelectedChurchId(exactMatch._churchId);
+                                        if (exactMatch) {
+                                            setSelectedAssociationType('unify');
+                                            setSelectedUnifiedField(exactMatch.id);
+                                            if (exactMatch._churchId && churches.some(ch => ch.id === exactMatch._churchId)) {
+                                                setSelectedChurchId(exactMatch._churchId);
+                                            }
+                                        } else {
+                                            setSelectedAssociationType('create_new');
+                                            setSelectedUnifiedField('');
                                         }
-                                    } else {
-                                        setSelectedAssociationType('create_new');
-                                        setSelectedUnifiedField('');
-                                    }
-                                }}
-                                onKeyDown={e => {
-                                    if (e.key === 'Enter') {
-                                        setShowSuggestions(false);
-                                    }
-                                }}
-                                onFocus={() => setShowSuggestions(true)}
-                                placeholder="Digite o nome ou CPF do contribuinte..."
-                                className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 pl-9 pr-3 transition-all outline-none text-xs font-medium placeholder:text-slate-400"
-                            />
+                                    }}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') {
+                                            setShowSuggestions(false);
+                                        }
+                                    }}
+                                    onFocus={() => setShowSuggestions(true)}
+                                    placeholder={manualType === 'saida' ? 'Digite o nome, razão social ou CNPJ/CPF do favorecido...' : 'Digite o nome ou CPF do contribuinte...'}
+                                    className="block w-full rounded-l-lg border-0 bg-transparent text-slate-900 dark:text-white py-2 pl-9 pr-3 transition-all outline-none text-xs font-medium placeholder:text-slate-400"
+                                />
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setQuickRegisterEntity('contributors')}
+                                title="Gerenciar Empresas e Pessoas"
+                                aria-label="Gerenciar Empresas e Pessoas"
+                                className="shrink-0 w-9 flex items-center justify-center border-l border-slate-200 dark:border-slate-700/80 bg-slate-50/70 hover:bg-orange-50 dark:bg-slate-800/50 dark:hover:bg-orange-950/40 text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors cursor-pointer rounded-r-lg"
+                            >
+                                <SquarePen className="w-3.5 h-3.5" />
+                            </button>
                             {showSuggestions && filteredContributors.length > 0 && (
                                 <div className="absolute left-0 right-0 top-[105%] z-50 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl overflow-hidden max-h-56 overflow-y-auto custom-scrollbar">
                                     <div className="border-b border-slate-100 dark:border-slate-800 text-[11px] font-semibold text-slate-500 dark:text-slate-400 px-3 py-1.5 flex justify-between items-center bg-slate-50 dark:bg-slate-900/80">
@@ -1405,10 +1372,12 @@ export const ManualIdModal: React.FC = () => {
                                         onClick={() => {
                                             setSelectedAssociationType('create_new');
                                             setSelectedUnifiedField('');
-                                            if (churches.length !== 1) {
-                                                setSelectedChurchId('');
-                                            } else {
-                                                setSelectedChurchId(churches[0].id);
+                                            if (!isChurchManuallyChangedRef.current) {
+                                                if (churches.length !== 1) {
+                                                    setSelectedChurchId('');
+                                                } else {
+                                                    setSelectedChurchId(churches[0].id);
+                                                }
                                             }
                                         }}
                                         className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
@@ -1427,7 +1396,7 @@ export const ManualIdModal: React.FC = () => {
                                                 const match = similarMatches[0];
                                                 setSelectedUnifiedField(match.contributor.id);
                                                 const chId = match.contributor._churchId || match.contributor.church_id || match.church?.id;
-                                                if (chId) setSelectedChurchId(chId);
+                                                if (chId && !isChurchManuallyChangedRef.current) setSelectedChurchId(chId);
                                             }
                                         }}
                                         className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
@@ -1456,7 +1425,7 @@ export const ManualIdModal: React.FC = () => {
                                                     type="button"
                                                     onClick={() => {
                                                         setSelectedUnifiedField(m.contributor.id);
-                                                        if (chId) setSelectedChurchId(chId);
+                                                        if (chId && !isChurchManuallyChangedRef.current) setSelectedChurchId(chId);
                                                     }}
                                                     className={`px-2 py-1 rounded-lg border text-left transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer text-[10px] ${
                                                         isSelected
@@ -1491,23 +1460,39 @@ export const ManualIdModal: React.FC = () => {
                                     </span>
                                 )}
                             </div>
-                            <div className="relative group">
-                                <Building2 className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
-                                <select
-                                    value={selectedChurchId}
-                                    onChange={e => setSelectedChurchId(e.target.value)}
-                                    className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 pl-9 pr-8 transition-all outline-none text-xs font-semibold appearance-none cursor-pointer"
-                                >
-                                    <option value="">Selecione a igreja...</option>
-                                    {churches.map(church => (
-                                        <option key={church.id} value={church.id}>
-                                            {church.name}
-                                        </option>
-                                    ))}
-                                </select>
-                                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                    <ChevronDownIcon className="w-3.5 h-3.5" />
+                            <div className="flex items-stretch rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xs focus-within:ring-2 focus-within:ring-orange-500/20 focus-within:border-orange-500 transition-all">
+                                <div className="relative flex-1 min-w-0 group">
+                                    <Building2 className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
+                                    <select
+                                        value={selectedChurchId}
+                                        onChange={e => {
+                                            setSelectedChurchId(e.target.value);
+                                            isChurchManuallyChangedRef.current = true;
+                                        }}
+                                        className={`block w-full border-0 bg-transparent text-slate-900 dark:text-white py-2 pl-9 pr-8 transition-all outline-none text-xs font-semibold appearance-none cursor-pointer ${!isSecondaryUser ? 'rounded-l-lg' : 'rounded-lg'}`}
+                                    >
+                                        <option value="">Selecione a igreja...</option>
+                                        {churches.map(church => (
+                                            <option key={church.id} value={church.id}>
+                                                {church.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                        <ChevronDownIcon className="w-3.5 h-3.5" />
+                                    </div>
                                 </div>
+                                {!isSecondaryUser && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setQuickRegisterEntity('churches')}
+                                        title="Gerenciar Igrejas e Congregações"
+                                        aria-label="Gerenciar Igrejas e Congregações"
+                                        className="shrink-0 w-9 flex items-center justify-center border-l border-slate-200 dark:border-slate-700/80 bg-slate-50/70 hover:bg-orange-50 dark:bg-slate-800/50 dark:hover:bg-orange-950/40 text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors cursor-pointer rounded-r-lg"
+                                    >
+                                        <SquarePen className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
                             </div>
                         </div>
 
@@ -1515,23 +1500,36 @@ export const ManualIdModal: React.FC = () => {
                             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                                 Conta / Caixa de Destino <span className="text-rose-500">*</span>
                             </label>
-                            <div className="relative group">
-                                <Landmark className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
-                                <select
-                                    value={selectedBankId}
-                                    onChange={e => setSelectedBankId(e.target.value)}
-                                    className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 pl-9 pr-8 transition-all outline-none text-xs font-semibold appearance-none cursor-pointer"
-                                >
-                                    <option value="">Selecione a conta ou caixa...</option>
-                                    {availableBanks.map((bank: any) => (
-                                        <option key={bank.id} value={bank.id}>
-                                            {bank.account_name || bank.name || 'Conta Bancária / Caixa'}
-                                        </option>
-                                    ))}
-                                </select>
-                                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                    <ChevronDownIcon className="w-3.5 h-3.5" />
+                            <div className="flex items-stretch rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xs focus-within:ring-2 focus-within:ring-orange-500/20 focus-within:border-orange-500 transition-all">
+                                <div className="relative flex-1 min-w-0 group">
+                                    <Landmark className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
+                                    <select
+                                        value={selectedBankId}
+                                        onChange={e => setSelectedBankId(e.target.value)}
+                                        className={`block w-full border-0 bg-transparent text-slate-900 dark:text-white py-2 pl-9 pr-8 transition-all outline-none text-xs font-semibold appearance-none cursor-pointer ${!isSecondaryUser ? 'rounded-l-lg' : 'rounded-lg'}`}
+                                    >
+                                        <option value="">Selecione a conta ou caixa...</option>
+                                        {availableBanks.map((bank: any) => (
+                                            <option key={bank.id} value={bank.id}>
+                                                {bank.account_name || bank.name || 'Conta Bancária / Caixa'}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                        <ChevronDownIcon className="w-3.5 h-3.5" />
+                                    </div>
                                 </div>
+                                {!isSecondaryUser && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setQuickRegisterEntity('banks')}
+                                        title="Gerenciar Contas e Caixas"
+                                        aria-label="Gerenciar Contas e Caixas"
+                                        className="shrink-0 w-9 flex items-center justify-center border-l border-slate-200 dark:border-slate-700/80 bg-slate-50/70 hover:bg-orange-50 dark:bg-slate-800/50 dark:hover:bg-orange-950/40 text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors cursor-pointer rounded-r-lg"
+                                    >
+                                        <SquarePen className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -1542,48 +1540,59 @@ export const ManualIdModal: React.FC = () => {
                             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                                 Descrição / Categoria <span className="text-rose-500">*</span>
                             </label>
-                            <div className="relative w-full group">
-                                <Tag className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
-                                <input
-                                    type="text"
-                                    value={selectedType}
-                                    onChange={e => {
-                                        setSelectedType(e.target.value.toUpperCase());
-                                        setShowTypeSuggestions(true);
-                                    }}
-                                    onFocus={() => setShowTypeSuggestions(true)}
-                                    onBlur={() => {
-                                        setTimeout(() => setShowTypeSuggestions(false), 200);
-                                    }}
-                                    placeholder="Digite ou escolha (ex: Dízimo, Oferta)..."
-                                    className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 pl-9 pr-14 transition-all outline-none text-xs font-semibold placeholder:text-slate-400 placeholder:font-normal"
-                                />
-                                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                                    {selectedType && (
+                            <div className="relative flex items-stretch rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xs focus-within:ring-2 focus-within:ring-orange-500/20 focus-within:border-orange-500 transition-all">
+                                <div className="relative flex-1 min-w-0 group">
+                                    <Tag className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
+                                    <input
+                                        type="text"
+                                        value={selectedType}
+                                        onChange={e => {
+                                            setSelectedType(e.target.value.toUpperCase());
+                                            setShowTypeSuggestions(true);
+                                        }}
+                                        onFocus={() => setShowTypeSuggestions(true)}
+                                        onBlur={() => {
+                                            setTimeout(() => setShowTypeSuggestions(false), 200);
+                                        }}
+                                        placeholder={manualType === 'saida' ? 'Digite ou escolha (ex: Despesa Geral, Fatura, Manutenção)...' : 'Digite ou escolha (ex: Dízimo, Oferta)...'}
+                                        className="block w-full rounded-l-lg border-0 bg-transparent text-slate-900 dark:text-white py-2 pl-9 pr-14 transition-all outline-none text-xs font-semibold placeholder:text-slate-400 placeholder:font-normal"
+                                    />
+                                    <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                                        {selectedType && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setSelectedType('');
+                                                    setShowTypeSuggestions(false);
+                                                }}
+                                                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 text-xs cursor-pointer"
+                                                title="Limpar campo"
+                                            >
+                                                <X className="w-3.5 h-3.5" />
+                                            </button>
+                                        )}
                                         <button
                                             type="button"
-                                            onClick={() => {
-                                                setSelectedType('');
-                                                setShowTypeSuggestions(false);
+                                            onMouseDown={(e) => {
+                                                e.preventDefault();
+                                                setShowTypeSuggestions(prev => !prev);
                                             }}
-                                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 text-xs cursor-pointer"
-                                            title="Limpar campo"
+                                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 cursor-pointer transition-transform"
+                                            title="Ver modelos cadastrados"
                                         >
-                                            <X className="w-3.5 h-3.5" />
+                                            <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform ${showTypeSuggestions ? 'rotate-180' : ''}`} />
                                         </button>
-                                    )}
-                                    <button
-                                        type="button"
-                                        onMouseDown={(e) => {
-                                            e.preventDefault();
-                                            setShowTypeSuggestions(prev => !prev);
-                                        }}
-                                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 cursor-pointer transition-transform"
-                                        title="Ver modelos cadastrados"
-                                    >
-                                        <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform ${showTypeSuggestions ? 'rotate-180' : ''}`} />
-                                    </button>
+                                    </div>
                                 </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setQuickRegisterEntity('contribution')}
+                                    title="Gerenciar Descrições (Entrada/Saída)"
+                                    aria-label="Gerenciar Descrições (Entrada/Saída)"
+                                    className="shrink-0 w-9 flex items-center justify-center border-l border-slate-200 dark:border-slate-700/80 bg-slate-50/70 hover:bg-orange-50 dark:bg-slate-800/50 dark:hover:bg-orange-950/40 text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors cursor-pointer rounded-r-lg"
+                                >
+                                    <SquarePen className="w-3.5 h-3.5" />
+                                </button>
 
                                 {showTypeSuggestions && filteredTypeOptions.length > 0 && (
                                     <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto custom-scrollbar">
@@ -1618,13 +1627,13 @@ export const ManualIdModal: React.FC = () => {
                                 Forma de Pagamento
                             </label>
                             {isCustomPaymentMethod ? (
-                                <div className="flex gap-2 items-center">
+                                <div className="flex items-stretch rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xs focus-within:ring-2 focus-within:ring-orange-500/20 focus-within:border-orange-500 transition-all">
                                     <input
                                         type="text"
                                         value={selectedPaymentMethod}
                                         onChange={e => setSelectedPaymentMethod(e.target.value.toUpperCase())}
                                         placeholder="Digite a forma (ex: Dinheiro, PIX)"
-                                        className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 px-3 transition-all outline-none text-xs font-semibold"
+                                        className="flex-1 min-w-0 rounded-l-lg border-0 bg-transparent text-slate-900 dark:text-white py-2 px-3 transition-all outline-none text-xs font-semibold"
                                         autoFocus
                                     />
                                     <button
@@ -1633,74 +1642,59 @@ export const ManualIdModal: React.FC = () => {
                                             setIsCustomPaymentMethod(false);
                                             setSelectedPaymentMethod('DINHEIRO');
                                         }}
-                                        className="py-2 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-semibold rounded-lg text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer transition-all shrink-0"
+                                        className="px-2.5 border-l border-slate-200 dark:border-slate-700/80 bg-slate-50/70 hover:bg-slate-100 dark:bg-slate-800/50 dark:hover:bg-slate-700 text-[11px] font-semibold text-slate-600 dark:text-slate-300 cursor-pointer transition-colors shrink-0"
                                     >
                                         Lista
                                     </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setQuickRegisterEntity('payment')}
+                                        title="Gerenciar Formas de Recebimento / Pagamento"
+                                        aria-label="Gerenciar Formas de Recebimento / Pagamento"
+                                        className="shrink-0 w-9 flex items-center justify-center border-l border-slate-200 dark:border-slate-700/80 bg-slate-50/70 hover:bg-orange-50 dark:bg-slate-800/50 dark:hover:bg-orange-950/40 text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors cursor-pointer rounded-r-lg"
+                                    >
+                                        <SquarePen className="w-3.5 h-3.5" />
+                                    </button>
                                 </div>
                             ) : (
-                                <div className="relative group">
-                                    <CreditCard className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
-                                    <select
-                                        value={selectedPaymentMethod}
-                                        onChange={e => {
-                                            const val = e.target.value;
-                                            if (val === '__CUSTOM__') {
-                                                setIsCustomPaymentMethod(true);
-                                                setSelectedPaymentMethod('');
-                                            } else {
-                                                setSelectedPaymentMethod(val);
-                                            }
-                                        }}
-                                        className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 pl-9 pr-8 transition-all outline-none text-xs font-semibold appearance-none cursor-pointer"
-                                    >
-                                        {paymentMethodsOptions.map((method: string) => (
-                                            <option key={method} value={method}>{method}</option>
-                                        ))}
-                                        <option value="__CUSTOM__">Outro (digitar manualmente...)</option>
-                                    </select>
-                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                        <ChevronDownIcon className="w-3.5 h-3.5" />
+                                <div className="flex items-stretch rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xs focus-within:ring-2 focus-within:ring-orange-500/20 focus-within:border-orange-500 transition-all">
+                                    <div className="relative flex-1 min-w-0 group">
+                                        <CreditCard className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
+                                        <select
+                                            value={selectedPaymentMethod}
+                                            onChange={e => {
+                                                const val = e.target.value;
+                                                if (val === '__CUSTOM__') {
+                                                    setIsCustomPaymentMethod(true);
+                                                    setSelectedPaymentMethod('');
+                                                } else {
+                                                    setSelectedPaymentMethod(val);
+                                                }
+                                            }}
+                                            className="block w-full rounded-l-lg border-0 bg-transparent text-slate-900 dark:text-white py-2 pl-9 pr-8 transition-all outline-none text-xs font-semibold appearance-none cursor-pointer"
+                                        >
+                                            {paymentMethodsOptions.map((method: string) => (
+                                                <option key={method} value={method}>{method}</option>
+                                            ))}
+                                            <option value="__CUSTOM__">Outro (digitar manualmente...)</option>
+                                        </select>
+                                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                            <ChevronDownIcon className="w-3.5 h-3.5" />
+                                        </div>
                                     </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setQuickRegisterEntity('payment')}
+                                        title="Gerenciar Formas de Recebimento / Pagamento"
+                                        aria-label="Gerenciar Formas de Recebimento / Pagamento"
+                                        className="shrink-0 w-9 flex items-center justify-center border-l border-slate-200 dark:border-slate-700/80 bg-slate-50/70 hover:bg-orange-50 dark:bg-slate-800/50 dark:hover:bg-orange-950/40 text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors cursor-pointer rounded-r-lg"
+                                    >
+                                        <SquarePen className="w-3.5 h-3.5" />
+                                    </button>
                                 </div>
                             )}
                         </div>
                     </div>
-
-                    {/* Anexos Opcionais no Modo Digitação Manual */}
-                    {manualType === 'saida' && saidaMode === 'manual' && (
-                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 animate-fade-in">
-                            <button
-                                type="button"
-                                onClick={() => setIsBottomUploaderOpen(prev => !prev)}
-                                className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-orange-600 transition-colors cursor-pointer py-1"
-                            >
-                                <FileText className="w-3.5 h-3.5 text-orange-500" />
-                                <span>Anexar documento ou comprovante (opcional)</span>
-                                {isBottomUploaderOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                            </button>
-                            {isBottomUploaderOpen && (
-                                <div className="mt-2.5">
-                                    <ExpenseDocumentUploader
-                                        attachments={attachments}
-                                        onChangeAttachments={handleAttachmentsChange}
-                                        currentAmount={parsedCurrentAmount}
-                                        onApplyExtractedAmount={(val) => {
-                                            setManualAmount(val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-                                            isAmountManuallyChangedRef.current = true;
-                                        }}
-                                        onApplyExtractedRecipient={(recipient) => {
-                                            if (!manualDescription) {
-                                                setManualDescription(recipient);
-                                                isDescManuallyChangedRef.current = true;
-                                            }
-                                        }}
-                                        onDocumentDataExtracted={handleDocumentDataExtracted}
-                                    />
-                                </div>
-                            )}
-                        </div>
-                    )}
 
                     {/* Rodapé / Ações */}
                     <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
@@ -1738,6 +1732,11 @@ export const ManualIdModal: React.FC = () => {
                         </div>
                     </div>
                 </div>
+
+                <QuickRegisterModal
+                    entity={quickRegisterEntity}
+                    onClose={() => setQuickRegisterEntity(null)}
+                />
             </div>
         );
     }
@@ -1976,10 +1975,12 @@ export const ManualIdModal: React.FC = () => {
                                         type="button"
                                         onClick={() => {
                                             setSelectedAssociationType('create_new');
-                                            if (churches.length !== 1) {
-                                                setSelectedChurchId('');
-                                            } else {
-                                                setSelectedChurchId(churches[0].id);
+                                            if (!isChurchManuallyChangedRef.current) {
+                                                if (churches.length !== 1) {
+                                                    setSelectedChurchId('');
+                                                } else {
+                                                    setSelectedChurchId(churches[0].id);
+                                                }
                                             }
                                         }}
                                         className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all cursor-pointer ${
@@ -1998,7 +1999,7 @@ export const ManualIdModal: React.FC = () => {
                                                 const match = similarMatches[0];
                                                 setSelectedUnifiedField(match.contributor.id);
                                                 const chId = match.contributor._churchId || match.contributor.church_id || match.church?.id;
-                                                if (chId) setSelectedChurchId(chId);
+                                                if (chId && !isChurchManuallyChangedRef.current) setSelectedChurchId(chId);
                                             }
                                         }}
                                         className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all cursor-pointer ${
@@ -2025,7 +2026,7 @@ export const ManualIdModal: React.FC = () => {
                                                     key={m.contributor.id || idx}
                                                     onClick={() => {
                                                         setSelectedUnifiedField(m.contributor.id);
-                                                        if (chId) setSelectedChurchId(chId);
+                                                        if (chId && !isChurchManuallyChangedRef.current) setSelectedChurchId(chId);
                                                     }}
                                                     className={`p-2.5 rounded-lg border text-left cursor-pointer transition-all ${
                                                         isSelected
@@ -2095,7 +2096,10 @@ export const ManualIdModal: React.FC = () => {
                                 <Building2 className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
                                 <select
                                     value={selectedChurchId}
-                                    onChange={e => setSelectedChurchId(e.target.value)}
+                                    onChange={e => {
+                                        setSelectedChurchId(e.target.value);
+                                        isChurchManuallyChangedRef.current = true;
+                                    }}
                                     className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 pl-9 pr-8 transition-all outline-none text-xs font-semibold appearance-none cursor-pointer"
                                 >
                                     <option value="">Selecione a igreja...</option>

@@ -639,7 +639,8 @@ export const useTransactionMatcher = ({
 
     const closeManualIdentify = useCallback(() => {
         setBulkIdentificationTxs([]);
-    }, [setBulkIdentificationTxs]);
+        setMatchResults(prev => prev.filter(r => !r.transaction?.id?.startsWith('ghost-manual-')));
+    }, [setBulkIdentificationTxs, setMatchResults]);
 
     const removeTransaction = useCallback((id: string) => {
         batchState.isAtomicUpdate = true;

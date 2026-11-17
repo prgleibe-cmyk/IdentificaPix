@@ -1,15 +1,42 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { getAuthToken } from '../services/auth/authAdapter';
-import { Bank, Church, ChurchFormData, ContributionType, LearnedAssociation, MatchResult } from '../types';
+import { Bank, Church, ChurchFormData, ContributionType, LearnedAssociation, MatchResult, PaymentMethod, PaymentOperationType, TenantCustomOption, TenantOptionScope } from '../types';
 import { usePersistentState } from './usePersistentState';
 import { strictNormalize, DEFAULT_CONTRIBUTION_KEYWORDS, isInvalidOrNumericName, cleanBankDescription, normalizeString } from '../services/utils/parsingUtils';
 import { useAuth } from '../contexts/AuthContext';
 import { batchState } from './reconciliation/useCloudSync';
-import { fetchWithMemoryCache } from '../services/clientDataCache';
+import { fetchWithMemoryCache, invalidateClientCache } from '../services/clientDataCache';
 import { getCachedContributors } from '../services/contributorsCache';
 import { safeFetch, safeParseJson } from '../services/utils/safeFetch';
 
 const DEFAULT_PAYMENT_METHODS = ['PIX', 'DINHEIRO'];
+const DEFAULT_CONTRIBUTOR_ROLES = [
+    'Membro',
+    'Visitante',
+    'Pastor / Pastora',
+    'Diácono / Diaconisa',
+    'Presbítero / Evangelista',
+    'Obreiro / Obreira',
+    'Líder de Ministério / Célula',
+    'Voluntário',
+    'Dizimista',
+    'Músico / Louvor',
+    'Prestador de Serviços',
+    'Fornecedor / Empresa',
+    'Concessionária / Utilidades',
+    'Outro'
+];
+const DEFAULT_SUPPLIER_CATEGORIES = [
+    'Construção e Reformas',
+    'Equipamentos de Som / Iluminação',
+    'Prestação de Serviços Técnicos',
+    'Água, Energia, Internet e Concessionárias',
+    'Alimentação, Eventos e Buffet',
+    'Gráfica, Comunicação Visual e Papelaria',
+    'Outros Fornecedores'
+];
+const DEFAULT_PASTOR_ROLES = ['Pastor Presidente', 'Pastor Auxiliar'];
+const DEFAULT_TREASURER_ROLES = ['1º Tesoureiro', '2º Tesoureiro'];
 
 export const useReferenceData = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void, realtimeRefreshKey?: number) => {
     const { subscription, systemSettings, isSubscriptionReady } = useAuth();
@@ -30,15 +57,52 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const [dayTolerance, setDayTolerance] = usePersistentState<number>(`identificapix-daytolerance${userSuffix}`, 2);
     
     const [contributionKeywords, setContributionKeywords] = usePersistentState<string[]>(`identificapix-contrib-keywords${userSuffix}`, DEFAULT_CONTRIBUTION_KEYWORDS);
-    const [paymentMethods, setPaymentMethods] = usePersistentState<string[]>(`identificapix-payment-methods${userSuffix}`, DEFAULT_PAYMENT_METHODS);
+    const [paymentMethodItems, setPaymentMethodItems] = useState<PaymentMethod[]>([]);
+    const [hasLoadedPaymentMethods, setHasLoadedPaymentMethods] = useState(false);
+    const [tenantOptions, setTenantOptions] = useState<TenantCustomOption[]>([]);
+    const [hasLoadedTenantOptions, setHasLoadedTenantOptions] = useState(false);
     const [contributionTypes, setContributionTypes] = useState<ContributionType[]>([]);
 
+    const paymentMethods = useMemo(() => {
+        if (!hasLoadedPaymentMethods) return DEFAULT_PAYMENT_METHODS;
+        return paymentMethodItems
+            .filter(pm => pm.is_active !== false)
+            .map(pm => (pm.name || '').trim().toUpperCase())
+            .filter(Boolean);
+    }, [hasLoadedPaymentMethods, paymentMethodItems]);
+
+    const customRoles = useMemo(() => {
+        if (!hasLoadedTenantOptions) return DEFAULT_CONTRIBUTOR_ROLES;
+        return tenantOptions.filter(o => o.scope === 'contributor_role').map(o => o.name);
+    }, [hasLoadedTenantOptions, tenantOptions]);
+
+    const supplierCategories = useMemo(() => {
+        if (!hasLoadedTenantOptions) return DEFAULT_SUPPLIER_CATEGORIES;
+        return tenantOptions.filter(o => o.scope === 'supplier_category').map(o => o.name);
+    }, [hasLoadedTenantOptions, tenantOptions]);
+
+    const pastorRoles = useMemo(() => {
+        if (!hasLoadedTenantOptions) return DEFAULT_PASTOR_ROLES;
+        return tenantOptions.filter(o => o.scope === 'pastor_role').map(o => o.name);
+    }, [hasLoadedTenantOptions, tenantOptions]);
+
+    const treasurerRoles = useMemo(() => {
+        if (!hasLoadedTenantOptions) return DEFAULT_TREASURER_ROLES;
+        return tenantOptions.filter(o => o.scope === 'treasurer_role').map(o => o.name);
+    }, [hasLoadedTenantOptions, tenantOptions]);
+
     const fetchContributionTypes = useCallback(async (forceRefresh = false) => {
+        if (!user?.id) {
+            setContributionTypes([]);
+            return;
+        }
         try {
+            const token = await getAuthToken();
+            const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
             const url = effectiveUserId 
                 ? `/api/v1/contribution-types?user_id=${encodeURIComponent(effectiveUserId)}`
                 : '/api/v1/contribution-types';
-            const data = await fetchWithMemoryCache<ContributionType[]>(url, {}, {
+            const data = await fetchWithMemoryCache<ContributionType[]>(url, { headers }, {
                 ttlMs: 45000,
                 forceRefresh
             });
@@ -48,26 +112,94 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         } catch (err) {
             console.error('Erro ao buscar tipos de contribuição:', err);
         }
-    }, [effectiveUserId]);
+    }, [user?.id, effectiveUserId]);
+
+    const fetchPaymentMethods = useCallback(async (forceRefresh = false) => {
+        if (!user?.id) {
+            setPaymentMethodItems([]);
+            setHasLoadedPaymentMethods(false);
+            return;
+        }
+        try {
+            const token = await getAuthToken();
+            if (!token) return;
+            const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` };
+            const url = effectiveUserId
+                ? `/api/v1/payment-methods?user_id=${encodeURIComponent(effectiveUserId)}`
+                : '/api/v1/payment-methods';
+            const data = await fetchWithMemoryCache<PaymentMethod[]>(url, { headers }, {
+                ttlMs: 45000,
+                forceRefresh
+            });
+            if (Array.isArray(data)) {
+                setPaymentMethodItems(data);
+                setHasLoadedPaymentMethods(true);
+            }
+        } catch (err) {
+            console.error('Erro ao buscar formas de recebimento/pagamento:', err);
+        }
+    }, [user?.id, effectiveUserId]);
+
+    const fetchTenantOptions = useCallback(async (forceRefresh = false) => {
+        if (!user?.id) {
+            setTenantOptions([]);
+            setHasLoadedTenantOptions(false);
+            return;
+        }
+        try {
+            const token = await getAuthToken();
+            if (!token) return;
+            const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` };
+            const url = effectiveUserId
+                ? `/api/v1/tenant-options?user_id=${encodeURIComponent(effectiveUserId)}`
+                : '/api/v1/tenant-options';
+            const data = await fetchWithMemoryCache<TenantCustomOption[]>(url, { headers }, {
+                ttlMs: 45000,
+                forceRefresh
+            });
+            if (Array.isArray(data)) {
+                setTenantOptions(data);
+                setHasLoadedTenantOptions(true);
+            }
+        } catch (err) {
+            console.error('Erro ao buscar cargos e categorias:', err);
+        }
+    }, [user?.id, effectiveUserId]);
 
     useEffect(() => {
         fetchContributionTypes();
     }, [fetchContributionTypes]);
 
-    // ✅ MIGRATION/CLEANUP logic to ensure only 'DÍZIMO', 'OFERTA' for contribution types and 'PIX', 'DINHEIRO' for payment methods
+    useEffect(() => {
+        fetchPaymentMethods(Boolean(realtimeRefreshKey && realtimeRefreshKey > 0));
+    }, [fetchPaymentMethods, realtimeRefreshKey]);
+
+    useEffect(() => {
+        fetchTenantOptions(Boolean(realtimeRefreshKey && realtimeRefreshKey > 0));
+    }, [fetchTenantOptions, realtimeRefreshKey]);
+
+    // Limpeza única de chaves legadas globais não isoladas por tenant
+    useEffect(() => {
+        try {
+            localStorage.removeItem('identificapix_payment_methods_meta_v2');
+            localStorage.removeItem('iggestor_custom_roles_v1');
+            localStorage.removeItem('iggestor_supplier_categories_v1');
+            localStorage.removeItem('iggestor_pastor_roles_v2');
+            localStorage.removeItem('iggestor_treasurer_roles_v2');
+        } catch (_) {}
+    }, []);
+
+    // ✅ MIGRATION/CLEANUP logic for contribution keywords (mantida isolada sem apagar formas de pagamento)
     const hasMigratedRef = useRef(false);
 
     useEffect(() => {
         if (!userSuffix) return;
         if (hasMigratedRef.current) return;
-        
-        if (!contributionKeywords || !paymentMethods) return;
+        if (!contributionKeywords) return;
 
         let changed = false;
         let nextKeywords = [...contributionKeywords];
-        let nextMethods = [...paymentMethods];
 
-        // 1. Clean contribution keywords if they match the legacy defaults
         if (contributionKeywords.length === 10 && contributionKeywords.includes('COLETA')) {
             nextKeywords = ['DÍZIMO', 'OFERTA'];
             changed = true;
@@ -82,32 +214,12 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             }
         }
 
-        // 2. Clean payment methods if they match legacy defaults
-        if (paymentMethods.length === 7 && paymentMethods.includes('TED')) {
-            nextMethods = ['PIX', 'DINHEIRO'];
-            changed = true;
-        } else if (paymentMethods.length > 2) {
-            const oldMethods = ['TED', 'BOLETO', 'CARTÃO', 'CHEQUE', 'DEPÓSITO'];
-            const filtered = paymentMethods.filter(pm => !oldMethods.includes(pm.toUpperCase()));
-            if (filtered.length !== paymentMethods.length) {
-                nextMethods = filtered;
-                if (!nextMethods.some(m => m.toUpperCase() === 'PIX')) nextMethods.push('PIX');
-                if (!nextMethods.some(m => m.toUpperCase() === 'DINHEIRO')) nextMethods.push('DINHEIRO');
-                changed = true;
-            }
+        if (changed && JSON.stringify(nextKeywords) !== JSON.stringify(contributionKeywords)) {
+            setContributionKeywords(nextKeywords);
         }
 
-        if (changed) {
-            if (JSON.stringify(nextKeywords) !== JSON.stringify(contributionKeywords)) {
-                setContributionKeywords(nextKeywords);
-            }
-            if (JSON.stringify(nextMethods) !== JSON.stringify(paymentMethods)) {
-                setPaymentMethods(nextMethods);
-            }
-        }
-        
         hasMigratedRef.current = true;
-    }, [contributionKeywords, paymentMethods, userSuffix, setContributionKeywords, setPaymentMethods]);
+    }, [contributionKeywords, userSuffix, setContributionKeywords]);
 
     const [learnedAssociations, setLearnedAssociations] = useState<LearnedAssociation[]>([]);
     const [editingBank, setEditingBank] = useState<Bank | null>(null);
@@ -347,10 +459,15 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
         try {
             console.log(`[WRITE:FIX] Persistindo learned_association com effectiveUserId: ${effectiveUserId} no VPS`);
+            const token = getAuthToken();
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
             for (const desc of descsToSave) {
                 await fetch('/api/v1/learned_associations', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify({
                         user_id: effectiveUserId,
                         normalized_description: desc,
@@ -369,19 +486,37 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
     const updateBank = useCallback(async (bankId: string, name: string, accepted_contribution_types?: string[] | null) => {
         const account_name = name;
-        setBanks(prev => prev.map(b => b.id === bankId ? { ...b, name, account_name, accepted_contribution_types } : b));
+        const existingBank = banks.find(b => b.id === bankId);
+        const resolvedAcceptedTypes = accepted_contribution_types !== undefined
+            ? accepted_contribution_types
+            : (existingBank?.accepted_contribution_types ?? null);
+
         console.log(`[WRITE:UPDATE] Atualizando banco name, account_name e accepted_contribution_types (ID: ${bankId}) no VPS`);
         const token = await getAuthToken();
-        await fetch(`/api/v1/banks/${bankId}`, {
+        const res = await fetch(`/api/v1/banks/${bankId}`, {
             method: 'PUT',
             headers: { 
                 'Content-Type': 'application/json',
                 ...(token ? { 'Authorization': `Bearer ${token}` } : {})
             },
-            body: JSON.stringify({ name, account_name, accepted_contribution_types })
+            body: JSON.stringify({ name, account_name, accepted_contribution_types: resolvedAcceptedTypes })
         });
+
+        if (!res.ok) {
+            const errJson = await res.json().catch(() => ({}));
+            const errMsg = errJson?.message || 'Erro ao atualizar conta bancária.';
+            showToast(errMsg, 'error');
+            throw new Error(errMsg);
+        }
+
+        const updatedBank = await res.json().catch(() => null);
+        setBanks(prev => prev.map(b => b.id === bankId ? {
+            ...b,
+            ...(updatedBank || { name, account_name, accepted_contribution_types: resolvedAcceptedTypes })
+        } : b));
         showToast('Banco atualizado.', 'success');
-    }, [setBanks, showToast]);
+        return updatedBank || true;
+    }, [banks, setBanks, showToast]);
 
     const addBank = useCallback(async (nameOrPayload: string | { name: string; bank_key?: string | null; account_name?: string | null; accepted_contribution_types?: string[] | null }, bank_key_legacy?: string | null): Promise<any> => {
         if(!user || !effectiveUserId) return false;
@@ -444,25 +579,43 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             showToast('Banco adicionado.', 'success');
             return newBank;
         }
-        return false;
+
+        const errJson = await res.json().catch(() => ({}));
+        const errMsg = errJson?.message || 'Erro ao adicionar conta bancária.';
+        showToast(errMsg, 'error');
+        throw new Error(errMsg);
     }, [user, effectiveUserId, banks, subscription.maxBanks, setBanks, showToast]);
 
     const openEditChurch = useCallback((church: Church) => setEditingChurch(church), []);
     const closeEditChurch = useCallback(() => setEditingChurch(null), []);
 
     const updateChurch = useCallback(async (churchId: string, formData: ChurchFormData) => {
-        setChurches(prev => prev.map(c => c.id === churchId ? { ...c, ...formData } : c));
-        closeEditChurch();
+        console.log(`[WRITE:ALREADY_CORRECT] Atualizando igreja (ID: ${churchId}) no VPS`);
+        const token = await getAuthToken();
+        const res = await fetch(`/api/v1/churches/${churchId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify(formData)
+        });
+
+        if (!res.ok) {
+            const errJson = await res.json().catch(() => ({}));
+            const errMsg = errJson?.message || 'Erro ao atualizar igreja.';
+            showToast(errMsg, 'error');
+            throw new Error(errMsg);
+        }
+
+        const updatedChurch = await res.json().catch(() => null);
+        setChurches(prev => prev.map(c => c.id === churchId ? { ...c, ...(updatedChurch || formData) } : c));
         try {
             localStorage.removeItem('iggestor_portal_churches_cache');
         } catch (_) {}
-        console.log(`[WRITE:ALREADY_CORRECT] Atualizando igreja (ID: ${churchId}) no VPS`);
-        await fetch(`/api/v1/churches/${churchId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(formData)
-        });
+        closeEditChurch();
         showToast('Igreja atualizada.', 'success');
+        return updatedChurch || true;
     }, [closeEditChurch, setChurches, showToast]);
 
     const addChurch = useCallback(async (formData: ChurchFormData): Promise<boolean> => {
@@ -472,21 +625,33 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             return false;
         }
         try {
-            localStorage.removeItem('iggestor_portal_churches_cache');
-        } catch (_) {}
-        console.log(`[WRITE:FIX] Adicionando igreja com effectiveUserId: ${effectiveUserId} no VPS`);
-        const res = await fetch('/api/v1/churches', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...formData, user_id: effectiveUserId })
-        });
-        if (res.ok) {
-            const newChurch = await res.json();
-            setChurches(prev => [...prev, newChurch]);
-            showToast('Igreja adicionada.', 'success');
-            return true;
+            console.log(`[WRITE:FIX] Adicionando igreja com effectiveUserId: ${effectiveUserId} no VPS`);
+            const token = await getAuthToken();
+            const res = await fetch('/api/v1/churches', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                },
+                body: JSON.stringify({ ...formData, user_id: effectiveUserId })
+            });
+            if (res.ok) {
+                const newChurch = await res.json();
+                setChurches(prev => [...prev, newChurch]);
+                try {
+                    localStorage.removeItem('iggestor_portal_churches_cache');
+                } catch (_) {}
+                showToast('Igreja adicionada.', 'success');
+                return true;
+            }
+            const errJson = await res.json().catch(() => ({}));
+            showToast(errJson?.message || 'Erro ao cadastrar igreja.', 'error');
+            return false;
+        } catch (err) {
+            console.error('Erro ao cadastrar igreja:', err);
+            showToast('Erro ao comunicar com o servidor ao cadastrar igreja.', 'error');
+            return false;
         }
-        return false;
     }, [user, effectiveUserId, churches, subscription.maxChurches, setChurches, showToast]);
 
     const addContributionKeyword = useCallback((keyword: string) => {
@@ -502,40 +667,156 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         showToast("Palavra removida.", "success");
     }, [setContributionKeywords, showToast]);
 
-    const addPaymentMethod = useCallback((method: string) => {
-        const upper = method.trim().toUpperCase();
-        if (!paymentMethods.includes(upper)) {
-            setPaymentMethods(prev => [...prev, upper]);
-            showToast(`Forma "${upper}" adicionada.`, 'success');
-        }
-    }, [paymentMethods, setPaymentMethods, showToast]);
+    const addPaymentMethod = useCallback(async (
+        dataOrMethod: string | { name: string; type?: PaymentOperationType; category?: string | null; bank_id?: string | null; order?: number; is_active?: boolean }
+    ) => {
+        const payload = typeof dataOrMethod === 'string'
+            ? { name: dataOrMethod.trim().toUpperCase(), type: 'ambos' as PaymentOperationType }
+            : {
+                ...dataOrMethod,
+                name: (dataOrMethod.name || '').trim().toUpperCase()
+            };
 
-    const removePaymentMethod = useCallback((method: string) => {
-        setPaymentMethods(prev => prev.filter(m => m !== method));
-        showToast("Forma removida.", "success");
-    }, [setPaymentMethods, showToast]);
+        const token = await getAuthToken();
+        const res = await fetch('/api/v1/payment-methods', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({ ...payload, user_id: effectiveUserId })
+        });
 
-    const updatePaymentMethod = useCallback((oldMethod: string, newMethod: string) => {
-        const upperOld = oldMethod.trim().toUpperCase();
-        const upperNew = newMethod.trim().toUpperCase();
-        if (!upperNew) return;
-        if (upperOld !== upperNew && paymentMethods.includes(upperNew)) {
-            showToast(`A forma "${upperNew}" já existe.`, 'error');
-            return;
+        if (!res.ok) {
+            const errJson = await res.json().catch(() => ({}));
+            const errMsg = errJson?.message || 'Erro ao cadastrar forma de recebimento/pagamento.';
+            showToast(errMsg, 'error');
+            throw new Error(errMsg);
         }
-        setPaymentMethods(prev => prev.map(m => m === upperOld ? upperNew : m));
-        showToast(`Forma "${upperNew}" atualizada.`, 'success');
-    }, [paymentMethods, setPaymentMethods, showToast]);
+
+        const newMethod: PaymentMethod = await res.json();
+        invalidateClientCache('/api/v1/payment-methods');
+        setPaymentMethodItems(prev => [...prev, newMethod]);
+        setHasLoadedPaymentMethods(true);
+        showToast(`Forma "${newMethod.name}" adicionada.`, 'success');
+        window.dispatchEvent(new CustomEvent('payment_methods_updated', { detail: { action: 'create', method: newMethod } }));
+        if (typeof BroadcastChannel !== 'undefined') {
+            try {
+                const bc = new BroadcastChannel('identificapix_realtime_sync');
+                bc.postMessage({ type: 'payment_methods_updated' });
+                bc.close();
+            } catch (_) {}
+        }
+        return newMethod;
+    }, [effectiveUserId, showToast]);
+
+    const removePaymentMethod = useCallback(async (idOrMethodName: string) => {
+        const cleanTarget = (idOrMethodName || '').trim();
+        const matched = paymentMethodItems.find(
+            pm => pm.id === cleanTarget || (pm.name || '').trim().toUpperCase() === cleanTarget.toUpperCase()
+        );
+        const targetId = matched?.id || cleanTarget;
+
+        const token = await getAuthToken();
+        const res = await fetch(`/api/v1/payment-methods/${encodeURIComponent(targetId)}`, {
+            method: 'DELETE',
+            headers: {
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            }
+        });
+
+        if (!res.ok) {
+            const errJson = await res.json().catch(() => ({}));
+            const errMsg = errJson?.message || 'Erro ao excluir forma de recebimento/pagamento.';
+            showToast(errMsg, 'error');
+            return false;
+        }
+
+        invalidateClientCache('/api/v1/payment-methods');
+        setPaymentMethodItems(prev => prev.filter(pm => pm.id !== targetId));
+        showToast('Forma removida.', 'success');
+        window.dispatchEvent(new CustomEvent('payment_methods_updated', { detail: { action: 'delete', id: targetId } }));
+        if (typeof BroadcastChannel !== 'undefined') {
+            try {
+                const bc = new BroadcastChannel('identificapix_realtime_sync');
+                bc.postMessage({ type: 'payment_methods_updated' });
+                bc.close();
+            } catch (_) {}
+        }
+        return true;
+    }, [paymentMethodItems, showToast]);
+
+    const updatePaymentMethod = useCallback(async (
+        idOrOldMethod: string,
+        dataOrNewMethod: string | { name: string; type?: PaymentOperationType; category?: string | null; bank_id?: string | null; order?: number; is_active?: boolean }
+    ) => {
+        const cleanTarget = (idOrOldMethod || '').trim();
+        const matched = paymentMethodItems.find(
+            pm => pm.id === cleanTarget || (pm.name || '').trim().toUpperCase() === cleanTarget.toUpperCase()
+        );
+        const targetId = matched?.id || cleanTarget;
+
+        const payload = typeof dataOrNewMethod === 'string'
+            ? {
+                name: dataOrNewMethod.trim().toUpperCase(),
+                type: matched?.type || ('ambos' as PaymentOperationType),
+                category: matched?.category ?? null,
+                bank_id: matched?.bank_id ?? null,
+                order: matched?.order ?? 1,
+                is_active: matched?.is_active !== false
+            }
+            : {
+                ...dataOrNewMethod,
+                name: (dataOrNewMethod.name || '').trim().toUpperCase()
+            };
+
+        const token = await getAuthToken();
+        const res = await fetch(`/api/v1/payment-methods/${encodeURIComponent(targetId)}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+            const errJson = await res.json().catch(() => ({}));
+            const errMsg = errJson?.message || 'Erro ao atualizar forma de recebimento/pagamento.';
+            showToast(errMsg, 'error');
+            throw new Error(errMsg);
+        }
+
+        const updated: PaymentMethod = await res.json();
+        invalidateClientCache('/api/v1/payment-methods');
+        setPaymentMethodItems(prev => prev.map(pm => pm.id === targetId ? updated : pm));
+        setHasLoadedPaymentMethods(true);
+        showToast(`Forma "${updated.name}" atualizada.`, 'success');
+        window.dispatchEvent(new CustomEvent('payment_methods_updated', { detail: { action: 'update', method: updated } }));
+        if (typeof BroadcastChannel !== 'undefined') {
+            try {
+                const bc = new BroadcastChannel('identificapix_realtime_sync');
+                bc.postMessage({ type: 'payment_methods_updated' });
+                bc.close();
+            } catch (_) {}
+        }
+        return updated;
+    }, [paymentMethodItems, showToast]);
 
     const addContributionType = useCallback(async (data: { name: string; type: 'entrada' | 'saida'; category?: string; bank_id?: string; order?: number; is_active?: boolean }) => {
         try {
+            const token = await getAuthToken();
             const res = await fetch('/api/v1/contribution-types', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify({ ...data, user_id: effectiveUserId })
             });
             if (res.ok) {
                 const newType = await res.json();
+                invalidateClientCache('/api/v1/contribution-types');
                 setContributionTypes(prev => [...prev, newType]);
                 showToast(`Tipo "${newType.name}" cadastrado.`, 'success');
                 window.dispatchEvent(new CustomEvent('contribution_types_updated', { detail: { action: 'create', type: newType } }));
@@ -561,13 +842,18 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
     const updateContributionType = useCallback(async (id: string, data: { name: string; type: 'entrada' | 'saida'; category?: string; bank_id?: string; order?: number; is_active?: boolean }) => {
         try {
+            const token = await getAuthToken();
             const res = await fetch(`/api/v1/contribution-types/${id}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify(data)
             });
             if (res.ok) {
                 const updated = await res.json();
+                invalidateClientCache('/api/v1/contribution-types');
                 setContributionTypes(prev => prev.map(item => item.id === id ? updated : item));
                 showToast(`Tipo "${updated.name}" atualizado.`, 'success');
                 window.dispatchEvent(new CustomEvent('contribution_types_updated', { detail: { action: 'update', type: updated } }));
@@ -593,10 +879,15 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
     const removeContributionType = useCallback(async (id: string) => {
         try {
+            const token = await getAuthToken();
             const res = await fetch(`/api/v1/contribution-types/${id}`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers: {
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                }
             });
             if (res.ok) {
+                invalidateClientCache('/api/v1/contribution-types');
                 setContributionTypes(prev => prev.filter(item => item.id !== id));
                 showToast('Tipo de contribuição removido.', 'success');
                 window.dispatchEvent(new CustomEvent('contribution_types_updated', { detail: { action: 'delete', id } }));
@@ -609,7 +900,8 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                 }
                 return true;
             } else {
-                showToast('Erro ao excluir tipo.', 'error');
+                const errJson = await res.json().catch(() => ({}));
+                showToast(errJson.message || 'Erro ao excluir tipo.', 'error');
                 return false;
             }
         } catch (err) {
@@ -619,18 +911,113 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         }
     }, [showToast]);
 
+    const addTenantOption = useCallback(async (scope: TenantOptionScope, name: string) => {
+        const trimmed = (name || '').trim();
+        if (!trimmed) return false;
+        const existing = tenantOptions.find(
+            o => o.scope === scope && o.name.trim().toLowerCase() === trimmed.toLowerCase()
+        );
+        if (existing) return existing;
+
+        const token = await getAuthToken();
+        const res = await fetch('/api/v1/tenant-options', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({ scope, name: trimmed, user_id: effectiveUserId })
+        });
+        if (!res.ok) {
+            const errJson = await res.json().catch(() => ({}));
+            const errMsg = errJson?.message || 'Erro ao cadastrar item.';
+            showToast(errMsg, 'error');
+            return false;
+        }
+        const created: TenantCustomOption = await res.json();
+        invalidateClientCache('/api/v1/tenant-options');
+        setTenantOptions(prev => [...prev, created]);
+        setHasLoadedTenantOptions(true);
+        showToast(`"${created.name}" adicionado(a).`, 'success');
+        return created;
+    }, [tenantOptions, effectiveUserId, showToast]);
+
+    const renameTenantOption = useCallback(async (scope: TenantOptionScope, oldName: string, newName: string) => {
+        const trimmed = (newName || '').trim();
+        if (!trimmed || trimmed === oldName) return false;
+        const target = tenantOptions.find(
+            o => o.scope === scope && o.name === oldName
+        ) || tenantOptions.find(
+            o => o.scope === scope && o.name.trim().toLowerCase() === (oldName || '').trim().toLowerCase()
+        );
+        if (!target) {
+            return await addTenantOption(scope, trimmed);
+        }
+
+        const token = await getAuthToken();
+        const res = await fetch(`/api/v1/tenant-options/${encodeURIComponent(target.id)}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({ name: trimmed })
+        });
+        if (!res.ok) {
+            const errJson = await res.json().catch(() => ({}));
+            const errMsg = errJson?.message || 'Erro ao renomear item.';
+            showToast(errMsg, 'error');
+            return false;
+        }
+        const updated: TenantCustomOption = await res.json();
+        invalidateClientCache('/api/v1/tenant-options');
+        setTenantOptions(prev => prev.map(o => o.id === target.id ? updated : o));
+        showToast(`Atualizado para "${updated.name}".`, 'success');
+        return updated;
+    }, [tenantOptions, addTenantOption, showToast]);
+
+    const deleteTenantOption = useCallback(async (scope: TenantOptionScope, nameToDelete: string) => {
+        const target = tenantOptions.find(
+            o => o.scope === scope && o.name === nameToDelete
+        ) || tenantOptions.find(
+            o => o.scope === scope && o.name.trim().toLowerCase() === (nameToDelete || '').trim().toLowerCase()
+        );
+        if (!target) return false;
+
+        const token = await getAuthToken();
+        const res = await fetch(`/api/v1/tenant-options/${encodeURIComponent(target.id)}`, {
+            method: 'DELETE',
+            headers: {
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            }
+        });
+        if (!res.ok) {
+            const errJson = await res.json().catch(() => ({}));
+            const errMsg = errJson?.message || 'Erro ao excluir item.';
+            showToast(errMsg, 'error');
+            return false;
+        }
+        invalidateClientCache('/api/v1/tenant-options');
+        setTenantOptions(prev => prev.filter(o => o.id !== target.id));
+        showToast('Item removido.', 'success');
+        return true;
+    }, [tenantOptions, showToast]);
+
     return useMemo(() => ({
         banks, churches, reports, isReady, similarityLevel, setSimilarityLevel, dayTolerance, setDayTolerance,
         contributionKeywords, addContributionKeyword, removeContributionKeyword,
-        paymentMethods, addPaymentMethod, removePaymentMethod, updatePaymentMethod,
+        paymentMethods, paymentMethodItems, fetchPaymentMethods, addPaymentMethod, removePaymentMethod, updatePaymentMethod,
         contributionTypes, fetchContributionTypes, addContributionType, updateContributionType, removeContributionType,
+        customRoles, supplierCategories, pastorRoles, treasurerRoles, fetchTenantOptions, addTenantOption, renameTenantOption, deleteTenantOption,
         learnedAssociations, learnAssociation,
         editingBank, openEditBank, closeEditBank, updateBank, addBank,
         editingChurch, openEditChurch, closeEditChurch, updateChurch, addChurch,
         setBanks, setChurches, setLearnedAssociations
     }), [
         banks, churches, reports, isReady, similarityLevel, dayTolerance, 
-        contributionKeywords, paymentMethods, contributionTypes, fetchContributionTypes, addContributionType, updateContributionType, removeContributionType, learnedAssociations, learnAssociation, 
+        contributionKeywords, paymentMethods, paymentMethodItems, fetchPaymentMethods, contributionTypes, fetchContributionTypes, addContributionType, updateContributionType, removeContributionType,
+        customRoles, supplierCategories, pastorRoles, treasurerRoles, fetchTenantOptions, addTenantOption, renameTenantOption, deleteTenantOption,
+        learnedAssociations, learnAssociation, 
         editingBank, editingChurch, setBanks, setChurches, setSimilarityLevel, 
         setDayTolerance, openEditBank, closeEditBank, updateBank, addBank, 
         openEditChurch, closeEditChurch, updateChurch, addChurch,

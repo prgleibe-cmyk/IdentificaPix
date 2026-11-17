@@ -10,20 +10,20 @@ import {
 } from './brazilianDocUtils';
 export * from './brazilianDocUtils';
 
-// @ts-ignore
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-
-// Configuração do worker do pdfjs-dist
+// Configuração do worker do pdfjs-dist (compatível com Vite bundle e execução em Node.js)
 if (typeof window !== 'undefined') {
     try {
-        if (pdfWorkerUrl) {
-            pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
-        } else {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+            'pdfjs-dist/build/pdf.worker.min.mjs',
+            import.meta.url
+        ).toString();
+    } catch (e) {
+        try {
             const version = pdfjsLib.version || '6.2.108';
             pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${version}/build/pdf.worker.min.mjs`;
+        } catch (_) {
+            console.warn('[PDF.js] Worker configuration fallback:', e);
         }
-    } catch (e) {
-        console.warn('[PDF.js] Worker configuration fallback:', e);
     }
 }
 
@@ -248,6 +248,7 @@ export function parseBRLNumber(valStr: string): number | null {
  * Extrai texto completo de um arquivo PDF via pdfjs-dist com fallback seguro
  */
 export async function extractTextFromPDF(arrayBuffer: ArrayBuffer): Promise<string> {
+    if (!arrayBuffer || arrayBuffer.byteLength === 0) return '';
     const parseWithLib = async (lib: any): Promise<string> => {
         const loadingTask = lib.getDocument({ data: new Uint8Array(arrayBuffer) });
         let pdf: any = null;
@@ -374,15 +375,38 @@ export function detectDocumentType(text: string): { type: DocumentType; label: s
 export function extractAmountsFromText(text: string): { primaryAmount: number | null; allAmounts: number[] } {
     const allAmounts: number[] = [];
 
-    // Padrões de alta prioridade (frases com palavras-chave de valor final ou total)
+    // Padrões de altíssima prioridade (valor final total da nota/documento/pagamento)
+    const topPriorityPatterns = [
+        /(?:valor\s*total\s*(?:da\s*nota|do\s*cupom|do\s*documento|dos\s*servi[cç]os|geral|a\s*pagar)|total\s*(?:a\s*pagar|geral|da\s*nota|nota|da\s*fatura|do\s*cupom|l[ií]quido)|valor\s*(?:pago|l[ií]quido|final|recebido|cobrado|transferido|debitado|do\s*d[eé]bito|do\s*documento|da\s*nota|a\s*pagar|a\s*cobrar|da\s*transa[cç][aã]o|da\s*fatura|do\s*boleto|da\s*opera[cç][aã]o))\s*[:=]?\s*(?:R\$\s*)?([0-9]{1,3}(?:\.[0-9]{3})*\,[0-9]{2}|[0-9]{1,9}\,[0-9]{2})/gi
+    ];
+
+    // Padrões secundários de valor total/principal ou símbolo monetário explícito
     const priorityPatterns = [
-        /(?:valor\s*(?:pago|total|l[ií]quido|do\s*documento|principal|da\s*nota|recebido|cobrado|a\s*pagar|a\s*cobrar|d[eé]bito|da\s*transa[cç][aã]o|transferido|da\s*fatura|do\s*boleto|final)|total\s*a\s*pagar|valor\s*a\s*pagar|total\s*geral|total\s*nota|valor\s*da\s*opera[cç][aã]o|valor)\s*[:=]?\s*(?:R\$\s*)?([0-9]{1,3}(?:\.[0-9]{3})*\,[0-9]{2}|[0-9]{1,9}\,[0-9]{2})/gi,
-        /(?:R\$\s*)([0-9]{1,3}(?:\.[0-9]{3})*\,[0-9]{2}|[0-9]{1,9}\,[0-9]{2})/gi
+        /(?:valor\s*(?:total|principal)|total)\s*[:=]?\s*(?:R\$\s*)?([0-9]{1,3}(?:\.[0-9]{3})*\,[0-9]{2}|[0-9]{1,9}\,[0-9]{2})/gi,
+        /(?:R\$\s*)([0-9]{1,3}(?:\.[0-9]{3})*\,[0-9]{2}|[0-9]{1,9}\,[0-9]{2})/gi,
+        /(?:\bvalor\b)\s*[:=]?\s*(?:R\$\s*)?([0-9]{1,3}(?:\.[0-9]{3})*\,[0-9]{2}|[0-9]{1,9}\,[0-9]{2})/gi
     ];
 
     let primaryAmount: number | null = null;
 
-    // 1. Tentar padrões de alta prioridade
+    // 1. Tentar padrões de altíssima prioridade (VALOR TOTAL DA NOTA, VALOR PAGO, etc.)
+    for (const pattern of topPriorityPatterns) {
+        pattern.lastIndex = 0;
+        let match;
+        while ((match = pattern.exec(text)) !== null) {
+            const parsed = parseBRLNumber(match[1]);
+            if (parsed !== null && parsed > 0) {
+                if (primaryAmount === null) {
+                    primaryAmount = parsed;
+                }
+                if (!allAmounts.includes(parsed)) {
+                    allAmounts.push(parsed);
+                }
+            }
+        }
+    }
+
+    // 2. Tentar padrões de alta prioridade secundários
     for (const pattern of priorityPatterns) {
         pattern.lastIndex = 0;
         let match;
@@ -399,21 +423,18 @@ export function extractAmountsFromText(text: string): { primaryAmount: number | 
         }
     }
 
-    // 2. Se ainda não encontrou com prefixos, buscar qualquer formato monetário isolado
-    if (allAmounts.length === 0) {
-        const generalAmountPattern = /\b([0-9]{1,3}(?:\.[0-9]{3})*\,[0-9]{2})\b|\b([0-9]{1,9}\,[0-9]{2})\b/g;
-        let match;
-        while ((match = generalAmountPattern.exec(text)) !== null) {
-            const matchedStr = match[1] || match[2];
-            const parsed = parseBRLNumber(matchedStr);
-            if (parsed !== null && parsed > 0 && !allAmounts.includes(parsed)) {
-                allAmounts.push(parsed);
-            }
+    // 3. Buscar qualquer formato monetário isolado para compor allAmounts (ou fallback de primaryAmount)
+    const generalAmountPattern = /\b([0-9]{1,3}(?:\.[0-9]{3})*\,[0-9]{2})\b|\b([0-9]{1,9}\,[0-9]{2})\b/g;
+    let match;
+    while ((match = generalAmountPattern.exec(text)) !== null) {
+        const matchedStr = match[1] || match[2];
+        const parsed = parseBRLNumber(matchedStr);
+        if (parsed !== null && parsed > 0 && !allAmounts.includes(parsed)) {
+            allAmounts.push(parsed);
         }
-        if (allAmounts.length > 0) {
-            // Em caso de múltiplos, o maior ou o primeiro após contexto de pagamento é candidato
-            primaryAmount = allAmounts[0];
-        }
+    }
+    if (primaryAmount === null && allAmounts.length > 0) {
+        primaryAmount = allAmounts[0];
     }
 
     return { primaryAmount, allAmounts };
@@ -467,7 +488,29 @@ function cleanCandidateRecipient(raw: string): string | null {
         return null;
     }
 
-    if (s.length >= 3 && /[a-zA-Z]/.test(s)) {
+    // Rejeita caixas técnicas comuns em DANFE / Cupom / Notas Fiscais
+    if (/(?:0\s*-\s*entrada|1\s*-\s*sa[ií]da|entrada\s*[\/\-]?\s*sa[ií]da)/i.test(s)) {
+        return null;
+    }
+    if (/^(?:s[eé]rie|folha|p[aá]gina|pag\.?|n[ºo°]?\.?\s*\d|n[uú]mero\s*(?:da\s*nota)?|inscri[cç][aã]o|i\.e\.?|cfop|ncm|cst|csosn|data\s*(?:de\s*)?emiss[aã]o|hora\s*(?:de\s*)?sa[ií]da|emitente|destinat[aá]rio)\b/i.test(s)) {
+        return null;
+    }
+
+    // Rejeita ruído de OCR (símbolos estranhos, excesso de fragmentos de 1 caractere ou ausência de palavras legíveis com vogais)
+    if (/[|~^]/.test(s)) {
+        return null;
+    }
+    const tokens = s.split(/\s+/).filter(Boolean);
+    const shortNoiseTokens = tokens.filter(t => t.replace(/[^a-zA-Z0-9]/g, '').length <= 1);
+    if (tokens.length >= 4 && shortNoiseTokens.length / tokens.length > 0.4) {
+        return null;
+    }
+    const hasLegibleWord = tokens.some(t => {
+        const letters = t.replace(/[^a-zA-ZÀ-ÿ]/g, '');
+        return letters.length >= 3 && /[aeiouáéíóúâêôãõàüAEIOUÁÉÍÓÚÂÊÔÃÕÀÜ]/.test(letters);
+    });
+
+    if (s.length >= 3 && /[a-zA-Z]/.test(s) && hasLegibleWord) {
         return s;
     }
     return null;
@@ -511,18 +554,18 @@ export function extractRecipientFromText(text: string): string | null {
     // 2.3 Cupom Fiscal / NFC-e:
     // O cabeçalho possui o CNPJ do Emitente e o Nome da Empresa na linha anterior ou posterior.
     // Exemplo: 'CNPJ do Emitente 14.739.053/0005-67\nK R LOPES DE CASTRO E CIA LTDA'
-    const sellerLines = sellerScope.split(/[\r\n]+/);
+    const sellerLines = sellerScope.split(/[\r\n]+/).map(l => l.trim()).filter(Boolean);
     for (let i = 0; i < Math.min(sellerLines.length, 15); i++) {
-        const line = sellerLines[i].trim();
+        const line = sellerLines[i];
         if (/cnpj(?:\s*do\s*emitente)?/i.test(line)) {
             // Linha posterior
             if (i + 1 < sellerLines.length) {
                 const nextCand = cleanCandidateRecipient(sellerLines[i + 1]);
                 if (nextCand) return nextCand;
             }
-            // Linha anterior
-            if (i > 0) {
-                const prevCand = cleanCandidateRecipient(sellerLines[i - 1]);
+            // Linhas anteriores (pula eventual linha de endereço entre razão social e CNPJ)
+            for (let back = 1; back <= 2 && i - back >= 0; back++) {
+                const prevCand = cleanCandidateRecipient(sellerLines[i - back]);
                 if (prevCand) return prevCand;
             }
         }
@@ -530,7 +573,7 @@ export function extractRecipientFromText(text: string): string | null {
 
     // 2.4 Primeira linha da seção do cabeçalho que seja um nome empresarial válido
     // (Garante captura em cupons onde o nome da loja/supermercado está logo no início)
-    for (let i = 0; i < Math.min(sellerLines.length, 6); i++) {
+    for (let i = 0; i < Math.min(sellerLines.length, 10); i++) {
         const cand = cleanCandidateRecipient(sellerLines[i]);
         if (cand && cand.length >= 4 && !cand.toLowerCase().includes('comprovante') && !cand.toLowerCase().includes('extrato')) {
             return cand;
@@ -560,12 +603,19 @@ export function extractRecipientFromText(text: string): string | null {
  * Extrai data presente no documento (apenas para exibição/referência do documento)
  */
 export function extractDateFromText(text: string): string | null {
-    const dateMatch = text.match(/\b([0-3]?[0-9])[\/\-\.]([0-1]?[0-9])[\/\-\.](20[2-3][0-9])\b/);
-    if (dateMatch) {
-        const day = dateMatch[1].padStart(2, '0');
-        const month = dateMatch[2].padStart(2, '0');
-        const year = dateMatch[3];
-        return `${year}-${month}-${day}`;
+    if (!text) return null;
+    const dateRegex = /\b([0-3]?[0-9])[\/\-\.]([0-1]?[0-9])[\/\-\.](20[2-3][0-9])\b/g;
+    let dateMatch: RegExpExecArray | null;
+    while ((dateMatch = dateRegex.exec(text)) !== null) {
+        const dNum = parseInt(dateMatch[1], 10);
+        const mNum = parseInt(dateMatch[2], 10);
+        const yNum = parseInt(dateMatch[3], 10);
+        if (dNum >= 1 && dNum <= 31 && mNum >= 1 && mNum <= 12) {
+            const dObj = new Date(yNum, mNum - 1, dNum);
+            if (dObj.getFullYear() === yNum && dObj.getMonth() === mNum - 1 && dObj.getDate() === dNum) {
+                return `${yNum}-${String(mNum).padStart(2, '0')}-${String(dNum).padStart(2, '0')}`;
+            }
+        }
     }
     return null;
 }
@@ -799,12 +849,12 @@ export function isDocumentTextLegible(rawText: string, extractedData?: Extracted
         const hasDocType = extractedData.documentType && extractedData.documentType !== 'outro';
         const hasBarcodeOrAuth = !!extractedData.barcodeOrAuth;
 
-        // Se tiver dados contábeis claros
-        if (hasValidAmount || hasRecipient || hasCnpjCpf || (hasDocType && hasAccountingKeywords) || hasBarcodeOrAuth) {
+        // Se tiver dados contábeis sólidos (valor, documento fiscal/CPF/CNPJ, código de barras, tipo+vocabulário)
+        if (hasValidAmount || hasCnpjCpf || (hasDocType && hasAccountingKeywords) || hasBarcodeOrAuth || (hasRecipient && hasAccountingKeywords)) {
             return true;
         }
 
-        // Se não tem nenhum dado contábil extraído, mas tem vocabulário contábil consistente
+        // Se não tem nenhum dado contábil forte, mas tem vocabulário contábil consistente e densidade legível
         if (hasAccountingKeywords && alnum.length >= 25) {
             const words = clean.split(/\s+/).filter(w => w.length > 0);
             const avgWordLen = words.reduce((acc, w) => acc + w.length, 0) / (words.length || 1);

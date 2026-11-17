@@ -25,13 +25,13 @@ export const BanksList: React.FC = () => {
     return (
         <div className="flex flex-col h-full">
             <div className="relative mb-3 flex-shrink-0">
-                <SearchIcon className="w-3.5 h-3.5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2" />
-                <input 
-                    type="text" 
-                    placeholder={t('register.searchBank')} 
-                    value={search} 
-                    onChange={e => setSearch(e.target.value)} 
-                    className="pl-8 p-2 block w-full rounded-lg border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-brand-graphite dark:text-slate-200 focus:border-brand-blue focus:ring-brand-blue transition-all shadow-sm focus:bg-white dark:focus:bg-slate-900 text-[11px] font-medium outline-none" 
+                <SearchIcon className="w-4 h-4 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2 pointer-events-none" />
+                <input
+                    type="text"
+                    placeholder={t('register.searchBank')}
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    className="pl-9 pr-3 py-2 block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-xs font-medium outline-none"
                 />
             </div>
             
@@ -100,8 +100,8 @@ export const BanksList: React.FC = () => {
                 })}
 
                 {filteredBanks.length === 0 && (
-                    <div className="text-center py-10 bg-slate-50/50 dark:bg-slate-900/30 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 my-2">
-                        <p className="text-slate-400 dark:text-slate-500 italic text-xs font-medium">
+                    <div className="text-center py-10 bg-slate-50/70 dark:bg-slate-900/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 my-1">
+                        <p className="text-slate-500 dark:text-slate-400 text-xs font-medium">
                             Nenhuma conta bancária encontrada.
                         </p>
                     </div>

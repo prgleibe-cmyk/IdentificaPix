@@ -35,6 +35,34 @@ export interface ContributionType {
   bank_name?: string | null;
 }
 
+export type PaymentOperationType = 'recebimento' | 'pagamento' | 'ambos';
+
+export interface PaymentMethod {
+  id: string;
+  name: string;
+  type: PaymentOperationType;
+  category?: string | null;
+  bank_id?: string | null;
+  bank_name?: string | null;
+  order?: number;
+  is_active?: boolean;
+  user_id?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type TenantOptionScope = 'contributor_role' | 'supplier_category' | 'pastor_role' | 'treasurer_role';
+
+export interface TenantCustomOption {
+  id: string;
+  user_id: string;
+  scope: TenantOptionScope;
+  name: string;
+  sort_order?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface ChurchLeader {
   id?: string;
   name: string;

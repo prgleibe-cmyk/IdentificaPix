@@ -74,7 +74,13 @@ export function verifyTotpCode(secretBase32: string, code: string, window = 1): 
 }
 
 function getEncryptionKey(): Buffer {
-  const rawKey = process.env.TOTP_ENCRYPTION_KEY || process.env.JWT_SECRET || 'iggestor_fallback_totp_secret_key_32bytes_min!';
+  const configured = process.env.TOTP_ENCRYPTION_KEY || process.env.JWT_SECRET;
+  if (!configured || configured.trim().length === 0) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('[TOTP] FATAL: TOTP_ENCRYPTION_KEY ou JWT_SECRET não configurado em ambiente de produção.');
+    }
+  }
+  const rawKey = (configured && configured.trim().length > 0) ? configured : 'iggestor_fallback_totp_secret_key_32bytes_min!';
   return crypto.createHash('sha256').update(rawKey).digest();
 }
 

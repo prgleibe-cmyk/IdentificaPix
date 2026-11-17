@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { QRCodeCanvas } from 'qrcode.react';
-import { QrCode, Copy, Check, Download, Share2, ExternalLink, X, Building2, MessageCircle, UserPlus, Smartphone, Sparkles } from 'lucide-react';
+import { QrCode, Copy, Check, Download, Share2, ExternalLink, X, Building2, MessageCircle } from 'lucide-react';
 
 interface ChurchPortalShareModalProps {
     church: {
@@ -19,7 +20,20 @@ export const ChurchPortalShareModal: React.FC<ChurchPortalShareModalProps> = ({ 
     const [shareMessage, setShareMessage] = useState<string | null>(null);
     const qrContainerRef = useRef<HTMLDivElement>(null);
 
-    if (!church) return null;
+    useEffect(() => {
+        if (!church) return;
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                onClose();
+            }
+        };
+        window.addEventListener('keydown', onKeyDown, true);
+        return () => window.removeEventListener('keydown', onKeyDown, true);
+    }, [church, onClose]);
+
+    if (!church || typeof document === 'undefined') return null;
 
     // Helper to build normalized church slug safely
     const getChurchSlug = (name: string) => {
@@ -146,40 +160,48 @@ export const ChurchPortalShareModal: React.FC<ChurchPortalShareModalProps> = ({ 
         }
     };
 
-    return (
-        <div className="absolute inset-0 z-50 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full overflow-hidden">
-            {/* Header */}
-            <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
-                <div className="flex flex-row flex-wrap items-center gap-4 md:gap-8 w-full md:w-auto">
-                    <div className="flex items-center gap-4">
-                        <div className="p-3 rounded-2xl bg-brand-blue text-white shadow-lg shadow-blue-500/20">
-                            <QrCode className="w-6 h-6" />
+    return createPortal(
+        <div
+            data-register-overlay="true"
+            className="fixed inset-0 z-[70] flex items-center justify-center pt-16 md:pt-5 pb-3 md:pb-5 px-2 sm:px-6 bg-slate-900/55 backdrop-blur-[2px] animate-fade-in"
+            onClick={(e) => {
+                e.stopPropagation();
+                onClose();
+            }}
+        >
+            <div
+                onClick={(e) => e.stopPropagation()}
+                className="relative bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[calc(100dvh-5rem)] md:max-h-[min(88vh,calc(100dvh-3rem))] flex flex-col overflow-hidden animate-scale-in"
+            >
+                {/* Header */}
+                <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 shrink-0 bg-white dark:bg-slate-900">
+                    <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/70 dark:border-emerald-900/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                            <QrCode className="w-5 h-5" />
                         </div>
-                        <div>
-                            <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight uppercase">
-                                PORTAL DO CONTRIBUINTE
+                        <div className="min-w-0">
+                            <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight truncate">
+                                Portal do Contribuinte
                             </h3>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">
-                                Divulgação e QR Code Oficial da Congregação
+                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                                Divulgação e QR Code oficial da congregação.
                             </p>
                         </div>
                     </div>
-                </div>
 
-                <div className="flex items-center gap-2 self-end md:self-auto">
                     <button
                         type="button"
                         onClick={onClose}
-                        className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors"
+                        className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer shrink-0"
                         title="Fechar"
+                        aria-label="Fechar"
                     >
-                        <X className="w-6 h-6" />
+                        <X className="w-5 h-5" />
                     </button>
                 </div>
-            </div>
 
-            {/* Content Body */}
-            <div className="p-6 md:p-8 flex-1 overflow-y-auto custom-scrollbar w-full min-h-0">
+                {/* Content Body */}
+                <div className="p-4 sm:p-5 flex-1 overflow-y-auto custom-scrollbar w-full min-h-0">
                 <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
                     
                     {/* Left Column: Church Info & QR Code */}
@@ -428,17 +450,18 @@ export const ChurchPortalShareModal: React.FC<ChurchPortalShareModalProps> = ({ 
                 </div>
             </div>
 
-            {/* Footer */}
-            <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 border-t border-slate-100 dark:border-slate-800/50 mt-auto shrink-0">
-                <button
-                    type="button"
-                    onClick={onClose}
-                    className="px-8 py-3 rounded-full text-xs font-bold text-slate-600 border border-slate-300 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors uppercase tracking-wide"
-                >
-                    Fechar
-                </button>
+                {/* Footer */}
+                <div className="bg-slate-50/80 dark:bg-slate-900/70 px-5 py-3.5 flex justify-end gap-2.5 border-t border-slate-100 dark:border-slate-800 shrink-0">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="px-5 py-2 rounded-lg text-xs font-semibold text-slate-700 border border-slate-200 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 shadow-xs transition-colors cursor-pointer"
+                    >
+                        Fechar
+                    </button>
+                </div>
             </div>
-
-        </div>
+        </div>,
+        document.body
     );
 };

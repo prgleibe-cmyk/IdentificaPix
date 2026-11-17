@@ -1,5 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useContext } from 'react';
 import { Plus, Pencil, Trash2, Check, X, ChevronDown } from 'lucide-react';
+import { AppContext } from '../../contexts/AppContext';
 
 interface InlineRoleSelectorProps {
     value: string;
@@ -26,6 +27,7 @@ export const InlineRoleSelector: React.FC<InlineRoleSelectorProps> = ({
     itemLabel = 'Cargo',
     placeholder,
 }) => {
+    const appCtx = useContext(AppContext);
     const [isOpen, setIsOpen] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
     const [newRoleInput, setNewRoleInput] = useState('');
@@ -100,11 +102,22 @@ export const InlineRoleSelector: React.FC<InlineRoleSelectorProps> = ({
 
     const handleDelete = (e: React.MouseEvent, role: string) => {
         e.stopPropagation();
-        if (confirm(`Tem certeza que deseja excluir "${role}" da lista?`)) {
+        const executeDelete = () => {
             onDeleteRole(role);
             if (value === role) {
                 onChange('');
             }
+        };
+        if (appCtx?.openDeleteConfirmation) {
+            appCtx.openDeleteConfirmation({
+                type: 'custom-action',
+                id: role,
+                name: role,
+                meta: {
+                    message: `Tem certeza que deseja excluir "${role}" da lista?`,
+                    onConfirm: executeDelete
+                }
+            });
         }
     };
 

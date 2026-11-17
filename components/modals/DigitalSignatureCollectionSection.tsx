@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useContext } from 'react';
 import { PenTool, CheckCircle2, Plus, Trash2, ShieldCheck, UserCheck, RefreshCw, Users, CheckSquare, Square, AlertCircle, Sparkles } from 'lucide-react';
 import { Church, DigitalSignature } from '../../types/domain';
 import { DigitalSignaturePadModal, RegisteredPersonOption } from './DigitalSignaturePadModal';
+import { AppContext } from '../../contexts/AppContext';
 
 export interface ChurchSignerSlot {
     id: string;
@@ -33,6 +34,7 @@ export const DigitalSignatureCollectionSection: React.FC<DigitalSignatureCollect
     defaultTargetTreasurerName = '',
     readOnly = false
 }) => {
+    const appCtx = useContext(AppContext);
     const [padOpen, setPadOpen] = useState(false);
     const [activeRole, setActiveRole] = useState<string>('Pastor Presidente');
     const [activeInitialName, setActiveInitialName] = useState<string>('');
@@ -170,19 +172,11 @@ export const DigitalSignatureCollectionSection: React.FC<DigitalSignatureCollect
             if (s.role) rolesSet.add(s.role);
         });
 
-        // Cargos salvos em localStorage no cadastro de igreja
-        try {
-            const pSaved = localStorage.getItem('iggestor_pastor_roles_v2');
-            if (pSaved) {
-                const parsed = JSON.parse(pSaved);
-                if (Array.isArray(parsed)) parsed.forEach(r => typeof r === 'string' && rolesSet.add(r));
-            }
-            const tSaved = localStorage.getItem('iggestor_treasurer_roles_v2');
-            if (tSaved) {
-                const parsed = JSON.parse(tSaved);
-                if (Array.isArray(parsed)) parsed.forEach(r => typeof r === 'string' && rolesSet.add(r));
-            }
-        } catch (e) {}
+        // Cargos personalizados salvos na nuvem (AppContext)
+        const ctxPastorRoles: string[] = Array.isArray(appCtx?.pastorRoles) ? appCtx.pastorRoles : [];
+        const ctxTreasurerRoles: string[] = Array.isArray(appCtx?.treasurerRoles) ? appCtx.treasurerRoles : [];
+        ctxPastorRoles.forEach(r => typeof r === 'string' && r.trim() && rolesSet.add(r));
+        ctxTreasurerRoles.forEach(r => typeof r === 'string' && r.trim() && rolesSet.add(r));
 
         // Cargos institucionais padrão
         rolesSet.add('Pastor Presidente');
@@ -197,7 +191,7 @@ export const DigitalSignatureCollectionSection: React.FC<DigitalSignatureCollect
         rolesSet.add('Outro');
 
         return Array.from(rolesSet);
-    }, [churchSigners]);
+    }, [churchSigners, appCtx?.pastorRoles, appCtx?.treasurerRoles]);
 
     // 4. Localiza assinatura correspondente a um slot da igreja
     const getSlotSignature = (slot: ChurchSignerSlot): DigitalSignature | undefined => {

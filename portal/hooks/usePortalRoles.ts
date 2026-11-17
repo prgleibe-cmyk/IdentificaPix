@@ -51,7 +51,7 @@ function mergeRoles(base: string[], additions: string[]): string[] {
     return list;
 }
 
-export function usePortalRoles() {
+export function usePortalRoles(churchId?: string) {
     const [roles, setRoles] = useState<string[]>(() => {
         let initial = [...DEFAULT_PORTAL_ROLES];
         try {
@@ -74,7 +74,12 @@ export function usePortalRoles() {
         const loadRoles = async () => {
             try {
                 setLoading(true);
-                const res = await fetch('/api/v1/contributors/roles', { cache: 'no-store' });
+                const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+                const validChurchId = churchId && uuidRegex.test(churchId) ? churchId : '';
+                const url = validChurchId
+                    ? `/api/v1/contributors/roles?church_id=${encodeURIComponent(validChurchId)}`
+                    : '/api/v1/contributors/roles';
+                const res = await fetch(url, { cache: 'no-store' });
                 if (res.ok) {
                     const serverRoles = await res.json();
                     if (isMounted && Array.isArray(serverRoles) && serverRoles.length > 0) {
@@ -106,7 +111,7 @@ export function usePortalRoles() {
             isMounted = false;
             window.removeEventListener('storage', handleStorage);
         };
-    }, []);
+    }, [churchId]);
 
     const defaultMembro = getMembroOption(roles);
 

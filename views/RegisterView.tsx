@@ -2,15 +2,15 @@ import React, { useContext, useState, useEffect, memo } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { useAuth } from '../contexts/AuthContext';
-import { 
-    BuildingOfficeIcon, 
-    UserIcon, 
-    ArrowsRightLeftIcon, 
-    BanknotesIcon, 
-    PlusCircleIcon, 
-    CreditCardIcon,
-    UsersIcon
-} from '../components/Icons';
+import {
+    Building2,
+    CreditCard,
+    Landmark,
+    PlusCircle,
+    RefreshCw,
+    Tag,
+    Users
+} from 'lucide-react';
 
 // Subcomponents
 import { RegisterTabButton } from '../components/register/RegisterTabButton';
@@ -29,7 +29,7 @@ type RegisterTab = 'banks' | 'churches' | 'contribution' | 'payment' | 'contribu
  */
 export const RegisterView: React.FC = memo(() => {
     const { t } = useTranslation();
-    const { user, subscription, refreshSubscription, isSecondaryUser } = useAuth(); 
+    const { subscription, refreshSubscription, isSecondaryUser } = useAuth();
     const { banks, churches } = useContext(AppContext);
 
     const [showNewBankForm, setShowNewBankForm] = useState(false);
@@ -50,71 +50,103 @@ export const RegisterView: React.FC = memo(() => {
     const churchLimitReached = churches.length >= (subscription.maxChurches || 1);
 
     return (
-        <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full flex flex-col min-h-full animate-fade-in pb-8 md:pb-4">
-            {/* Header Section */}
-            <div className="flex-shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4 px-1 mt-1">
-                <div>
-                    <h2 className="text-xl font-black text-brand-deep dark:text-white tracking-tight">{t('register.title')}</h2>
-                    <p className="text-slate-500 dark:text-slate-400 text-[10px]">{t('register.subtitle')}</p>
-                </div>
+        <div className="px-2 py-3 md:px-4 w-full max-w-7xl mx-auto space-y-4 flex flex-col min-h-full animate-fade-in pb-8 md:pb-6">
+            {/* Header Card */}
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex-shrink-0">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-orange-50 dark:bg-orange-950/50 border border-orange-200/70 dark:border-orange-900/50 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
+                            <PlusCircle className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+                                {t('register.title')}
+                            </h1>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                Gerencie contas, igrejas, descrições, formas de pagamento e empresas/pessoas.
+                            </p>
+                        </div>
+                    </div>
 
-                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto flex-nowrap max-w-full md:max-w-[70%] lg:max-w-[75%] [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-xl pb-1 md:pb-1.5 lg:pb-0">
                     {!isSecondaryUser && (
-                        <>
-                            <RegisterTabButton id="banks" label={t('register.manageBanks')} icon={BuildingOfficeIcon} colorTheme="blue" isActive={activeTab === 'banks'} onClick={setActiveTab} />
-                            <RegisterTabButton id="churches" label={t('register.manageChurches')} icon={UserIcon} colorTheme="violet" isActive={activeTab === 'churches'} onClick={setActiveTab} />
-                        </>
+                        <button
+                            type="button"
+                            onClick={() => refreshSubscription()}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer border border-slate-200/90 dark:border-slate-700 shadow-xs active:scale-95"
+                            title="Atualizar limites"
+                        >
+                            <RefreshCw className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                            <span>Atualizar limites</span>
+                        </button>
                     )}
-                    <RegisterTabButton id="contribution" label="Descrição (Entrada/Saída)" icon={BanknotesIcon} colorTheme="emerald" isActive={activeTab === 'contribution'} onClick={setActiveTab} />
-                    <RegisterTabButton id="payment" label="Formas de Receb/Pagto" icon={CreditCardIcon} colorTheme="amber" isActive={activeTab === 'payment'} onClick={setActiveTab} />
-                    <RegisterTabButton id="contributors" label="Empresas/Pessoas" icon={UsersIcon} colorTheme="slate" isActive={activeTab === 'contributors'} onClick={setActiveTab} />
                 </div>
-
-                {!isSecondaryUser && (
-                    <button 
-                        onClick={() => refreshSubscription()} 
-                        className="hidden md:block p-1.5 text-slate-400 hover:text-brand-blue hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors" 
-                        title="Atualizar limites"
-                    >
-                        <ArrowsRightLeftIcon className="w-3.5 h-3.5" />
-                    </button>
-                )}
             </div>
-            
+
+            {/* Navigation Tabs */}
+            <div className="flex items-center gap-1 bg-slate-100/90 dark:bg-slate-900/70 p-1 rounded-xl border border-slate-200/90 dark:border-slate-800 overflow-x-auto flex-nowrap custom-scrollbar flex-shrink-0">
+                {!isSecondaryUser && (
+                    <>
+                        <RegisterTabButton id="banks" label={t('register.manageBanks')} icon={Landmark} colorTheme="blue" isActive={activeTab === 'banks'} onClick={setActiveTab} />
+                        <RegisterTabButton id="churches" label={t('register.manageChurches')} icon={Building2} colorTheme="violet" isActive={activeTab === 'churches'} onClick={setActiveTab} />
+                    </>
+                )}
+                <RegisterTabButton id="contribution" label="Descrição (Entrada/Saída)" icon={Tag} colorTheme="emerald" isActive={activeTab === 'contribution'} onClick={setActiveTab} />
+                <RegisterTabButton id="payment" label="Formas de Receb/Pagto" icon={CreditCard} colorTheme="amber" isActive={activeTab === 'payment'} onClick={setActiveTab} />
+                <RegisterTabButton id="contributors" label="Empresas/Pessoas" icon={Users} colorTheme="slate" isActive={activeTab === 'contributors'} onClick={setActiveTab} />
+            </div>
+
             {/* Main Content Area */}
-            <div className="flex-1 min-h-[600px] flex flex-col">
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-card border border-slate-100 dark:border-slate-700 min-h-[600px] flex-1 flex flex-col hover:shadow-soft transition-all duration-500 relative overflow-hidden animate-fade-in-up">
-                    
+            <div className="flex-1 flex flex-col min-h-0">
+                <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-xl shadow-xs border border-slate-200/90 dark:border-slate-800 min-h-[420px] flex-1 flex flex-col relative overflow-hidden">
+
                     {/* Dynamic Headers per Tab */}
                     {!isSecondaryUser && activeTab === 'banks' && (
-                        <div className="flex justify-between items-center mb-6 flex-shrink-0 relative z-10">
+                        <div className="flex flex-wrap justify-between items-center gap-3 pb-4 mb-4 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
                             <div className="flex items-center gap-3">
-                                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-2xl text-brand-blue dark:text-blue-400 border border-blue-100 dark:border-blue-800"><BuildingOfficeIcon className="w-6 h-6" /></div>
+                                <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200/70 dark:border-blue-900/50 flex items-center justify-center shrink-0">
+                                    <Landmark className="w-5 h-5" />
+                                </div>
                                 <div className="flex flex-col">
-                                    <h3 className="font-bold text-base text-slate-800 dark:text-white leading-none">{t('register.manageBanks')}</h3>
-                                    <span className={`text-xs font-bold mt-1 ${bankLimitReached ? 'text-red-500' : 'text-emerald-500'}`}>Registrados: {banks.length} / {subscription.maxBanks || 1}</span>
+                                    <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white leading-tight">{t('register.manageBanks')}</h3>
+                                    <span className={`text-xs font-semibold mt-0.5 ${bankLimitReached ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                        Registrados: {banks.length} / {subscription.maxBanks || 1}
+                                    </span>
                                 </div>
                             </div>
-                             {!bankLimitReached && (
-                                <button onClick={() => setShowNewBankForm(true)} className="flex items-center space-x-1.5 px-5 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-2xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 transition-all tracking-wider uppercase cursor-pointer">
-                                    <PlusCircleIcon className="w-3.5 h-3.5" /><span>{t('common.new')}</span>
+                            {!bankLimitReached && (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowNewBankForm(true)}
+                                    className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-xs transition-all cursor-pointer active:scale-95"
+                                >
+                                    <PlusCircle className="w-3.5 h-3.5" />
+                                    <span>{t('common.new')}</span>
                                 </button>
-                             )}
+                            )}
                         </div>
                     )}
 
                     {!isSecondaryUser && activeTab === 'churches' && (
-                        <div className="flex justify-between items-center mb-6 flex-shrink-0 relative z-10">
+                        <div className="flex flex-wrap justify-between items-center gap-3 pb-4 mb-4 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
                             <div className="flex items-center gap-3">
-                                <div className="p-3 bg-slate-50 dark:bg-brand-blue/10 rounded-2xl text-brand-blue dark:text-brand-teal border border-slate-100 dark:border-slate-800"><UserIcon className="w-6 h-6" /></div>
+                                <div className="w-9 h-9 rounded-xl bg-violet-50 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400 border border-violet-200/70 dark:border-violet-900/50 flex items-center justify-center shrink-0">
+                                    <Building2 className="w-5 h-5" />
+                                </div>
                                 <div className="flex flex-col">
-                                    <h3 className="font-bold text-base text-slate-800 dark:text-white leading-none">{t('register.manageChurches')}</h3>
-                                    <span className={`text-xs font-bold mt-1 ${churchLimitReached ? 'text-red-500' : 'text-emerald-500'}`}>Registradas: {churches.length} / {subscription.maxChurches || 1}</span>
+                                    <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white leading-tight">{t('register.manageChurches')}</h3>
+                                    <span className={`text-xs font-semibold mt-0.5 ${churchLimitReached ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                        Registradas: {churches.length} / {subscription.maxChurches || 1}
+                                    </span>
                                 </div>
                             </div>
                             {!churchLimitReached && (
-                                <button onClick={() => setShowNewChurchForm(true)} className="flex items-center space-x-1.5 px-5 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-2xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 transition-all tracking-wider uppercase cursor-pointer">
-                                    <PlusCircleIcon className="w-3.5 h-3.5" /><span>{t('common.new')}</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowNewChurchForm(true)}
+                                    className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-xs transition-all cursor-pointer active:scale-95"
+                                >
+                                    <PlusCircle className="w-3.5 h-3.5" />
+                                    <span>{t('common.new')}</span>
                                 </button>
                             )}
                         </div>

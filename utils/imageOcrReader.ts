@@ -239,9 +239,5 @@ export async function processImageAndExtractText(
         console.warn('[OCR Engine] Erro no processamento de texto da imagem:', err);
     }
 
-    if (fileName && !combinedText.includes(fileName)) {
-        combinedText = `ARQUIVO: ${fileName}\n` + combinedText;
-    }
-
     return combinedText;
 }

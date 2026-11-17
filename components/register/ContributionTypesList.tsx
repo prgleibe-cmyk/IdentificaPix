@@ -1,14 +1,15 @@
 import React, { useContext, useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { AppContext } from '../../contexts/AppContext';
 import { BanknotesIcon, PlusIcon, PencilIcon, TrashIcon, XMarkIcon } from '../Icons';
 import { ContributionType, Bank } from '../../types';
 
-export const ContributionTypesList: React.FC = () => {
+export const ContributionTypesList: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
     const { 
         contributionTypes, 
         addContributionType, 
         updateContributionType, 
-        removeContributionType, 
+        openDeleteConfirmation, 
         banks,
         fetchContributionTypes
     } = useContext(AppContext);
@@ -71,6 +72,19 @@ export const ContributionTypesList: React.FC = () => {
         setErrorMsg(null);
     };
 
+    useEffect(() => {
+        if (!isFormOpen) return;
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && !isSubmitting) {
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                handleCloseForm();
+            }
+        };
+        window.addEventListener('keydown', onKeyDown, true);
+        return () => window.removeEventListener('keydown', onKeyDown, true);
+    }, [isFormOpen, isSubmitting]);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setErrorMsg(null);
@@ -109,193 +123,44 @@ export const ContributionTypesList: React.FC = () => {
         }
     };
 
-    const handleDelete = async (id: string, name: string) => {
-        if (window.confirm(`Tem certeza que deseja excluir a descrição "${name}"?`)) {
-            await removeContributionType(id);
-        }
+    const handleDelete = (id: string, name: string) => {
+        openDeleteConfirmation({
+            type: 'contribution-type',
+            id,
+            name
+        });
     };
 
     return (
         <div className="h-full flex flex-col space-y-3">
-            {isFormOpen ? (
-                /* Form Drawer / Panel */
-                <div className="flex-1 bg-slate-50 dark:bg-slate-900/80 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-4 animate-fade-in flex flex-col justify-between">
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 flex-wrap gap-2">
-                            <div className="flex items-center space-x-3">
-                                <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/50">
-                                    <BanknotesIcon className="w-4 h-4" />
+            {/* Header */}
+                    <div className="flex-shrink-0 flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 flex-wrap gap-3">
+                        <div className="flex items-center gap-3 flex-wrap">
+                            {!embedded && (
+                                <div className="w-9 h-9 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl text-emerald-600 dark:text-emerald-400 border border-emerald-200/70 dark:border-emerald-800/50 flex items-center justify-center shrink-0">
+                                    <BanknotesIcon className="w-5 h-5" />
                                 </div>
-                                <h4 className="text-sm font-black uppercase text-slate-800 dark:text-white tracking-wider">
-                                    {editingType ? 'Editar Descrição (Entrada/Saída)' : 'Nova Descrição (Entrada/Saída)'}
-                                </h4>
-                                <div className="inline-flex items-center p-0.5 rounded-xl bg-slate-200/70 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px]">
-                                    <button
-                                        type="button"
-                                        onClick={() => setType('entrada')}
-                                        className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase transition-all cursor-pointer ${
-                                            type === 'entrada'
-                                                ? 'bg-emerald-600 text-white shadow-xs'
-                                                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-                                        }`}
-                                    >
-                                        • Entrada
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setType('saida')}
-                                        className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase transition-all cursor-pointer ${
-                                            type === 'saida'
-                                                ? 'bg-rose-600 text-white shadow-xs'
-                                                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-                                        }`}
-                                    >
-                                        Saída
-                                    </button>
-                                </div>
-                            </div>
-                            <button type="button" onClick={handleCloseForm} className="text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer p-1">
-                                <XMarkIcon className="w-5 h-5" />
-                            </button>
-                        </div>
-
-                        {errorMsg && (
-                            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold">
-                                {errorMsg}
-                            </div>
-                        )}
-
-                        <form id="contribution-type-form" onSubmit={handleSubmit} className="space-y-4">
-                            {/* Campos */}
-                            <div className="grid grid-cols-1 gap-4">
-                                <div>
-                                    <label className="block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider mb-1.5">
-                                        Descrição *
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={name}
-                                        onChange={(e) => setName(e.target.value)}
-                                        placeholder="Ex: Dízimo, Oferta, Missões, Aluguel..."
-                                        className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white px-3.5 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500/20"
-                                        required
-                                        autoFocus
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider mb-1.5">
-                                        Categoria (Opcional)
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={category}
-                                        onChange={(e) => setCategory(e.target.value)}
-                                        placeholder="Ex: Entradas de Culto, Projetos..."
-                                        className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white px-3.5 py-2.5 text-xs font-medium outline-none focus:ring-2 focus:ring-emerald-500/20"
-                                    />
-                                </div>
-
-                                {/* Conta Bancária Destino (Opcional) */}
-                                {type === 'entrada' && (
-                                    <div>
-                                        <label className="block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider mb-1.5">
-                                            Conta Bancária Destino (Opcional)
-                                        </label>
-                                        <select
-                                            value={bankId}
-                                            onChange={(e) => setBankId(e.target.value)}
-                                            className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white px-3.5 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
-                                        >
-                                            <option value="">Nenhuma conta vinculada (opcional)</option>
-                                            {(banks || []).map((b: Bank) => (
-                                                <option key={b.id} value={b.id}>
-                                                    {b.account_name || b.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-                                            Selecione a conta bancária que receberá as contribuições deste tipo no Portal.
-                                        </p>
-                                    </div>
-                                )}
-
-                                <div className="flex items-center justify-between gap-4">
-                                    <div className="flex-1">
-                                        <label className="block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider mb-1.5">
-                                            Ordem
-                                        </label>
-                                        <input
-                                            type="number"
-                                            value={order}
-                                            onChange={(e) => setOrder(parseInt(e.target.value, 10) || 0)}
-                                            className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white px-3.5 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500/20"
-                                        />
-                                    </div>
-
-                                    <div className="flex items-center space-x-2 pt-4">
-                                        <input
-                                            type="checkbox"
-                                            id="type-active-check"
-                                            checked={isActive}
-                                            onChange={(e) => setIsActive(e.target.checked)}
-                                            className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
-                                        />
-                                        <label htmlFor="type-active-check" className="text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
-                                            Ativo
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
-                        </form>
-                    </div>
-
-                    {/* Ações do formulário */}
-                    <div className="flex items-center justify-end space-x-2 pt-4 border-t border-slate-200 dark:border-slate-800">
-                        <button
-                            type="button"
-                            onClick={handleCloseForm}
-                            disabled={isSubmitting}
-                            className="px-5 py-2.5 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-2xl shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
-                        >
-                            Cancelar
-                        </button>
-                        <button
-                            type="submit"
-                            form="contribution-type-form"
-                            disabled={isSubmitting}
-                            className="px-6 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-2xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50"
-                        >
-                            {isSubmitting ? 'Salvando...' : 'Salvar'}
-                        </button>
-                    </div>
-                </div>
-            ) : (
-                <>
-                    {/* Header */}
-                    <div className="flex-shrink-0 flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700/50 flex-wrap gap-2">
-                        <div className="flex items-center space-x-3 flex-wrap gap-y-2">
-                            <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/50">
-                                <BanknotesIcon className="w-4 h-4" />
-                            </div>
+                            )}
                             <div>
-                                <h3 className="text-sm font-bold text-slate-800 dark:text-white leading-none">
-                                    Descrição (Entrada/Saída)
-                                </h3>
-                                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 block uppercase">
+                                {!embedded && (
+                                    <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white leading-tight">
+                                        Descrição (Entrada/Saída)
+                                    </h3>
+                                )}
+                                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 block">
                                     {filteredContributionTypes.length} cadastradas
                                 </span>
                             </div>
 
                             {/* Switcher Tabs pill in front of the name */}
-                            <div className="inline-flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 text-[10px] ml-1">
+                            <div className="inline-flex items-center p-1 rounded-lg bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 gap-0.5">
                                 <button
                                     type="button"
                                     onClick={() => setSelectedTab('entrada')}
-                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase transition-all cursor-pointer ${
+                                    className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
                                         selectedTab === 'entrada'
                                             ? 'bg-emerald-600 text-white shadow-xs'
-                                            : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                                            : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
                                     }`}
                                 >
                                     • Entrada
@@ -303,10 +168,10 @@ export const ContributionTypesList: React.FC = () => {
                                 <button
                                     type="button"
                                     onClick={() => setSelectedTab('saida')}
-                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase transition-all cursor-pointer ${
+                                    className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
                                         selectedTab === 'saida'
                                             ? 'bg-rose-600 text-white shadow-xs'
-                                            : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                                            : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
                                     }`}
                                 >
                                     • Saída
@@ -314,10 +179,10 @@ export const ContributionTypesList: React.FC = () => {
                                 <button
                                     type="button"
                                     onClick={() => setSelectedTab('todos')}
-                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase transition-all cursor-pointer ${
+                                    className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
                                         selectedTab === 'todos'
                                             ? 'bg-slate-700 text-white dark:bg-slate-300 dark:text-slate-900 shadow-xs'
-                                            : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                                            : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
                                     }`}
                                 >
                                     Todos
@@ -326,8 +191,9 @@ export const ContributionTypesList: React.FC = () => {
                         </div>
 
                         <button
+                            type="button"
                             onClick={handleOpenCreate}
-                            className="flex items-center space-x-1.5 px-5 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-2xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 transition-all tracking-wider uppercase cursor-pointer"
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-xs transition-all cursor-pointer active:scale-95"
                         >
                             <PlusIcon className="w-3.5 h-3.5" />
                             <span>Nova Descrição</span>
@@ -337,7 +203,7 @@ export const ContributionTypesList: React.FC = () => {
                     {/* Content List */}
                     <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar space-y-2">
                         {(!filteredContributionTypes || filteredContributionTypes.length === 0) ? (
-                            <div className="p-6 text-center text-slate-400 dark:text-slate-500 text-xs font-medium">
+                            <div className="p-8 text-center bg-slate-50/70 dark:bg-slate-900/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-xs font-medium">
                                 Nenhuma descrição de entrada/saída encontrada.
                             </div>
                         ) : (
@@ -348,27 +214,27 @@ export const ContributionTypesList: React.FC = () => {
                                 return (
                                     <div 
                                         key={item.id} 
-                                        className={`p-3 bg-white dark:bg-slate-800 border rounded-2xl shadow-sm hover:border-emerald-200 dark:hover:border-slate-700 transition-all flex items-center justify-between ${
-                                            item.is_active === false ? 'opacity-60 border-slate-200 dark:border-slate-800' : 'border-slate-100 dark:border-slate-700/50'
+                                        className={`p-3 bg-white dark:bg-slate-800/80 border rounded-xl shadow-2xs hover:border-emerald-200 dark:hover:border-slate-700 transition-all flex items-center justify-between ${
+                                            item.is_active === false ? 'opacity-60 border-slate-200 dark:border-slate-800' : 'border-slate-200/80 dark:border-slate-700/60'
                                         }`}
                                     >
                                         <div className="space-y-0.5 min-w-0 flex-1 pr-2">
                                             <div className="flex items-center space-x-2">
-                                                <span className={`px-2 py-0.5 text-[9px] font-black uppercase rounded-full tracking-wider ${
+                                                <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-md ${
                                                     item.type === 'entrada' 
-                                                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
-                                                        : 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
+                                                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-800'
+                                                        : 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-200/80 dark:border-rose-800'
                                                 }`}>
                                                     {item.type || 'entrada'}
                                                 </span>
-                                                <span className="text-xs font-extrabold text-slate-800 dark:text-white uppercase truncate">
+                                                <span className="text-xs font-bold text-slate-800 dark:text-white truncate">
                                                     {item.name}
                                                 </span>
                                             </div>
 
                                             {item.type === 'entrada' && (
-                                                <div className="text-[10px] font-medium text-slate-500 dark:text-slate-400 flex items-center space-x-1">
-                                                    <span className="font-bold text-slate-400">Conta:</span>
+                                                <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center space-x-1">
+                                                    <span className="font-medium text-slate-400">Conta:</span>
                                                     <span className="font-semibold text-emerald-600 dark:text-emerald-400 truncate">
                                                         {bankDisplayName || 'Nenhuma conta vinculada'}
                                                     </span>
@@ -378,15 +244,17 @@ export const ContributionTypesList: React.FC = () => {
 
                                         <div className="flex items-center space-x-1 flex-shrink-0">
                                             <button
+                                                type="button"
                                                 onClick={() => handleOpenEdit(item)}
-                                                className="p-1.5 rounded-lg text-slate-400 hover:text-brand-blue hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"
+                                                className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 transition-all cursor-pointer"
                                                 title="Editar"
                                             >
                                                 <PencilIcon className="w-3.5 h-3.5" />
                                             </button>
                                             <button
+                                                type="button"
                                                 onClick={() => handleDelete(item.id, item.name)}
-                                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-all"
+                                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-all cursor-pointer"
                                                 title="Excluir"
                                             >
                                                 <TrashIcon className="w-3.5 h-3.5" />
@@ -397,7 +265,189 @@ export const ContributionTypesList: React.FC = () => {
                             })
                         )}
                     </div>
-                </>
+
+            {/* Modal Suspenso de Cadastro/Edição de Descrição */}
+            {isFormOpen && typeof document !== 'undefined' && createPortal(
+                <div
+                    data-register-overlay="true"
+                    className="fixed inset-0 z-[56] flex items-center justify-center pt-16 md:pt-5 pb-3 md:pb-5 px-2 sm:px-6 bg-slate-900/55 backdrop-blur-[2px] animate-fade-in"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        if (!isSubmitting) handleCloseForm();
+                    }}
+                >
+                    <form
+                        id="contribution-type-form"
+                        onSubmit={handleSubmit}
+                        onClick={(e) => e.stopPropagation()}
+                        className="relative bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[calc(100dvh-5rem)] md:max-h-[min(86vh,calc(100dvh-3rem))] flex flex-col overflow-hidden animate-scale-in"
+                    >
+                        {/* Header */}
+                        <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-start sm:items-center justify-between gap-3 flex-shrink-0 bg-white dark:bg-slate-900">
+                            <div className="flex-1 min-w-0 flex items-center gap-3 flex-wrap">
+                                <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/70 dark:border-emerald-800/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                                    <BanknotesIcon className="w-5 h-5" />
+                                </div>
+                                <div className="min-w-0">
+                                    <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight truncate">
+                                        {editingType ? 'Editar Descrição (Entrada/Saída)' : 'Nova Descrição (Entrada/Saída)'}
+                                    </h3>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                                        Configure a classificação, categoria e conta bancária vinculada.
+                                    </p>
+                                </div>
+                                <div className="inline-flex items-center p-1 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 gap-0.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => setType('entrada')}
+                                        className={`px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                                            type === 'entrada'
+                                                ? 'bg-emerald-600 text-white shadow-xs'
+                                                : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+                                        }`}
+                                    >
+                                        • Entrada
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setType('saida')}
+                                        className={`px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                                            type === 'saida'
+                                                ? 'bg-rose-600 text-white shadow-xs'
+                                                : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+                                        }`}
+                                    >
+                                        • Saída
+                                    </button>
+                                </div>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={handleCloseForm}
+                                disabled={isSubmitting}
+                                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer shrink-0"
+                                aria-label="Fechar"
+                            >
+                                <XMarkIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Body */}
+                        <div className="p-4 sm:p-5 flex-1 min-h-0 overflow-y-auto custom-scrollbar w-full space-y-4">
+                            {errorMsg && (
+                                <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold animate-fade-in">
+                                    {errorMsg}
+                                </div>
+                            )}
+
+                            <div className="p-4 bg-slate-50/70 dark:bg-slate-800/30 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-3.5">
+                                <div className="space-y-1">
+                                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
+                                        Descrição <span className="text-rose-500">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={name}
+                                        onChange={(e) => setName(e.target.value)}
+                                        placeholder="Ex: Dízimo, Oferta, Missões, Aluguel..."
+                                        className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white px-3 py-2 text-xs font-medium outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 shadow-xs transition-all"
+                                        required
+                                        autoFocus
+                                        disabled={isSubmitting}
+                                    />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
+                                        Categoria (Opcional)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={category}
+                                        onChange={(e) => setCategory(e.target.value)}
+                                        placeholder="Ex: Entradas de Culto, Projetos..."
+                                        className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white px-3 py-2 text-xs font-medium outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 shadow-xs transition-all"
+                                        disabled={isSubmitting}
+                                    />
+                                </div>
+
+                                {type === 'entrada' && (
+                                    <div className="space-y-1">
+                                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
+                                            Conta Bancária Destino (Opcional)
+                                        </label>
+                                        <select
+                                            value={bankId}
+                                            onChange={(e) => setBankId(e.target.value)}
+                                            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white px-3 py-2 text-xs font-semibold outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 shadow-xs transition-all cursor-pointer"
+                                            disabled={isSubmitting}
+                                        >
+                                            <option value="">Nenhuma conta vinculada (opcional)</option>
+                                            {(banks || []).map((b: Bank) => (
+                                                <option key={b.id} value={b.id}>
+                                                    {b.account_name || b.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                                            Selecione a conta bancária que receberá as contribuições deste tipo no Portal.
+                                        </p>
+                                    </div>
+                                )}
+
+                                <div className="flex items-center justify-between gap-4">
+                                    <div className="flex-1 space-y-1">
+                                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
+                                            Ordem
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={order}
+                                            onChange={(e) => setOrder(parseInt(e.target.value, 10) || 0)}
+                                            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white px-3 py-2 text-xs font-medium outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 shadow-xs transition-all"
+                                            disabled={isSubmitting}
+                                        />
+                                    </div>
+
+                                    <div className="flex items-center space-x-2 pt-5">
+                                        <input
+                                            type="checkbox"
+                                            id="type-active-check"
+                                            checked={isActive}
+                                            onChange={(e) => setIsActive(e.target.checked)}
+                                            className="w-4 h-4 text-orange-600 rounded border-slate-300 focus:ring-orange-500 cursor-pointer"
+                                            disabled={isSubmitting}
+                                        />
+                                        <label htmlFor="type-active-check" className="text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">
+                                            Ativo
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="bg-slate-50/80 dark:bg-slate-900/70 px-5 py-3.5 flex justify-end gap-2.5 border-t border-slate-100 dark:border-slate-800 flex-shrink-0">
+                            <button
+                                type="button"
+                                onClick={handleCloseForm}
+                                disabled={isSubmitting}
+                                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-lg shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={isSubmitting}
+                                className="px-5 py-2 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-xs transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                            >
+                                {isSubmitting ? 'Salvando...' : 'Salvar'}
+                            </button>
+                        </div>
+                    </form>
+                </div>,
+                document.body
             )}
         </div>
     );

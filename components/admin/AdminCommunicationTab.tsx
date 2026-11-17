@@ -3,6 +3,7 @@ import { AppContext } from '../../contexts/AppContext';
 import { useUI } from '../../contexts/UIContext';
 import { Church, PastoralMessage, CommunicationLog, CommunicationEvent, CommunicationQueueItem } from '../../types';
 import { CommunicationQueueService } from '../../services/CommunicationQueueService';
+import { getAuthToken } from '../../services/auth/authAdapter';
 import { 
     MessageSquare, 
     Send, 
@@ -97,7 +98,9 @@ export const AdminCommunicationTab: React.FC = () => {
         if (!currentChurch) return;
         setIsLoadingPastoral(true);
         try {
-            const res = await fetch(`/api/v1/pastoral_messages?church_id=${currentChurch.id}`);
+            const token = await getAuthToken();
+            const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
+            const res = await fetch(`/api/v1/pastoral_messages?church_id=${currentChurch.id}`, { headers });
             if (res.ok) {
                 const data = await res.json();
                 setPastoralMessages(data);
@@ -136,9 +139,11 @@ export const AdminCommunicationTab: React.FC = () => {
         if (!currentChurch) return;
         setIsLoadingHistory(true);
         try {
+            const token = await getAuthToken();
+            const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
             const [logsRes, eventsRes] = await Promise.all([
-                fetch(`/api/v1/communication_logs?church_id=${currentChurch.id}`).catch(() => null),
-                fetch(`/api/v1/communication_events?church_id=${currentChurch.id}`).catch(() => null)
+                fetch(`/api/v1/communication_logs?church_id=${currentChurch.id}`, { headers }).catch(() => null),
+                fetch(`/api/v1/communication_events?church_id=${currentChurch.id}`, { headers }).catch(() => null)
             ]);
 
             let logs: CommunicationLog[] = [];
@@ -298,17 +303,21 @@ export const AdminCommunicationTab: React.FC = () => {
         };
 
         try {
+            const token = await getAuthToken();
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+
             if (editingPastoral?.id && !editingPastoral.id.startsWith('demo-')) {
                 const res = await fetch(`/api/v1/pastoral_messages/${editingPastoral.id}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify(payload)
                 });
                 if (!res.ok) throw new Error('Erro na API');
             } else {
                 const res = await fetch('/api/v1/pastoral_messages', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify(payload)
                 });
                 if (!res.ok) throw new Error('Erro na API ao salvar');
@@ -340,9 +349,12 @@ export const AdminCommunicationTab: React.FC = () => {
         const nextState = !msg.is_active;
         try {
             if (msg.id && !msg.id.startsWith('demo-') && !msg.id.startsWith('local-')) {
+                const token = await getAuthToken();
+                const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = `Bearer ${token}`;
                 await fetch(`/api/v1/pastoral_messages/${msg.id}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify({ is_active: nextState })
                 });
             }
@@ -357,7 +369,9 @@ export const AdminCommunicationTab: React.FC = () => {
         if (!confirm('Deseja excluir esta mensagem pastoral?')) return;
         try {
             if (!id.startsWith('demo-') && !id.startsWith('local-')) {
-                await fetch(`/api/v1/pastoral_messages/${id}`, { method: 'DELETE' });
+                const token = await getAuthToken();
+                const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
+                await fetch(`/api/v1/pastoral_messages/${id}`, { method: 'DELETE', headers });
             }
             const updated = pastoralMessages.filter(m => m.id !== id);
             setPastoralMessages(updated);

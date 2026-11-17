@@ -12,6 +12,7 @@ import {
   hashRecoveryCode
 } from '../auth/utils/totp.utils.js';
 import { sanitizeAuditData } from '../services/audit.service.js';
+import { hashPassword } from '../auth/utils/password.utils.js';
 
 dotenv.config();
 
@@ -182,7 +183,15 @@ async function runEtapa8Tests() {
     // SETUP: Criar usuário admin e usuário normal
     // -------------------------------------------------------------
     console.log('[SETUP] Criando usuário admin e usuário normal...');
-    await authService.signup(testAdminEmail, defaultPassword, 'Admin Test 2FA', 'admin');
+    const adminPassHash = await hashPassword(defaultPassword);
+    await repo.createUser({
+      email: testAdminEmail,
+      password_hash: adminPassHash,
+      name: 'Admin Test 2FA',
+      role: 'admin',
+      is_active: true,
+      is_verified: true
+    });
     await authService.signup(testUserEmail, defaultPassword, 'Normal User Test', 'user');
 
     const adminRefetched = await repo.findUserByEmail(testAdminEmail);

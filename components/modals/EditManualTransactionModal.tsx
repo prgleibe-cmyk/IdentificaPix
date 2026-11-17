@@ -6,27 +6,28 @@ import {
     Building2, 
     Calendar, 
     DollarSign, 
-    FileText, 
     Tag, 
     CreditCard, 
-    Building, 
+    Landmark,
     User, 
     ArrowUpRight, 
     ArrowDownRight,
     AlertCircle,
     ArrowLeft,
     ChevronDown,
-    Search
+    Search,
+    SquarePen
 } from 'lucide-react';
 import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { MatchResult, Church } from '../../types';
-import { getCachedContributors } from '../../services/contributorsCache';
+import { getCachedContributors, subscribeToContributorUpdates } from '../../services/contributorsCache';
 import { resolveContributionType, resolvePaymentMethod, isPeriodClosed } from '../../utils/formatters';
 import { ExpenseDocumentUploader } from '../financial/ExpenseDocumentUploader';
 import { ExpenseAttachment } from '../../types/domain';
 import { getAttachmentsForTransaction, saveAttachmentsForTransaction } from '../../services/expenseAttachmentService';
+import { QuickRegisterModal, QuickRegisterEntity } from './QuickRegisterModal';
 
 interface EditManualTransactionModalProps {
     isOpen: boolean;
@@ -149,11 +150,13 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
     const [attachments, setAttachments] = useState<ExpenseAttachment[]>([]);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+    const [quickRegisterEntity, setQuickRegisterEntity] = useState<QuickRegisterEntity | null>(null);
     const initializedRowIdRef = useRef<string | null>(null);
 
     // Contributor suggestions
     const [dbContributors, setDbContributors] = useState<any[]>([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
+    const [showTypeSuggestions, setShowTypeSuggestions] = useState(false);
 
     // --- OPÇÕES DINÂMICAS DE DESCRIÇÃO / CATEGORIA (CADASTRADAS NO SISTEMA) ---
     const typeOptions = useMemo(() => {
@@ -198,6 +201,13 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
         if (!list.includes('Oferta')) list.push('Oferta');
         return list;
     }, [type, contributionTypes, contributionKeywords]);
+
+    const filteredTypeOptions = useMemo(() => {
+        const q = contributionType.trim().toLowerCase();
+        if (!q || typeOptions.some((opt: string) => opt.toLowerCase() === q)) return typeOptions;
+        const matches = typeOptions.filter((opt: string) => opt.toLowerCase().includes(q));
+        return matches.length > 0 ? matches : typeOptions;
+    }, [contributionType, typeOptions]);
 
     const paymentMethodsOptions = useMemo(() => {
         const list = Array.isArray(sysPaymentMethods) ? [...sysPaymentMethods] : [];
@@ -273,14 +283,21 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
 
     useEffect(() => {
         let isMounted = true;
-        getCachedContributors().then(list => {
-            if (isMounted && Array.isArray(list)) {
-                setDbContributors(list);
-            }
-        }).catch(err => {
-            console.error('[EditManualTransactionModal] Erro ao carregar contribuintes:', err);
-        });
-        return () => { isMounted = false; };
+        const loadContributors = (forceRefresh = false) => {
+            getCachedContributors(forceRefresh).then(list => {
+                if (isMounted && Array.isArray(list)) {
+                    setDbContributors(list);
+                }
+            }).catch(err => {
+                console.error('[EditManualTransactionModal] Erro ao carregar contribuintes:', err);
+            });
+        };
+        loadContributors(false);
+        const unsubscribe = subscribeToContributorUpdates(() => loadContributors(true));
+        return () => {
+            isMounted = false;
+            unsubscribe();
+        };
     }, []);
 
     // Filter suggestions based on typed description with similarity algorithm
@@ -565,7 +582,7 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
         }
     };
 
-    const renderFormContent = (isWide: boolean = false) => (
+    const renderFormContent = () => (
         <div className="space-y-4">
             {/* Alerta de erro */}
             {errorMessage && (
@@ -575,115 +592,168 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
                 </div>
             )}
 
-            {/* Alternador Tipo: Entrada / Saída */}
-            <div>
-                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
-                    Tipo de Movimentação
-                </label>
-                <div className="grid grid-cols-2 gap-2 max-w-md">
+            {/* Tipo de Movimentação — idêntico ao Novo Lançamento */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
+                <div>
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white tracking-tight">
+                        Tipo de Movimentação
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        Ajuste as informações abaixo para atualizar o livro caixa.
+                    </p>
+                </div>
+
+                <div className="inline-grid grid-cols-2 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 gap-1 sm:min-w-[260px]">
                     <button
                         type="button"
                         onClick={() => handleTypeSwitch('entrada')}
-                        className={`py-2.5 px-3 rounded-xl font-bold uppercase text-[11px] flex items-center justify-center gap-1.5 transition-all border cursor-pointer ${
+                        className={`py-2 px-3 rounded-lg font-semibold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer select-none ${
                             type === 'entrada'
-                                ? 'bg-emerald-500 text-white border-emerald-600 shadow-sm shadow-emerald-500/20'
-                                : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-300'
+                                ? 'bg-emerald-600 text-white shadow-xs'
+                                : 'text-slate-600 dark:text-slate-300 hover:text-emerald-700 dark:hover:text-emerald-400'
                         }`}
                         id="edit-modal-btn-entrada"
                     >
-                        <ArrowUpRight className="w-3.5 h-3.5" />
+                        <ArrowUpRight className="w-4 h-4" />
                         <span>Entrada (Receita)</span>
                     </button>
                     <button
                         type="button"
                         onClick={() => handleTypeSwitch('saida')}
-                        className={`py-2.5 px-3 rounded-xl font-bold uppercase text-[11px] flex items-center justify-center gap-1.5 transition-all border cursor-pointer ${
+                        className={`py-2 px-3 rounded-lg font-semibold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer select-none ${
                             type === 'saida'
-                                ? 'bg-rose-500 text-white border-rose-600 shadow-sm shadow-rose-500/20'
-                                : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-rose-300'
+                                ? 'bg-rose-600 text-white shadow-xs'
+                                : 'text-slate-600 dark:text-slate-300 hover:text-rose-700 dark:hover:text-rose-400'
                         }`}
                         id="edit-modal-btn-saida"
                     >
-                        <ArrowDownRight className="w-3.5 h-3.5" />
+                        <ArrowDownRight className="w-4 h-4" />
                         <span>Saída (Despesa)</span>
                     </button>
                 </div>
             </div>
 
-            {/* Linha 2: Data de Competência e Valor (R$) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Data */}
-                <div className="space-y-1.5">
-                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 ml-1 flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                        Data de Competência
-                    </label>
-                    <input 
-                        type="date"
-                        value={date ? (String(date).includes('T') ? String(date).split('T')[0] : String(date)) : ''}
-                        onChange={(e) => setDate(e.target.value)}
-                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2.5 px-3.5 transition-all outline-none text-xs font-bold"
+            {/* Anexos para Saídas (mesma posição do Novo Lançamento) */}
+            {type === 'saida' && (
+                <div className="pt-1 animate-fade-in">
+                    <ExpenseDocumentUploader
+                        attachments={attachments}
+                        onChangeAttachments={(newAtts) => {
+                            setAttachments(newAtts);
+                            const activeTxId = row?.transaction?.id || (row as any)?.id;
+                            if (activeTxId) {
+                                saveAttachmentsForTransaction(activeTxId, newAtts).catch(console.error);
+                            }
+                        }}
+                        currentAmount={parsedCurrentAmount}
+                        recipientName={description}
+                        onApplyExtractedAmount={(val) => {
+                            setAmountStr(val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+                        }}
+                        onApplyExtractedRecipient={(recipient) => {
+                            setDescription(recipient);
+                        }}
+                        onDocumentDataExtracted={(extracted) => {
+                            if ((!amountStr || amountStr === '0,00' || amountStr.trim() === '') && extracted.extractedAmount) {
+                                setAmountStr(extracted.extractedAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+                            }
+                            if ((!description || description.trim().length === 0) && extracted.extractedRecipient) {
+                                setDescription(extracted.extractedRecipient);
+                            }
+                        }}
                     />
                 </div>
+            )}
 
-                {/* Valor */}
-                <div className="space-y-1.5">
-                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 ml-1 flex items-center gap-1">
-                        <DollarSign className="w-3.5 h-3.5 text-slate-400" />
-                        Valor (R$)
+            {/* Linha 1: Data do Lançamento e Valor (R$) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="space-y-1">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
+                        Data do Lançamento
                     </label>
-                    <div className="relative w-full">
-                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">R$</span>
+                    <div className="relative group">
+                        <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
+                        <input 
+                            type="date"
+                            value={date ? (String(date).includes('T') ? String(date).split('T')[0] : String(date)) : ''}
+                            onChange={(e) => setDate(e.target.value)}
+                            className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 pl-9 pr-3 transition-all outline-none text-xs font-semibold"
+                        />
+                    </div>
+                </div>
+
+                <div className="space-y-1">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
+                        Valor (R$) <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative group">
+                        <DollarSign className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
                         <input 
                             type="text"
                             inputMode="numeric"
                             value={amountStr}
                             onChange={handleAmountChange}
                             placeholder="0,00"
-                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2.5 pl-9 pr-3.5 transition-all outline-none text-xs font-mono font-black"
+                            className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 pl-9 pr-3 transition-all outline-none text-xs font-bold tabular-nums placeholder:text-slate-400"
                         />
                     </div>
                 </div>
             </div>
 
-            {/* Linha 3: Contribuinte / Doador ou Favorecido */}
+            {/* Linha 2: Contribuinte / Favorecido */}
             <div className="space-y-1.5 relative">
                 <div className="flex items-center justify-between flex-wrap gap-1">
-                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 ml-1 flex items-center gap-1">
-                        <User className="w-3.5 h-3.5 text-slate-400" />
-                        {type === 'entrada' ? 'Nome do Contribuinte / Doador' : 'Fornecedor / Favorecido / Descrição'}
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
+                        {type === 'saida' ? 'Favorecido / Razão Social' : 'Nome do Contribuinte'} <span className="text-rose-500">*</span>
                     </label>
-                    <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.2 rounded border border-amber-200/60 dark:border-amber-800/40">
-                        * Obrigatório
+                    <span className="text-[11px] text-slate-400 dark:text-slate-500 hidden sm:inline">
+                        Selecionar um cadastro preenche a igreja automaticamente
                     </span>
                 </div>
-                <div className="relative">
-                    <input 
-                        type="text"
-                        value={description}
-                        onChange={handleDescriptionChange}
-                        onKeyDown={e => {
-                            if (e.key === 'Enter' && showSuggestions && filteredContributors.length > 0) {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                handleSelectContributor(filteredContributors[0]);
-                            }
-                        }}
-                        onFocus={() => setShowSuggestions(true)}
-                        placeholder={type === 'entrada' ? 'Digite o nome do contribuinte ou selecione abaixo...' : 'Ex: Copel, Sanepar, Papelaria Alfa, etc.'}
-                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2.5 px-3.5 transition-all outline-none text-xs font-bold"
-                    />
+                <div className="flex items-stretch rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xs focus-within:ring-2 focus-within:ring-orange-500/20 focus-within:border-orange-500 transition-all">
+                    <div className="relative flex-1 min-w-0 group">
+                        <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
+                        <input 
+                            type="text"
+                            value={description}
+                            onChange={handleDescriptionChange}
+                            onKeyDown={e => {
+                                if (e.key === 'Enter' && showSuggestions && filteredContributors.length > 0) {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleSelectContributor(filteredContributors[0]);
+                                } else if (e.key === 'Escape') {
+                                    setShowSuggestions(false);
+                                }
+                            }}
+                            onFocus={() => setShowSuggestions(true)}
+                            onBlur={() => {
+                                setTimeout(() => setShowSuggestions(false), 180);
+                            }}
+                            placeholder={type === 'saida' ? 'Digite o nome, razão social ou CNPJ/CPF do favorecido...' : 'Digite o nome ou CPF do contribuinte...'}
+                            className="block w-full rounded-l-lg border-0 bg-transparent text-slate-900 dark:text-white py-2 pl-9 pr-3 transition-all outline-none text-xs font-medium placeholder:text-slate-400"
+                        />
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setQuickRegisterEntity('contributors')}
+                        title="Gerenciar Empresas e Pessoas"
+                        aria-label="Gerenciar Empresas e Pessoas"
+                        className="shrink-0 w-9 flex items-center justify-center border-l border-slate-200 dark:border-slate-700/80 bg-slate-50/70 hover:bg-orange-50 dark:bg-slate-800/50 dark:hover:bg-orange-950/40 text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors cursor-pointer rounded-r-lg"
+                    >
+                        <SquarePen className="w-3.5 h-3.5" />
+                    </button>
                 </div>
 
                 {/* Dropdown de sugestões */}
                 {showSuggestions && filteredContributors.length > 0 && (
-                    <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden max-h-48 overflow-y-auto">
-                        <div className="p-1.5 bg-slate-50 dark:bg-slate-800 text-[9px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
-                            <div className="flex items-center gap-1">
-                                <Search className="w-3 h-3 text-slate-400" />
-                                <span>Cadastros Sugeridos (Pessoas e Empresas)</span>
+                    <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl overflow-hidden max-h-52 overflow-y-auto custom-scrollbar">
+                        <div className="px-3 py-1.5 bg-slate-50 dark:bg-slate-900/80 text-[11px] font-semibold text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                                <Search className="w-3.5 h-3.5 text-slate-400" />
+                                <span>Cadastros encontrados</span>
                             </div>
-                            <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400">Preenche a Igreja</span>
+                            <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">Preenche a igreja</span>
                         </div>
                         {filteredContributors.map((c: any) => {
                             const matchedChurch = (churches || []).find((ch: any) => 
@@ -699,28 +769,31 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
                                 <button
                                     key={c.id}
                                     type="button"
-                                    onClick={() => handleSelectContributor(c)}
-                                    className="w-full text-left px-3 py-2 hover:bg-orange-50 dark:hover:bg-orange-950/20 text-xs font-semibold text-slate-800 dark:text-slate-200 border-b border-slate-50 dark:border-slate-800/40 last:border-0 flex items-center justify-between cursor-pointer"
+                                    onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        handleSelectContributor(c);
+                                    }}
+                                    className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 dark:hover:bg-white/5 text-xs font-semibold text-slate-800 dark:text-slate-200 border-b border-slate-50 dark:border-white/5 last:border-0 flex items-center justify-between cursor-pointer transition-colors"
                                 >
                                     <div className="flex flex-col min-w-0 pr-2">
                                         <div className="flex items-center gap-1.5 flex-wrap">
-                                            <span className="font-bold text-slate-800 dark:text-slate-200 truncate">{c.name}</span>
+                                            <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">{c.name}</span>
                                             {isPj && (
-                                                <span className="text-[9px] font-black bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-1.5 py-0.2 rounded border border-blue-200 dark:border-blue-800">
-                                                    🏢 Empresa
+                                                <span className="text-[10px] font-semibold bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded border border-blue-200/80 dark:border-blue-800">
+                                                    PJ
                                                 </span>
                                             )}
                                         </div>
                                         {hasTrade && (
-                                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">
-                                                Fantasia / Razão: {c.trade_name}
+                                            <span className="text-[11px] text-slate-500 dark:text-slate-400 font-normal truncate">
+                                                {c.trade_name}
                                             </span>
                                         )}
                                         {c.cpf && <span className="text-[10px] text-slate-400 font-mono mt-0.5">{c.cpf}</span>}
                                     </div>
                                     {churchName && (
-                                        <span className="text-[9px] font-black bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded border border-emerald-200/50 dark:border-emerald-800/50 shrink-0 max-w-[150px] truncate">
-                                            🏛️ {churchName}
+                                        <span className="text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-md border border-slate-200/80 dark:border-slate-700 shrink-0 max-w-[170px] truncate">
+                                            {churchName}
                                         </span>
                                     )}
                                 </button>
@@ -730,128 +803,180 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
                 )}
             </div>
 
-            {/* Linha 4: Igreja e Conta/Caixa */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Igreja */}
+            {/* Linha 3: Igreja de Destino e Conta / Caixa de Destino */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div className="space-y-1.5">
-                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 ml-1 flex items-center gap-1">
-                        <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                        Escolha a Igreja de Destino
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
+                        Igreja de Destino
                     </label>
-                    <div className="relative">
-                        <select
-                            value={churchId}
-                            onChange={(e) => setChurchId(e.target.value)}
-                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2.5 px-3.5 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer"
-                        >
-                            {churches.map((c) => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
-                            ))}
-                        </select>
-                        <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                            <ChevronDown className="w-3.5 h-3.5" />
+                    <div className="flex items-stretch rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xs focus-within:ring-2 focus-within:ring-orange-500/20 focus-within:border-orange-500 transition-all">
+                        <div className="relative flex-1 min-w-0 group">
+                            <Building2 className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
+                            <select
+                                value={churchId}
+                                onChange={(e) => setChurchId(e.target.value)}
+                                className={`block w-full border-0 bg-transparent text-slate-900 dark:text-white py-2 pl-9 pr-8 transition-all outline-none text-xs font-semibold appearance-none cursor-pointer ${!isSecondaryUser ? 'rounded-l-lg' : 'rounded-lg'}`}
+                            >
+                                {churches.map((c) => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                            </select>
+                            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                <ChevronDown className="w-3.5 h-3.5" />
+                            </div>
                         </div>
+                        {!isSecondaryUser && (
+                            <button
+                                type="button"
+                                onClick={() => setQuickRegisterEntity('churches')}
+                                title="Gerenciar Igrejas e Congregações"
+                                aria-label="Gerenciar Igrejas e Congregações"
+                                className="shrink-0 w-9 flex items-center justify-center border-l border-slate-200 dark:border-slate-700/80 bg-slate-50/70 hover:bg-orange-50 dark:bg-slate-800/50 dark:hover:bg-orange-950/40 text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors cursor-pointer rounded-r-lg"
+                            >
+                                <SquarePen className="w-3.5 h-3.5" />
+                            </button>
+                        )}
                     </div>
                 </div>
 
-                {/* Banco / Caixa */}
                 <div className="space-y-1.5">
-                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 ml-1 flex items-center gap-1">
-                        <Building className="w-3.5 h-3.5 text-slate-400" />
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                         Conta / Caixa de Destino
                     </label>
-                    <div className="relative">
-                        <select
-                            value={bankId}
-                            onChange={(e) => setBankId(e.target.value)}
-                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2.5 px-3.5 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer"
-                        >
-                            <option value="">Sem vínculo de banco (Caixa Físico)</option>
-                            {availableBanks.map((b) => (
-                                <option key={b.id} value={b.id}>
-                                    {b.account_name || b.name || 'Conta Bancária / Caixa'}
-                                </option>
-                            ))}
-                        </select>
-                        <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                            <ChevronDown className="w-3.5 h-3.5" />
+                    <div className="flex items-stretch rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xs focus-within:ring-2 focus-within:ring-orange-500/20 focus-within:border-orange-500 transition-all">
+                        <div className="relative flex-1 min-w-0 group">
+                            <Landmark className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
+                            <select
+                                value={bankId}
+                                onChange={(e) => setBankId(e.target.value)}
+                                className={`block w-full border-0 bg-transparent text-slate-900 dark:text-white py-2 pl-9 pr-8 transition-all outline-none text-xs font-semibold appearance-none cursor-pointer ${!isSecondaryUser ? 'rounded-l-lg' : 'rounded-lg'}`}
+                            >
+                                <option value="">Sem vínculo de banco (Caixa Físico)</option>
+                                {availableBanks.map((b) => (
+                                    <option key={b.id} value={b.id}>
+                                        {b.account_name || b.name || 'Conta Bancária / Caixa'}
+                                    </option>
+                                ))}
+                            </select>
+                            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                <ChevronDown className="w-3.5 h-3.5" />
+                            </div>
                         </div>
+                        {!isSecondaryUser && (
+                            <button
+                                type="button"
+                                onClick={() => setQuickRegisterEntity('banks')}
+                                title="Gerenciar Contas e Caixas"
+                                aria-label="Gerenciar Contas e Caixas"
+                                className="shrink-0 w-9 flex items-center justify-center border-l border-slate-200 dark:border-slate-700/80 bg-slate-50/70 hover:bg-orange-50 dark:bg-slate-800/50 dark:hover:bg-orange-950/40 text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors cursor-pointer rounded-r-lg"
+                            >
+                                <SquarePen className="w-3.5 h-3.5" />
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
 
-            {/* Linha 5: Descrição / Categoria e Forma de Pagamento */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* DESCRIÇÃO / CATEGORIA */}
-                <div className="space-y-1.5">
-                    <div className="flex items-center justify-between flex-wrap gap-1.5">
-                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
-                            Descrição / Categoria
-                        </label>
-                        <div className="flex items-center gap-1.5">
-                            <select
-                                value=""
+            {/* Linha 4: Descrição / Categoria e Forma de Pagamento */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="space-y-1.5 relative">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
+                        Descrição / Categoria
+                    </label>
+                    <div className="relative flex items-stretch rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xs focus-within:ring-2 focus-within:ring-orange-500/20 focus-within:border-orange-500 transition-all">
+                        <div className="relative flex-1 min-w-0 group">
+                            <Tag className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
+                            <input
+                                type="text"
+                                value={contributionType}
                                 onChange={e => {
-                                    if (e.target.value) {
-                                        setContributionType(e.target.value);
-                                    }
+                                    setContributionType(e.target.value);
+                                    setShowTypeSuggestions(true);
                                 }}
-                                className="bg-orange-50 hover:bg-orange-100 dark:bg-orange-950/60 dark:hover:bg-orange-900/60 text-orange-700 dark:text-orange-300 text-[10px] font-bold py-0.5 px-2 rounded-lg border border-orange-200/70 dark:border-orange-800/70 cursor-pointer outline-none transition-colors"
-                                title="Escolher modelo ou categoria pré-definida"
-                            >
-                                <option value="" disabled>📋 Carregar Modelo...</option>
-                                {typeOptions.map((opt: string) => (
-                                    <option key={opt} value={opt}>{opt}</option>
-                                ))}
-                            </select>
+                                onFocus={() => setShowTypeSuggestions(true)}
+                                onBlur={() => {
+                                    setTimeout(() => setShowTypeSuggestions(false), 200);
+                                }}
+                                placeholder={type === 'saida' ? 'Digite ou escolha (ex: Despesa Geral, Fatura, Manutenção)...' : 'Digite ou escolha (ex: Dízimo, Oferta)...'}
+                                className="block w-full rounded-l-lg border-0 bg-transparent text-slate-900 dark:text-white py-2 pl-9 pr-14 transition-all outline-none text-xs font-semibold placeholder:text-slate-400 placeholder:font-normal"
+                            />
+                            <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                                {contributionType && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setContributionType('');
+                                            setShowTypeSuggestions(false);
+                                        }}
+                                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 text-xs cursor-pointer"
+                                        title="Limpar campo"
+                                    >
+                                        <X className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        setShowTypeSuggestions(prev => !prev);
+                                    }}
+                                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 cursor-pointer transition-transform"
+                                    title="Ver modelos cadastrados"
+                                >
+                                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showTypeSuggestions ? 'rotate-180' : ''}`} />
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                    <div className="relative w-full">
-                        <input
-                            type="text"
-                            value={contributionType}
-                            onChange={e => setContributionType(e.target.value)}
-                            placeholder="Digite a descrição detalhada ou selecione um modelo..."
-                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2.5 px-3.5 transition-all outline-none text-xs font-bold"
-                        />
-                    </div>
-                    {/* Atalhos rápidos de modelos mais frequentes */}
-                    <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 custom-scrollbar">
-                        {typeOptions.slice(0, 6).map((opt: string) => (
-                            <button
-                                key={opt}
-                                type="button"
-                                onClick={() => setContributionType(opt)}
-                                className={`text-[9px] font-bold px-2 py-0.5 rounded-md border transition-colors whitespace-nowrap cursor-pointer ${
-                                    contributionType === opt
-                                        ? 'bg-orange-50 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800'
-                                        : 'bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
-                                }`}
-                            >
-                                {opt}
-                            </button>
-                        ))}
+                        <button
+                            type="button"
+                            onClick={() => setQuickRegisterEntity('contribution')}
+                            title="Gerenciar Descrições (Entrada/Saída)"
+                            aria-label="Gerenciar Descrições (Entrada/Saída)"
+                            className="shrink-0 w-9 flex items-center justify-center border-l border-slate-200 dark:border-slate-700/80 bg-slate-50/70 hover:bg-orange-50 dark:bg-slate-800/50 dark:hover:bg-orange-950/40 text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors cursor-pointer rounded-r-lg"
+                        >
+                            <SquarePen className="w-3.5 h-3.5" />
+                        </button>
+
+                        {showTypeSuggestions && filteredTypeOptions.length > 0 && (
+                            <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto custom-scrollbar">
+                                <div className="p-1.5 space-y-0.5">
+                                    {filteredTypeOptions.map((opt: string) => (
+                                        <button
+                                            key={opt}
+                                            type="button"
+                                            onMouseDown={(e) => {
+                                                e.preventDefault();
+                                                setContributionType(opt);
+                                                setShowTypeSuggestions(false);
+                                            }}
+                                            className={`w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center justify-between cursor-pointer ${
+                                                contributionType.toUpperCase() === opt.toUpperCase()
+                                                    ? 'bg-orange-50 dark:bg-orange-950/60 text-orange-600 dark:text-orange-400'
+                                                    : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
+                                            }`}
+                                        >
+                                            <span>{opt}</span>
+                                            <span className="text-[10px] text-slate-400">Modelo</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {/* FORMA DE PAGAMENTO */}
                 <div className="space-y-1.5">
-                    <div className="flex items-center justify-between flex-wrap gap-1">
-                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
-                            Forma de Pagamento
-                        </label>
-                        <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200/50 dark:border-amber-800/50">
-                            💵 Padrão Dinheiro (Lançamento Manual)
-                        </span>
-                    </div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
+                        Forma de Pagamento
+                    </label>
                     {isCustomPaymentMethod ? (
-                        <div className="flex gap-2 items-center">
+                        <div className="flex items-stretch rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xs focus-within:ring-2 focus-within:ring-orange-500/20 focus-within:border-orange-500 transition-all">
                             <input
                                 type="text"
                                 value={paymentMethod}
                                 onChange={e => setPaymentMethod(e.target.value.toUpperCase())}
                                 placeholder="Digite a forma (ex: DINHEIRO, PIX)"
-                                className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2.5 px-3 transition-all outline-none text-xs font-bold"
+                                className="flex-1 min-w-0 rounded-l-lg border-0 bg-transparent text-slate-900 dark:text-white py-2 px-3 transition-all outline-none text-xs font-semibold"
                                 autoFocus
                             />
                             <button
@@ -860,229 +985,185 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
                                     setIsCustomPaymentMethod(false);
                                     setPaymentMethod('DINHEIRO');
                                 }}
-                                className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[10px] font-bold rounded-xl text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-pointer transition-all shrink-0"
+                                className="px-2.5 border-l border-slate-200 dark:border-slate-700/80 bg-slate-50/70 hover:bg-slate-100 dark:bg-slate-800/50 dark:hover:bg-slate-700 text-[11px] font-semibold text-slate-600 dark:text-slate-300 cursor-pointer transition-colors shrink-0"
                             >
                                 Lista
                             </button>
+                            <button
+                                type="button"
+                                onClick={() => setQuickRegisterEntity('payment')}
+                                title="Gerenciar Formas de Recebimento / Pagamento"
+                                aria-label="Gerenciar Formas de Recebimento / Pagamento"
+                                className="shrink-0 w-9 flex items-center justify-center border-l border-slate-200 dark:border-slate-700/80 bg-slate-50/70 hover:bg-orange-50 dark:bg-slate-800/50 dark:hover:bg-orange-950/40 text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors cursor-pointer rounded-r-lg"
+                            >
+                                <SquarePen className="w-3.5 h-3.5" />
+                            </button>
                         </div>
                     ) : (
-                        <div className="relative">
-                            <select
-                                value={paymentMethod}
-                                onChange={e => {
-                                    const val = e.target.value;
-                                    if (val === '__CUSTOM__') {
-                                        setIsCustomPaymentMethod(true);
-                                        setPaymentMethod('');
-                                    } else {
-                                        setPaymentMethod(val);
-                                    }
-                                }}
-                                className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2.5 px-3.5 pr-9 transition-all outline-none text-xs font-bold appearance-none cursor-pointer"
-                            >
-                                {paymentMethodsOptions.map((method: string) => (
-                                    <option key={method} value={method}>{method}</option>
-                                ))}
-                                <option value="__CUSTOM__">✍️ Outro (Digitar manual...)</option>
-                            </select>
-                            <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                <ChevronDown className="w-3.5 h-3.5" />
+                        <div className="flex items-stretch rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xs focus-within:ring-2 focus-within:ring-orange-500/20 focus-within:border-orange-500 transition-all">
+                            <div className="relative flex-1 min-w-0 group">
+                                <CreditCard className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
+                                <select
+                                    value={paymentMethod}
+                                    onChange={e => {
+                                        const val = e.target.value;
+                                        if (val === '__CUSTOM__') {
+                                            setIsCustomPaymentMethod(true);
+                                            setPaymentMethod('');
+                                        } else {
+                                            setPaymentMethod(val);
+                                        }
+                                    }}
+                                    className="block w-full rounded-l-lg border-0 bg-transparent text-slate-900 dark:text-white py-2 pl-9 pr-8 transition-all outline-none text-xs font-semibold appearance-none cursor-pointer"
+                                >
+                                    {paymentMethodsOptions.map((method: string) => (
+                                        <option key={method} value={method}>{method}</option>
+                                    ))}
+                                    <option value="__CUSTOM__">Outro (digitar manualmente...)</option>
+                                </select>
+                                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                    <ChevronDown className="w-3.5 h-3.5" />
+                                </div>
                             </div>
+                            <button
+                                type="button"
+                                onClick={() => setQuickRegisterEntity('payment')}
+                                title="Gerenciar Formas de Recebimento / Pagamento"
+                                aria-label="Gerenciar Formas de Recebimento / Pagamento"
+                                className="shrink-0 w-9 flex items-center justify-center border-l border-slate-200 dark:border-slate-700/80 bg-slate-50/70 hover:bg-orange-50 dark:bg-slate-800/50 dark:hover:bg-orange-950/40 text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors cursor-pointer rounded-r-lg"
+                            >
+                                <SquarePen className="w-3.5 h-3.5" />
+                            </button>
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* Linha 6: Anexos para Saídas */}
-            {type === 'saida' && (
-                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 animate-fade-in">
-                    <ExpenseDocumentUploader
-                        attachments={attachments}
-                        onChangeAttachments={(newAtts) => {
-                            setAttachments(newAtts);
-                            const activeTxId = row?.transaction?.id || (row as any)?.id;
-                            if (activeTxId) {
-                                saveAttachmentsForTransaction(activeTxId, newAtts).catch(console.error);
-                            }
-                        }}
-                        currentAmount={parsedCurrentAmount}
-                        onApplyExtractedAmount={(val) => {
-                            setAmountStr(val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-                        }}
-                        onApplyExtractedRecipient={(recipient) => {
-                            if (!description || description.trim().length === 0) {
-                                setDescription(recipient);
-                            }
-                        }}
-                        onDocumentDataExtracted={(extracted) => {
-                            if ((!amountStr || amountStr === '0,00' || amountStr.trim() === '') && extracted.extractedAmount) {
-                                setAmountStr(extracted.extractedAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-                            }
-                            if ((!description || description.trim().length === 0) && extracted.extractedRecipient) {
-                                setDescription(extracted.extractedRecipient);
-                            }
-                        }}
-                    />
+            {/* Rodapé / Ações — unificado com Novo Lançamento */}
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                    {!description.trim()
+                        ? `Informe o ${type === 'saida' ? 'favorecido / descrição' : 'nome do contribuinte'}.`
+                        : !amountStr || parsedCurrentAmount <= 0
+                            ? 'Informe um valor maior que zero.'
+                            : 'Pronto para salvar alterações.'}
+                </span>
+                <div className="flex items-center gap-2 ml-auto">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        disabled={isSaving}
+                        className="px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer border border-slate-200/90 dark:border-slate-700 shadow-xs"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleSave}
+                        disabled={isSaving || !amountStr || parsedCurrentAmount <= 0 || !description.trim()}
+                        className={`px-5 py-2 text-xs font-semibold rounded-lg shadow-xs transition-all flex items-center gap-1.5 active:scale-95 ${
+                            isSaving || !amountStr || parsedCurrentAmount <= 0 || !description.trim()
+                                ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed'
+                                : 'bg-orange-600 hover:bg-orange-700 text-white cursor-pointer'
+                        }`}
+                    >
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>{isSaving ? 'Salvando...' : 'Salvar Alterações'}</span>
+                    </button>
                 </div>
-            )}
-
-            {/* Rodapé / Ações */}
-            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2.5">
-                <button
-                    type="button"
-                    onClick={onClose}
-                    disabled={isSaving}
-                    className="px-4 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
-                >
-                    Cancelar
-                </button>
-                <button
-                    type="button"
-                    onClick={handleSave}
-                    disabled={isSaving || !amountStr || !description.trim()}
-                    className="px-6 py-2.5 text-xs font-black uppercase tracking-wider bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 hover:opacity-95 text-white rounded-xl shadow-md shadow-orange-500/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5 border border-orange-400/30 active:scale-95"
-                >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>{isSaving ? 'Salvando...' : 'Salvar Alterações'}</span>
-                </button>
             </div>
         </div>
     );
 
     if (asView) {
         return (
-            <div className="w-full space-y-4 max-w-full min-h-full flex flex-col animate-fade-in pb-8 md:pb-4">
-                {/* Header Card - Idêntico ao Livro Caixa e Novo Lançamento */}
-                <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-white/5 shadow-sm flex-shrink-0">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="px-2 py-3 md:px-4 w-full max-w-4xl mx-auto space-y-4 min-h-full flex flex-col animate-fade-in pb-8 md:pb-6">
+                {/* Header Card — Idêntico ao Novo Lançamento */}
+                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex-shrink-0">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl text-white shadow-md shadow-orange-500/20 shrink-0">
+                            <div className="w-10 h-10 rounded-xl bg-orange-50 dark:bg-orange-950/50 border border-orange-200/70 dark:border-orange-900/50 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
                                 <Pencil className="w-5 h-5" />
                             </div>
                             <div>
-                                <h1 className="text-xl font-black text-slate-800 dark:text-white tracking-tight">
+                                <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">
                                     Editar Lançamento Manual
                                 </h1>
-                                <p className="text-xs text-slate-400">
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
                                     Ajuste os valores, data, destino e classificação deste registro contábil.
                                 </p>
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-2 flex-wrap">
-                            <button
-                                type="button"
-                                onClick={onClose}
-                                className="flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-black text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-xl transition-all tracking-wider uppercase cursor-pointer border border-slate-200 dark:border-slate-700 active:scale-95"
-                            >
-                                <ArrowLeft className="w-3.5 h-3.5" />
-                                <span>Voltar</span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleSave}
-                                disabled={isSaving || !amountStr || !description.trim()}
-                                className={`flex items-center gap-1.5 px-4 py-1.5 text-[11px] font-black text-white rounded-xl shadow-xs transition-all tracking-wider uppercase border border-orange-400/30 active:scale-95 ${
-                                    isSaving || !amountStr || !description.trim()
-                                        ? 'bg-slate-400 dark:bg-slate-700 opacity-60 cursor-not-allowed'
-                                        : 'bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 hover:opacity-95 cursor-pointer shadow-orange-500/20'
-                                }`}
-                            >
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>{isSaving ? 'Salvando...' : 'Salvar Alterações'}</span>
-                            </button>
-                        </div>
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer border border-slate-200/90 dark:border-slate-700 shadow-xs active:scale-95"
+                        >
+                            <ArrowLeft className="w-3.5 h-3.5" />
+                            <span>Voltar</span>
+                        </button>
                     </div>
                 </div>
 
-                {/* Main Content Card - Idêntico ao Livro Caixa e Novo Lançamento */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl p-4 md:p-6 shadow-sm space-y-5">
-                    {/* Control & Header Row */}
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-100 dark:border-white/5">
-                        <div className="flex items-center gap-2.5">
-                            <div className="p-2 rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400">
-                                <FileText className="w-4 h-4" />
-                            </div>
-                            <div>
-                                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
-                                    Dados do Registro
-                                </h3>
-                                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                                    {description || 'Lançamento Contábil'} • {type === 'entrada' ? 'Receita' : 'Despesa'}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                            <span className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-xs ${
-                                type === 'entrada'
-                                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
-                                    : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
-                            }`}>
-                                {type === 'entrada' ? (
-                                    <>
-                                        <ArrowUpRight className="w-3.5 h-3.5" />
-                                        <span>Entrada / Receita</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <ArrowDownRight className="w-3.5 h-3.5" />
-                                        <span>Saída / Despesa</span>
-                                    </>
-                                )}
-                            </span>
-                            {parsedCurrentAmount > 0 && (
-                                <span className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold border ${
-                                    type === 'entrada'
-                                        ? 'bg-emerald-50/60 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 border-emerald-300/60 dark:border-emerald-800'
-                                        : 'bg-rose-50/60 dark:bg-rose-950/30 text-rose-800 dark:text-rose-200 border-rose-300/60 dark:border-rose-800'
-                                }`}>
-                                    {type === 'entrada' ? '+' : '-'} R$ {amountStr}
-                                </span>
-                            )}
-                        </div>
-                    </div>
-
-                    {renderFormContent(true)}
+                {/* Main Content Card — Idêntico ao Novo Lançamento */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 sm:p-5 shadow-xs space-y-5">
+                    {renderFormContent()}
                 </div>
+
+                <QuickRegisterModal
+                    entity={quickRegisterEntity}
+                    onClose={() => setQuickRegisterEntity(null)}
+                />
             </div>
         );
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-            <div 
-                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] animate-scale-in"
-                onClick={(e) => e.stopPropagation()}
+        <>
+            <div
+                className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/50 backdrop-blur-[2px] animate-fade-in"
+                onClick={onClose}
             >
-                {/* Cabeçalho */}
-                <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/40">
-                    <div className="flex items-center gap-2.5">
-                        <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                            <Pencil className="w-4 h-4" />
+                <div 
+                    className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[92vh] animate-scale-in"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {/* Cabeçalho */}
+                    <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 shrink-0">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-orange-50 dark:bg-orange-950/50 border border-orange-200/70 dark:border-orange-900/50 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
+                                <Pencil className="w-4 h-4" />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
+                                    Editar Lançamento Manual
+                                </h3>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    Ajuste os valores, data, destino e classificação deste registro.
+                                </p>
+                            </div>
                         </div>
-                        <div>
-                            <h3 className="text-sm font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
-                                Editar Lançamento Manual
-                            </h3>
-                            <p className="text-[11px] text-slate-400 font-medium">
-                                Ajuste os valores, data, destino e classificação deste registro.
-                            </p>
-                        </div>
+                        <button 
+                            type="button"
+                            onClick={onClose}
+                            className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
                     </div>
-                    <button 
-                        onClick={onClose}
-                        className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                    >
-                        <X className="w-4 h-4" />
-                    </button>
-                </div>
 
-                {/* Corpo do Formulário */}
-                <div className="p-5 overflow-y-auto custom-scrollbar flex-1 text-xs">
-                    {renderFormContent(false)}
+                    {/* Corpo do Formulário */}
+                    <div className="p-4 sm:p-5 overflow-y-auto custom-scrollbar flex-1">
+                        {renderFormContent()}
+                    </div>
                 </div>
             </div>
-        </div>
+
+            <QuickRegisterModal
+                entity={quickRegisterEntity}
+                onClose={() => setQuickRegisterEntity(null)}
+            />
+        </>
     );
 };
