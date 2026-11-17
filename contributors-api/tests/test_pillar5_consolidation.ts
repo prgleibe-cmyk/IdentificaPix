@@ -10,13 +10,13 @@ async function runPillar5Consolidation() {
   console.log('   INTEGRIDADE DE SALDOS, RATEIOS, FECHAMENTOS E CONCILIAÇÃO BANCÁRIA');
   console.log('========================================================================\n');
 
-  const ownerId = '00000000-0000-0000-0000-000000000001';
-  const secondaryId = '00000000-0000-0000-0000-000000000002';
-  const otherOwnerId = '00000000-0000-0000-0000-000000000999';
+  const ownerId = '11111111-1111-4111-8111-111111111111';
+  const secondaryId = '11111111-1111-4111-8111-111111111112';
+  const otherOwnerId = '11111111-1111-4111-8111-111111111999';
 
-  const churchA = '00000000-0000-0000-0000-000000000001';
-  const churchB = '00000000-0000-0000-0000-000000000002';
-  const churchForbidden = '00000000-0000-0000-0000-000000000999';
+  const churchA = '22222222-2222-4222-8222-222222222001';
+  const churchB = '22222222-2222-4222-8222-222222222002';
+  const churchForbidden = '22222222-2222-4222-8222-222222222999';
 
   const bankTest = 'banco-pilar5-001';
   const year = 2026;
@@ -306,6 +306,8 @@ async function runPillar5Consolidation() {
       db.prepare("DELETE FROM consolidated_transactions WHERE id LIKE 'test-p5%'").run();
       db.prepare("DELETE FROM church_closings WHERE id LIKE 'closing_test-p5%'").run();
       db.prepare("DELETE FROM financial_records WHERE id LIKE 'rec-p5%'").run();
+      db.prepare("DELETE FROM churches WHERE id IN (?, ?, ?)").run(churchA, churchB, churchForbidden);
+      db.prepare("DELETE FROM banks WHERE id = ?").run(bankTest);
     } catch (_) {}
     server.close();
   }
