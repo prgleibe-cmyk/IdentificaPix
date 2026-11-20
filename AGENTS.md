@@ -182,3 +182,45 @@ As seguintes funcionalidades e diretrizes foram validadas e estão **RIGOROSAMEN
 - **Regra**:
   1. Proibido usar barra flutuante fixa na parte inferior (`fixed bottom-* z-[85]`) sobre as linhas da tabela — ela se mistura visualmente ao branco das linhas e invade o rodapé de sub-telas/modais abertos (`z-[56]`).
   2. A barra deve permanecer sempre com `z-30` (acima do cabeçalho `thead z-20`, porém estritamente abaixo de todos os modais suspensos `z-[56]` e do menu lateral `z-[80]`), mantendo todas as ações diretas em 1 clique com `title` explicativo e botões brancos com borda sutil para ações secundárias (`Confirmar Final` e `Excluir`) e botão sólido `bg-orange-600` para a ação principal (`Identificar`).
+
+---
+
+# 🧭 PROTOCOLO ORQUESTRADOR DE GOVERNANÇA — ORQ-IG (VERSÃO 2.1)
+
+> **Natureza Real:** `ORQ-IG` e os cinco perfis especializados (`AG-UI`, `AG-FIN`, `AG-BACK`, `AG-OPS`, `AG-QA`) são **contratos comportamentais baseados em regras**, executados pelo **mesmo motor de IA** na mesma sessão. **NÃO** constituem processos autônomos, bloqueio técnico determinístico ou revisão independente isolada. A segurança decorre da adesão disciplinada às regras, de evidências reais executadas e da aprovação humana expressa.
+
+### 1. Hierarquia de Fontes Únicas (Carregamento Sob Demanda)
+- **Camada 1 (Sempre carregada):** este `AGENTS.md` (Arquitetura Congelada, Protocolo Cirúrgico, Padrões Blindados `#1`–`#11` e `ORQ-IG`).
+- **Camada 2 (Consultar sob demanda via `view_file`):**
+  - `PROTECTED_BEHAVIORS.md` — fonte única de `PB-001` a `PB-008` e `CANDIDATO-01` a `CANDIDATO-07`.
+  - `.ai/OWNERSHIP.md` — matriz real de propriedade (`E`, `C`, `A`), regras de co-atuação por camada e guarda dos arquivos Categoria 3 (sem utilização confirmada).
+  - `.ai/VALIDATION.md` — comandos reais verificados, efeitos colaterais, separação `AUTH-TEST` vs. `AUTH-OPS` e critérios de classificação técnica.
+- **Camada 3 (Carregar somente o perfil aplicável à tarefa):**
+  - `.ai/profiles/ag-ui.md` — Interface, Padronização Visual (`#1`, `#3`, `#4`, `#8`–`#11`) e Portal UI.
+  - `.ai/profiles/ag-fin.md` — Motor Financeiro, Conciliação, Fechamento, Parsers/OCR e Relatórios.
+  - `.ai/profiles/ag-back.md` — Backend (`contributors-api/`, `backend/`, `server.js`), `SmartPool`, Auth/JWT/2FA, RBAC, Multi-Tenancy e `types/`.
+  - `.ai/profiles/ag-ops.md` — Performance, Memória, Build, Dependências, Higiene, PWA e Backup/Restore.
+  - `.ai/profiles/ag-qa.md` — Qualidade, Suítes de Regressão e `PROTECTED_BEHAVIORS.md` *(mesmo motor de IA — nunca apresentar como revisor independente)*.
+
+### 2. Separação Obrigatória de Autorizações (Não Misturar)
+- **`AUTH-READ`:** apenas leitura, listagem e busca estática (zero escrita, build, lint ou teste).
+- **`AUTH-PLAN`:** apenas diagnóstico, análise e proposta técnica (zero edição ou execução).
+- **`AUTH-WRITE`:** edição cirúrgica restrita aos arquivos do escopo aprovado.
+- **`AUTH-TEST`:** validação estática, tipos, build e testes autorizados de `.ai/VALIDATION.md` (nunca executar sob `AUTH-READ`/`AUTH-PLAN` e nunca rodar `contributors-api/tests/` em lote cego).
+- **`AUTH-OPS`:** autorização separada e explícita para `backup`/`restore`, testes que gravam em `backups/` (subgrupo B4), dependências, `.dockerignore`, `.env.example`, deploy ou remoção de arquivos Categoria 3.
+
+### 3. Níveis de Risco e Roteamento Baseado em Regras
+- **`N1` (Somente Leitura / Diagnóstico):** sem alteração de arquivo (`AUTH-READ` / `AUTH-PLAN`).
+- **`N2` (Baixo Risco / Isolado):** ajuste visual/CSS ou texto em arquivo `E` ou camada puramente visual de arquivo `C` sem tocar estado, API ou `PB-XXX`.
+- **`N3` (Médio/Alto Risco / Regra de Negócio ou PB):** lógica financeira, parsers, rotas CRUD, configs de build/TS, arquivos `A`, ou qualquer arquivo vinculado a `PB-001`–`PB-008` (exige consulta prévia a `PROTECTED_BEHAVIORS.md` e validação específica).
+- **`N4` (Crítico / Congelado / Segurança / Operações):** Arquitetura Congelada (`hooks/reconciliation/*`, `contexts/AppContext.tsx`), schema SQL, `SmartPool`, JWT/2FA/RBAC/multi-tenancy, `backup`/`restore`, dependências ou remoção de arquivos Categoria 3 (exige diagnóstico prévio e autorização explícita antes de editar).
+- **Regra da Maior Restrição:** em qualquer dúvida de fronteira ou arquivo híbrido (`C`/`A`), prevalece o perfil mais protetor e o maior nível de risco.
+- **Ordem Multi-Camada:** quando uma solicitação autorizada exigir mais de uma camada, executar sequencialmente de baixo para cima: `AG-BACK` → `AG-FIN` → `AG-UI` → `AG-OPS` → verificação `AG-QA`.
+
+### 4. Fluxo Operacional Padrão do ORQ-IG
+1. Identificar a autorização vigente (`AUTH-READ`, `AUTH-PLAN`, `AUTH-WRITE`, `AUTH-TEST`, `AUTH-OPS`) e o nível de risco (`N1`–`N4`).
+2. Consultar `.ai/OWNERSHIP.md` e `PROTECTED_BEHAVIORS.md` para mapear titularidade, categoria (`E`/`C`/`A`), PBs impactadas e arquivos Categoria 3 (proibido editar/remover por engano).
+3. Carregar sob demanda apenas o(s) perfil(is) de `.ai/profiles/*.md` aplicável(is) e `.ai/VALIDATION.md` quando houver validação.
+4. Executar estritamente dentro da autorização concedida, preservando integralmente todas as regras congeladas e padrões `#1`–`#11`.
+5. Entregar o relatório final obrigatório (problema, causa, arquivos alterados, modificações, testes/validações realmente executados, riscos/limitações e classificação objetiva `APROVADO`, `APROVADO COM RESSALVAS` ou `NÃO APROVADO` conforme `.ai/VALIDATION.md`).
+
