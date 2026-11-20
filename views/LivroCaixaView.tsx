@@ -9,7 +9,7 @@ import { AttachmentPreviewModal } from '../components/financial/AttachmentPrevie
 import { QuickAttachModal } from '../components/modals/QuickAttachModal';
 import { ServiceReceiptModal } from '../components/modals/ServiceReceiptModal';
 import { preloadAllAttachmentsMap, getCachedAttachmentsMap, getAttachmentsForTransaction } from '../services/expenseAttachmentService';
-import { getMonthClosingRecord, getAllChurchClosings } from '../services/monthClosingService';
+import { getAllChurchClosings } from '../services/monthClosingService';
 import { cleanDisplayDescription } from '../services/utils/parsingUtils';
 import { ExpenseAttachment, MonthClosingRecord } from '../types/domain';
 import { 
@@ -176,52 +176,58 @@ export const LivroCaixaView: React.FC = memo(() => {
         const m = selectionMode === 'month' ? selectedMonth : (customStartDate ? parseInt(customStartDate.split('-')[1], 10) : selectedMonth);
         const y = selectionMode === 'month' ? selectedYear : (customStartDate ? parseInt(customStartDate.split('-')[0], 10) : selectedYear);
 
-        // Carrega todos os fechamentos para conciliação de saldos transferidos entre períodos
+        const matchesBank = (rec?: { bankId?: string | null } | null) =>
+            !activeBankId
+                ? (!rec?.bankId || rec.bankId === 'all')
+                : (rec?.bankId === activeBankId);
+
+        const resolveActiveClosing = (records: MonthClosingRecord[]): MonthClosingRecord | null => {
+            if (!m || !y || !churchId) return null;
+            const activeForPeriod = records.filter(
+                r => r.status !== 'reopened' && Number(r.year) === y && Number(r.month) === m && matchesBank(r)
+            );
+            const primary = activeForPeriod.find(r => r.churchId === churchId);
+            if (primary) return primary;
+            if (selectedChurchIds.length === 0 && churches.length > 1) {
+                const allowedIds = new Set(churches.map((ch: any) => ch.id));
+                const fallback = activeForPeriod.find(r => allowedIds.has(r.churchId));
+                if (fallback) return fallback;
+            }
+            return null;
+        };
+
+        // Carrega todos os fechamentos em uma única chamada (evita loop N+1 de 404 por igreja)
         getAllChurchClosings().then(records => {
-            if (isMounted) setPastClosings(records || []);
+            if (!isMounted) return;
+            const list = records || [];
+            setPastClosings(list);
+            setMonthClosingRecord(resolveActiveClosing(list));
         });
 
-        if (m && y && churchId) {
-            getMonthClosingRecord(churchId, y, m, activeBankId).then(async (record) => {
+        const handleClosingUpdate = (e: any) => {
+            const updated = e?.detail as (MonthClosingRecord & { bankId?: string | null; synced?: boolean }) | undefined;
+            const isDirectMatch = Boolean(
+                updated &&
+                !updated.synced &&
+                Number(updated.year) === y &&
+                Number(updated.month) === m &&
+                matchesBank(updated) &&
+                (!churchId || updated.churchId === churchId || (selectedChurchIds.length === 0 && churches.some((ch: any) => ch.id === updated.churchId)))
+            );
+
+            if (isDirectMatch && isMounted) {
+                setMonthClosingRecord(updated!.status === 'reopened' ? null : updated!);
+            }
+
+            // Recarrega todos os fechamentos para manter o saldo anterior e o status atual sempre fidedignos
+            getAllChurchClosings().then(records => {
                 if (!isMounted) return;
-                if (record && record.status !== 'reopened') {
-                    setMonthClosingRecord(record);
-                } else if (selectedChurchIds.length === 0 && churches.length > 1) {
-                    for (const ch of churches) {
-                        if (ch.id === churchId) continue;
-                        const otherRec = await getMonthClosingRecord(ch.id, y, m, activeBankId);
-                        if (otherRec && otherRec.status !== 'reopened' && isMounted) {
-                            setMonthClosingRecord(otherRec);
-                            return;
-                        }
-                    }
-                    setMonthClosingRecord(null);
-                } else {
-                    setMonthClosingRecord(null);
+                const list = records || [];
+                setPastClosings(list);
+                if (!isDirectMatch) {
+                    setMonthClosingRecord(resolveActiveClosing(list));
                 }
             });
-        } else {
-            setMonthClosingRecord(null);
-        }
-
-        const handleClosingUpdate = (e: any) => {
-            // Recarrega todos os fechamentos para manter o saldo anterior sempre fidedigno
-            getAllChurchClosings().then(records => {
-                if (isMounted) setPastClosings(records || []);
-            });
-
-            const updated = e?.detail as (MonthClosingRecord & { bankId?: string | null }) | undefined;
-            const matchesBank = !activeBankId 
-                ? (!updated?.bankId || updated.bankId === 'all')
-                : (updated?.bankId === activeBankId);
-
-            if (updated && updated.year === y && updated.month === m && matchesBank) {
-                if (isMounted) setMonthClosingRecord(updated.status === 'reopened' ? null : updated);
-            } else if (m && y && churchId) {
-                getMonthClosingRecord(churchId, y, m, activeBankId).then(record => {
-                    if (isMounted) setMonthClosingRecord(record?.status === 'reopened' ? null : record);
-                });
-            }
         };
 
         window.addEventListener('month_closing_updated', handleClosingUpdate);

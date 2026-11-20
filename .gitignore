@@ -18,6 +18,22 @@ out/
 .env
 .env.local
 .env.*.local
+!.env.example
+
+# Bancos locais e Backups (Nunca enviar dados reais para o GitHub)
+data/
+backups/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.sql.gz.enc
+
+# Cache e Temporários do Ambiente / Build
+.aistudio/
+tmp/
+workspace/
+public/assets/aistudio/
+*.tsbuildinfo
 
 # Editor directories and files
 .idea
