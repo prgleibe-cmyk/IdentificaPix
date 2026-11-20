@@ -1,6 +1,0 @@
-{
-  "summary":  "Plano de implementação atualizado para o Pilar 5 (Operações Financeiras e Integridade dos Saldos), documentando a conclusão da Sub-etapa 5.3 (Imutabilidade de Períodos Fechados e Pernas de Fechamento com 12/12 testes passando) e preparando a Sub-etapa 5.4 (Bateria de Testes Automatizados e Homologação do Pilar 5).",
-  "updatedAt":  "2026-11-08T01:50:08.155492952Z",
-  "requestFeedback":  true,
-  "userFacing":  true
-}
