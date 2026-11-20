@@ -327,21 +327,21 @@ export const ServiceReceiptModal: React.FC<ServiceReceiptModalProps> = ({
     const extenso = numeroPorExtenso(amount);
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto animate-fade-in">
-            <div className="bg-white dark:bg-slate-900 w-full max-w-3xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[92vh] overflow-hidden my-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/60 backdrop-blur-[2px] overflow-y-auto animate-fade-in">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-3xl rounded-2xl shadow-elevated border border-slate-200/90 dark:border-slate-800 flex flex-col max-h-[92vh] overflow-hidden my-auto">
                 
                 {/* Header do Modal */}
-                <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between bg-gradient-to-r from-orange-500/10 via-amber-500/5 to-transparent shrink-0">
+                <div className="px-6 py-4 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 shrink-0">
                     <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl text-white shadow-md shadow-orange-500/20 shrink-0">
+                        <div className="w-9 h-9 bg-orange-50 dark:bg-orange-950/40 border border-orange-200/60 dark:border-orange-900/40 rounded-lg text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
                             <FileSignature className="w-5 h-5" />
                         </div>
                         <div>
-                            <div className="flex items-center gap-2">
-                                <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
                                     Recibo de Prestação de Serviços
                                 </h3>
-                                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 dark:bg-orange-950/80 dark:text-orange-300">
+                                <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md bg-orange-50 text-orange-700 border border-orange-200/60 dark:bg-orange-950/60 dark:text-orange-300 dark:border-orange-800/50">
                                     Com Assinatura Digital
                                 </span>
                             </div>
@@ -353,14 +353,17 @@ export const ServiceReceiptModal: React.FC<ServiceReceiptModalProps> = ({
                     <button
                         type="button"
                         onClick={onClose}
-                        className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                        className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                     >
                         <X className="w-5 h-5" />
                     </button>
                 </div>
 
                 {/* Conteúdo com Scroll */}
-                <div className="p-4 sm:p-6 overflow-y-auto space-y-5 text-xs text-slate-700 dark:text-slate-300">
+                <div
+                    className="p-4 sm:p-6 overflow-y-auto space-y-5 text-xs text-slate-700 dark:text-slate-300 custom-scrollbar"
+                    style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+                >
                     
                     {/* Alerta de Erro se houver */}
                     {validationError && (
@@ -672,11 +675,11 @@ export const ServiceReceiptModal: React.FC<ServiceReceiptModalProps> = ({
                 </div>
 
                 {/* Footer de Ações do Modal */}
-                <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800/80 flex flex-col-reverse sm:flex-row items-center justify-between gap-3 bg-slate-50/70 dark:bg-slate-900/70 shrink-0">
+                <div className="px-6 py-4 border-t border-slate-200/80 dark:border-slate-800 flex flex-col-reverse sm:flex-row items-center justify-between gap-2.5 bg-slate-50/70 dark:bg-slate-900 shrink-0">
                     <button
                         type="button"
                         onClick={onClose}
-                        className="w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                        className="w-full sm:w-auto px-4 py-2 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-xs transition-colors cursor-pointer"
                     >
                         Fechar
                     </button>
@@ -685,7 +688,7 @@ export const ServiceReceiptModal: React.FC<ServiceReceiptModalProps> = ({
                         <button
                             type="button"
                             onClick={handleDownloadPdf}
-                            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 text-xs font-semibold transition-colors cursor-pointer shadow-xs"
                         >
                             <Download className="w-3.5 h-3.5" />
                             <span>Baixar PDF</span>
@@ -694,7 +697,7 @@ export const ServiceReceiptModal: React.FC<ServiceReceiptModalProps> = ({
                         <button
                             type="button"
                             onClick={handlePrintPdf}
-                            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 text-xs font-semibold transition-colors cursor-pointer shadow-xs"
                         >
                             <Printer className="w-3.5 h-3.5" />
                             <span>Imprimir</span>
@@ -704,7 +707,7 @@ export const ServiceReceiptModal: React.FC<ServiceReceiptModalProps> = ({
                             type="button"
                             onClick={handleGenerateAndAttach}
                             disabled={isSaving}
-                            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 text-white text-xs font-black uppercase tracking-wider hover:opacity-95 active:scale-95 transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white text-xs font-semibold transition-colors shadow-xs cursor-pointer disabled:opacity-50"
                         >
                             <CheckCircle2 className="w-4 h-4" />
                             <span>{isSaving ? 'Gerando Recibo...' : 'Gerar & Anexar ao Caixa'}</span>

@@ -153,14 +153,14 @@ export const PortalHome: React.FC<PortalHomeProps> = ({ church }) => {
     return (
         <PortalContainer maxWidth="7xl">
             {/* Header / Intro banner */}
-            <div className="text-center mb-6 sm:mb-8">
-                <span className="px-3 py-1 text-[10px] font-black uppercase tracking-widest bg-blue-500/10 text-brand-blue dark:text-blue-400 rounded-full inline-block mb-2">
-                    {church?.name || 'Igreja Local'} &bull; Portal do Contribuinte
-                </span>
-                <h1 className="text-2xl sm:text-3xl font-black text-slate-800 dark:text-white tracking-tight">
+            <div className="text-center mb-6 sm:mb-7 space-y-1">
+                <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">
+                    {church?.name || 'Igreja Local'} &middot; Portal do Contribuinte
+                </p>
+                <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight text-balance">
                     Intenção de Contribuição Online
                 </h1>
-                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-1">
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
                     Plataforma Oficial de Contribuição e Ofertas IgGestor
                 </p>
             </div>

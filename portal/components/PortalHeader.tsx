@@ -5,10 +5,11 @@ import { PortalPwaInstallModal } from './PortalPwaInstallModal';
 
 interface PortalHeaderProps {
     church?: PortalChurch | null;
+    currentRoute?: string;
     onNavigate?: (route: string) => void;
 }
 
-export const PortalHeader: React.FC<PortalHeaderProps> = ({ church, onNavigate }) => {
+export const PortalHeader: React.FC<PortalHeaderProps> = ({ church, currentRoute = 'home', onNavigate }) => {
     const [contributor, setContributor] = useState<ContributorMockProfile | null>(null);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [deferredPrompt, setDeferredPrompt] = useState<any>(() => (window as any).deferredPwaPrompt || null);
@@ -91,13 +92,17 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({ church, onNavigate }
     const logoSrc = church?.logoUrl ? church.logoUrl : "/logo.png?v=15";
     const brandName = church?.name ? church.name : "IgGestor";
 
+    const isOfferActive = currentRoute === 'home' || currentRoute === 'church' || currentRoute === 'identify' || currentRoute === 'register';
+    const isPledgesActive = currentRoute === 'pledges';
+    const isReportsActive = currentRoute === 'reports';
+
     return (
-        <header className="sticky top-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 transition-colors">
-            <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
+        <header className="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 transition-colors">
+            <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 sm:h-15 flex items-center justify-between gap-4">
                 {/* Logo & Brand */}
                 <button 
                     onClick={() => onNavigate?.('home')}
-                    className="flex items-center gap-3 text-left group focus:outline-none cursor-pointer max-w-[220px] sm:max-w-none"
+                    className="flex items-center gap-2.5 text-left group focus:outline-none cursor-pointer max-w-[220px] sm:max-w-none shrink-0"
                     type="button"
                 >
                     <img 
@@ -105,143 +110,165 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({ church, onNavigate }
                         alt={`${brandName} Logo`} 
                         loading="eager" 
                         decoding="async"
-                        className="h-8 w-8 sm:h-9 sm:w-9 object-contain p-0.5 rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white shadow-2xs transition-transform group-hover:scale-105 shrink-0"
+                        referrerPolicy="no-referrer"
+                        className="h-8 w-8 object-contain p-0.5 rounded-lg border border-slate-200/80 dark:border-slate-700 bg-white shadow-2xs shrink-0"
                         onError={(e) => {
                             (e.target as HTMLImageElement).src = "/logo.png?v=15";
                         }}
                     />
                     <div className="flex flex-col min-w-0">
-                        <span className="text-xs sm:text-sm font-black tracking-tight text-slate-800 dark:text-white uppercase truncate max-w-[140px] sm:max-w-[280px]">
+                        <span className="text-xs sm:text-sm font-bold tracking-tight text-slate-900 dark:text-white truncate max-w-[140px] sm:max-w-[240px]">
                             {brandName}
                         </span>
-                        <span className="text-[9px] sm:text-[10px] font-bold tracking-widest text-brand-blue dark:text-blue-400 uppercase truncate">
+                        <span className="text-[11px] font-medium text-orange-600 dark:text-orange-400 truncate leading-tight">
                             Portal do Contribuinte
                         </span>
                     </div>
                 </button>
 
-                {/* Desktop Navigation Links */}
-                <nav className="hidden lg:flex items-center gap-1 bg-slate-100/80 dark:bg-slate-800/80 p-1 rounded-2xl border border-slate-200/60 dark:border-slate-700/60">
+                {/* Desktop Navigation Links — Standard #8 Segmented Capsule */}
+                <nav className="hidden lg:flex items-center gap-1 p-1 bg-slate-100/90 dark:bg-slate-800/80 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
                     <button
+                        type="button"
                         onClick={() => onNavigate?.('home')}
-                        className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 shadow-2xs cursor-pointer"
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                            isOfferActive
+                                ? 'bg-orange-600 text-white shadow-xs'
+                                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                        }`}
                     >
-                        <HeartHandshake className="w-4 h-4 text-brand-orange" />
+                        <HeartHandshake className="w-3.5 h-3.5 shrink-0" />
                         <span>Fazer Oferta</span>
                     </button>
 
                     <button
+                        type="button"
                         onClick={() => onNavigate?.('pledges')}
-                        className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 shadow-2xs cursor-pointer"
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                            isPledgesActive
+                                ? 'bg-orange-600 text-white shadow-xs'
+                                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                        }`}
                     >
-                        <BookmarkPlus className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                        <span>Carnês & Propósitos</span>
+                        <BookmarkPlus className="w-3.5 h-3.5 shrink-0" />
+                        <span>Carnês &amp; Propósitos</span>
                     </button>
 
                     <button
+                        type="button"
                         onClick={() => onNavigate?.('reports')}
-                        className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 shadow-2xs cursor-pointer"
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                            isReportsActive
+                                ? 'bg-orange-600 text-white shadow-xs'
+                                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                        }`}
                     >
-                        <FileText className="w-4 h-4 text-brand-blue" />
+                        <FileText className="w-3.5 h-3.5 shrink-0" />
                         <span>Minhas Contribuições</span>
                     </button>
                 </nav>
 
-                {/* Baixar App PWA & Profile / Church Status */}
-                <div className="flex items-center gap-2 sm:gap-3">
+                {/* Baixar App PWA & Profile */}
+                <div className="flex items-center gap-2 shrink-0">
                     {/* Baixar App Button */}
                     <button
                         type="button"
                         onClick={handleDownloadApp}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-xs font-bold shadow-sm shadow-emerald-500/20 transition-all cursor-pointer transform hover:scale-105"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs whitespace-nowrap transition-colors cursor-pointer"
                         title="Baixar aplicativo no celular"
                     >
-                        <Download className="w-3.5 h-3.5" />
+                        <Download className="w-3.5 h-3.5 shrink-0" />
                         <span className="hidden sm:inline">Baixar App</span>
                     </button>
 
-                    <div className="hidden sm:flex items-center">
-                        {contributor ? (
-                            <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 py-1 px-2.5 rounded-full border border-slate-200/80 dark:border-slate-700">
-                                <div className="w-6 h-6 rounded-full bg-brand-orange text-white flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden">
-                                    {(contributor.photo_url || contributor.avatarUrl || contributor.photo) ? (
-                                        <img 
-                                            src={contributor.photo_url || contributor.avatarUrl || contributor.photo} 
-                                            alt={contributor.name || 'Contribuinte'} 
-                                            className="w-full h-full object-cover" 
-                                            referrerPolicy="no-referrer"
-                                        />
-                                    ) : (
-                                        contributor.name ? contributor.name.charAt(0).toUpperCase() : 'C'
-                                    )}
-                                </div>
-                                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate max-w-[100px]">
-                                    {contributor.name.split(' ')[0]}
-                                </span>
-                                <button
-                                    onClick={handleLogout}
-                                    className="text-slate-400 hover:text-rose-500 p-1 transition-colors cursor-pointer"
-                                    title="Sair / Desconectar"
-                                >
-                                    <LogOut className="w-3.5 h-3.5" />
-                                </button>
+                    {contributor && (
+                        <div className="hidden sm:flex items-center gap-2 bg-slate-100/90 dark:bg-slate-800 py-1 px-2.5 rounded-lg border border-slate-200/80 dark:border-slate-700">
+                            <div className="w-6 h-6 rounded-md bg-orange-600 text-white flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden">
+                                {(contributor.photo_url || contributor.avatarUrl || contributor.photo) ? (
+                                    <img 
+                                        src={contributor.photo_url || contributor.avatarUrl || contributor.photo} 
+                                        alt={contributor.name || 'Contribuinte'} 
+                                        className="w-full h-full object-cover" 
+                                        referrerPolicy="no-referrer"
+                                    />
+                                ) : (
+                                    contributor.name ? contributor.name.charAt(0).toUpperCase() : 'C'
+                                )}
                             </div>
-                        ) : church ? (
-                            <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-full border border-slate-200/60 dark:border-slate-700/60">
-                                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                                <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate max-w-[120px] lg:max-w-[180px]">
-                                    {church.name}
-                                </span>
-                            </div>
-                        ) : (
-                            <span className="text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 tracking-wider">
-                                Acesso Público
+                            <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[100px]">
+                                {contributor.name.split(' ')[0]}
                             </span>
-                        )}
-                    </div>
+                            <button
+                                type="button"
+                                onClick={handleLogout}
+                                className="text-slate-400 hover:text-rose-500 p-0.5 transition-colors cursor-pointer"
+                                title="Sair / Desconectar"
+                            >
+                                <LogOut className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+                    )}
 
                     {/* Mobile Menu Toggle */}
                     <button
+                        type="button"
                         onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                        className="lg:hidden p-2 text-slate-600 dark:text-slate-300 rounded-xl bg-slate-100 dark:bg-slate-800 cursor-pointer"
+                        className="lg:hidden p-2 text-slate-600 dark:text-slate-300 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/70 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                        aria-label="Abrir menu"
                     >
-                        {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                        {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
                     </button>
                 </div>
             </div>
 
             {/* Mobile Navigation Drawer */}
             {mobileMenuOpen && (
-                <div className="lg:hidden border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 space-y-2">
+                <div className="lg:hidden border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 space-y-1.5">
                     <button
+                        type="button"
                         onClick={() => { onNavigate?.('home'); setMobileMenuOpen(false); }}
-                        className="w-full flex items-center gap-3 p-2.5 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                        className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                            isOfferActive
+                                ? 'bg-orange-600 text-white shadow-xs'
+                                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
                     >
-                        <HeartHandshake className="w-4 h-4 text-brand-orange" />
+                        <HeartHandshake className="w-4 h-4 shrink-0" />
                         <span>Fazer Oferta / Contribuição</span>
                     </button>
 
                     <button
+                        type="button"
                         onClick={() => { onNavigate?.('pledges'); setMobileMenuOpen(false); }}
-                        className="w-full flex items-center gap-3 p-2.5 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                        className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                            isPledgesActive
+                                ? 'bg-orange-600 text-white shadow-xs'
+                                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
                     >
-                        <BookmarkPlus className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                        <span>Carnês & Propósitos de Fé</span>
+                        <BookmarkPlus className="w-4 h-4 shrink-0" />
+                        <span>Carnês &amp; Propósitos de Fé</span>
                     </button>
 
                     <button
+                        type="button"
                         onClick={() => { onNavigate?.('reports'); setMobileMenuOpen(false); }}
-                        className="w-full flex items-center gap-3 p-2.5 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                        className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                            isReportsActive
+                                ? 'bg-orange-600 text-white shadow-xs'
+                                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
                     >
-                        <FileText className="w-4 h-4 text-brand-blue" />
+                        <FileText className="w-4 h-4 shrink-0" />
                         <span>Minhas Contribuições (Relatório)</span>
                     </button>
 
                     <button
+                        type="button"
                         onClick={() => { handleDownloadApp(); setMobileMenuOpen(false); }}
-                        className="w-full flex items-center gap-3 p-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-600 shadow-sm cursor-pointer"
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs transition-colors cursor-pointer"
                     >
-                        <Smartphone className="w-4 h-4" />
+                        <Smartphone className="w-4 h-4 shrink-0" />
                         <span>Baixar Aplicativo no Celular</span>
                     </button>
 

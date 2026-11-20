@@ -2,7 +2,7 @@ import React, { useState, useContext, useMemo, useRef, useEffect, useCallback, m
 import { AppContext } from '../contexts/AppContext';
 import { useUI } from '../contexts/UIContext';
 import { useAuth } from '../contexts/AuthContext';
-import { ContributorsReportSection } from '../components/reports/ContributorsReportSection';
+import { ContributorsReportSection, ContributorsReportHandle } from '../components/reports/ContributorsReportSection';
 import { ExportService } from '../services/ExportService';
 import { 
     Users, 
@@ -14,8 +14,6 @@ import {
     DollarSign, 
     Calendar, 
     Search, 
-    Download, 
-    Printer, 
     ArrowRight, 
     ArrowLeft,
     SlidersHorizontal,
@@ -25,9 +23,7 @@ import {
     Filter,
     ArrowUpRight,
     ArrowDownRight,
-    Sparkles,
     Table2,
-    Layers,
     ChevronDown,
     ChevronUp,
     Check,
@@ -35,11 +31,13 @@ import {
     RefreshCw,
     Tag,
     X,
-    FileSpreadsheet,
-    FileCode,
     ChevronLeft,
-    ChevronRight
+    ChevronRight,
+    Landmark
 } from 'lucide-react';
+import { BuildingOfficeIcon } from '../components/Icons';
+import { PeriodSelector, PeriodSelectionMode, DEFAULT_MONTHS_LIST } from '../components/reports/PeriodSelector';
+import { ExportPrintActions } from '../components/reports/ExportPrintActions';
 
 export const RelatoriosView: React.FC = memo(() => {
     const { setActiveView, showToast } = useUI();
@@ -55,16 +53,28 @@ export const RelatoriosView: React.FC = memo(() => {
     const [balanceteType, setBalanceteType] = useState<'sintetico' | 'analitico' | 'contabil'>('sintetico');
 
     // Global filters for financial reports
+    const now = useMemo(() => new Date(), []);
     const [searchTerm, setSearchTerm] = useState('');
-    const [dateRange, setDateRange] = useState<'all' | 'month' | 'last-month' | 'quarter' | 'year' | 'custom'>('month');
+    const [selectionMode, setSelectionMode] = useState<PeriodSelectionMode>('month');
+    const [selectedMonth, setSelectedMonth] = useState<number>(now.getMonth() + 1);
+    const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
     const [customStartDate, setCustomStartDate] = useState<string>('');
     const [customEndDate, setCustomEndDate] = useState<string>('');
     const [balanceteCurrentPage, setBalanceteCurrentPage] = useState<number>(1);
     const BALANCETE_ITEMS_PER_PAGE = 50;
+
+    const currentYear = now.getFullYear();
+    const yearsList = useMemo(() => {
+        const list = [currentYear + 1, currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
+        if (!list.includes(selectedYear)) list.push(selectedYear);
+        return Array.from(new Set(list)).sort((a, b) => b - a);
+    }, [currentYear, selectedYear]);
     
-    // Multi-select church filter
+    // Multi-select church & bank filters
     const [selectedChurchIds, setSelectedChurchIds] = useState<string[]>([]);
     const [isChurchDropdownOpen, setIsChurchDropdownOpen] = useState<boolean>(false);
+    const [selectedBankIds, setSelectedBankIds] = useState<string[]>([]);
+    const [isBankDropdownOpen, setIsBankDropdownOpen] = useState<boolean>(false);
 
     // Expenses / Categories tab multi-category filter & drilldown state
     const [categoryTypeFilter, setCategoryTypeFilter] = useState<'all' | 'income' | 'expense'>('all');
@@ -75,9 +85,6 @@ export const RelatoriosView: React.FC = memo(() => {
     const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
     const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState<boolean>(false);
 
-    // Export dropdown state
-    const [showExportLivroCaixa, setShowExportLivroCaixa] = useState<boolean>(false);
-    const [showExportBalancete, setShowExportBalancete] = useState<boolean>(false);
     const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
     // Header Report Dropdowns state
@@ -117,9 +124,9 @@ export const RelatoriosView: React.FC = memo(() => {
     };
 
     const churchDropdownRef = useRef<HTMLDivElement>(null);
+    const bankDropdownRef = useRef<HTMLDivElement>(null);
     const categoryDropdownRef = useRef<HTMLDivElement>(null);
-    const exportLivroCaixaRef = useRef<HTMLDivElement>(null);
-    const exportBalanceteRef = useRef<HTMLDivElement>(null);
+    const contributorsReportRef = useRef<ContributorsReportHandle>(null);
     const balanceteMenuRef = useRef<HTMLDivElement>(null);
     const categoryMenuRef = useRef<HTMLDivElement>(null);
 
@@ -133,6 +140,11 @@ export const RelatoriosView: React.FC = memo(() => {
         if (!isSecondaryUser) return null;
         return subscription?.congregationIds || [];
     }, [isSecondaryUser, subscription?.congregationIds]);
+
+    const allowedBankIds = useMemo(() => {
+        if (!isSecondaryUser) return null;
+        return subscription?.bankIds || [];
+    }, [isSecondaryUser, subscription?.bankIds]);
 
     const churches = useMemo(() => {
         const raw = context?.churches || [];
@@ -148,6 +160,20 @@ export const RelatoriosView: React.FC = memo(() => {
         return map;
     }, [churches]);
 
+    const banks = useMemo(() => {
+        const raw = context?.banks || [];
+        let list = raw;
+        if (isSecondaryUser && allowedBankIds && allowedBankIds.length > 0) {
+            list = list.filter((b: any) => allowedBankIds.includes(b.id));
+        }
+        if (context?.bankList && context.bankList.length > 0) {
+            const validBankIds = new Set(context.bankList.map((b: any) => b.id));
+            const filteredByRegistered = list.filter((b: any) => validBankIds.has(b.id));
+            if (filteredByRegistered.length > 0) return filteredByRegistered;
+        }
+        return list;
+    }, [context?.banks, context?.bankList, isSecondaryUser, allowedBankIds]);
+
     const reportData = context?.reportData || [];
     const contributorFiles = context?.contributorFiles || [];
 
@@ -157,14 +183,11 @@ export const RelatoriosView: React.FC = memo(() => {
             if (churchDropdownRef.current && !churchDropdownRef.current.contains(event.target as Node)) {
                 setIsChurchDropdownOpen(false);
             }
+            if (bankDropdownRef.current && !bankDropdownRef.current.contains(event.target as Node)) {
+                setIsBankDropdownOpen(false);
+            }
             if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target as Node)) {
                 setIsCategoryDropdownOpen(false);
-            }
-            if (exportLivroCaixaRef.current && !exportLivroCaixaRef.current.contains(event.target as Node)) {
-                setShowExportLivroCaixa(false);
-            }
-            if (exportBalanceteRef.current && !exportBalanceteRef.current.contains(event.target as Node)) {
-                setShowExportBalancete(false);
             }
             if (balanceteMenuRef.current && !balanceteMenuRef.current.contains(event.target as Node)) {
                 setIsBalanceteMenuOpen(false);
@@ -194,7 +217,12 @@ export const RelatoriosView: React.FC = memo(() => {
         return churches.find((c: any) => c.id === cId)?.name || 'Igreja Sede';
     };
 
-    // Toggle multi-select church filter
+    const getBankName = (bId: string) => {
+        const b = banks.find((item: any) => item.id === bId);
+        return b ? (b.account_name || b.name || 'Banco') : 'Banco';
+    };
+
+    // Toggle multi-select church & bank filters
     const toggleChurchSelection = (churchId: string) => {
         if (churchId === 'ALL') {
             setSelectedChurchIds([]);
@@ -209,23 +237,44 @@ export const RelatoriosView: React.FC = memo(() => {
         });
     };
 
-    // Filter reportData by search, multi-church, and period filters
-    const filteredReportData = useMemo(() => {
-        const now = new Date();
-        const currentYear = now.getFullYear();
-        const currentMonth = now.getMonth();
-
-        let lastMonthYear = currentYear;
-        let lastMonthIndex = currentMonth - 1;
-        if (lastMonthIndex < 0) {
-            lastMonthIndex = 11;
-            lastMonthYear = currentYear - 1;
+    const toggleBankSelection = (bankId: string) => {
+        if (bankId === 'ALL') {
+            setSelectedBankIds([]);
+            return;
         }
+        setSelectedBankIds(prev => {
+            if (prev.includes(bankId)) {
+                return prev.filter(id => id !== bankId);
+            } else {
+                return [...prev, bankId];
+            }
+        });
+    };
 
-        const currentMonthPrefix = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
-        const lastMonthPrefix = `${lastMonthYear}-${String(lastMonthIndex + 1).padStart(2, '0')}`;
-        const currentYearPrefix = String(currentYear);
-        const currentQuarter = Math.floor(currentMonth / 3);
+    const handleMonthYearSelect = (month: number, year: number) => {
+        setSelectedMonth(month);
+        setSelectedYear(year);
+    };
+
+    const handleCustomDatesChange = (start: string, end: string) => {
+        setCustomStartDate(start);
+        setCustomEndDate(end);
+    };
+
+    const handlePeriodModeChange = (mode: PeriodSelectionMode) => {
+        setSelectionMode(mode);
+        if (mode === 'dates' && (!customStartDate || !customEndDate)) {
+            const start = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`;
+            const lastDay = new Date(selectedYear, selectedMonth, 0).getDate();
+            const end = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+            if (!customStartDate) setCustomStartDate(start);
+            if (!customEndDate) setCustomEndDate(end);
+        }
+    };
+
+    // Filter reportData by search, multi-church, multi-bank, and period filters
+    const filteredReportData = useMemo(() => {
+        const targetMonthPrefix = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
         const customStartIso = customStartDate ? customStartDate.split('T')[0] : null;
         const customEndIso = customEndDate ? customEndDate.split('T')[0] : null;
         const lowerSearch = searchTerm.trim().toLowerCase();
@@ -263,6 +312,20 @@ export const RelatoriosView: React.FC = memo(() => {
                 if (!matchesAny) return false;
             }
 
+            // Multi-bank filter
+            if (selectedBankIds.length > 0) {
+                const itemBankId = item.bankId || item.raw?.transaction?.bank_id || item.raw?.bankId;
+                const itemBankName = item.bankName;
+                const matchesBank = selectedBankIds.some(bId => {
+                    if (itemBankId && itemBankId === bId) return true;
+                    const bObj = banks.find((b: any) => b.id === bId);
+                    if (!bObj) return false;
+                    const bName = (bObj.account_name || bObj.name || '').toLowerCase();
+                    return Boolean(itemBankName && itemBankName.toLowerCase() === bName);
+                });
+                if (!matchesBank) return false;
+            }
+
             // Search query
             if (lowerSearch) {
                 const desc = (item.desc || item.description || item.historico || '').toLowerCase();
@@ -276,19 +339,11 @@ export const RelatoriosView: React.FC = memo(() => {
             }
 
             // Date filter (Fast string comparison without Date instance allocations)
-            if (item.date) {
+            if (item.date && selectionMode !== 'all') {
                 const itemIso = String(item.date).split(/[T ]/)[0];
-                if (dateRange === 'month') {
-                    if (!itemIso.startsWith(currentMonthPrefix)) return false;
-                } else if (dateRange === 'last-month') {
-                    if (!itemIso.startsWith(lastMonthPrefix)) return false;
-                } else if (dateRange === 'quarter') {
-                    if (!itemIso.startsWith(currentYearPrefix)) return false;
-                    const monthNum = Number(itemIso.slice(5, 7));
-                    if (Math.floor((monthNum - 1) / 3) !== currentQuarter) return false;
-                } else if (dateRange === 'year') {
-                    if (!itemIso.startsWith(currentYearPrefix)) return false;
-                } else if (dateRange === 'custom') {
+                if (selectionMode === 'month') {
+                    if (!itemIso.startsWith(targetMonthPrefix)) return false;
+                } else if (selectionMode === 'dates') {
                     if (customStartIso && itemIso < customStartIso) return false;
                     if (customEndIso && itemIso > customEndIso) return false;
                 }
@@ -296,13 +351,13 @@ export const RelatoriosView: React.FC = memo(() => {
 
             return true;
         });
-    }, [reportData, selectedChurchIds, searchTerm, dateRange, customStartDate, customEndDate, churchNameMap, isSecondaryUser, allowedChurchIds]);
+    }, [reportData, selectedChurchIds, selectedBankIds, banks, searchTerm, selectionMode, selectedMonth, selectedYear, customStartDate, customEndDate, churchNameMap, isSecondaryUser, allowedChurchIds]);
 
     const balanceteTotalPages = Math.ceil(filteredReportData.length / BALANCETE_ITEMS_PER_PAGE) || 1;
 
     useEffect(() => {
         setBalanceteCurrentPage(1);
-    }, [dateRange, customStartDate, customEndDate, selectedChurchIds, searchTerm, balanceteType]);
+    }, [selectionMode, selectedMonth, selectedYear, customStartDate, customEndDate, selectedChurchIds, selectedBankIds, searchTerm, balanceteType]);
 
     useEffect(() => {
         if (balanceteCurrentPage > balanceteTotalPages && balanceteTotalPages > 0) {
@@ -743,9 +798,8 @@ export const RelatoriosView: React.FC = memo(() => {
         setExpandedCategory(prev => prev === catName ? null : catName);
     };
 
-    // Export Handler for Livro Caixa
+    // Export Handler for Livro Caixa / Resumo
     const handleExportLivroCaixa = (format: 'pdf' | 'excel' | 'csv' | 'ofx') => {
-        setShowExportLivroCaixa(false);
         if (!canDownload) {
             showToast('Você não tem permissão para baixar arquivos ou relatórios.', 'error');
             return;
@@ -766,7 +820,6 @@ export const RelatoriosView: React.FC = memo(() => {
 
     // Export Handler for Balancete
     const handleExportBalancete = (format: 'pdf' | 'excel' | 'csv' | 'ofx') => {
-        setShowExportBalancete(false);
         if (!canDownload) {
             showToast('Você não tem permissão para baixar arquivos ou relatórios.', 'error');
             return;
@@ -834,38 +887,82 @@ export const RelatoriosView: React.FC = memo(() => {
         }
     };
 
-    // If report has not been generated yet, show the full Configuration Panel
+    const handleTopExport = (format: 'pdf' | 'excel' | 'csv' | 'ofx') => {
+        if (activeTab === 'contributors') {
+            contributorsReportRef.current?.downloadFormat(format);
+        } else if (activeTab === 'balancete') {
+            handleExportBalancete(format);
+        } else {
+            handleExportLivroCaixa(format);
+        }
+    };
+
+    const handleTopPrint = () => {
+        if (activeTab === 'contributors') {
+            contributorsReportRef.current?.print();
+        } else {
+            handlePrint();
+        }
+    };
+
+    const activeReportSummary =
+        activeTab === 'contributors'
+            ? 'Dizimistas & Contribuintes'
+            : activeTab === 'balancete'
+            ? `Balancete (${balanceteType === 'sintetico' ? 'Sintético' : balanceteType === 'analitico' ? 'Analítico' : 'Contábil'})`
+            : activeTab === 'churches'
+            ? 'Resumo por Igreja'
+            : `Categorias (${categoryTypeFilter === 'all' ? 'Todas' : categoryTypeFilter === 'income' ? 'Receitas' : 'Despesas'})`;
+
+    const activePeriodSummary =
+        selectionMode === 'all'
+            ? 'Todo o Período'
+            : selectionMode === 'month'
+            ? `${DEFAULT_MONTHS_LIST.find(m => m.val === selectedMonth)?.name || ''}/${selectedYear}`
+            : customStartDate && customEndDate
+            ? `${formatDateBRL(customStartDate)} até ${formatDateBRL(customEndDate)}`
+            : 'Período Personalizado';
+
+    const activeChurchSummary =
+        selectedChurchIds.length === 0
+            ? 'Todas as Igrejas'
+            : selectedChurchIds.length === 1
+            ? getChurchName(selectedChurchIds[0])
+            : `${selectedChurchIds.length} igrejas`;
+
+    const activeBankSummary =
+        selectedBankIds.length === 0
+            ? 'Todos os Bancos'
+            : selectedBankIds.length === 1
+            ? getBankName(selectedBankIds[0])
+            : `${selectedBankIds.length} bancos`;
+
+    // If report has not been generated yet, show the Clean Unified Configuration Panel
     if (!hasGenerated) {
         return (
-            <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full min-h-full flex flex-col animate-fade-in pb-8 md:pb-4">
-                {/* Title Card */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-5 md:p-6 rounded-3xl shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3.5">
-                        <div className="p-3 bg-gradient-to-br from-orange-500 to-amber-600 rounded-2xl text-white shadow-lg shadow-orange-500/20">
-                            <FileText className="w-7 h-7" />
+            <div className="px-1 py-3 md:px-2 w-full space-y-3 max-w-full min-h-full flex flex-col animate-fade-in pb-8 md:pb-4">
+                {/* Cabeçalho Compacto Padrão */}
+                <div className="bg-white dark:bg-slate-900 px-4 py-2.5 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex-shrink-0">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 bg-orange-50 dark:bg-orange-950/40 border border-orange-200/60 dark:border-orange-900/40 rounded-lg flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
+                            <FileText className="w-4 h-4 stroke-[2]" />
                         </div>
-                        <div>
-                            <h1 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">
-                                Central de Relatórios IgGestor
+                        <div className="min-w-0">
+                            <h1 className="text-base font-bold text-slate-900 dark:text-white tracking-tight leading-tight">
+                                Relatórios
                             </h1>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-                                Configure os filtros e selecione o relatório desejado antes de gerar a visualização completa.
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+                                Escolha o tipo de relatório, filtre período, igreja ou banco e gere a visualização.
                             </p>
                         </div>
                     </div>
                 </div>
 
-                {/* Step 1: Tipo de Relatório */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-5 md:p-6 rounded-3xl shadow-sm space-y-4">
-                    <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-white/5">
-                        <Sparkles className="w-4 h-4 text-orange-500" />
-                        <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-white">
-                            1. Tipo de Relatório Desejado
-                        </h3>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                        {/* Button 1: Dizimistas & Contribuintes */}
+                {/* Painel Único de Seleção e Filtros */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-3.5 sm:p-4 rounded-xl shadow-xs space-y-3">
+                    {/* Linha 1: Tipo de Relatório em Pills Compactos (padrão Financeiro) */}
+                    <div className="grid grid-cols-2 sm:inline-flex items-stretch sm:items-center gap-1 p-1 bg-slate-100/90 dark:bg-slate-800/80 rounded-xl border border-slate-200/70 dark:border-slate-700/70 w-full sm:w-auto">
+                        {/* Tab 1: Dizimistas & Contribuintes */}
                         <button
                             type="button"
                             onClick={() => {
@@ -873,26 +970,18 @@ export const RelatoriosView: React.FC = memo(() => {
                                 setIsBalanceteMenuOpen(false);
                                 setIsCategoryMenuOpen(false);
                             }}
-                            className={`p-4 rounded-2xl border text-left transition-all flex items-center justify-between gap-3 cursor-pointer ${
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center justify-center sm:justify-start gap-1.5 cursor-pointer whitespace-nowrap min-w-0 ${
                                 activeTab === 'contributors'
-                                    ? 'bg-orange-50/90 dark:bg-orange-950/40 border-orange-500 text-orange-900 dark:text-orange-200 ring-2 ring-orange-500/20 shadow-xs font-bold'
-                                    : 'bg-slate-50/70 dark:bg-slate-800/40 border-slate-200/70 dark:border-slate-800 hover:border-orange-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300'
+                                    ? 'bg-orange-600 text-white shadow-xs'
+                                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                             }`}
                         >
-                            <div className="flex items-center gap-3 min-w-0">
-                                <div className={`p-2.5 rounded-xl shrink-0 ${activeTab === 'contributors' ? 'bg-orange-500 text-white' : 'bg-orange-500/10 text-orange-600 dark:text-orange-400'}`}>
-                                    <Users className="w-5 h-5" />
-                                </div>
-                                <div className="truncate">
-                                    <h4 className="font-extrabold text-xs truncate">Dizimistas & Contribuintes</h4>
-                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">Dízimos e membros</p>
-                                </div>
-                            </div>
-                            {activeTab === 'contributors' && <CheckCircle2 className="w-5 h-5 text-orange-500 shrink-0" />}
+                            <Users className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate">Dizimistas</span>
                         </button>
 
-                        {/* Button 2: Balancete Financeiro */}
-                        <div className="relative" ref={balanceteMenuRef}>
+                        {/* Tab 2: Balancete Financeiro (Dropdown) */}
+                        <div className="relative flex" ref={balanceteMenuRef}>
                             <button
                                 type="button"
                                 onClick={() => {
@@ -902,31 +991,23 @@ export const RelatoriosView: React.FC = memo(() => {
                                     setIsBalanceteMenuOpen(!isBalanceteMenuOpen);
                                     setIsCategoryMenuOpen(false);
                                 }}
-                                className={`w-full p-4 rounded-2xl border text-left transition-all flex items-center justify-between gap-3 cursor-pointer ${
+                                className={`w-full px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center justify-center sm:justify-start gap-1.5 cursor-pointer whitespace-nowrap min-w-0 ${
                                     activeTab === 'balancete'
-                                        ? 'bg-blue-50/90 dark:bg-blue-950/40 border-blue-500 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/20 shadow-xs font-bold'
-                                        : 'bg-slate-50/70 dark:bg-slate-800/40 border-slate-200/70 dark:border-slate-800 hover:border-blue-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300'
+                                        ? 'bg-orange-600 text-white shadow-xs'
+                                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                                 }`}
                             >
-                                <div className="flex items-center gap-3 min-w-0">
-                                    <div className={`p-2.5 rounded-xl shrink-0 ${activeTab === 'balancete' ? 'bg-blue-600 text-white' : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'}`}>
-                                        <PieChart className="w-5 h-5" />
-                                    </div>
-                                    <div className="truncate">
-                                        <h4 className="font-extrabold text-xs truncate">
-                                            {activeTab === 'balancete'
-                                                ? `Balancete (${balanceteType === 'sintetico' ? 'Sintético' : balanceteType === 'analitico' ? 'Analítico' : 'Contábil'})`
-                                                : 'Balancete Financeiro'}
-                                        </h4>
-                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">Visões financeiras</p>
-                                    </div>
-                                </div>
-                                <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${isBalanceteMenuOpen ? 'rotate-180 text-blue-600' : 'text-slate-400'}`} />
+                                <PieChart className="w-3.5 h-3.5 shrink-0" />
+                                <span className="truncate">
+                                    {activeTab === 'balancete'
+                                        ? `Balancete · ${balanceteType === 'sintetico' ? 'Sintético' : balanceteType === 'analitico' ? 'Analítico' : 'Contábil'}`
+                                        : 'Balancete'}
+                                </span>
+                                <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${isBalanceteMenuOpen ? 'rotate-180' : ''}`} />
                             </button>
 
-                            {/* Dropdown Options for Balancete */}
                             {isBalanceteMenuOpen && (
-                                <div className="absolute left-0 right-0 mt-1.5 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-1.5 z-50 text-xs animate-scale-in">
+                                <div className="absolute left-0 top-full mt-1.5 w-60 bg-white dark:bg-slate-800 rounded-xl shadow-elevated border border-slate-200/90 dark:border-slate-700 p-1.5 z-50 text-xs animate-scale-in">
                                     <button
                                         type="button"
                                         onClick={() => {
@@ -934,9 +1015,9 @@ export const RelatoriosView: React.FC = memo(() => {
                                             setBalanceteType('sintetico');
                                             setIsBalanceteMenuOpen(false);
                                         }}
-                                        className={`w-full p-2.5 rounded-xl text-left font-bold transition-colors flex items-center justify-between cursor-pointer ${
+                                        className={`w-full p-2 rounded-lg text-left font-semibold transition-colors flex items-center justify-between cursor-pointer ${
                                             activeTab === 'balancete' && balanceteType === 'sintetico'
-                                                ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300'
+                                                ? 'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300'
                                                 : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200'
                                         }`}
                                     >
@@ -944,7 +1025,7 @@ export const RelatoriosView: React.FC = memo(() => {
                                             <div>Sintético (Resumo)</div>
                                             <div className="text-[10px] text-slate-400 font-normal">Visão acumulada por grupo</div>
                                         </div>
-                                        {activeTab === 'balancete' && balanceteType === 'sintetico' && <Check className="w-4 h-4 text-blue-600" />}
+                                        {activeTab === 'balancete' && balanceteType === 'sintetico' && <Check className="w-3.5 h-3.5 text-orange-600" />}
                                     </button>
 
                                     <button
@@ -954,9 +1035,9 @@ export const RelatoriosView: React.FC = memo(() => {
                                             setBalanceteType('analitico');
                                             setIsBalanceteMenuOpen(false);
                                         }}
-                                        className={`w-full p-2.5 rounded-xl text-left font-bold transition-colors flex items-center justify-between cursor-pointer ${
+                                        className={`w-full p-2 rounded-lg text-left font-semibold transition-colors flex items-center justify-between cursor-pointer ${
                                             activeTab === 'balancete' && balanceteType === 'analitico'
-                                                ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300'
+                                                ? 'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300'
                                                 : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200'
                                         }`}
                                     >
@@ -964,7 +1045,7 @@ export const RelatoriosView: React.FC = memo(() => {
                                             <div>Analítico (Extrato)</div>
                                             <div className="text-[10px] text-slate-400 font-normal">Extrato completo de lançamentos</div>
                                         </div>
-                                        {activeTab === 'balancete' && balanceteType === 'analitico' && <Check className="w-4 h-4 text-blue-600" />}
+                                        {activeTab === 'balancete' && balanceteType === 'analitico' && <Check className="w-3.5 h-3.5 text-orange-600" />}
                                     </button>
 
                                     <button
@@ -974,9 +1055,9 @@ export const RelatoriosView: React.FC = memo(() => {
                                             setBalanceteType('contabil');
                                             setIsBalanceteMenuOpen(false);
                                         }}
-                                        className={`w-full p-2.5 rounded-xl text-left font-bold transition-colors flex items-center justify-between cursor-pointer ${
+                                        className={`w-full p-2 rounded-lg text-left font-semibold transition-colors flex items-center justify-between cursor-pointer ${
                                             activeTab === 'balancete' && balanceteType === 'contabil'
-                                                ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300'
+                                                ? 'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300'
                                                 : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200'
                                         }`}
                                     >
@@ -984,13 +1065,13 @@ export const RelatoriosView: React.FC = memo(() => {
                                             <div>Contábil (Razão)</div>
                                             <div className="text-[10px] text-slate-400 font-normal">Formato contábil estruturado</div>
                                         </div>
-                                        {activeTab === 'balancete' && balanceteType === 'contabil' && <Check className="w-4 h-4 text-blue-600" />}
+                                        {activeTab === 'balancete' && balanceteType === 'contabil' && <Check className="w-3.5 h-3.5 text-orange-600" />}
                                     </button>
                                 </div>
                             )}
                         </div>
 
-                        {/* Button 3: Resumo por Igreja */}
+                        {/* Tab 3: Resumo por Igreja */}
                         <button
                             type="button"
                             onClick={() => {
@@ -998,26 +1079,18 @@ export const RelatoriosView: React.FC = memo(() => {
                                 setIsBalanceteMenuOpen(false);
                                 setIsCategoryMenuOpen(false);
                             }}
-                            className={`p-4 rounded-2xl border text-left transition-all flex items-center justify-between gap-3 cursor-pointer ${
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center justify-center sm:justify-start gap-1.5 cursor-pointer whitespace-nowrap min-w-0 ${
                                 activeTab === 'churches'
-                                    ? 'bg-emerald-50/90 dark:bg-emerald-950/40 border-emerald-500 text-emerald-900 dark:text-emerald-200 ring-2 ring-emerald-500/20 shadow-xs font-bold'
-                                    : 'bg-slate-50/70 dark:bg-slate-800/40 border-slate-200/70 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300'
+                                    ? 'bg-orange-600 text-white shadow-xs'
+                                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                             }`}
                         >
-                            <div className="flex items-center gap-3 min-w-0">
-                                <div className={`p-2.5 rounded-xl shrink-0 ${activeTab === 'churches' ? 'bg-emerald-600 text-white' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'}`}>
-                                    <Building2 className="w-5 h-5" />
-                                </div>
-                                <div className="truncate">
-                                    <h4 className="font-extrabold text-xs truncate">Resumo por Igreja</h4>
-                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">Comparativo de congregações</p>
-                                </div>
-                            </div>
-                            {activeTab === 'churches' && <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />}
+                            <BuildingOfficeIcon className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate">Resumo por Igreja</span>
                         </button>
 
-                        {/* Button 4: Relatório por Categoria */}
-                        <div className="relative" ref={categoryMenuRef}>
+                        {/* Tab 4: Categorias (Dropdown) */}
+                        <div className="relative flex" ref={categoryMenuRef}>
                             <button
                                 type="button"
                                 onClick={() => {
@@ -1027,31 +1100,23 @@ export const RelatoriosView: React.FC = memo(() => {
                                     setIsCategoryMenuOpen(!isCategoryMenuOpen);
                                     setIsBalanceteMenuOpen(false);
                                 }}
-                                className={`w-full p-4 rounded-2xl border text-left transition-all flex items-center justify-between gap-3 cursor-pointer ${
+                                className={`w-full px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center justify-center sm:justify-start gap-1.5 cursor-pointer whitespace-nowrap min-w-0 ${
                                     activeTab === 'expenses'
-                                        ? 'bg-purple-50/90 dark:bg-purple-950/40 border-purple-500 text-purple-900 dark:text-purple-200 ring-2 ring-purple-500/20 shadow-xs font-bold'
-                                        : 'bg-slate-50/70 dark:bg-slate-800/40 border-slate-200/70 dark:border-slate-800 hover:border-purple-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300'
+                                        ? 'bg-orange-600 text-white shadow-xs'
+                                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                                 }`}
                             >
-                                <div className="flex items-center gap-3 min-w-0">
-                                    <div className={`p-2.5 rounded-xl shrink-0 ${activeTab === 'expenses' ? 'bg-purple-600 text-white' : 'bg-purple-500/10 text-purple-600 dark:text-purple-400'}`}>
-                                        <Tag className="w-5 h-5" />
-                                    </div>
-                                    <div className="truncate">
-                                        <h4 className="font-extrabold text-xs truncate">
-                                            {activeTab === 'expenses'
-                                                ? `Categoria (${categoryTypeFilter === 'all' ? 'Todas' : categoryTypeFilter === 'income' ? 'Receitas' : 'Despesas'})`
-                                                : 'Relatório por Categoria'}
-                                        </h4>
-                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">Receitas e despesas</p>
-                                    </div>
-                                </div>
-                                <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${isCategoryMenuOpen ? 'rotate-180 text-purple-600' : 'text-slate-400'}`} />
+                                <Tag className="w-3.5 h-3.5 shrink-0" />
+                                <span className="truncate">
+                                    {activeTab === 'expenses'
+                                        ? `Categorias · ${categoryTypeFilter === 'all' ? 'Todas' : categoryTypeFilter === 'income' ? 'Receitas' : 'Despesas'}`
+                                        : 'Categorias'}
+                                </span>
+                                <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${isCategoryMenuOpen ? 'rotate-180' : ''}`} />
                             </button>
 
-                            {/* Dropdown Options for Categories */}
                             {isCategoryMenuOpen && (
-                                <div className="absolute left-0 right-0 mt-1.5 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-1.5 z-50 text-xs animate-scale-in">
+                                <div className="absolute right-0 sm:left-0 top-full mt-1.5 w-60 bg-white dark:bg-slate-800 rounded-xl shadow-elevated border border-slate-200/90 dark:border-slate-700 p-1.5 z-50 text-xs animate-scale-in">
                                     <button
                                         type="button"
                                         onClick={() => {
@@ -1059,9 +1124,9 @@ export const RelatoriosView: React.FC = memo(() => {
                                             setCategoryTypeFilter('all');
                                             setIsCategoryMenuOpen(false);
                                         }}
-                                        className={`w-full p-2.5 rounded-xl text-left font-bold transition-colors flex items-center justify-between cursor-pointer ${
+                                        className={`w-full p-2 rounded-lg text-left font-semibold transition-colors flex items-center justify-between cursor-pointer ${
                                             activeTab === 'expenses' && categoryTypeFilter === 'all'
-                                                ? 'bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300'
+                                                ? 'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300'
                                                 : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200'
                                         }`}
                                     >
@@ -1069,7 +1134,7 @@ export const RelatoriosView: React.FC = memo(() => {
                                             <div>Todas as Categorias</div>
                                             <div className="text-[10px] text-slate-400 font-normal">Receitas e despesas combinadas</div>
                                         </div>
-                                        {activeTab === 'expenses' && categoryTypeFilter === 'all' && <Check className="w-4 h-4 text-purple-600" />}
+                                        {activeTab === 'expenses' && categoryTypeFilter === 'all' && <Check className="w-3.5 h-3.5 text-orange-600" />}
                                     </button>
 
                                     <button
@@ -1079,9 +1144,9 @@ export const RelatoriosView: React.FC = memo(() => {
                                             setCategoryTypeFilter('income');
                                             setIsCategoryMenuOpen(false);
                                         }}
-                                        className={`w-full p-2.5 rounded-xl text-left font-bold transition-colors flex items-center justify-between cursor-pointer ${
+                                        className={`w-full p-2 rounded-lg text-left font-semibold transition-colors flex items-center justify-between cursor-pointer ${
                                             activeTab === 'expenses' && categoryTypeFilter === 'income'
-                                                ? 'bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300'
+                                                ? 'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300'
                                                 : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200'
                                         }`}
                                     >
@@ -1089,7 +1154,7 @@ export const RelatoriosView: React.FC = memo(() => {
                                             <div>Apenas Receitas</div>
                                             <div className="text-[10px] text-slate-400 font-normal">Entradas, dízimos e ofertas</div>
                                         </div>
-                                        {activeTab === 'expenses' && categoryTypeFilter === 'income' && <Check className="w-4 h-4 text-purple-600" />}
+                                        {activeTab === 'expenses' && categoryTypeFilter === 'income' && <Check className="w-3.5 h-3.5 text-orange-600" />}
                                     </button>
 
                                     <button
@@ -1099,9 +1164,9 @@ export const RelatoriosView: React.FC = memo(() => {
                                             setCategoryTypeFilter('expense');
                                             setIsCategoryMenuOpen(false);
                                         }}
-                                        className={`w-full p-2.5 rounded-xl text-left font-bold transition-colors flex items-center justify-between cursor-pointer ${
+                                        className={`w-full p-2 rounded-lg text-left font-semibold transition-colors flex items-center justify-between cursor-pointer ${
                                             activeTab === 'expenses' && categoryTypeFilter === 'expense'
-                                                ? 'bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300'
+                                                ? 'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300'
                                                 : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200'
                                         }`}
                                     >
@@ -1109,235 +1174,220 @@ export const RelatoriosView: React.FC = memo(() => {
                                             <div>Apenas Despesas</div>
                                             <div className="text-[10px] text-slate-400 font-normal">Saídas e contas pagas</div>
                                         </div>
-                                        {activeTab === 'expenses' && categoryTypeFilter === 'expense' && <Check className="w-4 h-4 text-purple-600" />}
+                                        {activeTab === 'expenses' && categoryTypeFilter === 'expense' && <Check className="w-3.5 h-3.5 text-orange-600" />}
                                     </button>
                                 </div>
                             )}
                         </div>
                     </div>
-                </div>
 
-                {/* Step 2: Período do Relatório */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-5 md:p-6 rounded-3xl shadow-sm space-y-4">
-                    <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-white/5">
-                        <Calendar className="w-4 h-4 text-orange-500" />
-                        <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-white">
-                            2. Período do Relatório
-                        </h3>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-3">
-                        <button
-                            type="button"
-                            onClick={() => setDateRange('month')}
-                            className={`px-4 py-2.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 cursor-pointer ${
-                                dateRange === 'month'
-                                    ? 'bg-orange-500 text-white border-orange-500 shadow-xs'
-                                    : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
-                            }`}
-                        >
-                            <Calendar className="w-4 h-4" />
-                            <span>Mês Atual</span>
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={() => setDateRange('last-month')}
-                            className={`px-4 py-2.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 cursor-pointer ${
-                                dateRange === 'last-month'
-                                    ? 'bg-orange-500 text-white border-orange-500 shadow-xs'
-                                    : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
-                            }`}
-                        >
-                            <Calendar className="w-4 h-4" />
-                            <span>Mês Anterior</span>
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={() => setDateRange('all')}
-                            className={`px-4 py-2.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 cursor-pointer ${
-                                dateRange === 'all'
-                                    ? 'bg-orange-500 text-white border-orange-500 shadow-xs'
-                                    : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
-                            }`}
-                        >
-                            <span>Todos os Lançamentos</span>
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={() => setDateRange('custom')}
-                            className={`px-4 py-2.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 cursor-pointer ${
-                                dateRange === 'custom'
-                                    ? 'bg-orange-500 text-white border-orange-500 shadow-xs'
-                                    : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
-                            }`}
-                        >
-                            <span>Selecionar Período Desejado...</span>
-                        </button>
-
-                        {dateRange === 'custom' && (
-                            <div className="flex items-center gap-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs animate-fade-in">
-                                <div className="flex flex-col gap-0.5">
-                                    <label className="text-[9px] font-black uppercase text-slate-400">Data Inicial</label>
-                                    <input
-                                        type="date"
-                                        value={customStartDate}
-                                        onChange={e => setCustomStartDate(e.target.value)}
-                                        className="bg-transparent text-slate-800 dark:text-slate-200 font-bold outline-none cursor-pointer text-xs"
-                                    />
-                                </div>
-                                <span className="text-slate-400 font-bold text-xs pt-3">até</span>
-                                <div className="flex flex-col gap-0.5">
-                                    <label className="text-[9px] font-black uppercase text-slate-400">Data Final</label>
-                                    <input
-                                        type="date"
-                                        value={customEndDate}
-                                        onChange={e => setCustomEndDate(e.target.value)}
-                                        className="bg-transparent text-slate-800 dark:text-slate-200 font-bold outline-none cursor-pointer text-xs"
-                                    />
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Step 3: Selecionar Igreja / Congregação */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-5 md:p-6 rounded-3xl shadow-sm space-y-4">
-                    <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/5">
-                        <div className="flex items-center gap-2">
-                            <Building2 className="w-4 h-4 text-orange-500" />
-                            <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-white">
-                                3. Filtro de Igreja / Congregação
-                            </h3>
+                    {/* Linha 2: Barra Padrão de Filtros (Busca + Período + Igrejas + Bancos) */}
+                    <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2 flex-wrap">
+                        {/* Busca por palavra-chave */}
+                        <div className="relative w-full sm:w-56 md:w-64">
+                            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <input
+                                type="text"
+                                placeholder="Buscar contribuinte, histórico..."
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                className="h-8 pl-8 pr-7 w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-white focus:outline-none focus:border-orange-500 placeholder:text-slate-400 shadow-2xs transition-colors"
+                            />
+                            {searchTerm && (
+                                <button
+                                    type="button"
+                                    onClick={() => setSearchTerm('')}
+                                    className="absolute top-1/2 right-2 -translate-y-1/2 p-0.5 rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                                    title="Limpar busca"
+                                    aria-label="Limpar busca"
+                                >
+                                    <X className="w-3.5 h-3.5" />
+                                </button>
+                            )}
                         </div>
-                    </div>
 
-                    <div className="relative max-w-md" ref={churchDropdownRef}>
-                        <button
-                            type="button"
-                            onClick={() => setIsChurchDropdownOpen(!isChurchDropdownOpen)}
-                            className={`w-full p-3.5 rounded-2xl border text-left transition-all flex items-center justify-between gap-2.5 cursor-pointer ${
-                                selectedChurchIds.length > 0
-                                    ? 'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-800'
-                                    : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
-                            }`}
-                        >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                                <Building2 className="w-4 h-4 text-orange-500 shrink-0" />
-                                <span className="font-bold text-xs truncate">
+                        {/* Seletor de Período Padrão */}
+                        <PeriodSelector
+                            mode={selectionMode}
+                            onModeChange={handlePeriodModeChange}
+                            selectedMonth={selectedMonth}
+                            selectedYear={selectedYear}
+                            onMonthYearChange={handleMonthYearSelect}
+                            customStart={customStartDate}
+                            customEnd={customEndDate}
+                            onCustomDatesChange={handleCustomDatesChange}
+                            monthsList={DEFAULT_MONTHS_LIST}
+                            yearsList={yearsList}
+                        />
+
+                        {/* Filtro Igrejas (padrão Livro Caixa) */}
+                        <div className="relative" ref={churchDropdownRef}>
+                            <button
+                                type="button"
+                                onClick={() => setIsChurchDropdownOpen(!isChurchDropdownOpen)}
+                                className={`h-8 px-2.5 border rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0 ${
+                                    selectedChurchIds.length > 0
+                                        ? 'bg-orange-50/70 dark:bg-orange-950/30 border-orange-300 dark:border-orange-800 text-orange-700 dark:text-orange-300'
+                                        : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                }`}
+                            >
+                                <BuildingOfficeIcon className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400 shrink-0" />
+                                <span className="truncate max-w-[140px]">
                                     {selectedChurchIds.length === 0
                                         ? 'Todas as Igrejas'
                                         : selectedChurchIds.length === 1
-                                        ? (churches.find((c: any) => c.id === selectedChurchIds[0])?.name || '1 Igreja')
-                                        : `${selectedChurchIds.length} igrejas selecionadas`}
+                                        ? getChurchName(selectedChurchIds[0])
+                                        : `${selectedChurchIds.length} Igrejas`}
                                 </span>
-                            </div>
-                            <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${isChurchDropdownOpen ? 'rotate-180' : ''}`} />
-                        </button>
+                                <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            </button>
 
-                        {isChurchDropdownOpen && (
-                            <div className="absolute left-0 right-0 mt-1.5 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-3 z-50 space-y-2 animate-scale-in">
-                                <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 border-b border-slate-100 dark:border-slate-700 pb-2">
-                                    <span>Selecionar Igrejas</span>
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedChurchIds(churches.map((c: any) => c.id))}
-                                            className="text-orange-600 dark:text-orange-400 hover:underline cursor-pointer"
-                                        >
-                                            Todas
-                                        </button>
-                                        <span className="text-slate-300 dark:text-slate-600">•</span>
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedChurchIds([])}
-                                            className="text-slate-400 hover:underline cursor-pointer"
-                                        >
-                                            Limpar
-                                        </button>
+                            {isChurchDropdownOpen && (
+                                <div className="absolute left-0 sm:right-0 sm:left-auto mt-2 w-72 bg-white dark:bg-slate-900 rounded-xl shadow-elevated border border-slate-200/90 dark:border-slate-700 p-3 z-50 text-xs space-y-2 animate-scale-in">
+                                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                                        <span className="font-semibold text-slate-700 dark:text-slate-200 uppercase text-[10px] tracking-wide">FILTRAR POR IGREJAS</span>
+                                        {selectedChurchIds.length > 0 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedChurchIds([])}
+                                                className="text-[11px] text-orange-600 dark:text-orange-400 font-semibold hover:underline cursor-pointer"
+                                            >
+                                                Limpar
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <div className="max-h-56 overflow-y-auto custom-scrollbar space-y-1 pt-1" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
+                                        <label className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedChurchIds.length === 0}
+                                                onChange={() => setSelectedChurchIds([])}
+                                                className="accent-orange-600 rounded cursor-pointer w-4 h-4 text-orange-600"
+                                            />
+                                            <span className="font-semibold text-slate-800 dark:text-white text-xs">Todas as Igrejas</span>
+                                        </label>
+
+                                        {churches.map((c: any) => {
+                                            const isChecked = selectedChurchIds.includes(c.id);
+                                            return (
+                                                <label key={c.id} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isChecked}
+                                                        onChange={() => toggleChurchSelection(c.id)}
+                                                        className="accent-orange-600 rounded cursor-pointer w-4 h-4 text-orange-600"
+                                                    />
+                                                    <span className="text-slate-700 dark:text-slate-300 font-medium text-xs uppercase truncate">
+                                                        {c.name}
+                                                    </span>
+                                                </label>
+                                            );
+                                        })}
                                     </div>
                                 </div>
+                            )}
+                        </div>
 
-                                <div className="max-h-56 overflow-y-auto space-y-1 py-1">
-                                    <button
-                                        type="button"
-                                        onClick={() => setSelectedChurchIds([])}
-                                        className={`w-full p-2 rounded-xl text-xs font-bold border text-left transition-all cursor-pointer flex items-center justify-between ${
-                                            selectedChurchIds.length === 0
-                                                ? 'bg-orange-500 text-white border-orange-500 shadow-xs'
-                                                : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 border-transparent text-slate-700 dark:text-slate-200'
-                                        }`}
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedChurchIds.length === 0 ? 'bg-white text-orange-500 border-white' : 'border-slate-300 dark:border-slate-600'}`}>
-                                                {selectedChurchIds.length === 0 && <Check className="w-3 h-3 stroke-[3]" />}
-                                            </div>
-                                            <span>Todas as Igrejas</span>
-                                        </div>
-                                    </button>
+                        {/* Filtro Bancos (padrão Livro Caixa) */}
+                        <div className="relative" ref={bankDropdownRef}>
+                            <button
+                                type="button"
+                                onClick={() => setIsBankDropdownOpen(!isBankDropdownOpen)}
+                                className={`h-8 px-2.5 border rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0 ${
+                                    selectedBankIds.length > 0
+                                        ? 'bg-orange-50/70 dark:bg-orange-950/30 border-orange-300 dark:border-orange-800 text-orange-700 dark:text-orange-300'
+                                        : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                }`}
+                            >
+                                <Landmark className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400 shrink-0" />
+                                <span className="truncate max-w-[140px]">
+                                    {selectedBankIds.length === 0
+                                        ? 'Todos os Bancos'
+                                        : selectedBankIds.length === 1
+                                        ? getBankName(selectedBankIds[0])
+                                        : `${selectedBankIds.length} Bancos`}
+                                </span>
+                                <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            </button>
 
-                                    {churches.map((c: any) => {
-                                        const isSelected = selectedChurchIds.includes(c.id);
-                                        return (
+                            {isBankDropdownOpen && (
+                                <div className="absolute left-0 sm:right-0 sm:left-auto mt-2 w-72 bg-white dark:bg-slate-900 rounded-xl shadow-elevated border border-slate-200/90 dark:border-slate-700 p-3 z-50 text-xs space-y-2 animate-scale-in">
+                                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                                        <span className="font-semibold text-slate-700 dark:text-slate-200 uppercase text-[10px] tracking-wide">FILTRAR POR BANCO</span>
+                                        {selectedBankIds.length > 0 && (
                                             <button
-                                                key={c.id}
                                                 type="button"
-                                                onClick={() => toggleChurchSelection(c.id)}
-                                                className={`w-full p-2 rounded-xl text-xs font-bold border text-left transition-all cursor-pointer flex items-center justify-between ${
-                                                    isSelected
-                                                        ? 'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-800'
-                                                        : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 border-transparent text-slate-700 dark:text-slate-200'
-                                                }`}
+                                                onClick={() => setSelectedBankIds([])}
+                                                className="text-[11px] text-orange-600 dark:text-orange-400 font-semibold hover:underline cursor-pointer"
                                             >
-                                                <div className="flex items-center gap-2 min-w-0">
-                                                    <div className={`w-4 h-4 rounded border shrink-0 flex items-center justify-center ${isSelected ? 'bg-orange-500 text-white border-orange-500' : 'border-slate-300 dark:border-slate-600'}`}>
-                                                        {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-                                                    </div>
-                                                    <span className="truncate">{c.name}</span>
-                                                </div>
+                                                Limpar
                                             </button>
-                                        );
-                                    })}
+                                        )}
+                                    </div>
+
+                                    <div className="max-h-56 overflow-y-auto custom-scrollbar space-y-1 pt-1" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
+                                        <label className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedBankIds.length === 0}
+                                                onChange={() => setSelectedBankIds([])}
+                                                className="accent-orange-600 rounded cursor-pointer w-4 h-4 text-orange-600"
+                                            />
+                                            <span className="font-semibold text-slate-800 dark:text-white text-xs">Todos os Bancos</span>
+                                        </label>
+
+                                        {banks.length === 0 ? (
+                                            <div className="p-2 text-slate-400 text-center italic text-[11px]">
+                                                Nenhum banco cadastrado.
+                                            </div>
+                                        ) : (
+                                            banks.map((b: any) => {
+                                                const isChecked = selectedBankIds.includes(b.id);
+                                                const bName = b.account_name || b.name || 'Banco Sem Nome';
+                                                return (
+                                                    <label key={b.id} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isChecked}
+                                                            onChange={() => toggleBankSelection(b.id)}
+                                                            className="accent-orange-600 rounded cursor-pointer w-4 h-4 text-orange-600"
+                                                        />
+                                                        <span className="text-slate-700 dark:text-slate-300 font-medium text-xs uppercase truncate">
+                                                            {bName}
+                                                        </span>
+                                                    </label>
+                                                );
+                                            })
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Step 4: Busca por Palavra-Chave (Opcional) */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-5 md:p-6 rounded-3xl shadow-sm space-y-4">
-                    <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-white/5">
-                        <Search className="w-4 h-4 text-orange-500" />
-                        <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-white">
-                            4. Busca por Palavra-Chave (Opcional)
-                        </h3>
+                            )}
+                        </div>
                     </div>
 
-                    <div className="relative max-w-md">
-                        <Search className="w-4 h-4 text-slate-400 absolute top-1/2 left-3.5 -translate-y-1/2" />
-                        <input
-                            type="text"
-                            placeholder="Buscar por nome de contribuinte, histórico ou categoria..."
-                            value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
-                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-orange-500 font-medium"
-                        />
-                    </div>
-                </div>
+                    {/* Linha 3: Rodapé Integrado (Resumo discreto + CTA Gerar Relatório) */}
+                    <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                            <span className="font-semibold text-slate-700 dark:text-slate-200">{activeReportSummary}</span>
+                            <span className="mx-1.5 text-slate-300 dark:text-slate-600">•</span>
+                            <span>{activePeriodSummary}</span>
+                            <span className="mx-1.5 text-slate-300 dark:text-slate-600">•</span>
+                            <span>{activeChurchSummary}</span>
+                            <span className="mx-1.5 text-slate-300 dark:text-slate-600">•</span>
+                            <span>{activeBankSummary}</span>
+                        </div>
 
-                {/* Big Action CTA Button */}
-                <div className="flex items-center justify-end pt-2">
-                    <button
-                        type="button"
-                        onClick={() => setHasGenerated(true)}
-                        className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white rounded-2xl font-black text-sm shadow-lg shadow-orange-500/25 transition-all transform active:scale-98 flex items-center justify-center gap-3 cursor-pointer"
-                    >
-                        <FileText className="w-5 h-5" />
-                        <span>GERAR RELATÓRIO</span>
-                        <ArrowRight className="w-4 h-4" />
-                    </button>
+                        <button
+                            type="button"
+                            onClick={() => setHasGenerated(true)}
+                            className="w-full sm:w-auto h-9 px-5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-semibold text-xs tracking-wide shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shrink-0"
+                        >
+                            <FileText className="w-4 h-4" />
+                            <span>Gerar Relatório</span>
+                            <ArrowRight className="w-4 h-4" />
+                        </button>
+                    </div>
                 </div>
             </div>
         );
@@ -1347,42 +1397,43 @@ export const RelatoriosView: React.FC = memo(() => {
     return (
         <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full min-h-full flex flex-col animate-fade-in pb-8 md:pb-4">
             {/* Top Bar on Generated Report Screen */}
-            <div className="bg-white dark:bg-slate-900 p-4 md:p-5 rounded-3xl border border-slate-100 dark:border-white/5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 flex-shrink-0">
+            <div className="bg-white dark:bg-slate-900 px-4 py-2.5 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-2.5 flex-shrink-0">
                 {/* Left: Active Report Title & Parameter Summary Badges */}
-                <div className="flex items-center gap-3 min-w-0">
+                <div className="flex items-center gap-2.5 min-w-0">
                     <button
+                        type="button"
                         onClick={() => setHasGenerated(false)}
-                        className="p-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-orange-500 hover:text-white dark:hover:bg-orange-500 text-slate-700 dark:text-slate-200 rounded-2xl transition-all flex items-center justify-center cursor-pointer shrink-0"
+                        className="w-8 h-8 bg-slate-100 dark:bg-slate-800 hover:bg-orange-600 hover:text-white dark:hover:bg-orange-600 text-slate-700 dark:text-slate-200 rounded-lg transition-colors flex items-center justify-center cursor-pointer shrink-0"
                         title="Voltar e alterar parâmetros do relatório"
                     >
-                        <ArrowLeft className="w-5 h-5" />
+                        <ArrowLeft className="w-4 h-4" />
                     </button>
 
                     <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                            <h1 className="text-lg font-black text-slate-800 dark:text-white tracking-tight truncate">
+                            <h1 className="text-base font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
                                 {activeTab === 'contributors' && 'Relatório de Dizimistas & Contribuintes'}
                                 {activeTab === 'balancete' && `Balancete Financeiro (${balanceteType === 'sintetico' ? 'Sintético' : balanceteType === 'analitico' ? 'Analítico' : 'Contábil'})`}
                                 {activeTab === 'churches' && 'Resumo Comparativo por Igreja'}
                                 {activeTab === 'expenses' && `Relatório por Categoria (${categoryTypeFilter === 'all' ? 'Todas' : categoryTypeFilter === 'income' ? 'Receitas' : 'Despesas'})`}
                             </h1>
 
-                            <span className="px-2.5 py-0.5 bg-orange-100 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300 rounded-full text-[10px] font-extrabold uppercase">
+                            <span className="px-2 py-0.5 bg-orange-50 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300 border border-orange-200/60 dark:border-orange-900/40 rounded-md text-[10px] font-semibold uppercase tracking-wide">
                                 Relatório Gerado
                             </span>
                         </div>
 
-                        <p className="text-xs text-slate-400 font-medium flex items-center gap-2 flex-wrap mt-0.5">
-                            <span>Período: {dateRange === 'month' ? 'Mês Atual' : customStartDate && customEndDate ? `${customStartDate} até ${customEndDate}` : 'Período Personalizado'}</span>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium flex items-center gap-2 flex-wrap leading-snug">
+                            <span>Período: {activePeriodSummary}</span>
                             <span>•</span>
-                            <span>
-                                Igreja: {selectedChurchIds.length === 0 ? 'Todas as Igrejas' : selectedChurchIds.length === 1 ? (churches.find((c: any) => c.id === selectedChurchIds[0])?.name || '1 Selecionada') : `${selectedChurchIds.length} Selecionadas`}
-                            </span>
+                            <span>Igreja: {activeChurchSummary}</span>
+                            <span>•</span>
+                            <span>Banco: {activeBankSummary}</span>
                         </p>
                     </div>
                 </div>
 
-                {/* Right: Actions (Change Parameters, Search, Refresh) */}
+                {/* Right: Actions (Search, Change Parameters, Refresh, Export/Print) */}
                 <div className="flex items-center gap-2 flex-wrap self-end md:self-auto">
                     {/* Search Bar */}
                     <div className="relative max-w-xs min-w-[150px]">
@@ -1392,26 +1443,39 @@ export const RelatoriosView: React.FC = memo(() => {
                             placeholder="Buscar no relatório..."
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
-                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-orange-500 font-medium"
+                            className="h-8 w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg pl-8 pr-3 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-orange-500 font-medium transition-colors"
                         />
                     </div>
 
                     <button
+                        type="button"
                         onClick={() => setHasGenerated(false)}
-                        className="px-3.5 py-2 bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 hover:bg-orange-100 border border-orange-200 dark:border-orange-800 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                        className="h-8 px-3 bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-950/50 border border-orange-200 dark:border-orange-800 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
                     >
                         <SlidersHorizontal className="w-3.5 h-3.5" />
                         <span className="hidden sm:inline">Alterar Parâmetros</span>
                     </button>
 
                     <button
+                        type="button"
                         onClick={handleRefresh}
                         disabled={isRefreshing || isHydratingFromCloud}
-                        className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl border border-slate-200/60 dark:border-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        className="w-8 h-8 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold transition-colors flex items-center justify-center cursor-pointer disabled:opacity-50 shadow-2xs"
                         title="Recarregar banco de dados"
                     >
-                        <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing || isHydratingFromCloud ? 'animate-spin text-orange-500' : ''}`} />
+                        <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing || isHydratingFromCloud ? 'animate-spin text-orange-600' : ''}`} />
                     </button>
+
+                    <ExportPrintActions
+                        onDownloadCsv={() => handleTopExport('csv')}
+                        onDownloadExcel={() => handleTopExport('excel')}
+                        onDownloadPdf={() => handleTopExport('pdf')}
+                        onDownloadOfx={() => handleTopExport('ofx')}
+                        onPrint={handleTopPrint}
+                        downloadTitle="Exportar Relatório"
+                        printTitle="Imprimir Relatório"
+                        menuTitle="Formatos de Exportação"
+                    />
                 </div>
             </div>
 
@@ -1419,150 +1483,95 @@ export const RelatoriosView: React.FC = memo(() => {
             <div className="flex-1 min-h-0">
                 {/* TAB 1: Contribuintes & Dízimos */}
                 {activeTab === 'contributors' && (
-                    <ContributorsReportSection />
+                    <ContributorsReportSection ref={contributorsReportRef} hideExportPrint={true} />
                 )}
 
                 {/* TAB 2: Balancete (Sintético, Analítico e Contábil) */}
                 {activeTab === 'balancete' && (
-                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl p-4 md:p-6 shadow-sm h-full flex flex-col space-y-4 overflow-y-auto custom-scrollbar">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl p-5 shadow-xs h-full flex flex-col space-y-4 overflow-y-auto custom-scrollbar">
                         {/* Header & Controls */}
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-100 dark:border-white/5">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
                             <div>
-                                <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                                    <PieChart className="w-4 h-4 text-blue-500" />
+                                <h3 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                                    <PieChart className="w-4 h-4 text-orange-600 dark:text-orange-400" />
                                     Balancete Financeiro IgGestor
                                 </h3>
-                                <p className="text-xs text-slate-400">Apurativo do exercício financeiro em três visões: Sintética, Analítica e Contábil.</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">Apurativo do exercício financeiro em três visões: Sintética, Analítica e Contábil.</p>
                             </div>
 
                             <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
-                                {/* Recarregar Button */}
                                 <button
+                                    type="button"
                                     onClick={handleRefresh}
                                     disabled={isRefreshing || isHydratingFromCloud}
-                                    className="px-3 py-1.5 bg-slate-50 dark:bg-black/20 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl border border-slate-200 dark:border-slate-800 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 text-xs font-semibold"
+                                    className="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 text-xs font-semibold shadow-2xs"
                                     title="Recarregar dados do Balancete"
                                 >
-                                    <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing || isHydratingFromCloud ? 'animate-spin text-blue-500' : ''}`} />
+                                    <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing || isHydratingFromCloud ? 'animate-spin text-orange-600' : ''}`} />
                                     <span>Recarregar</span>
-                                </button>
-
-                                {/* Export Menu */}
-                                <div className="relative" ref={exportBalanceteRef}>
-                                    <button
-                                        onClick={() => setShowExportBalancete(!showExportBalancete)}
-                                        className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-                                    >
-                                        <Download className="w-3.5 h-3.5" />
-                                        <span>Exportar Balancete</span>
-                                        <ChevronDown className="w-3 h-3 ml-0.5" />
-                                    </button>
-
-                                    {showExportBalancete && (
-                                        <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-100 dark:border-white/10 py-2 z-50 text-xs text-slate-700 dark:text-slate-200 animate-scale-in">
-                                            <div className="px-3 py-1.5 text-[10px] font-black uppercase text-slate-400 tracking-wider">Formatos Balancete</div>
-                                            <button
-                                                onClick={() => handleExportBalancete('pdf')}
-                                                className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors"
-                                            >
-                                                <FileText className="w-4 h-4 text-red-500" />
-                                                <span>Baixar como PDF</span>
-                                            </button>
-                                            <button
-                                                onClick={() => handleExportBalancete('excel')}
-                                                className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors"
-                                            >
-                                                <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
-                                                <span>Baixar como Excel (.xlsx)</span>
-                                            </button>
-                                            <button
-                                                onClick={() => handleExportBalancete('csv')}
-                                                className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors"
-                                            >
-                                                <FileSpreadsheet className="w-4 h-4 text-blue-500" />
-                                                <span>Baixar como CSV</span>
-                                            </button>
-                                            <button
-                                                onClick={() => handleExportBalancete('ofx')}
-                                                className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors"
-                                            >
-                                                <FileCode className="w-4 h-4 text-purple-500" />
-                                                <span>Baixar como OFX (ERP/Contábil)</span>
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-
-                                <button
-                                    onClick={handlePrint}
-                                    className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold hover:bg-slate-200 transition-all flex items-center gap-1.5 cursor-pointer"
-                                    title="Imprimir Balancete"
-                                >
-                                    <Printer className="w-3.5 h-3.5" />
-                                    <span>Imprimir</span>
                                 </button>
                             </div>
                         </div>
 
                         {/* Balancete Type Selector Pills */}
-                        <div className="flex items-center gap-2 p-1.5 bg-slate-100 dark:bg-slate-800/90 rounded-2xl border border-slate-200/60 dark:border-white/5 w-full sm:w-auto self-start">
+                        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/90 rounded-xl border border-slate-200/70 dark:border-slate-700/60 w-full sm:w-auto self-start">
                             <button
                                 onClick={() => setBalanceteType('sintetico')}
-                                className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 cursor-pointer ${
                                     balanceteType === 'sintetico'
-                                        ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm'
+                                        ? 'bg-white dark:bg-slate-900 text-orange-600 dark:text-orange-400 shadow-xs'
                                         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                                 }`}
                             >
-                                <PieChart className="w-4 h-4" />
+                                <PieChart className="w-3.5 h-3.5" />
                                 <span>Balancete Sintético</span>
                             </button>
 
                             <button
                                 onClick={() => setBalanceteType('analitico')}
-                                className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 cursor-pointer ${
                                     balanceteType === 'analitico'
-                                        ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm'
+                                        ? 'bg-white dark:bg-slate-900 text-orange-600 dark:text-orange-400 shadow-xs'
                                         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                                 }`}
                             >
-                                <Table2 className="w-4 h-4" />
+                                <Table2 className="w-3.5 h-3.5" />
                                 <span>Balancete Analítico</span>
                             </button>
 
                             <button
                                 onClick={() => setBalanceteType('contabil')}
-                                className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 cursor-pointer ${
                                     balanceteType === 'contabil'
-                                        ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm'
+                                        ? 'bg-white dark:bg-slate-900 text-orange-600 dark:text-orange-400 shadow-xs'
                                         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                                 }`}
                             >
-                                <FileText className="w-4 h-4" />
+                                <FileText className="w-3.5 h-3.5" />
                                 <span>Balancete Contábil</span>
                             </button>
                         </div>
 
                         {/* Top Key Metrics */}
                         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                            <div className="p-3.5 rounded-xl border border-emerald-200 dark:border-emerald-950 bg-emerald-50/40 dark:bg-emerald-950/20">
-                                <span className="text-[10px] uppercase font-black text-emerald-600 dark:text-emerald-400 block">Receitas Brutas</span>
-                                <span className="text-lg font-mono font-black text-emerald-700 dark:text-emerald-300 mt-0.5 block">{formatBRL(financialTotals.income)}</span>
+                            <div className="p-3.5 rounded-xl border border-emerald-200/80 dark:border-emerald-950 bg-emerald-50/40 dark:bg-emerald-950/20">
+                                <span className="text-[10px] uppercase font-semibold tracking-wide text-emerald-700 dark:text-emerald-400 block">Receitas Brutas</span>
+                                <span className="text-lg font-bold tabular-nums text-emerald-700 dark:text-emerald-300 mt-0.5 block">{formatBRL(financialTotals.income)}</span>
                             </div>
 
-                            <div className="p-3.5 rounded-xl border border-rose-200 dark:border-rose-950 bg-rose-50/40 dark:bg-rose-950/20">
-                                <span className="text-[10px] uppercase font-black text-rose-600 dark:text-rose-400 block">Despesas & Custos</span>
-                                <span className="text-lg font-mono font-black text-rose-700 dark:text-rose-300 mt-0.5 block">{formatBRL(financialTotals.expenses)}</span>
+                            <div className="p-3.5 rounded-xl border border-rose-200/80 dark:border-rose-950 bg-rose-50/40 dark:bg-rose-950/20">
+                                <span className="text-[10px] uppercase font-semibold tracking-wide text-rose-700 dark:text-rose-400 block">Despesas & Custos</span>
+                                <span className="text-lg font-bold tabular-nums text-rose-700 dark:text-rose-300 mt-0.5 block">{formatBRL(financialTotals.expenses)}</span>
                             </div>
 
-                            <div className={`p-3.5 rounded-xl border ${financialTotals.balance >= 0 ? 'border-blue-200 dark:border-blue-950 bg-blue-50/40 dark:bg-blue-950/20' : 'border-amber-200 dark:border-amber-950 bg-amber-50/40 dark:bg-amber-950/20'}`}>
-                                <span className="text-[10px] uppercase font-black text-slate-600 dark:text-slate-400 block">Resultado Operacional</span>
-                                <span className={`text-lg font-mono font-black ${financialTotals.balance >= 0 ? 'text-blue-700 dark:text-blue-300' : 'text-amber-700 dark:text-amber-300'} mt-0.5 block`}>{formatBRL(financialTotals.balance)}</span>
+                            <div className={`p-3.5 rounded-xl border ${financialTotals.balance >= 0 ? 'border-slate-200/90 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40' : 'border-amber-200/80 dark:border-amber-950 bg-amber-50/40 dark:bg-amber-950/20'}`}>
+                                <span className="text-[10px] uppercase font-semibold tracking-wide text-slate-600 dark:text-slate-400 block">Resultado Operacional</span>
+                                <span className={`text-lg font-bold tabular-nums ${financialTotals.balance >= 0 ? 'text-slate-900 dark:text-white' : 'text-amber-700 dark:text-amber-300'} mt-0.5 block`}>{formatBRL(financialTotals.balance)}</span>
                             </div>
 
-                            <div className="p-3.5 rounded-xl border border-amber-200 dark:border-amber-950 bg-amber-50/40 dark:bg-amber-950/20">
-                                <span className="text-[10px] uppercase font-black text-amber-600 dark:text-amber-400 block">Pendentes Conciliação</span>
-                                <span className="text-lg font-mono font-black text-amber-700 dark:text-amber-300 mt-0.5 block">{formatBRL(financialTotals.pending)}</span>
+                            <div className="p-3.5 rounded-xl border border-amber-200/80 dark:border-amber-950 bg-amber-50/40 dark:bg-amber-950/20">
+                                <span className="text-[10px] uppercase font-semibold tracking-wide text-amber-700 dark:text-amber-400 block">Pendentes Conciliação</span>
+                                <span className="text-lg font-bold tabular-nums text-amber-700 dark:text-amber-300 mt-0.5 block">{formatBRL(financialTotals.pending)}</span>
                             </div>
                         </div>
 
@@ -1570,32 +1579,32 @@ export const RelatoriosView: React.FC = memo(() => {
                         {balanceteType === 'sintetico' && (
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 animate-fade-in">
                                 {/* Entradas Demonstrative */}
-                                <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-black/20 space-y-3">
-                                    <div className="flex justify-between items-center pb-2 border-b border-slate-200 dark:border-slate-800">
-                                        <h4 className="text-xs font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-wider flex items-center gap-1.5">
+                                <div className="p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 space-y-3">
+                                    <div className="flex justify-between items-center pb-2.5 border-b border-slate-200/80 dark:border-slate-800">
+                                        <h4 className="text-xs font-bold uppercase text-emerald-700 dark:text-emerald-400 tracking-wide flex items-center gap-1.5">
                                             <ArrowUpRight className="w-4 h-4" />
                                             Demonstrativo Sintético de Entradas
                                         </h4>
-                                        <span className="text-xs font-mono font-bold text-emerald-600">{formatBRL(financialTotals.income)}</span>
+                                        <span className="text-xs font-bold tabular-nums text-emerald-700 dark:text-emerald-400">{formatBRL(financialTotals.income)}</span>
                                     </div>
 
                                     {incomeCategories.length === 0 ? (
                                         <p className="text-xs text-slate-400 italic py-4 text-center">Nenhuma entrada registrada no período.</p>
                                     ) : (
-                                        <div className="space-y-2.5">
+                                        <div className="space-y-2">
                                             {incomeCategories.map((cat, idx) => {
                                                 const perc = financialTotals.income > 0 ? Math.round((cat.amount / financialTotals.income) * 100) : 0;
                                                 return (
-                                                    <div key={idx} className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 space-y-1.5">
-                                                        <div className="flex justify-between text-xs font-bold text-slate-700 dark:text-slate-200">
+                                                    <div key={idx} className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 space-y-1.5">
+                                                        <div className="flex justify-between text-xs font-semibold text-slate-800 dark:text-slate-200">
                                                             <span>{cat.category}</span>
-                                                            <span className="font-mono text-emerald-600">{formatBRL(cat.amount)}</span>
+                                                            <span className="tabular-nums font-bold text-emerald-600 dark:text-emerald-400">{formatBRL(cat.amount)}</span>
                                                         </div>
-                                                        <div className="flex justify-between text-[10px] text-slate-400 font-semibold">
+                                                        <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400 font-medium tabular-nums">
                                                             <span>{cat.count} lançamentos</span>
                                                             <span>{perc}% das entradas</span>
                                                         </div>
-                                                        <div className="w-full h-1 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                                        <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                                                             <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${perc}%` }} />
                                                         </div>
                                                     </div>
@@ -1606,32 +1615,32 @@ export const RelatoriosView: React.FC = memo(() => {
                                 </div>
 
                                 {/* Saídas Demonstrative */}
-                                <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-black/20 space-y-3">
-                                    <div className="flex justify-between items-center pb-2 border-b border-slate-200 dark:border-slate-800">
-                                        <h4 className="text-xs font-black uppercase text-rose-600 dark:text-rose-400 tracking-wider flex items-center gap-1.5">
+                                <div className="p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 space-y-3">
+                                    <div className="flex justify-between items-center pb-2.5 border-b border-slate-200/80 dark:border-slate-800">
+                                        <h4 className="text-xs font-bold uppercase text-rose-700 dark:text-rose-400 tracking-wide flex items-center gap-1.5">
                                             <ArrowDownRight className="w-4 h-4" />
                                             Demonstrativo Sintético de Saídas por Categoria
                                         </h4>
-                                        <span className="text-xs font-mono font-bold text-rose-600">{formatBRL(financialTotals.expenses)}</span>
+                                        <span className="text-xs font-bold tabular-nums text-rose-700 dark:text-rose-400">{formatBRL(financialTotals.expenses)}</span>
                                     </div>
 
                                     {expenseCategories.length === 0 ? (
                                         <p className="text-xs text-slate-400 italic py-4 text-center">Nenhuma saída registrada no período.</p>
                                     ) : (
-                                        <div className="space-y-2.5">
+                                        <div className="space-y-2">
                                             {expenseCategories.map((cat, idx) => {
                                                 const perc = financialTotals.expenses > 0 ? Math.round((cat.amount / financialTotals.expenses) * 100) : 0;
                                                 return (
-                                                    <div key={idx} className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 space-y-1.5">
-                                                        <div className="flex justify-between text-xs font-bold text-slate-700 dark:text-slate-200">
+                                                    <div key={idx} className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 space-y-1.5">
+                                                        <div className="flex justify-between text-xs font-semibold text-slate-800 dark:text-slate-200">
                                                             <span>{cat.category}</span>
-                                                            <span className="font-mono text-rose-600">{formatBRL(cat.amount)}</span>
+                                                            <span className="tabular-nums font-bold text-rose-600 dark:text-rose-400">{formatBRL(cat.amount)}</span>
                                                         </div>
-                                                        <div className="flex justify-between text-[10px] text-slate-400 font-semibold">
+                                                        <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400 font-medium tabular-nums">
                                                             <span>{cat.count} lançamentos</span>
                                                             <span>{perc}% das saídas</span>
                                                         </div>
-                                                        <div className="w-full h-1 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                                        <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                                                             <div className="h-full bg-rose-500 rounded-full" style={{ width: `${perc}%` }} />
                                                         </div>
                                                     </div>
@@ -1646,20 +1655,20 @@ export const RelatoriosView: React.FC = memo(() => {
                         {/* TYPE 2: BALANCETE ANALÍTICO */}
                         {balanceteType === 'analitico' && (
                             <div className="space-y-4 animate-fade-in">
-                                <div className="p-3 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-800 rounded-xl flex justify-between items-center text-xs">
-                                    <span className="font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                <div className="px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-800 rounded-xl flex justify-between items-center text-xs">
+                                    <span className="font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
                                         Detalhamento Item a Item do Balancete Analítico
                                     </span>
-                                    <span className="font-mono font-bold text-slate-500">
+                                    <span className="tabular-nums font-semibold text-slate-500 dark:text-slate-400">
                                         {filteredReportData.length} lançamentos encontrados
                                     </span>
                                 </div>
 
-                                <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
-                                    <div className="overflow-x-auto">
+                                <div className="border border-slate-200/90 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
+                                    <div className="overflow-x-auto custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}>
                                         <table className="w-full text-left border-collapse">
                                             <thead>
-                                                <tr className="bg-slate-100 dark:bg-slate-800/80 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
+                                                <tr className="bg-slate-50/90 dark:bg-slate-800/80 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide border-b border-slate-200/90 dark:border-slate-800">
                                                     <th className="py-2.5 px-3">Data</th>
                                                     <th className="py-2.5 px-3">Histórico</th>
                                                     <th className="py-2.5 px-3">Contribuinte / Favorecido</th>
@@ -1684,14 +1693,14 @@ export const RelatoriosView: React.FC = memo(() => {
 
                                                         return (
                                                             <tr key={idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
-                                                                <td className="py-2 px-3 font-mono text-slate-500 text-[11px] whitespace-nowrap">
+                                                                <td className="py-2.5 px-3 tabular-nums text-slate-600 dark:text-slate-400 text-xs whitespace-nowrap">
                                                                     {!isManualTx && tx.reference_date && tx.bank_date && tx.reference_date !== tx.bank_date ? (
                                                                         <div className="flex flex-col leading-tight">
-                                                                            <span className="font-bold text-slate-800 dark:text-white" title={`Data de Referência (Competência): ${formatDateBRL(tx.date)}`}>
+                                                                            <span className="font-semibold text-slate-800 dark:text-white" title={`Data de Referência (Competência): ${formatDateBRL(tx.date)}`}>
                                                                                 {formatDateBRL(tx.date)}
                                                                             </span>
-                                                                            <span className="text-[9.5px] text-slate-400 dark:text-slate-500 font-normal mt-0.5" title={`Data no Banco: ${formatDateBRL(tx.bank_date)}`}>
-                                                                                <span className="text-[8.5px] uppercase font-semibold text-slate-400 mr-0.5">Banco:</span>
+                                                                            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5" title={`Data no Banco: ${formatDateBRL(tx.bank_date)}`}>
+                                                                                <span className="text-[9px] uppercase font-semibold text-slate-400 mr-0.5">Banco:</span>
                                                                                 {formatDateBRL(tx.bank_date)}
                                                                             </span>
                                                                         </div>
@@ -1699,16 +1708,16 @@ export const RelatoriosView: React.FC = memo(() => {
                                                                         <span>{tx.date ? formatDateBRL(tx.date) : '---'}</span>
                                                                     )}
                                                                 </td>
-                                                                <td className="py-2 px-3 font-bold text-slate-800 dark:text-white uppercase">{tx.desc || tx.description || tx.historico || 'Lançamento'}</td>
-                                                                <td className="py-2 px-3 text-slate-600 dark:text-slate-300">{tx.payer || tx.contribuinte || tx.nome || '---'}</td>
-                                                                <td className="py-2 px-3 text-slate-500">{tx.category || tx.categoria || 'Geral'}</td>
-                                                                <td className="py-2 px-3 text-slate-400 text-[11px]">{getChurchName(tx.churchId || tx.church)}</td>
-                                                                <td className="py-2 px-3 text-center">
-                                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${isExpense ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400'}`}>
+                                                                <td className="py-2.5 px-3 font-semibold text-slate-800 dark:text-white uppercase">{tx.desc || tx.description || tx.historico || 'Lançamento'}</td>
+                                                                <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300">{tx.payer || tx.contribuinte || tx.nome || '---'}</td>
+                                                                <td className="py-2.5 px-3 text-slate-500 dark:text-slate-400">{tx.category || tx.categoria || 'Geral'}</td>
+                                                                <td className="py-2.5 px-3 text-slate-500 dark:text-slate-400 text-[11px]">{getChurchName(tx.churchId || tx.church)}</td>
+                                                                <td className="py-2.5 px-3 text-center">
+                                                                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold ${isExpense ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200/60 dark:border-rose-900/40' : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-900/40'}`}>
                                                                         {isExpense ? 'Saída' : 'Entrada'}
                                                                     </span>
                                                                 </td>
-                                                                <td className={`py-2 px-3 text-right font-mono font-bold ${isExpense ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                                                <td className={`py-2.5 px-3 text-right tabular-nums font-bold ${isExpense ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
                                                                     {isExpense ? '-' : '+'} {formatBRL(amt)}
                                                                 </td>
                                                             </tr>
@@ -1720,34 +1729,34 @@ export const RelatoriosView: React.FC = memo(() => {
                                     </div>
 
                                     {filteredReportData.length > BALANCETE_ITEMS_PER_PAGE && (
-                                        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400">
+                                        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-slate-50/90 dark:bg-slate-900 border-t border-slate-200/90 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400">
                                             <span className="text-[11px]">
-                                                Exibindo <span className="font-mono text-slate-900 dark:text-white">{(balanceteCurrentPage - 1) * BALANCETE_ITEMS_PER_PAGE + 1}</span> a <span className="font-mono text-slate-900 dark:text-white">{Math.min(filteredReportData.length, balanceteCurrentPage * BALANCETE_ITEMS_PER_PAGE)}</span> de <span className="font-mono text-slate-900 dark:text-white">{filteredReportData.length}</span> lançamentos
+                                                Exibindo <span className="tabular-nums text-slate-900 dark:text-white">{(balanceteCurrentPage - 1) * BALANCETE_ITEMS_PER_PAGE + 1}</span> a <span className="tabular-nums text-slate-900 dark:text-white">{Math.min(filteredReportData.length, balanceteCurrentPage * BALANCETE_ITEMS_PER_PAGE)}</span> de <span className="tabular-nums text-slate-900 dark:text-white">{filteredReportData.length}</span> lançamentos
                                             </span>
 
                                             <div className="flex items-center gap-1.5 ml-auto">
                                                 <button
                                                     onClick={() => setBalanceteCurrentPage(1)}
                                                     disabled={balanceteCurrentPage === 1}
-                                                    className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[11px] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors"
+                                                    className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[11px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer"
                                                 >
                                                     Primeira
                                                 </button>
                                                 <button
                                                     onClick={() => setBalanceteCurrentPage(p => Math.max(1, p - 1))}
                                                     disabled={balanceteCurrentPage === 1}
-                                                    className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors"
+                                                    className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer"
                                                     title="Página Anterior"
                                                 >
                                                     <ChevronLeft className="w-4 h-4" />
                                                 </button>
-                                                <span className="px-2 font-mono text-[11px] text-slate-800 dark:text-white">
+                                                <span className="px-2 tabular-nums text-[11px] text-slate-800 dark:text-white">
                                                     {balanceteCurrentPage} / {balanceteTotalPages}
                                                 </span>
                                                 <button
                                                     onClick={() => setBalanceteCurrentPage(p => Math.min(balanceteTotalPages, p + 1))}
                                                     disabled={balanceteCurrentPage === balanceteTotalPages}
-                                                    className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors"
+                                                    className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer"
                                                     title="Próxima Página"
                                                 >
                                                     <ChevronRight className="w-4 h-4" />
@@ -1755,7 +1764,7 @@ export const RelatoriosView: React.FC = memo(() => {
                                                 <button
                                                     onClick={() => setBalanceteCurrentPage(balanceteTotalPages)}
                                                     disabled={balanceteCurrentPage === balanceteTotalPages}
-                                                    className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[11px] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors"
+                                                    className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[11px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer"
                                                 >
                                                     Última
                                                 </button>
@@ -1769,86 +1778,88 @@ export const RelatoriosView: React.FC = memo(() => {
                         {/* TYPE 3: BALANCETE CONTÁBIL */}
                         {balanceteType === 'contabil' && (
                             <div className="space-y-4 animate-fade-in">
-                                <div className="p-3.5 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                                <div className="p-3.5 bg-orange-50/60 dark:bg-orange-950/20 border border-orange-200/80 dark:border-orange-900/40 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                                     <div className="flex items-center gap-2">
-                                        <CheckCircle2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                                        <span className="text-xs font-bold text-blue-900 dark:text-blue-200">
+                                        <CheckCircle2 className="w-4 h-4 text-orange-600 dark:text-orange-400 shrink-0" />
+                                        <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
                                             Estrutura de Plano de Contas Contábil da Igreja (Balancete Formal de Verificação)
                                         </span>
                                     </div>
-                                    <span className="text-[11px] font-mono font-bold bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 px-2.5 py-1 rounded-lg">
+                                    <span className="text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200/70 dark:border-emerald-900/40 px-2.5 py-1 rounded-md">
                                         Equilíbrio Contábil OK
                                     </span>
                                 </div>
 
-                                <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead>
-                                            <tr className="bg-slate-900 text-white text-[10px] font-black uppercase tracking-wider">
-                                                <th className="py-2.5 px-3">Código</th>
-                                                <th className="py-2.5 px-3">Plano de Contas</th>
-                                                <th className="py-2.5 px-3 text-center">Tipo</th>
-                                                <th className="py-2.5 px-3 text-right">Créditos / Entradas (R$)</th>
-                                                <th className="py-2.5 px-3 text-right">Débitos / Saídas (R$)</th>
-                                                <th className="py-2.5 px-3 text-right">Saldo Final (R$)</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-                                            {/* GRUPO 1: RECEITAS */}
-                                            <tr className="bg-emerald-50/60 dark:bg-emerald-950/20 font-black">
-                                                <td className="py-2 px-3 font-mono text-emerald-800 dark:text-emerald-400">1.0.00</td>
-                                                <td className="py-2 px-3 text-emerald-800 dark:text-emerald-300 uppercase">RECEITAS OPERACIONAIS (DÍZIMOS, OFERTAS & CONTRIBUIÇÕES)</td>
-                                                <td className="py-2 px-3 text-center text-[10px] text-emerald-700">GRUPO</td>
-                                                <td className="py-2 px-3 text-right font-mono text-emerald-700 dark:text-emerald-400">{formatBRL(financialTotals.income)}</td>
-                                                <td className="py-2 px-3 text-right font-mono text-slate-400">R$ 0,00</td>
-                                                <td className="py-2 px-3 text-right font-mono text-emerald-700 dark:text-emerald-400">{formatBRL(financialTotals.income)}</td>
-                                            </tr>
-
-                                            {incomeCategories.map((c, i) => (
-                                                <tr key={i} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
-                                                    <td className="py-1.5 px-3 pl-6 font-mono text-slate-400 text-[11px]">1.1.0{i + 1}</td>
-                                                    <td className="py-1.5 px-3 pl-6 text-slate-700 dark:text-slate-200">  • {c.category}</td>
-                                                    <td className="py-1.5 px-3 text-center text-[10px] font-bold text-emerald-600">Crédito</td>
-                                                    <td className="py-1.5 px-3 text-right font-mono text-emerald-600">{formatBRL(c.amount)}</td>
-                                                    <td className="py-1.5 px-3 text-right font-mono text-slate-400">R$ 0,00</td>
-                                                    <td className="py-1.5 px-3 text-right font-mono text-emerald-600">{formatBRL(c.amount)}</td>
+                                <div className="border border-slate-200/90 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
+                                    <div className="overflow-x-auto custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}>
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="bg-slate-50/90 dark:bg-slate-800/80 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide border-b border-slate-200/90 dark:border-slate-800">
+                                                    <th className="py-2.5 px-3">Código</th>
+                                                    <th className="py-2.5 px-3">Plano de Contas</th>
+                                                    <th className="py-2.5 px-3 text-center">Tipo</th>
+                                                    <th className="py-2.5 px-3 text-right">Créditos / Entradas (R$)</th>
+                                                    <th className="py-2.5 px-3 text-right">Débitos / Saídas (R$)</th>
+                                                    <th className="py-2.5 px-3 text-right">Saldo Final (R$)</th>
                                                 </tr>
-                                            ))}
-
-                                            {/* GRUPO 2: DESPESAS */}
-                                            <tr className="bg-rose-50/60 dark:bg-rose-950/20 font-black">
-                                                <td className="py-2 px-3 font-mono text-rose-800 dark:text-rose-400">2.0.00</td>
-                                                <td className="py-2 px-3 text-rose-800 dark:text-rose-300 uppercase">DESPESAS OPERACIONAIS & MANUTENÇÃO MINISTERIAL</td>
-                                                <td className="py-2 px-3 text-center text-[10px] text-rose-700">GRUPO</td>
-                                                <td className="py-2 px-3 text-right font-mono text-slate-400">R$ 0,00</td>
-                                                <td className="py-2 px-3 text-right font-mono text-rose-700 dark:text-rose-400">{formatBRL(financialTotals.expenses)}</td>
-                                                <td className="py-2 px-3 text-right font-mono text-rose-700 dark:text-rose-400">- {formatBRL(financialTotals.expenses)}</td>
-                                            </tr>
-
-                                            {expenseCategories.map((c, i) => (
-                                                <tr key={i} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
-                                                    <td className="py-1.5 px-3 pl-6 font-mono text-slate-400 text-[11px]">2.1.0{i + 1}</td>
-                                                    <td className="py-1.5 px-3 pl-6 text-slate-700 dark:text-slate-200">  • {c.category}</td>
-                                                    <td className="py-1.5 px-3 text-center text-[10px] font-bold text-rose-600">Débito</td>
-                                                    <td className="py-1.5 px-3 text-right font-mono text-slate-400">R$ 0,00</td>
-                                                    <td className="py-1.5 px-3 text-right font-mono text-rose-600">{formatBRL(c.amount)}</td>
-                                                    <td className="py-1.5 px-3 text-right font-mono text-rose-600">- {formatBRL(c.amount)}</td>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                                                {/* GRUPO 1: RECEITAS */}
+                                                <tr className="bg-emerald-50/60 dark:bg-emerald-950/20 font-bold">
+                                                    <td className="py-2 px-3 tabular-nums text-emerald-800 dark:text-emerald-400">1.0.00</td>
+                                                    <td className="py-2 px-3 text-emerald-800 dark:text-emerald-300 uppercase">RECEITAS OPERACIONAIS (DÍZIMOS, OFERTAS & CONTRIBUIÇÕES)</td>
+                                                    <td className="py-2 px-3 text-center text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">GRUPO</td>
+                                                    <td className="py-2 px-3 text-right tabular-nums text-emerald-700 dark:text-emerald-400">{formatBRL(financialTotals.income)}</td>
+                                                    <td className="py-2 px-3 text-right tabular-nums text-slate-400">R$ 0,00</td>
+                                                    <td className="py-2 px-3 text-right tabular-nums text-emerald-700 dark:text-emerald-400">{formatBRL(financialTotals.income)}</td>
                                                 </tr>
-                                            ))}
 
-                                            {/* BALANÇO FINAL */}
-                                            <tr className="bg-slate-900 text-white font-black text-xs">
-                                                <td className="py-3 px-3 font-mono">3.0.00</td>
-                                                <td className="py-3 px-3 uppercase">RESULTADO LÍQUIDO DO EXERCÍCIO (SALDO FINAL CONTÁBIL)</td>
-                                                <td className="py-3 px-3 text-center text-[10px] text-amber-400">BALANÇO</td>
-                                                <td className="py-3 px-3 text-right font-mono text-emerald-400">{formatBRL(financialTotals.income)}</td>
-                                                <td className="py-3 px-3 text-right font-mono text-rose-400">{formatBRL(financialTotals.expenses)}</td>
-                                                <td className={`py-3 px-3 text-right font-mono text-sm ${financialTotals.balance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                                    {formatBRL(financialTotals.balance)}
-                                                </td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
+                                                {incomeCategories.map((c, i) => (
+                                                    <tr key={i} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                                                        <td className="py-2 px-3 pl-6 tabular-nums text-slate-400 text-[11px]">1.1.0{i + 1}</td>
+                                                        <td className="py-2 px-3 pl-6 text-slate-700 dark:text-slate-200">  • {c.category}</td>
+                                                        <td className="py-2 px-3 text-center text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">Crédito</td>
+                                                        <td className="py-2 px-3 text-right tabular-nums font-medium text-emerald-600 dark:text-emerald-400">{formatBRL(c.amount)}</td>
+                                                        <td className="py-2 px-3 text-right tabular-nums text-slate-400">R$ 0,00</td>
+                                                        <td className="py-2 px-3 text-right tabular-nums font-medium text-emerald-600 dark:text-emerald-400">{formatBRL(c.amount)}</td>
+                                                    </tr>
+                                                ))}
+
+                                                {/* GRUPO 2: DESPESAS */}
+                                                <tr className="bg-rose-50/60 dark:bg-rose-950/20 font-bold">
+                                                    <td className="py-2 px-3 tabular-nums text-rose-800 dark:text-rose-400">2.0.00</td>
+                                                    <td className="py-2 px-3 text-rose-800 dark:text-rose-300 uppercase">DESPESAS OPERACIONAIS & MANUTENÇÃO MINISTERIAL</td>
+                                                    <td className="py-2 px-3 text-center text-[10px] font-semibold text-rose-700 dark:text-rose-400">GRUPO</td>
+                                                    <td className="py-2 px-3 text-right tabular-nums text-slate-400">R$ 0,00</td>
+                                                    <td className="py-2 px-3 text-right tabular-nums text-rose-700 dark:text-rose-400">{formatBRL(financialTotals.expenses)}</td>
+                                                    <td className="py-2 px-3 text-right tabular-nums text-rose-700 dark:text-rose-400">- {formatBRL(financialTotals.expenses)}</td>
+                                                </tr>
+
+                                                {expenseCategories.map((c, i) => (
+                                                    <tr key={i} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                                                        <td className="py-2 px-3 pl-6 tabular-nums text-slate-400 text-[11px]">2.1.0{i + 1}</td>
+                                                        <td className="py-2 px-3 pl-6 text-slate-700 dark:text-slate-200">  • {c.category}</td>
+                                                        <td className="py-2 px-3 text-center text-[10px] font-semibold text-rose-600 dark:text-rose-400">Débito</td>
+                                                        <td className="py-2 px-3 text-right tabular-nums text-slate-400">R$ 0,00</td>
+                                                        <td className="py-2 px-3 text-right tabular-nums font-medium text-rose-600 dark:text-rose-400">{formatBRL(c.amount)}</td>
+                                                        <td className="py-2 px-3 text-right tabular-nums font-medium text-rose-600 dark:text-rose-400">- {formatBRL(c.amount)}</td>
+                                                    </tr>
+                                                ))}
+
+                                                {/* BALANÇO FINAL */}
+                                                <tr className="bg-slate-100/90 dark:bg-slate-800/90 text-slate-900 dark:text-white border-t-2 border-slate-200 dark:border-slate-700 font-bold text-xs">
+                                                    <td className="py-3 px-3 tabular-nums">3.0.00</td>
+                                                    <td className="py-3 px-3 uppercase">RESULTADO LÍQUIDO DO EXERCÍCIO (SALDO FINAL CONTÁBIL)</td>
+                                                    <td className="py-3 px-3 text-center text-[10px] font-semibold text-orange-600 dark:text-orange-400">BALANÇO</td>
+                                                    <td className="py-3 px-3 text-right tabular-nums text-emerald-700 dark:text-emerald-400">{formatBRL(financialTotals.income)}</td>
+                                                    <td className="py-3 px-3 text-right tabular-nums text-rose-700 dark:text-rose-400">{formatBRL(financialTotals.expenses)}</td>
+                                                    <td className={`py-3 px-3 text-right tabular-nums text-sm ${financialTotals.balance >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}`}>
+                                                        {formatBRL(financialTotals.balance)}
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -1857,18 +1868,18 @@ export const RelatoriosView: React.FC = memo(() => {
 
                 {/* TAB 4: Resumo por Igreja / Congregação */}
                 {activeTab === 'churches' && (
-                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl p-4 md:p-6 shadow-sm h-full flex flex-col space-y-4 overflow-y-auto custom-scrollbar">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-slate-100 dark:border-white/5">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl p-5 shadow-xs h-full flex flex-col space-y-4 overflow-y-auto custom-scrollbar">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
                             <div>
-                                <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                                    <Building2 className="w-4 h-4 text-orange-500" />
+                                <h3 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                                    <Building2 className="w-4 h-4 text-orange-600 dark:text-orange-400" />
                                     Demonstrativo Consolidado por Congregação
                                 </h3>
-                                <p className="text-xs text-slate-400">Visão geral comparativa da arrecadação, despesas e saldo por unidade.</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">Visão geral comparativa da arrecadação, despesas e saldo por unidade.</p>
                             </div>
                             <button
                                 onClick={() => setActiveView('reports')}
-                                className="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                                className="px-3.5 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
                             >
                                 <span>Ir para Fechamento de Caixa</span>
                                 <ArrowRight className="w-3.5 h-3.5" />
@@ -1884,48 +1895,48 @@ export const RelatoriosView: React.FC = memo(() => {
                                 {churchSummaries.map((ch: any) => (
                                     <div 
                                         key={ch.id}
-                                        className="p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-black/20 hover:border-orange-500/30 transition-all space-y-4"
+                                        className="p-5 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:border-orange-300 dark:hover:border-orange-800/70 transition-colors space-y-4"
                                     >
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <h4 className="font-black text-sm text-slate-800 dark:text-white">{ch.name}</h4>
-                                                <span className="text-[10px] text-slate-400 block">CNPJ: {ch.cnpJ}</span>
+                                        <div className="flex justify-between items-start gap-2">
+                                            <div className="min-w-0">
+                                                <h4 className="font-bold text-sm text-slate-900 dark:text-white truncate">{ch.name}</h4>
+                                                <span className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums block">CNPJ: {ch.cnpJ}</span>
                                             </div>
-                                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-orange-100 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400">
+                                            <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold tabular-nums bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300 border border-orange-200/60 dark:border-orange-900/40 shrink-0">
                                                 {ch.txCount} movimentações
                                             </span>
                                         </div>
 
                                         {/* Progress bar contribution */}
                                         <div className="space-y-1">
-                                            <div className="flex justify-between text-[10px] font-bold text-slate-500">
+                                            <div className="flex justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400">
                                                 <span>Participação no Total</span>
-                                                <span>{ch.sharePercent}%</span>
+                                                <span className="tabular-nums">{ch.sharePercent}%</span>
                                             </div>
-                                            <div className="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                                            <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                                                 <div 
-                                                    className="h-full bg-gradient-to-r from-orange-500 to-amber-500 rounded-full transition-all duration-500"
+                                                    className="h-full bg-orange-600 rounded-full transition-all duration-500"
                                                     style={{ width: `${ch.sharePercent}%` }}
                                                 />
                                             </div>
                                         </div>
 
-                                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200/50 dark:border-slate-800 text-xs">
+                                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200/70 dark:border-slate-800 text-xs">
                                             <div>
-                                                <span className="text-[10px] uppercase font-bold text-slate-400 block">Entradas Totais</span>
-                                                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{formatBRL(ch.totalIncome)}</span>
+                                                <span className="text-[10px] uppercase font-semibold tracking-wide text-slate-400 block">Entradas Totais</span>
+                                                <span className="tabular-nums font-bold text-emerald-600 dark:text-emerald-400">{formatBRL(ch.totalIncome)}</span>
                                             </div>
                                             <div>
-                                                <span className="text-[10px] uppercase font-bold text-slate-400 block">Saídas Totais</span>
-                                                <span className="font-mono font-bold text-rose-600 dark:text-rose-400">{formatBRL(ch.totalExpenses)}</span>
+                                                <span className="text-[10px] uppercase font-semibold tracking-wide text-slate-400 block">Saídas Totais</span>
+                                                <span className="tabular-nums font-bold text-rose-600 dark:text-rose-400">{formatBRL(ch.totalExpenses)}</span>
                                             </div>
                                         </div>
 
-                                        <div className="flex justify-between items-center pt-3 border-t border-slate-200/50 dark:border-slate-800 text-xs">
-                                            <span className="text-[10px] font-bold text-slate-400 uppercase">
-                                                Contribuintes: <strong className="text-slate-700 dark:text-slate-300">{ch.contributorCount}</strong>
+                                        <div className="flex justify-between items-center pt-3 border-t border-slate-200/70 dark:border-slate-800 text-xs">
+                                            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                                                Contribuintes: <strong className="text-slate-800 dark:text-slate-200 tabular-nums">{ch.contributorCount}</strong>
                                             </span>
-                                            <span className={`font-mono font-black text-sm ${ch.netBalance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                            <span className={`tabular-nums font-bold text-sm ${ch.netBalance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                                                 {formatBRL(ch.netBalance)}
                                             </span>
                                         </div>
@@ -1938,28 +1949,28 @@ export const RelatoriosView: React.FC = memo(() => {
 
                 {/* TAB 5: Relatório por Categoria (Entradas, Saídas e Filtros Avançados) */}
                 {activeTab === 'expenses' && (
-                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl p-4 md:p-6 shadow-sm h-full flex flex-col space-y-4 overflow-y-auto custom-scrollbar">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl p-5 shadow-xs h-full flex flex-col space-y-4 overflow-y-auto custom-scrollbar">
                         {/* Header & Overall Totals */}
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 pb-3 border-b border-slate-100 dark:border-white/5">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
                             <div>
-                                <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                                    <Tag className="w-4 h-4 text-orange-500" />
+                                <h3 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                                    <Tag className="w-4 h-4 text-orange-600 dark:text-orange-400" />
                                     Relatório Consolidado por Categoria
                                 </h3>
-                                <p className="text-xs text-slate-400">Análise financeira completa por categorias, com suporte a entradas e saídas, formas de pagamento e cargos/vínculos.</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">Análise financeira completa por categorias, com suporte a entradas e saídas, formas de pagamento e cargos/vínculos.</p>
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/40 text-emerald-700 dark:text-emerald-300">
+                                <span className="text-xs tabular-nums font-semibold px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-900/40 text-emerald-700 dark:text-emerald-300">
                                     Entradas: {formatBRL(categoryTotals.totalIncome)}
                                 </span>
-                                <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 text-rose-700 dark:text-rose-300">
+                                <span className="text-xs tabular-nums font-semibold px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-900/40 text-rose-700 dark:text-rose-300">
                                     Saídas: {formatBRL(categoryTotals.totalExpenses)}
                                 </span>
-                                <span className={`text-xs font-mono font-bold px-2.5 py-1 rounded-xl border ${
+                                <span className={`text-xs tabular-nums font-semibold px-2.5 py-1 rounded-lg border ${
                                     (categoryTotals.totalIncome - categoryTotals.totalExpenses) >= 0
-                                        ? 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900/40 text-blue-700 dark:text-blue-300'
-                                        : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/40 text-amber-700 dark:text-amber-300'
+                                        ? 'bg-slate-100 dark:bg-slate-800 border-slate-200/90 dark:border-slate-700 text-slate-800 dark:text-slate-200'
+                                        : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200/80 dark:border-amber-900/40 text-amber-700 dark:text-amber-300'
                                 }`}>
                                     Saldo Filtrado: {formatBRL(categoryTotals.totalIncome - categoryTotals.totalExpenses)}
                                 </span>
@@ -1967,16 +1978,16 @@ export const RelatoriosView: React.FC = memo(() => {
                         </div>
 
                         {/* Dynamic Controls & Filter Bar */}
-                        <div className="p-3 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-800 rounded-xl space-y-3">
+                        <div className="p-3 bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-800 rounded-xl space-y-3">
                             {/* Primary Filters Row */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                                 {/* Movement Type Toggle */}
-                                <div className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-1">
+                                <div className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-1">
                                     <button
                                         onClick={() => setCategoryTypeFilter('all')}
-                                        className={`flex-1 py-1 px-2 rounded-lg text-xs font-bold transition-all text-center ${
+                                        className={`flex-1 py-1 px-2 rounded-md text-xs font-semibold transition-colors text-center cursor-pointer ${
                                             categoryTypeFilter === 'all'
-                                                ? 'bg-orange-500 text-white shadow-xs'
+                                                ? 'bg-orange-600 text-white shadow-xs'
                                                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                                         }`}
                                     >
@@ -1984,7 +1995,7 @@ export const RelatoriosView: React.FC = memo(() => {
                                     </button>
                                     <button
                                         onClick={() => setCategoryTypeFilter('income')}
-                                        className={`flex-1 py-1 px-2 rounded-lg text-xs font-bold transition-all text-center ${
+                                        className={`flex-1 py-1 px-2 rounded-md text-xs font-semibold transition-colors text-center cursor-pointer ${
                                             categoryTypeFilter === 'income'
                                                 ? 'bg-emerald-600 text-white shadow-xs'
                                                 : 'text-slate-600 dark:text-slate-400 hover:text-emerald-600'
@@ -1994,7 +2005,7 @@ export const RelatoriosView: React.FC = memo(() => {
                                     </button>
                                     <button
                                         onClick={() => setCategoryTypeFilter('expense')}
-                                        className={`flex-1 py-1 px-2 rounded-lg text-xs font-bold transition-all text-center ${
+                                        className={`flex-1 py-1 px-2 rounded-md text-xs font-semibold transition-colors text-center cursor-pointer ${
                                             categoryTypeFilter === 'expense'
                                                 ? 'bg-rose-600 text-white shadow-xs'
                                                 : 'text-slate-600 dark:text-slate-400 hover:text-rose-600'
@@ -2009,7 +2020,7 @@ export const RelatoriosView: React.FC = memo(() => {
                                     <select
                                         value={categoryPaymentMethodFilter}
                                         onChange={e => setCategoryPaymentMethodFilter(e.target.value)}
-                                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 font-bold focus:outline-none focus:border-orange-500"
+                                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 font-semibold focus:outline-none focus:border-orange-500"
                                     >
                                         <option value="all">Forma de Pagto: Todas</option>
                                         {availablePaymentMethods.map((pm, idx) => (
@@ -2023,7 +2034,7 @@ export const RelatoriosView: React.FC = memo(() => {
                                     <select
                                         value={categoryRoleFilter}
                                         onChange={e => setCategoryRoleFilter(e.target.value)}
-                                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 font-bold focus:outline-none focus:border-orange-500"
+                                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 font-semibold focus:outline-none focus:border-orange-500"
                                     >
                                         <option value="all">Vínculo / Cargo: Todos</option>
                                         {availableRoles.map((role, idx) => (
@@ -2042,7 +2053,7 @@ export const RelatoriosView: React.FC = memo(() => {
                                             setCategoryPaymentMethodFilter('all');
                                             setCategoryRoleFilter('all');
                                         }}
-                                        className="px-3 py-1.5 text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-xl hover:bg-rose-100 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                                        className="px-3 py-1.5 text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-lg hover:bg-rose-100 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                                     >
                                         <RotateCcw className="w-3.5 h-3.5" />
                                         <span>Resetar Todos os Filtros</span>
@@ -2051,7 +2062,7 @@ export const RelatoriosView: React.FC = memo(() => {
                             </div>
 
                             {/* Secondary Row: Search & Multi-Category Selection */}
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-1 border-t border-slate-200/60 dark:border-slate-800/60">
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-2 border-t border-slate-200/70 dark:border-slate-800/60">
                                 {/* Search Input */}
                                 <div className="relative flex-1">
                                     <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -2060,12 +2071,12 @@ export const RelatoriosView: React.FC = memo(() => {
                                         placeholder="Buscar categoria por nome..."
                                         value={expenseCategorySearch}
                                         onChange={e => setExpenseCategorySearch(e.target.value)}
-                                        className="pl-9 pr-8 py-1.5 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:border-orange-500"
+                                        className="pl-9 pr-8 py-1.5 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:border-orange-500"
                                     />
                                     {expenseCategorySearch && (
                                         <button 
                                             onClick={() => setExpenseCategorySearch('')}
-                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
                                         >
                                             <X className="w-3.5 h-3.5" />
                                         </button>
@@ -2076,14 +2087,14 @@ export const RelatoriosView: React.FC = memo(() => {
                                 <div className="relative" ref={categoryDropdownRef}>
                                     <button
                                         onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
-                                        className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-2 cursor-pointer w-full sm:w-auto justify-between ${
+                                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors flex items-center gap-2 cursor-pointer w-full sm:w-auto justify-between ${
                                             selectedExpenseCategories.length > 0
                                                 ? 'bg-orange-50 dark:bg-orange-950/30 border-orange-300 dark:border-orange-800 text-orange-700 dark:text-orange-300'
-                                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200'
+                                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
                                         }`}
                                     >
                                         <div className="flex items-center gap-1.5">
-                                            <Filter className="w-3.5 h-3.5 text-orange-500" />
+                                            <Filter className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
                                             <span>
                                                 {selectedExpenseCategories.length === 0
                                                     ? 'Todas as Categorias'
@@ -2095,18 +2106,18 @@ export const RelatoriosView: React.FC = memo(() => {
                                     </button>
 
                                     {isCategoryDropdownOpen && (
-                                        <div className="absolute right-0 mt-1.5 w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-30 p-3 space-y-2 animate-in fade-in duration-150">
+                                        <div className="absolute right-0 mt-1.5 w-72 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 rounded-xl shadow-elevated z-30 p-3 space-y-2 animate-in fade-in duration-150">
                                             <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
-                                                <span className="text-[11px] font-black uppercase text-slate-500">Categorias Cadastradas</span>
+                                                <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Categorias Cadastradas</span>
                                                 <button
                                                     onClick={() => setSelectedExpenseCategories([])}
-                                                    className="text-[10px] font-bold text-orange-600 dark:text-orange-400 hover:underline cursor-pointer"
+                                                    className="text-[11px] font-semibold text-orange-600 dark:text-orange-400 hover:underline cursor-pointer"
                                                 >
                                                     Limpar Seleção
                                                 </button>
                                             </div>
 
-                                            <div className="max-h-56 overflow-y-auto custom-scrollbar space-y-1">
+                                            <div className="max-h-56 overflow-y-auto custom-scrollbar space-y-1" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
                                                 {allSystemCategoryNames.length === 0 ? (
                                                     <p className="text-xs text-slate-400 italic py-2 text-center">Nenhuma categoria encontrada.</p>
                                                 ) : (
@@ -2116,19 +2127,19 @@ export const RelatoriosView: React.FC = memo(() => {
                                                         return (
                                                             <label
                                                                 key={idx}
-                                                                className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer text-xs transition-colors"
+                                                                className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer text-xs transition-colors"
                                                             >
                                                                 <div className="flex items-center gap-2">
                                                                     <input
                                                                         type="checkbox"
                                                                         checked={isSelected}
                                                                         onChange={() => toggleExpenseCategory(catName)}
-                                                                        className="rounded border-slate-300 text-orange-600 focus:ring-orange-500 cursor-pointer"
+                                                                        className="rounded border-slate-300 accent-orange-600 text-orange-600 focus:ring-orange-500 cursor-pointer"
                                                                     />
                                                                     <span className="font-semibold text-slate-800 dark:text-slate-200">{catName}</span>
                                                                 </div>
                                                                 {catObj && (
-                                                                    <span className="font-mono text-[10px] font-bold text-orange-600">
+                                                                    <span className="tabular-nums text-[11px] font-semibold text-orange-600 dark:text-orange-400">
                                                                         {formatBRL(catObj.amount)}
                                                                     </span>
                                                                 )}
@@ -2138,11 +2149,11 @@ export const RelatoriosView: React.FC = memo(() => {
                                                 )}
                                             </div>
 
-                                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-[10px] font-bold text-slate-400">
-                                                <span>{selectedExpenseCategories.length} de {allSystemCategoryNames.length} marcadas</span>
+                                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-[11px] font-semibold text-slate-500">
+                                                <span className="tabular-nums">{selectedExpenseCategories.length} de {allSystemCategoryNames.length} marcadas</span>
                                                 <button
                                                     onClick={() => setIsCategoryDropdownOpen(false)}
-                                                    className="px-2.5 py-1 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-lg text-xs font-bold cursor-pointer"
+                                                    className="px-3 py-1 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-xs font-semibold cursor-pointer transition-colors"
                                                 >
                                                     Concluído
                                                 </button>
@@ -2154,10 +2165,10 @@ export const RelatoriosView: React.FC = memo(() => {
 
                             {/* Quick Category Pills / Chips */}
                             {allSystemCategoryNames.length > 0 && (
-                                <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar pt-1 pb-0.5 text-xs">
+                                <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar pt-1 pb-0.5 text-xs" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}>
                                     <button
                                         onClick={() => setSelectedExpenseCategories([])}
-                                        className={`px-3 py-1 rounded-full font-bold transition-all whitespace-nowrap cursor-pointer text-[11px] flex items-center gap-1 ${
+                                        className={`px-2.5 py-1 rounded-md font-semibold transition-colors whitespace-nowrap cursor-pointer text-[11px] flex items-center gap-1 tabular-nums ${
                                             selectedExpenseCategories.length === 0
                                                 ? 'bg-orange-600 text-white shadow-xs'
                                                 : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-orange-400'
@@ -2173,17 +2184,17 @@ export const RelatoriosView: React.FC = memo(() => {
                                             <button
                                                 key={idx}
                                                 onClick={() => toggleExpenseCategory(catName)}
-                                                className={`px-3 py-1 rounded-full font-bold transition-all whitespace-nowrap cursor-pointer text-[11px] flex items-center gap-1.5 border ${
+                                                className={`px-2.5 py-1 rounded-md font-semibold transition-colors whitespace-nowrap cursor-pointer text-[11px] flex items-center gap-1.5 border ${
                                                     isSelected
-                                                        ? 'bg-orange-100 dark:bg-orange-950/60 text-orange-800 dark:text-orange-200 border-orange-300 dark:border-orange-800 shadow-xs'
+                                                        ? 'bg-orange-50 dark:bg-orange-950/50 text-orange-800 dark:text-orange-200 border-orange-300 dark:border-orange-800 shadow-xs'
                                                         : 'bg-white dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-orange-300'
                                                 }`}
                                             >
                                                 {isSelected && <Check className="w-3 h-3 text-orange-600 dark:text-orange-400" />}
                                                 <span>{catName}</span>
                                                 {catObj && (
-                                                    <span className={`font-mono text-[10px] px-1.5 py-0.2 rounded-md ${
-                                                        isSelected ? 'bg-orange-200 dark:bg-orange-900/60 text-orange-900 dark:text-orange-100' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                                                    <span className={`tabular-nums text-[10px] px-1.5 py-0.5 rounded ${
+                                                        isSelected ? 'bg-orange-200/70 dark:bg-orange-900/60 text-orange-900 dark:text-orange-100' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
                                                     }`}>
                                                         {formatBRL(catObj.amount)}
                                                     </span>
@@ -2197,23 +2208,23 @@ export const RelatoriosView: React.FC = memo(() => {
 
                         {/* Summary Metrics for Filtered Selection */}
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <div className="p-3 rounded-xl border border-orange-200/80 dark:border-orange-950 bg-orange-50/40 dark:bg-orange-950/20">
-                                <span className="text-[10px] uppercase font-black text-orange-700 dark:text-orange-400 block tracking-wider">Volume Movimentado</span>
-                                <div className="flex items-baseline gap-2">
-                                    <span className="text-lg font-mono font-black text-orange-700 dark:text-orange-300">{formatBRL(categoryTotals.totalAmount)}</span>
+                            <div className="p-3.5 rounded-xl border border-orange-200/80 dark:border-orange-950 bg-orange-50/40 dark:bg-orange-950/20">
+                                <span className="text-[10px] uppercase font-semibold text-orange-700 dark:text-orange-400 block tracking-wide">Volume Movimentado</span>
+                                <div className="flex items-baseline gap-2 mt-0.5">
+                                    <span className="text-lg tabular-nums font-bold text-orange-700 dark:text-orange-300">{formatBRL(categoryTotals.totalAmount)}</span>
                                 </div>
                             </div>
 
-                            <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-black/20">
-                                <span className="text-[10px] uppercase font-black text-slate-500 block tracking-wider">Categorias Exibidas</span>
-                                <span className="text-lg font-mono font-black text-slate-800 dark:text-white">
+                            <div className="p-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
+                                <span className="text-[10px] uppercase font-semibold text-slate-500 block tracking-wide">Categorias Exibidas</span>
+                                <span className="text-lg tabular-nums font-bold text-slate-900 dark:text-white mt-0.5 block">
                                     {categoryTotals.categoriesCount} <span className="text-xs font-normal text-slate-400">de {allSystemCategoryNames.length}</span>
                                 </span>
                             </div>
 
-                            <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-black/20">
-                                <span className="text-[10px] uppercase font-black text-slate-500 block tracking-wider">Lançamentos Filtrados</span>
-                                <span className="text-lg font-mono font-black text-slate-800 dark:text-white">
+                            <div className="p-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
+                                <span className="text-[10px] uppercase font-semibold text-slate-500 block tracking-wide">Lançamentos Filtrados</span>
+                                <span className="text-lg tabular-nums font-bold text-slate-900 dark:text-white mt-0.5 block">
                                     {categoryTotals.totalCount} <span className="text-xs font-normal text-slate-400">movimentações</span>
                                 </span>
                             </div>
@@ -2221,7 +2232,7 @@ export const RelatoriosView: React.FC = memo(() => {
 
                         {/* Category Cards & Drilldown */}
                         {displayedCategoryCards.length === 0 ? (
-                            <div className="text-center py-12 text-slate-400 text-xs italic bg-slate-50/50 dark:bg-black/10 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 space-y-2">
+                            <div className="text-center py-12 text-slate-400 text-xs italic bg-slate-50/50 dark:bg-slate-800/20 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 space-y-2">
                                 <p>Nenhuma categoria encontrada para os filtros selecionados.</p>
                                 {(selectedExpenseCategories.length > 0 || expenseCategorySearch || categoryTypeFilter !== 'all' || categoryPaymentMethodFilter !== 'all' || categoryRoleFilter !== 'all') && (
                                     <button
@@ -2232,7 +2243,7 @@ export const RelatoriosView: React.FC = memo(() => {
                                             setCategoryPaymentMethodFilter('all');
                                             setCategoryRoleFilter('all');
                                         }}
-                                        className="px-3 py-1.5 bg-orange-600 text-white rounded-xl text-xs font-bold cursor-pointer hover:bg-orange-700 transition-colors"
+                                        className="px-3 py-1.5 bg-orange-600 text-white rounded-lg text-xs font-semibold cursor-pointer hover:bg-orange-700 transition-colors"
                                     >
                                         Limpar Filtros de Categoria
                                     </button>
@@ -2249,48 +2260,48 @@ export const RelatoriosView: React.FC = memo(() => {
                                     return (
                                         <div 
                                             key={idx}
-                                            className={`p-4 rounded-xl border transition-all flex flex-col space-y-3 ${
+                                            className={`p-4 rounded-xl border transition-colors flex flex-col space-y-3 ${
                                                 isExpanded
-                                                    ? 'border-orange-400 dark:border-orange-800 bg-white dark:bg-slate-900 shadow-md md:col-span-2'
-                                                    : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-black/20 hover:border-slate-300 dark:hover:border-slate-700'
+                                                    ? 'border-orange-300 dark:border-orange-800 bg-white dark:bg-slate-900 shadow-xs md:col-span-2'
+                                                    : 'border-slate-200/90 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:border-slate-300 dark:hover:border-slate-700'
                                             }`}
                                         >
                                             <div className="flex justify-between items-start gap-2">
                                                 <div>
                                                     <div className="flex items-center gap-2">
-                                                        <h4 className="font-bold text-xs text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
-                                                            <Tag className="w-3.5 h-3.5 text-orange-500" />
+                                                        <h4 className="font-bold text-xs text-slate-900 dark:text-white uppercase tracking-wide flex items-center gap-1.5">
+                                                            <Tag className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
                                                             {cat.category}
                                                         </h4>
-                                                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                                        <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-md ${
                                                             cat.typeLabel === 'misto'
-                                                                ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-800'
+                                                                ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-200 border border-amber-200/80 dark:border-amber-800'
                                                                 : cat.typeLabel === 'saida'
-                                                                ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-200 border border-rose-300 dark:border-rose-800'
-                                                                : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800'
+                                                                ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-200 border border-rose-200/80 dark:border-rose-800'
+                                                                : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-200 border border-emerald-200/80 dark:border-emerald-800'
                                                         }`}>
                                                             {cat.typeLabel === 'misto' ? 'Misto' : cat.typeLabel === 'saida' ? 'Saída' : 'Entrada'}
                                                         </span>
                                                     </div>
-                                                    <span className="text-[10px] text-slate-400 font-semibold">{cat.count} lançamentos • {percent}% do volume exibido</span>
+                                                    <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium tabular-nums">{cat.count} lançamentos • {percent}% do volume exibido</span>
                                                     
                                                     {/* Subtotals if mixed or present */}
                                                     {(cat.incomeAmount > 0 && cat.expenseAmount > 0) && (
-                                                        <div className="flex items-center gap-2 mt-1 text-[10px] font-mono">
-                                                            <span className="text-emerald-600 dark:text-emerald-400 font-bold">Entradas: {formatBRL(cat.incomeAmount)}</span>
+                                                        <div className="flex items-center gap-2 mt-1 text-[10px] tabular-nums">
+                                                            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Entradas: {formatBRL(cat.incomeAmount)}</span>
                                                             <span className="text-slate-300">•</span>
-                                                            <span className="text-rose-600 dark:text-rose-400 font-bold">Saídas: {formatBRL(cat.expenseAmount)}</span>
+                                                            <span className="text-rose-600 dark:text-rose-400 font-semibold">Saídas: {formatBRL(cat.expenseAmount)}</span>
                                                         </div>
                                                     )}
                                                 </div>
 
                                                 <div className="text-right">
-                                                    <span className={`text-xs font-mono font-black block ${
+                                                    <span className={`text-xs tabular-nums font-bold block ${
                                                         cat.typeLabel === 'saida' ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
                                                     }`}>{formatBRL(cat.amount)}</span>
                                                     <button
                                                         onClick={() => toggleExpandCategory(cat.category)}
-                                                        className="mt-1 text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer flex items-center gap-1 ml-auto"
+                                                        className="mt-1 text-[11px] font-semibold text-orange-600 dark:text-orange-400 hover:underline cursor-pointer flex items-center gap-1 ml-auto"
                                                     >
                                                         <span>{isExpanded ? 'Ocultar Lançamentos' : 'Ver Detalhes'}</span>
                                                         {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
@@ -2310,16 +2321,16 @@ export const RelatoriosView: React.FC = memo(() => {
                                             {/* DRILLDOWN TABLE FOR EXPANDED CATEGORY */}
                                             {isExpanded && (
                                                 <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2 animate-in fade-in duration-200">
-                                                    <div className="flex justify-between items-center text-[11px] font-bold text-slate-500">
-                                                        <span>Lançamentos da Categoria ({catTransactions.length})</span>
-                                                        <span className="font-mono text-slate-700 dark:text-slate-300">Subtotal: {formatBRL(cat.amount)}</span>
+                                                    <div className="flex justify-between items-center text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                                                        <span className="tabular-nums">Lançamentos da Categoria ({catTransactions.length})</span>
+                                                        <span className="tabular-nums text-slate-700 dark:text-slate-300">Subtotal: {formatBRL(cat.amount)}</span>
                                                     </div>
 
-                                                    <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
-                                                        <div className="overflow-x-auto max-h-60 custom-scrollbar">
+                                                    <div className="border border-slate-200/90 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+                                                        <div className="overflow-x-auto max-h-60 custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}>
                                                             <table className="w-full text-left border-collapse">
                                                                 <thead>
-                                                                    <tr className="bg-slate-100 dark:bg-slate-800 text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                                                                    <tr className="bg-slate-50/90 dark:bg-slate-800/80 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide border-b border-slate-200/90 dark:border-slate-800">
                                                                         <th className="py-2 px-3">Data</th>
                                                                         <th className="py-2 px-3">Tipo</th>
                                                                         <th className="py-2 px-3">Histórico / Descrição</th>
@@ -2347,14 +2358,14 @@ export const RelatoriosView: React.FC = memo(() => {
 
                                                                             return (
                                                                                 <tr key={tIdx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                                                                                    <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px] whitespace-nowrap">
+                                                                                    <td className="py-1.5 px-3 tabular-nums text-slate-500 text-[11px] whitespace-nowrap">
                                                                                         {!isManualTx && tx.reference_date && tx.bank_date && tx.reference_date !== tx.bank_date ? (
                                                                                             <div className="flex flex-col leading-tight">
-                                                                                                <span className="font-bold text-slate-800 dark:text-white" title={`Data de Referência (Competência): ${formatDateBRL(tx.date)}`}>
+                                                                                                <span className="font-semibold text-slate-800 dark:text-white" title={`Data de Referência (Competência): ${formatDateBRL(tx.date)}`}>
                                                                                                     {formatDateBRL(tx.date)}
                                                                                                 </span>
-                                                                                                <span className="text-[9.5px] text-slate-400 dark:text-slate-500 font-normal mt-0.5" title={`Data no Banco: ${formatDateBRL(tx.bank_date)}`}>
-                                                                                                    <span className="text-[8.5px] uppercase font-semibold text-slate-400 mr-0.5">Banco:</span>
+                                                                                                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5" title={`Data no Banco: ${formatDateBRL(tx.bank_date)}`}>
+                                                                                                    <span className="text-[9px] uppercase font-semibold text-slate-400 mr-0.5">Banco:</span>
                                                                                                     {formatDateBRL(tx.bank_date)}
                                                                                                 </span>
                                                                                             </div>
@@ -2363,18 +2374,18 @@ export const RelatoriosView: React.FC = memo(() => {
                                                                                         )}
                                                                                     </td>
                                                                                     <td className="py-1.5 px-3 whitespace-nowrap">
-                                                                                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
-                                                                                            isExp ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300' : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
+                                                                                        <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-md ${
+                                                                                            isExp ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300' : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
                                                                                         }`}>
                                                                                             {isExp ? 'Saída' : 'Entrada'}
                                                                                         </span>
                                                                                     </td>
-                                                                                    <td className="py-1.5 px-3 font-bold text-slate-800 dark:text-slate-200 uppercase text-[11px]">{tx.desc || tx.description || tx.historico || 'Lançamento'}</td>
+                                                                                    <td className="py-1.5 px-3 font-semibold text-slate-800 dark:text-slate-200 uppercase text-[11px]">{tx.desc || tx.description || tx.historico || 'Lançamento'}</td>
                                                                                     <td className="py-1.5 px-3 text-slate-600 dark:text-slate-400 text-[11px]">{tx.payer || tx.contribuinte || tx.favorecido || tx.nome || '---'}</td>
-                                                                                    <td className="py-1.5 px-3 text-slate-500 text-[10px] font-mono">{pm}</td>
-                                                                                    <td className="py-1.5 px-3 text-slate-500 text-[10px]">{role}</td>
-                                                                                    <td className="py-1.5 px-3 text-slate-400 text-[10px]">{getChurchName(tx.churchId || tx.church)}</td>
-                                                                                    <td className={`py-1.5 px-3 text-right font-mono font-bold ${
+                                                                                    <td className="py-1.5 px-3 text-slate-500 text-[11px] tabular-nums">{pm}</td>
+                                                                                    <td className="py-1.5 px-3 text-slate-500 text-[11px]">{role}</td>
+                                                                                    <td className="py-1.5 px-3 text-slate-400 text-[11px]">{getChurchName(tx.churchId || tx.church)}</td>
+                                                                                    <td className={`py-1.5 px-3 text-right tabular-nums font-bold ${
                                                                                         isExp ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
                                                                                     }`}>{formatBRL(amt)}</td>
                                                                                 </tr>

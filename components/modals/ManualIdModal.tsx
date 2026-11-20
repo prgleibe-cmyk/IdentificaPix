@@ -1043,14 +1043,14 @@ export const ManualIdModal: React.FC = () => {
         return (
             <div className="px-2 py-3 md:px-4 w-full max-w-4xl mx-auto space-y-4 min-h-full flex flex-col animate-fade-in pb-8 md:pb-6">
                 {/* Header Card */}
-                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex-shrink-0">
+                <div className="bg-white dark:bg-slate-900 px-4 py-3 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex-shrink-0">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-orange-50 dark:bg-orange-950/50 border border-orange-200/70 dark:border-orange-900/50 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
-                                <PlusCircle className="w-5 h-5" />
+                            <div className="w-9 h-9 rounded-lg bg-orange-50 dark:bg-orange-950/50 border border-orange-200/70 dark:border-orange-900/50 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
+                                <PlusCircle className="w-4 h-4" />
                             </div>
                             <div>
-                                <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+                                <h1 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight">
                                     Novo Lançamento
                                 </h1>
                                 <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -1071,7 +1071,7 @@ export const ManualIdModal: React.FC = () => {
                 </div>
 
                 {/* Main Content Card */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 sm:p-5 shadow-xs space-y-5">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 sm:p-5 shadow-xs space-y-4">
                     {/* Tipo de Movimentação */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
                         <div>
@@ -1149,22 +1149,19 @@ export const ManualIdModal: React.FC = () => {
                                     </span>
                                 )}
                             </div>
-                            <div className="relative group">
-                                <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
-                                <input
-                                    type="date"
-                                    value={toYmd(selectedDate)}
-                                    onChange={e => {
-                                        const val = e.target.value;
-                                        setSelectedDate(val);
-                                        isDateManuallyChangedRef.current = true;
-                                        if (bulkIdentificationTxs?.[0] && bulkIdentificationTxs[0].id?.startsWith('ghost-manual-')) {
-                                            bulkIdentificationTxs[0].date = val;
-                                        }
-                                    }}
-                                    className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 pl-9 pr-3 transition-all outline-none text-xs font-semibold"
-                                />
-                            </div>
+                            <input
+                                type="date"
+                                value={toYmd(selectedDate)}
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    setSelectedDate(val);
+                                    isDateManuallyChangedRef.current = true;
+                                    if (bulkIdentificationTxs?.[0] && bulkIdentificationTxs[0].id?.startsWith('ghost-manual-')) {
+                                        bulkIdentificationTxs[0].date = val;
+                                    }
+                                }}
+                                className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 px-3 transition-all outline-none text-xs font-semibold tabular-nums"
+                            />
                         </div>
 
                         <div className="space-y-1">
@@ -1204,7 +1201,7 @@ export const ManualIdModal: React.FC = () => {
                                     Lido do documento
                                 </span>
                             ) : (
-                                <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                                <span className="hidden sm:inline text-[11px] text-slate-400 dark:text-slate-500">
                                     Selecionar um cadastro preenche a igreja automaticamente
                                 </span>
                             )}
@@ -1743,38 +1740,38 @@ export const ManualIdModal: React.FC = () => {
 
     return (
         <div
-            className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-[2px] flex items-center justify-center p-2 sm:p-4 md:p-6 animate-fade-in"
+            className="fixed inset-0 md:absolute md:inset-0 z-[56] flex items-center justify-center pt-16 md:pt-4 pb-3 md:pb-4 px-2 sm:px-6 bg-slate-900/55 backdrop-blur-[2px] animate-fade-in"
             onClick={closeManualIdentify}
         >
             <div
-                className="w-full max-w-3xl max-h-[92vh] bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-2xl flex flex-col overflow-hidden"
+                className="w-full max-w-2xl max-h-[calc(100dvh-5rem)] md:max-h-[min(90vh,calc(100dvh-2.5rem))] bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-elevated flex flex-col overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
             >
             {/* Header */}
-            <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 shrink-0">
-                <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-orange-50 dark:bg-orange-950/50 border border-orange-200/70 dark:border-orange-900/50 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
-                        {count > 1 ? <CheckBadgeIcon className="w-5 h-5" /> : <Building2 className="w-5 h-5" />}
+            <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 shrink-0">
+                <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-orange-50 dark:bg-orange-950/50 border border-orange-200/70 dark:border-orange-900/50 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
+                        {count > 1 ? <CheckBadgeIcon className="w-4 h-4" /> : <Building2 className="w-4 h-4" />}
                     </div>
                     <div>
-                        <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight">
+                        <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
                             {count > 1 ? 'Destinar Lote' : 'Identificação de Lançamento'}
                         </h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                        <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
                             {count > 1 ? 'Reconciliação em lote dos registros selecionados.' : 'Vincule o contribuinte, igreja e categoria do lançamento.'}
                         </p>
                     </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                    <span className="hidden sm:inline text-[10px] font-medium text-slate-400 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 rounded">Esc</span>
-                    <button type="button" onClick={closeManualIdentify} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer" aria-label="Fechar">
-                        <XMarkIcon className="w-5 h-5" />
-                    </button>
-                </div>
+                <button type="button" onClick={closeManualIdentify} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer shrink-0" aria-label="Fechar">
+                    <XMarkIcon className="w-5 h-5" />
+                </button>
             </div>
 
             {/* Form fields */}
-            <div className="p-4 sm:p-5 flex-1 overflow-y-auto w-full custom-scrollbar space-y-4">
+            <div
+                className="p-4 sm:p-5 flex-1 overflow-y-auto w-full custom-scrollbar space-y-4"
+                style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}
+            >
                     {count > 1 ? (
                         <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700">
                             <div className="flex justify-between items-center">
@@ -2073,19 +2070,16 @@ export const ManualIdModal: React.FC = () => {
                                     ) : null;
                                 })()}
                             </div>
-                            <div className="relative group">
-                                <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
-                                <input
-                                    type="date"
-                                    value={toYmd(selectedDate)}
-                                    onChange={e => {
-                                        const val = e.target.value;
-                                        setSelectedDate(val);
-                                        isDateManuallyChangedRef.current = true;
-                                    }}
-                                    className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 pl-9 pr-3 transition-all outline-none text-xs font-semibold"
-                                />
-                            </div>
+                            <input
+                                type="date"
+                                value={toYmd(selectedDate)}
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    setSelectedDate(val);
+                                    isDateManuallyChangedRef.current = true;
+                                }}
+                                className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 px-3 transition-all outline-none text-xs font-semibold tabular-nums"
+                            />
                         </div>
 
                         <div className="space-y-1.5">
@@ -2225,22 +2219,6 @@ export const ManualIdModal: React.FC = () => {
                                 placeholder="Digite a descrição detalhada ou selecione um modelo..."
                                 className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 pl-9 pr-3 transition-all outline-none text-xs font-semibold placeholder:text-slate-400 placeholder:font-normal"
                             />
-                        </div>
-                        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                            {typeOptions.slice(0, 6).map((type: string) => (
-                                <button
-                                    key={type}
-                                    type="button"
-                                    onClick={() => setSelectedType(type.toUpperCase())}
-                                    className={`text-[11px] font-medium px-2.5 py-1 rounded-md border transition-colors cursor-pointer ${
-                                        selectedType.toUpperCase() === type.toUpperCase()
-                                            ? 'bg-orange-50 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800'
-                                            : 'bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 border-slate-200/80 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
-                                    }`}
-                                >
-                                    {type}
-                                </button>
-                            ))}
                         </div>
                     </div>
 

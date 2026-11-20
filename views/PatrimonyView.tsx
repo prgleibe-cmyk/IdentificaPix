@@ -681,30 +681,30 @@ export const PatrimonyView: React.FC = memo(() => {
     const getStatusBadge = (status: PatrimonyItem['status']) => {
         switch (status) {
             case 'Ativo':
-                return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/50"><CheckCircle2 className="w-3.5 h-3.5" /> Ativo</span>;
+                return <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/70 dark:border-emerald-800/50"><CheckCircle2 className="w-3.5 h-3.5" /> Ativo</span>;
             case 'Em Manutenção':
-                return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/50"><AlertTriangle className="w-3.5 h-3.5" /> Manutenção</span>;
+                return <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200/70 dark:border-amber-800/50"><AlertTriangle className="w-3.5 h-3.5" /> Manutenção</span>;
             case 'Em Vistoria':
-                return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/50"><Clock className="w-3.5 h-3.5" /> Em Vistoria</span>;
+                return <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200/70 dark:border-blue-800/50"><Clock className="w-3.5 h-3.5" /> Em Vistoria</span>;
             case 'Baixado/Doado':
-                return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-300 dark:border-slate-700"><Trash2 className="w-3.5 h-3.5" /> Baixado</span>;
+                return <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700"><Trash2 className="w-3.5 h-3.5" /> Baixado</span>;
             case 'Empréstimo':
-                return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/50"><Tag className="w-3.5 h-3.5" /> Cedido</span>;
+                return <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200/70 dark:border-purple-800/50"><Tag className="w-3.5 h-3.5" /> Cedido</span>;
         }
     };
 
     const getConditionBadge = (condition: PatrimonyItem['condition']) => {
         switch (condition) {
             case 'Excelente':
-                return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">Excelente</span>;
+                return <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">Excelente</span>;
             case 'Bom':
-                return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">Bom Estado</span>;
+                return <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/40">Bom Estado</span>;
             case 'Regular':
-                return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">Regular</span>;
+                return <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40">Regular</span>;
             case 'Danificado':
-                return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">Danificado</span>;
+                return <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200/60 dark:border-rose-800/40">Danificado</span>;
             case 'Inoperante':
-                return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">Inoperante</span>;
+                return <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">Inoperante</span>;
         }
     };
 
@@ -716,21 +716,21 @@ export const PatrimonyView: React.FC = memo(() => {
         <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full pb-12 relative min-h-[600px]">
             
             {/* Header section */}
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
-                <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-2xl bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-inner">
-                        <Building2 className="w-7 h-7" />
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 bg-white dark:bg-slate-900 px-4 py-2.5 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs">
+                <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-orange-50 dark:bg-orange-950/40 border border-orange-200/60 dark:border-orange-900/40 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
+                        <Building2 className="w-4 h-4" />
                     </div>
                     <div>
-                        <div className="flex items-center gap-2">
-                            <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <h1 className="text-base font-bold text-slate-900 dark:text-white tracking-tight leading-tight">
                                 Controle & Gestão de Patrimônio
                             </h1>
-                            <span className="bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest border border-amber-200/60 dark:border-amber-800/40">
+                            <span className="bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 text-[10px] font-semibold px-2 py-0.5 rounded-md border border-orange-200/60 dark:border-orange-900/40">
                                 Oficial
                             </span>
                         </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight max-w-2xl">
                             Controle total de bens da igreja, tombo de equipamentos, guarda de notas fiscais, apólices de seguro, contratos e acompanhamento de garantias.
                         </p>
                     </div>
@@ -739,9 +739,9 @@ export const PatrimonyView: React.FC = memo(() => {
                 <div className="flex items-center gap-2 shrink-0">
                     <button
                         onClick={handleOpenCreateModal}
-                        className="flex items-center gap-1.5 px-5 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-2xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 transition-all tracking-wider uppercase cursor-pointer"
+                        className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-xs transition-colors cursor-pointer"
                     >
-                        <Plus className="w-3.5 h-3.5" />
+                        <Plus className="w-4 h-4" />
                         Cadastrar Novo Bem
                     </button>
                 </div>
@@ -749,66 +749,66 @@ export const PatrimonyView: React.FC = memo(() => {
 
             {/* KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between">
+                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex items-center justify-between gap-3">
                     <div>
-                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Total de Bens</span>
-                        <span className="text-2xl font-black text-slate-900 dark:text-white mt-1 block">{metrics.totalCount} itens</span>
+                        <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block">Total de Bens</span>
+                        <span className="text-xl font-bold text-slate-900 dark:text-white mt-1 block tabular-nums">{metrics.totalCount} itens</span>
                         <span className="text-[11px] text-slate-400 mt-0.5 block">Catalogados no tombamento</span>
                     </div>
-                    <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400 flex items-center justify-center shrink-0">
-                        <Box className="w-6 h-6" />
+                    <div className="w-10 h-10 rounded-lg bg-orange-50 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400 border border-orange-200/60 dark:border-orange-900/40 flex items-center justify-center shrink-0">
+                        <Box className="w-5 h-5" />
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between">
+                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex items-center justify-between gap-3">
                     <div>
-                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Valor Patrimonial Total</span>
-                        <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 block">
+                        <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block">Valor Patrimonial Total</span>
+                        <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1 block tabular-nums">
                             R$ {metrics.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </span>
                         <span className="text-[11px] text-slate-400 mt-0.5 block">Soma de aquisição / estimativa</span>
                     </div>
-                    <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                        <DollarSign className="w-6 h-6" />
+                    <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-900/40 flex items-center justify-center shrink-0">
+                        <DollarSign className="w-5 h-5" />
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between">
+                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex items-center justify-between gap-3">
                     <div>
-                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Bens em Manutenção</span>
-                        <span className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1 block">{metrics.maintenanceCount} itens</span>
+                        <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block">Bens em Manutenção</span>
+                        <span className="text-xl font-bold text-amber-600 dark:text-amber-400 mt-1 block tabular-nums">{metrics.maintenanceCount} itens</span>
                         <span className="text-[11px] text-slate-400 mt-0.5 block">Atenção ou reparo necessário</span>
                     </div>
-                    <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400 flex items-center justify-center shrink-0">
-                        <AlertTriangle className="w-6 h-6" />
+                    <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200/60 dark:border-amber-900/40 flex items-center justify-center shrink-0">
+                        <AlertTriangle className="w-5 h-5" />
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between">
+                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex items-center justify-between gap-3">
                     <div>
-                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Pasta de Documentos</span>
-                        <span className="text-2xl font-black text-purple-600 dark:text-purple-400 mt-1 block">{metrics.totalDocs} anexos</span>
+                        <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block">Pasta de Documentos</span>
+                        <span className="text-xl font-bold text-slate-900 dark:text-white mt-1 block tabular-nums">{metrics.totalDocs} anexos</span>
                         <span className="text-[11px] text-slate-400 mt-0.5 block">Notas, apólices & escrituras</span>
                     </div>
-                    <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-400 flex items-center justify-center shrink-0">
-                        <FileText className="w-6 h-6" />
+                    <div className="w-10 h-10 rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700 flex items-center justify-center shrink-0">
+                        <FileText className="w-5 h-5" />
                     </div>
                 </div>
             </div>
 
             {/* Filter and Search Bar */}
-            <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3">
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-3">
                 <div className="flex flex-col md:flex-row items-center justify-between gap-3">
                     
                     {/* Search Input */}
                     <div className="relative w-full md:w-80">
-                        <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                         <input
                             type="text"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             placeholder="Buscar por bem, tombo, local ou NF..."
-                            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            className="w-full pl-9 pr-3.5 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15"
                         />
                     </div>
 
@@ -817,7 +817,7 @@ export const PatrimonyView: React.FC = memo(() => {
                         <select
                             value={selectedCategory}
                             onChange={(e) => setSelectedCategory(e.target.value)}
-                            className="p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
+                            className="py-2 px-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-orange-500 cursor-pointer"
                         >
                             <option value="all">Todas as Categorias</option>
                             <option value="Imóvel">Imóvel</option>
@@ -834,7 +834,7 @@ export const PatrimonyView: React.FC = memo(() => {
                         <select
                             value={selectedStatus}
                             onChange={(e) => setSelectedStatus(e.target.value)}
-                            className="p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
+                            className="py-2 px-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-orange-500 cursor-pointer"
                         >
                             <option value="all">Todos os Status</option>
                             <option value="Ativo">Ativo</option>
@@ -848,7 +848,7 @@ export const PatrimonyView: React.FC = memo(() => {
                             <select
                                 value={selectedChurch}
                                 onChange={(e) => setSelectedChurch(e.target.value)}
-                                className="p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
+                                className="py-2 px-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-orange-500 cursor-pointer"
                             >
                                 <option value="all">Todas as Congregações</option>
                                 {churches.map(c => (
@@ -858,16 +858,16 @@ export const PatrimonyView: React.FC = memo(() => {
                         )}
 
                         {/* View Switcher */}
-                        <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <div className="flex items-center bg-slate-100/90 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200/70 dark:border-slate-700/60">
                             <button
                                 onClick={() => setViewMode('table')}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${viewMode === 'table' ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-xs' : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'}`}
+                                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${viewMode === 'table' ? 'bg-orange-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'}`}
                             >
                                 Tabela
                             </button>
                             <button
                                 onClick={() => setViewMode('grid')}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${viewMode === 'grid' ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-xs' : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'}`}
+                                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${viewMode === 'grid' ? 'bg-orange-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'}`}
                             >
                                 Cards
                             </button>
@@ -878,9 +878,9 @@ export const PatrimonyView: React.FC = memo(() => {
 
             {/* List / Table */}
             {filteredAssets.length === 0 ? (
-                <div className="bg-white dark:bg-slate-900 p-12 rounded-3xl border border-slate-200/80 dark:border-slate-800 text-center space-y-3">
-                    <div className="w-16 h-16 rounded-3xl bg-amber-50 text-amber-500 dark:bg-amber-950/40 flex items-center justify-center mx-auto">
-                        <Box className="w-8 h-8" />
+                <div className="bg-white dark:bg-slate-900 p-12 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-center space-y-3 shadow-xs">
+                    <div className="w-14 h-14 rounded-xl bg-orange-50 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400 border border-orange-200/60 dark:border-orange-900/40 flex items-center justify-center mx-auto">
+                        <Box className="w-7 h-7" />
                     </div>
                     <h3 className="text-base font-bold text-slate-900 dark:text-white">Nenhum bem patrimonial encontrado</h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
@@ -888,101 +888,101 @@ export const PatrimonyView: React.FC = memo(() => {
                     </p>
                     <button
                         onClick={handleOpenCreateModal}
-                        className="flex items-center gap-1.5 px-5 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-2xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 transition-all tracking-wider uppercase cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-xs transition-colors cursor-pointer"
                     >
-                        <Plus className="w-3.5 h-3.5" /> Cadastrar Bem
+                        <Plus className="w-4 h-4" /> Cadastrar Bem
                     </button>
                 </div>
             ) : viewMode === 'table' ? (
-                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-                    <div className="overflow-x-auto">
+                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs overflow-hidden">
+                    <div className="overflow-x-auto custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}>
                         <table className="w-full text-left text-xs border-collapse">
                             <thead>
-                                <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/80 text-slate-500 dark:text-slate-400 font-extrabold uppercase tracking-wider text-[10px]">
-                                    <th className="p-4">Tombo / Tag</th>
-                                    <th className="p-4">Descrição do Bem</th>
-                                    <th className="p-4">Congregação / Local</th>
-                                    <th className="p-4">Aquisição & Valor</th>
-                                    <th className="p-4">Conservação</th>
-                                    <th className="p-4">Status</th>
-                                    <th className="p-4">Documentos</th>
-                                    <th className="p-4 text-right">Ações</th>
+                                <tr className="border-b border-slate-200/90 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide text-[11px]">
+                                    <th className="px-4 py-3">Tombo / Tag</th>
+                                    <th className="px-4 py-3">Descrição do Bem</th>
+                                    <th className="px-4 py-3">Congregação / Local</th>
+                                    <th className="px-4 py-3">Aquisição & Valor</th>
+                                    <th className="px-4 py-3">Conservação</th>
+                                    <th className="px-4 py-3">Status</th>
+                                    <th className="px-4 py-3">Documentos</th>
+                                    <th className="px-4 py-3 text-right">Ações</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-800 dark:text-slate-200 font-medium">
                                 {filteredAssets.map(item => (
                                     <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
-                                        <td className="p-4 font-black font-mono text-amber-600 dark:text-amber-400 whitespace-nowrap">
+                                        <td className="px-4 py-3 font-bold tabular-nums text-orange-600 dark:text-orange-400 whitespace-nowrap">
                                             {item.code}
                                         </td>
-                                        <td className="p-4">
+                                        <td className="px-4 py-3">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                                                <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700 flex items-center justify-center shrink-0">
                                                     {getCategoryIcon(item.category)}
                                                 </div>
                                                 <div>
                                                     <span className="font-bold text-slate-900 dark:text-white block text-xs">
                                                         {item.title}
                                                     </span>
-                                                    <span className="text-[10px] text-slate-400 block font-medium">
+                                                    <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
                                                         {item.category} {item.invoiceNumber ? `• ${item.invoiceNumber}` : ''}
                                                     </span>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="p-4">
+                                        <td className="px-4 py-3">
                                             <div className="space-y-0.5">
-                                                <span className="font-bold text-slate-800 dark:text-slate-200 block text-xs">
+                                                <span className="font-semibold text-slate-800 dark:text-slate-200 block text-xs">
                                                     {item.churchName}
                                                 </span>
-                                                <span className="text-[10px] text-slate-400 block truncate max-w-[180px]">
+                                                <span className="text-[11px] text-slate-500 dark:text-slate-400 block truncate max-w-[180px]">
                                                     {item.locationDetails || 'Local não informado'}
                                                 </span>
                                             </div>
                                         </td>
-                                        <td className="p-4 whitespace-nowrap">
-                                            <span className="font-black text-slate-900 dark:text-white block text-xs">
+                                        <td className="px-4 py-3 whitespace-nowrap tabular-nums">
+                                            <span className="font-bold text-slate-900 dark:text-white block text-xs">
                                                 R$ {item.acquisitionValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                             </span>
-                                            <span className="text-[10px] text-slate-400 block">
+                                            <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
                                                 {new Date(item.acquisitionDate).toLocaleDateString('pt-BR')}
                                             </span>
                                         </td>
-                                        <td className="p-4 whitespace-nowrap">
+                                        <td className="px-4 py-3 whitespace-nowrap">
                                             {getConditionBadge(item.condition)}
                                         </td>
-                                        <td className="p-4 whitespace-nowrap">
+                                        <td className="px-4 py-3 whitespace-nowrap">
                                             {getStatusBadge(item.status)}
                                         </td>
-                                        <td className="p-4 whitespace-nowrap">
+                                        <td className="px-4 py-3 whitespace-nowrap tabular-nums">
                                             <button
                                                 onClick={() => setViewingAsset(item)}
-                                                className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-600 dark:text-purple-400 hover:underline cursor-pointer"
+                                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-orange-600 dark:text-orange-400 hover:underline cursor-pointer"
                                             >
                                                 <Paperclip className="w-3.5 h-3.5" />
                                                 {item.documents?.length || 0} anexo(s)
                                             </button>
                                         </td>
-                                        <td className="p-4 text-right whitespace-nowrap">
+                                        <td className="px-4 py-3 text-right whitespace-nowrap">
                                             <div className="flex items-center justify-end gap-1">
                                                 <button
                                                     onClick={() => setViewingAsset(item)}
                                                     title="Ver Ficha / Pasta Completa"
-                                                    className="p-2 rounded-xl text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors cursor-pointer"
+                                                    className="p-1.5 rounded-lg text-slate-400 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/40 transition-colors cursor-pointer"
                                                 >
                                                     <Eye className="w-4 h-4" />
                                                 </button>
                                                 <button
                                                     onClick={() => handleOpenEditModal(item)}
                                                     title="Editar Dados do Bem"
-                                                    className="p-2 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors cursor-pointer"
+                                                    className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors cursor-pointer"
                                                 >
                                                     <Edit3 className="w-4 h-4" />
                                                 </button>
                                                 <button
                                                     onClick={() => setDeletingAssetId(item.id)}
                                                     title="Excluir Registros"
-                                                    className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                                                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
                                                 >
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>
@@ -998,24 +998,24 @@ export const PatrimonyView: React.FC = memo(() => {
                 /* Grid view */
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filteredAssets.map(item => (
-                        <div key={item.id} className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col justify-between space-y-4 hover:border-amber-500/40 transition-all">
+                        <div key={item.id} className="bg-white dark:bg-slate-900 rounded-xl p-5 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col justify-between space-y-4 hover:border-orange-300 dark:hover:border-orange-800 transition-colors">
                             <div className="space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <span className="font-mono font-black text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-2.5 py-1 rounded-lg border border-amber-200/50 dark:border-amber-800/40">
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="tabular-nums font-bold text-xs text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/40 px-2.5 py-0.5 rounded-md border border-orange-200/60 dark:border-orange-900/40">
                                         {item.code}
                                     </span>
                                     {getStatusBadge(item.status)}
                                 </div>
 
                                 <div className="flex items-start gap-3">
-                                    <div className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                                    <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700 flex items-center justify-center shrink-0">
                                         {getCategoryIcon(item.category)}
                                     </div>
                                     <div className="min-w-0">
-                                        <h3 className="font-extrabold text-slate-900 dark:text-white text-sm line-clamp-2">
+                                        <h3 className="font-bold text-slate-900 dark:text-white text-sm line-clamp-2">
                                             {item.title}
                                         </h3>
-                                        <span className="text-[11px] text-slate-400 font-medium block">
+                                        <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium block">
                                             {item.category}
                                         </span>
                                     </div>
@@ -1027,8 +1027,8 @@ export const PatrimonyView: React.FC = memo(() => {
                                         <span className="truncate">{item.churchName} ({item.locationDetails || 'Geral'})</span>
                                     </div>
                                     <div className="flex items-center justify-between pt-1">
-                                        <span className="text-slate-400 text-[11px]">Valor de Aquisição:</span>
-                                        <span className="font-black text-slate-900 dark:text-white text-xs">
+                                        <span className="text-slate-500 dark:text-slate-400 text-[11px]">Valor de Aquisição:</span>
+                                        <span className="font-bold text-slate-900 dark:text-white text-xs tabular-nums">
                                             R$ {item.acquisitionValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                         </span>
                                     </div>
@@ -1038,7 +1038,7 @@ export const PatrimonyView: React.FC = memo(() => {
                             <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
                                 <button
                                     onClick={() => setViewingAsset(item)}
-                                    className="text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
+                                    className="text-xs font-semibold text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-1.5 cursor-pointer tabular-nums"
                                 >
                                     <Eye className="w-3.5 h-3.5" /> Pasta do Bem ({item.documents?.length || 0})
                                 </button>
@@ -1046,13 +1046,13 @@ export const PatrimonyView: React.FC = memo(() => {
                                 <div className="flex items-center gap-1">
                                     <button
                                         onClick={() => handleOpenEditModal(item)}
-                                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer"
+                                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors cursor-pointer"
                                     >
                                         <Edit3 className="w-4 h-4" />
                                     </button>
                                     <button
                                         onClick={() => setDeletingAssetId(item.id)}
-                                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
                                     >
                                         <Trash2 className="w-4 h-4" />
                                     </button>
@@ -1065,16 +1065,21 @@ export const PatrimonyView: React.FC = memo(() => {
 
             {/* Modal / Panel: Create / Edit Asset */}
             {isModalOpen && (
+                <div
+                    className="fixed inset-0 z-[56] flex items-center justify-center pt-16 md:pt-5 pb-3 md:pb-5 px-2 sm:px-6 bg-slate-900/55 backdrop-blur-[2px] animate-fade-in"
+                    onClick={(e) => { if (e.target === e.currentTarget) setIsModalOpen(false); }}
+                >
                 <div 
                     style={{
                         transform: `translateY(${modalSwipeY}px)`,
                         opacity: isModalSwiping ? Math.max(0.3, 1 - modalSwipeY / 400) : 1,
                         transition: isModalSwiping ? 'none' : 'transform 0.25s ease-out, opacity 0.25s ease-out'
                     }}
-                    className="absolute inset-0 z-40 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full overflow-hidden rounded-3xl shadow-2xl"
+                    onClick={(e) => e.stopPropagation()}
+                    className="bg-white dark:bg-slate-900 flex flex-col animate-scale-in w-full max-w-3xl max-h-[calc(100dvh-5rem)] md:max-h-[min(88vh,calc(100dvh-3rem))] overflow-hidden rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-elevated"
                 >
                     <form onSubmit={handleSaveAsset} className="flex flex-col h-full w-full overflow-hidden">
-                        {/* Swipe Handle Bar */}
+                        {/* Swipe Handle Bar (mobile/touch only) */}
                         <div 
                             onMouseDown={(e) => {
                                 modalSwipeStartRef.current = e.clientY;
@@ -1084,56 +1089,52 @@ export const PatrimonyView: React.FC = memo(() => {
                                 modalSwipeStartRef.current = e.touches[0].clientY;
                                 setIsModalSwiping(true);
                             }}
-                            className="w-full flex flex-col items-center pt-3 pb-1 cursor-grab active:cursor-grabbing select-none group hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors border-b border-slate-100 dark:border-white/5 shrink-0"
+                            className="md:hidden w-full flex flex-col items-center pt-2.5 pb-1 cursor-grab active:cursor-grabbing select-none group hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors border-b border-slate-200/80 dark:border-slate-800 shrink-0"
                             title="Deslize para baixo para fechar"
                         >
-                            <div className="w-16 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full transition-all group-hover:bg-amber-500 group-hover:w-20" />
-                            <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1 opacity-80 group-hover:opacity-100">
+                            <div className="w-12 h-1 bg-slate-300 dark:bg-slate-700 rounded-full transition-all group-hover:bg-orange-500 group-hover:w-16" />
+                            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mt-1">
                                 Deslize para baixo para fechar
                             </span>
                         </div>
 
                         {/* Header */}
-                        <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                            <div className="flex flex-row flex-wrap items-center gap-4 md:gap-8 w-full md:w-auto">
-                                <div className="flex items-center gap-4">
-                                    <div className="p-3 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/20">
-                                        <Building2 className="w-6 h-6" />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight uppercase">
-                                            {editingAsset ? 'Editar Registro de Patrimônio' : 'Cadastrar Novo Bem Patrimonial'}
-                                        </h3>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">
-                                            Preencha as especificações técnicas, dados da nota fiscal, apólices e anexe os documentos
-                                        </p>
-                                    </div>
+                        <div className="px-5 py-3.5 border-b border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 flex justify-between items-center gap-3 shrink-0">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-8 h-8 rounded-lg bg-orange-50 dark:bg-orange-950/40 border border-orange-200/60 dark:border-orange-900/40 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
+                                    <Building2 className="w-4 h-4" />
+                                </div>
+                                <div className="min-w-0">
+                                    <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
+                                        {editingAsset ? 'Editar Registro de Patrimônio' : 'Cadastrar Novo Bem Patrimonial'}
+                                    </h3>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight truncate">
+                                        Preencha as especificações técnicas, dados da nota fiscal, apólices e anexe os documentos
+                                    </p>
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-2 self-end md:self-auto">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsModalOpen(false)}
-                                    className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors cursor-pointer"
-                                >
-                                    <X className="w-6 h-6" />
-                                </button>
-                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsModalOpen(false)}
+                                className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer shrink-0"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
                         </div>
 
                         {/* Form Body - Scrollable */}
-                        <div className="p-8 flex-1 overflow-y-auto space-y-8 custom-scrollbar text-xs">
+                        <div className="p-6 flex-1 overflow-y-auto space-y-6 custom-scrollbar text-xs" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
                             
                             {/* Section 1: Identificação do Bem */}
                             <div className="space-y-4">
-                                <h3 className="text-xs font-black uppercase tracking-wider text-orange-600 dark:text-orange-400 border-b border-slate-100 dark:border-slate-800 pb-2">
+                                <h3 className="text-xs font-bold uppercase tracking-wide text-orange-600 dark:text-orange-400 border-b border-slate-200/80 dark:border-slate-800 pb-2">
                                     1. Identificação Básica & Categoria
                                 </h3>
 
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                                    <div className="space-y-2">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Código de Tombamento / Tag *
                                         </label>
                                         <input
@@ -1142,12 +1143,12 @@ export const PatrimonyView: React.FC = memo(() => {
                                             value={formCode}
                                             onChange={(e) => setFormCode(e.target.value)}
                                             placeholder="Ex: PAT-2026-001"
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-3.5 px-5 transition-all outline-none font-mono text-sm font-bold uppercase"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none tabular-nums text-sm font-semibold uppercase"
                                         />
                                     </div>
 
-                                    <div className="md:col-span-2 space-y-2">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <div className="md:col-span-2 space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Nome / Descrição do Bem *
                                         </label>
                                         <input
@@ -1156,18 +1157,18 @@ export const PatrimonyView: React.FC = memo(() => {
                                             value={formTitle}
                                             onChange={(e) => setFormTitle(e.target.value)}
                                             placeholder="Ex: Mesa de Som Digital Allen & Heath SQ-6..."
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-3.5 px-5 transition-all outline-none text-sm font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-medium"
                                         />
                                     </div>
 
-                                    <div className="space-y-2">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Categoria do Patrimônio
                                         </label>
                                         <select
                                             value={formCategory}
                                             onChange={(e) => setFormCategory(e.target.value as any)}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-3.5 px-5 transition-all outline-none text-sm font-bold cursor-pointer"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-medium cursor-pointer"
                                         >
                                             <option value="Imóvel">Imóvel / Terreno</option>
                                             <option value="Veículo">Veículo</option>
@@ -1182,9 +1183,9 @@ export const PatrimonyView: React.FC = memo(() => {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-2">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Congregação / Unidade
                                         </label>
                                         <input
@@ -1192,12 +1193,12 @@ export const PatrimonyView: React.FC = memo(() => {
                                             value={formChurchName}
                                             onChange={(e) => setFormChurchName(e.target.value)}
                                             placeholder="Ex: Sede Principal, Congregação Vale..."
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-3.5 px-5 transition-all outline-none text-sm font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-medium"
                                         />
                                     </div>
 
-                                    <div className="space-y-2">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Localização Física Interna
                                         </label>
                                         <input
@@ -1205,7 +1206,7 @@ export const PatrimonyView: React.FC = memo(() => {
                                             value={formLocationDetails}
                                             onChange={(e) => setFormLocationDetails(e.target.value)}
                                             placeholder="Ex: Cabine de Som, Púlpito, Salão Infantil..."
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-3.5 px-5 transition-all outline-none text-sm font-medium"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-medium"
                                         />
                                     </div>
                                 </div>
@@ -1213,13 +1214,13 @@ export const PatrimonyView: React.FC = memo(() => {
 
                             {/* Section 2: Dados Financeiros & Aquisição */}
                             <div className="space-y-4">
-                                <h3 className="text-xs font-black uppercase tracking-wider text-orange-600 dark:text-orange-400 border-b border-slate-100 dark:border-slate-800 pb-2">
+                                <h3 className="text-xs font-bold uppercase tracking-wide text-orange-600 dark:text-orange-400 border-b border-slate-200/80 dark:border-slate-800 pb-2">
                                     2. Aquisição, Valor & Documentação
                                 </h3>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-                                    <div className="space-y-2">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Valor de Aquisição (R$)
                                         </label>
                                         <input
@@ -1228,24 +1229,24 @@ export const PatrimonyView: React.FC = memo(() => {
                                             value={formAcquisitionValue}
                                             onChange={(e) => setFormAcquisitionValue(e.target.value)}
                                             placeholder="0.00"
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-3.5 px-5 transition-all outline-none text-sm font-black"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-semibold tabular-nums"
                                         />
                                     </div>
 
-                                    <div className="space-y-2">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Data de Aquisição
                                         </label>
                                         <input
                                             type="date"
                                             value={formAcquisitionDate}
                                             onChange={(e) => setFormAcquisitionDate(e.target.value)}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-3.5 px-5 transition-all outline-none text-sm font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-medium tabular-nums"
                                         />
                                     </div>
 
-                                    <div className="space-y-2">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Nº da Nota Fiscal / Documento
                                         </label>
                                         <input
@@ -1253,12 +1254,12 @@ export const PatrimonyView: React.FC = memo(() => {
                                             value={formInvoiceNumber}
                                             onChange={(e) => setFormInvoiceNumber(e.target.value)}
                                             placeholder="Ex: NF-e 88412"
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-3.5 px-5 transition-all outline-none text-sm font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-medium"
                                         />
                                     </div>
 
-                                    <div className="space-y-2">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Fornecedor ou Doador
                                         </label>
                                         <input
@@ -1266,33 +1267,33 @@ export const PatrimonyView: React.FC = memo(() => {
                                             value={formSupplierOrDonor}
                                             onChange={(e) => setFormSupplierOrDonor(e.target.value)}
                                             placeholder="Ex: ProAudio Equipamentos"
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-3.5 px-5 transition-all outline-none text-sm font-medium"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-medium"
                                         />
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-2">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Vencimento da Garantia (Se houver)
                                         </label>
                                         <input
                                             type="date"
                                             value={formWarrantyExpiration}
                                             onChange={(e) => setFormWarrantyExpiration(e.target.value)}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-3.5 px-5 transition-all outline-none text-sm font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-medium tabular-nums"
                                         />
                                     </div>
 
-                                    <div className="space-y-2">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Vencimento do Seguro / Apólice
                                         </label>
                                         <input
                                             type="date"
                                             value={formInsuranceExpiration}
                                             onChange={(e) => setFormInsuranceExpiration(e.target.value)}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-3.5 px-5 transition-all outline-none text-sm font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-medium tabular-nums"
                                         />
                                     </div>
                                 </div>
@@ -1300,19 +1301,19 @@ export const PatrimonyView: React.FC = memo(() => {
 
                             {/* Section 3: Conservação & Status */}
                             <div className="space-y-4">
-                                <h3 className="text-xs font-black uppercase tracking-wider text-orange-600 dark:text-orange-400 border-b border-slate-100 dark:border-slate-800 pb-2">
+                                <h3 className="text-xs font-bold uppercase tracking-wide text-orange-600 dark:text-orange-400 border-b border-slate-200/80 dark:border-slate-800 pb-2">
                                     3. Situação & Estado de Conservação
                                 </h3>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-2">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Estado de Conservação
                                         </label>
                                         <select
                                             value={formCondition}
                                             onChange={(e) => setFormCondition(e.target.value as any)}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-3.5 px-5 transition-all outline-none text-sm font-bold cursor-pointer"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-medium cursor-pointer"
                                         >
                                             <option value="Excelente">Excelente (Sem marcas ou avarias)</option>
                                             <option value="Bom">Bom Estado (Funcionamento 100%)</option>
@@ -1322,14 +1323,14 @@ export const PatrimonyView: React.FC = memo(() => {
                                         </select>
                                     </div>
 
-                                    <div className="space-y-2">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Status Operacional
                                         </label>
                                         <select
                                             value={formStatus}
                                             onChange={(e) => setFormStatus(e.target.value as any)}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-3.5 px-5 transition-all outline-none text-sm font-bold cursor-pointer"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-medium cursor-pointer"
                                         >
                                             <option value="Ativo">Ativo e Alocado</option>
                                             <option value="Em Manutenção">Em Manutenção / Assistência</option>
@@ -1340,8 +1341,8 @@ export const PatrimonyView: React.FC = memo(() => {
                                     </div>
                                 </div>
 
-                                <div className="space-y-2">
-                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                <div className="space-y-1.5">
+                                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                         Observações / Histórico de Manutenção
                                     </label>
                                     <textarea
@@ -1349,27 +1350,27 @@ export const PatrimonyView: React.FC = memo(() => {
                                         value={formNotes}
                                         onChange={(e) => setFormNotes(e.target.value)}
                                         placeholder="Descreva detalhes específicos, numeração de série, revisões efetuadas ou particularidades do bem..."
-                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-3.5 px-5 transition-all outline-none text-sm font-medium"
+                                        className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-medium"
                                     />
                                 </div>
                             </div>
 
                             {/* Section 4: Anexos e Documentos */}
                             <div className="space-y-4">
-                                <h3 className="text-xs font-black uppercase tracking-wider text-orange-600 dark:text-orange-400 border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center justify-between">
+                                <h3 className="text-xs font-bold uppercase tracking-wide text-orange-600 dark:text-orange-400 border-b border-slate-200/80 dark:border-slate-800 pb-2 flex items-center justify-between gap-2">
                                     <span>4. Anexar Documentação Digital</span>
-                                    <span className="text-[10px] text-slate-400 font-normal">Notas fiscais, escrituras, fotos, manuais</span>
+                                    <span className="text-[11px] text-slate-400 font-normal normal-case">Notas fiscais, escrituras, fotos, manuais</span>
                                 </h3>
 
-                                <div className="bg-slate-50/70 dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-4">
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div className="bg-slate-50/70 dark:bg-slate-900/60 p-4 sm:p-5 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                         <div className="sm:col-span-2 space-y-1">
                                             <input
                                                 type="text"
                                                 value={newDocTitle}
                                                 onChange={(e) => setNewDocTitle(e.target.value)}
                                                 placeholder="Título do documento (ex: Nota Fiscal Eletrônica)..."
-                                                className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2.5 px-3.5 text-xs font-bold transition-all outline-none"
+                                                className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2 px-3.5 text-xs font-medium focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 transition-all outline-none"
                                             />
                                         </div>
 
@@ -1377,7 +1378,7 @@ export const PatrimonyView: React.FC = memo(() => {
                                             <select
                                                 value={newDocType}
                                                 onChange={(e) => setNewDocType(e.target.value as any)}
-                                                className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2.5 px-3.5 text-xs font-bold transition-all outline-none cursor-pointer"
+                                                className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2 px-3.5 text-xs font-medium focus:border-orange-500 transition-all outline-none cursor-pointer"
                                             >
                                                 <option value="nota_fiscal">Nota Fiscal</option>
                                                 <option value="escritura">Escritura / RGI</option>
@@ -1390,7 +1391,7 @@ export const PatrimonyView: React.FC = memo(() => {
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center justify-between gap-3 pt-1">
+                                    <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
                                         <input
                                             type="file"
                                             id="file-upload-input"
@@ -1406,7 +1407,7 @@ export const PatrimonyView: React.FC = memo(() => {
                                         />
                                         <label
                                             htmlFor="file-upload-input"
-                                            className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer inline-flex items-center gap-2 transition-all"
+                                            className="px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer inline-flex items-center gap-2 transition-colors"
                                         >
                                             <Upload className="w-3.5 h-3.5 text-slate-400" />
                                             {newDocFile ? newDocFile.name : 'Selecionar Arquivo'}
@@ -1415,7 +1416,7 @@ export const PatrimonyView: React.FC = memo(() => {
                                         <button
                                             type="button"
                                             onClick={handleAddDocumentToForm}
-                                            className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs rounded-xl shadow-sm transition-all inline-flex items-center gap-1.5 cursor-pointer"
+                                            className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-semibold text-xs rounded-lg shadow-xs transition-colors inline-flex items-center gap-1.5 cursor-pointer"
                                         >
                                             <Plus className="w-4 h-4" /> Anexar Documento
                                         </button>
@@ -1425,19 +1426,19 @@ export const PatrimonyView: React.FC = memo(() => {
                                 {/* Attached documents list */}
                                 {formDocuments.length > 0 && (
                                     <div className="space-y-2">
-                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
                                             Documentos Anexados ({formDocuments.length}):
                                         </span>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                             {formDocuments.map((doc) => (
-                                                <div key={doc.id} className="flex items-center justify-between p-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl">
+                                                <div key={doc.id} className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl">
                                                     <div className="flex items-center gap-3 min-w-0">
-                                                        <FileText className="w-4 h-4 text-amber-500 shrink-0" />
+                                                        <FileText className="w-4 h-4 text-orange-600 dark:text-orange-400 shrink-0" />
                                                         <div className="min-w-0">
-                                                            <span className="font-bold text-slate-900 dark:text-white text-xs block truncate">
+                                                            <span className="font-semibold text-slate-900 dark:text-white text-xs block truncate">
                                                                 {doc.title}
                                                             </span>
-                                                            <span className="text-[10px] text-slate-400 block uppercase">
+                                                            <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
                                                                 {doc.type} • {doc.fileName}
                                                             </span>
                                                         </div>
@@ -1445,7 +1446,7 @@ export const PatrimonyView: React.FC = memo(() => {
                                                     <button
                                                         type="button"
                                                         onClick={() => handleRemoveDocFromForm(doc.id)}
-                                                        className="p-1 text-slate-400 hover:text-rose-500 transition-colors cursor-pointer"
+                                                        className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
                                                     >
                                                         <X className="w-4 h-4" />
                                                     </button>
@@ -1457,31 +1458,31 @@ export const PatrimonyView: React.FC = memo(() => {
                             </div>
 
                             {/* Section 5: Compromissos Financeiros e Lembretes */}
-                            <div className="space-y-4 pt-2">
-                                <h3 className="text-xs font-black uppercase tracking-wider text-orange-600 dark:text-orange-400 border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center justify-between">
+                            <div className="space-y-4 pt-1">
+                                <h3 className="text-xs font-bold uppercase tracking-wide text-orange-600 dark:text-orange-400 border-b border-slate-200/80 dark:border-slate-800 pb-2 flex items-center justify-between gap-2">
                                     <span>5. Compromissos Financeiros & Encargos</span>
-                                    <span className="text-[10px] text-slate-400 font-normal">IPTU, IPVA, Seguro, Licenciamento, Manutenção</span>
+                                    <span className="text-[11px] text-slate-400 font-normal normal-case">IPTU, IPVA, Seguro, Licenciamento, Manutenção</span>
                                 </h3>
 
-                                <div className="bg-amber-50/50 dark:bg-amber-950/20 p-5 rounded-2xl border border-amber-200/60 dark:border-amber-800/50 space-y-4">
+                                <div className="bg-slate-50/70 dark:bg-slate-900/60 p-4 sm:p-5 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-4">
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                                         <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase">Título do Compromisso</label>
+                                            <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Título do Compromisso</label>
                                             <input
                                                 type="text"
                                                 value={newComTitle}
                                                 onChange={(e) => setNewComTitle(e.target.value)}
                                                 placeholder="Ex: IPTU 2026, IPVA, Seguro..."
-                                                className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2.5 px-3.5 text-xs font-bold transition-all outline-none"
+                                                className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2 px-3 text-xs font-medium focus:border-orange-500 transition-all outline-none"
                                             />
                                         </div>
 
                                         <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase">Tipo</label>
+                                            <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Tipo</label>
                                             <select
                                                 value={newComType}
                                                 onChange={(e) => setNewComType(e.target.value as any)}
-                                                className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2.5 px-3.5 text-xs font-bold transition-all outline-none cursor-pointer"
+                                                className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2 px-3 text-xs font-medium focus:border-orange-500 transition-all outline-none cursor-pointer"
                                             >
                                                 <option value="imposto">Imposto (IPTU / IPVA)</option>
                                                 <option value="seguro">Seguro</option>
@@ -1492,36 +1493,36 @@ export const PatrimonyView: React.FC = memo(() => {
                                         </div>
 
                                         <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase">Valor do Encargo (R$)</label>
+                                            <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Valor do Encargo (R$)</label>
                                             <input
                                                 type="number"
                                                 step="0.01"
                                                 value={newComAmount}
                                                 onChange={(e) => setNewComAmount(e.target.value)}
                                                 placeholder="0.00"
-                                                className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2.5 px-3.5 text-xs font-bold transition-all outline-none"
+                                                className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2 px-3 text-xs font-semibold tabular-nums focus:border-orange-500 transition-all outline-none"
                                             />
                                         </div>
 
                                         <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase">Data de Vencimento</label>
+                                            <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Data de Vencimento</label>
                                             <input
                                                 type="date"
                                                 value={newComDueDate}
                                                 onChange={(e) => setNewComDueDate(e.target.value)}
-                                                className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2.5 px-3.5 text-xs font-bold transition-all outline-none"
+                                                className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2 px-3 text-xs font-medium tabular-nums focus:border-orange-500 transition-all outline-none"
                                             />
                                         </div>
                                     </div>
 
                                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-1">
                                         <div className="flex items-center gap-4">
-                                            <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                            <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-700 dark:text-slate-300">
                                                 <input
                                                     type="checkbox"
                                                     checked={newComSync}
                                                     onChange={(e) => setNewComSync(e.target.checked)}
-                                                    className="w-4 h-4 text-amber-500 rounded border-slate-300 focus:ring-amber-500"
+                                                    className="w-4 h-4 accent-orange-600 rounded border-slate-300"
                                                 />
                                                 <span>Lançar também nas Contas a Pagar (Gestão de Contas)</span>
                                             </label>
@@ -1530,7 +1531,7 @@ export const PatrimonyView: React.FC = memo(() => {
                                         <button
                                             type="button"
                                             onClick={handleAddCommitmentToForm}
-                                            className="px-5 py-2 bg-gradient-to-r from-orange-500 to-amber-600 hover:opacity-95 text-white font-black text-xs rounded-xl shadow-sm transition-all inline-flex items-center gap-1.5 cursor-pointer"
+                                            className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-semibold text-xs rounded-lg shadow-xs transition-colors inline-flex items-center gap-1.5 cursor-pointer"
                                         >
                                             <Plus className="w-4 h-4" /> Incluir Compromisso
                                         </button>
@@ -1540,21 +1541,21 @@ export const PatrimonyView: React.FC = memo(() => {
                                 {/* Listed Commitments in Form */}
                                 {formCommitments.length > 0 && (
                                     <div className="space-y-2">
-                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
                                             Compromissos Agendados ({formCommitments.length}):
                                         </span>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                             {formCommitments.map((com) => (
-                                                <div key={com.id} className="p-3.5 bg-white dark:bg-slate-900 border border-amber-200 dark:border-slate-700 rounded-2xl flex items-center justify-between">
+                                                <div key={com.id} className="p-3 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl flex items-center justify-between">
                                                     <div className="flex items-center gap-3 min-w-0">
-                                                        <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                                                        <div className="w-8 h-8 rounded-lg bg-orange-50 dark:bg-orange-950/40 border border-orange-200/60 dark:border-orange-900/40 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
                                                             <Receipt className="w-4 h-4" />
                                                         </div>
                                                         <div className="min-w-0">
-                                                            <span className="font-bold text-slate-900 dark:text-white text-xs block truncate">
+                                                            <span className="font-semibold text-slate-900 dark:text-white text-xs block truncate">
                                                                 {com.title}
                                                             </span>
-                                                            <span className="text-[10px] text-slate-500 block">
+                                                            <span className="text-[11px] text-slate-500 dark:text-slate-400 block tabular-nums">
                                                                 R$ {com.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} • Venc: {new Date(com.dueDate).toLocaleDateString('pt-BR')}
                                                             </span>
                                                         </div>
@@ -1563,7 +1564,7 @@ export const PatrimonyView: React.FC = memo(() => {
                                                     <button
                                                         type="button"
                                                         onClick={() => handleRemoveCommitmentFromForm(com.id)}
-                                                        className="p-1 text-slate-400 hover:text-rose-500 transition-colors cursor-pointer ml-2 shrink-0"
+                                                        className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer ml-2 shrink-0"
                                                     >
                                                         <X className="w-4 h-4" />
                                                     </button>
@@ -1577,37 +1578,43 @@ export const PatrimonyView: React.FC = memo(() => {
                         </div>
 
                         {/* Footer Actions */}
-                        <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 border-t border-slate-100 dark:border-slate-800/50 mt-auto">
+                        <div className="bg-slate-50 dark:bg-slate-900/80 px-6 py-4 flex justify-end gap-3 border-t border-slate-200/80 dark:border-slate-800 mt-auto shrink-0">
                             <button
                                 type="button"
                                 onClick={() => setIsModalOpen(false)}
-                                className="px-6 py-2.5 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-full shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 rounded-lg shadow-2xs transition-colors cursor-pointer"
                             >
                                 Cancelar
                             </button>
                             <button
                                 type="submit"
-                                className="px-8 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-full shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                                className="px-5 py-2 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-xs transition-colors cursor-pointer"
                             >
                                 {editingAsset ? 'Salvar Alterações' : 'Concluir Cadastro'}
                             </button>
                         </div>
                     </form>
                 </div>
+                </div>
             )}
 
             {/* Panel: View Asset Dossier / Ficha Técnica do Bem */}
             {viewingAsset && (
+                <div
+                    className="fixed inset-0 z-[56] flex items-center justify-center pt-16 md:pt-5 pb-3 md:pb-5 px-2 sm:px-6 bg-slate-900/55 backdrop-blur-[2px] animate-fade-in"
+                    onClick={(e) => { if (e.target === e.currentTarget) setViewingAsset(null); }}
+                >
                 <div 
                     style={{
                         transform: `translateY(${viewSwipeY}px)`,
                         opacity: isViewSwiping ? Math.max(0.3, 1 - viewSwipeY / 400) : 1,
                         transition: isViewSwiping ? 'none' : 'transform 0.25s ease-out, opacity 0.25s ease-out'
                     }}
-                    className="absolute inset-0 z-40 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full overflow-hidden rounded-3xl shadow-2xl"
+                    onClick={(e) => e.stopPropagation()}
+                    className="bg-white dark:bg-slate-900 flex flex-col animate-scale-in w-full max-w-3xl max-h-[calc(100dvh-5rem)] md:max-h-[min(88vh,calc(100dvh-3rem))] overflow-hidden rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-elevated"
                 >
                     <div className="flex flex-col h-full w-full overflow-hidden">
-                        {/* Swipe Handle Bar */}
+                        {/* Swipe Handle Bar (mobile/touch only) */}
                         <div 
                             onMouseDown={(e) => {
                                 viewSwipeStartRef.current = e.clientY;
@@ -1617,60 +1624,63 @@ export const PatrimonyView: React.FC = memo(() => {
                                 viewSwipeStartRef.current = e.touches[0].clientY;
                                 setIsViewSwiping(true);
                             }}
-                            className="w-full flex flex-col items-center pt-3 pb-1 cursor-grab active:cursor-grabbing select-none group hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors border-b border-slate-100 dark:border-white/5 shrink-0"
+                            className="md:hidden w-full flex flex-col items-center pt-2.5 pb-1.5 cursor-grab active:cursor-grabbing select-none group hover:bg-slate-50 dark:hover:bg-slate-900/60 transition-colors border-b border-slate-200/80 dark:border-slate-800 shrink-0"
                             title="Deslize para baixo para fechar"
                         >
-                            <div className="w-16 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full transition-all group-hover:bg-amber-500 group-hover:w-20" />
-                            <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1 opacity-80 group-hover:opacity-100">
+                            <div className="w-12 h-1 bg-slate-300 dark:bg-slate-700 rounded-full transition-all group-hover:bg-orange-500 group-hover:w-16" />
+                            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 tracking-wide mt-1">
                                 Deslize para baixo para fechar
                             </span>
                         </div>
                         
                         {/* Printable Section Header */}
-                        <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
-                            <div className="flex flex-row flex-wrap items-center gap-4 md:gap-8 w-full md:w-auto">
-                                <div className="flex items-center gap-3">
-                                    <span className="font-mono font-black text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 px-3 py-1.5 rounded-xl border border-amber-200 dark:border-amber-800">
-                                        {viewingAsset.code}
-                                    </span>
-                                    <div>
-                                        <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight uppercase">
-                                            Pasta Técnica do Bem Patrimonial
-                                        </h3>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">
-                                            Dossiê oficial de documentos, dados de aquisição e situação
-                                        </p>
-                                    </div>
+                        <div className="px-5 py-3.5 border-b border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 flex justify-between items-center gap-3 shrink-0">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                                <span className="tabular-nums font-bold text-xs text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/40 px-2.5 py-1 rounded-lg border border-orange-200/60 dark:border-orange-900/40 shrink-0">
+                                    {viewingAsset.code}
+                                </span>
+                                <div className="min-w-0">
+                                    <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
+                                        Pasta Técnica do Bem Patrimonial
+                                    </h3>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight truncate">
+                                        Dossiê oficial de documentos, dados de aquisição e situação
+                                    </p>
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-3 self-end md:self-auto">
+                            <div className="flex items-center gap-2 shrink-0">
                                 <button
                                     onClick={handlePrintFicha}
-                                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-full text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                                    className="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold rounded-lg text-xs flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+                                    title="Imprimir Ficha"
                                 >
-                                    <Printer className="w-4 h-4" /> Imprimir Ficha
+                                    <Printer className="w-3.5 h-3.5" />
+                                    <span className="hidden sm:inline">Imprimir</span>
                                 </button>
                                 <button
                                     onClick={() => setViewingAsset(null)}
-                                    className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors cursor-pointer"
+                                    className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
                                 >
-                                    <X className="w-6 h-6" />
+                                    <X className="w-4 h-4" />
                                 </button>
                             </div>
                         </div>
 
                         {/* Dossier Body */}
-                        <div className="p-8 overflow-y-auto space-y-6 flex-1 text-xs custom-scrollbar">
+                        <div
+                            className="p-6 overflow-y-auto space-y-5 flex-1 text-xs custom-scrollbar"
+                            style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+                        >
                             
                             {/* Top Details Card */}
-                            <div className="bg-slate-50 dark:bg-slate-800/60 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-700 space-y-4">
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-700 pb-4">
+                            <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-4">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 dark:border-slate-800 pb-4">
                                     <div>
-                                        <span className="text-[10px] font-black uppercase text-amber-600 dark:text-amber-400 tracking-wider">
+                                        <span className="text-[11px] font-semibold uppercase text-orange-600 dark:text-orange-400 tracking-wide">
                                             {viewingAsset.category}
                                         </span>
-                                        <h3 className="text-xl font-black text-slate-900 dark:text-white">
+                                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mt-0.5">
                                             {viewingAsset.title}
                                         </h3>
                                     </div>
@@ -1682,31 +1692,31 @@ export const PatrimonyView: React.FC = memo(() => {
 
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                                     <div>
-                                        <span className="text-slate-400 block font-medium">Congregação / Alocação:</span>
-                                        <span className="font-bold text-slate-900 dark:text-white block mt-0.5">
+                                        <span className="text-slate-500 dark:text-slate-400 block font-medium">Congregação / Alocação:</span>
+                                        <span className="font-semibold text-slate-900 dark:text-white block mt-0.5">
                                             {viewingAsset.churchName}
                                         </span>
-                                        <span className="text-slate-500 block text-[11px]">
+                                        <span className="text-slate-500 dark:text-slate-400 block text-[11px]">
                                             {viewingAsset.locationDetails || 'Sem especificação interna'}
                                         </span>
                                     </div>
 
                                     <div>
-                                        <span className="text-slate-400 block font-medium">Valor Registrado:</span>
-                                        <span className="font-black text-emerald-600 dark:text-emerald-400 text-sm block mt-0.5">
+                                        <span className="text-slate-500 dark:text-slate-400 block font-medium">Valor Registrado:</span>
+                                        <span className="font-bold text-emerald-600 dark:text-emerald-400 text-sm block mt-0.5 tabular-nums">
                                             R$ {viewingAsset.acquisitionValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                         </span>
-                                        <span className="text-slate-500 block text-[11px]">
+                                        <span className="text-slate-500 dark:text-slate-400 block text-[11px] tabular-nums">
                                             Data: {new Date(viewingAsset.acquisitionDate).toLocaleDateString('pt-BR')}
                                         </span>
                                     </div>
 
                                     <div>
-                                        <span className="text-slate-400 block font-medium">Documento de Origem:</span>
-                                        <span className="font-bold text-slate-900 dark:text-white block mt-0.5">
+                                        <span className="text-slate-500 dark:text-slate-400 block font-medium">Documento de Origem:</span>
+                                        <span className="font-semibold text-slate-900 dark:text-white block mt-0.5 tabular-nums">
                                             {viewingAsset.invoiceNumber || 'Não especificado'}
                                         </span>
-                                        <span className="text-slate-500 block text-[11px]">
+                                        <span className="text-slate-500 dark:text-slate-400 block text-[11px]">
                                             {viewingAsset.supplierOrDonor ? `Fornecedor: ${viewingAsset.supplierOrDonor}` : ''}
                                         </span>
                                     </div>
@@ -1717,13 +1727,13 @@ export const PatrimonyView: React.FC = memo(() => {
                             {(viewingAsset.warrantyExpiration || viewingAsset.insuranceExpiration) && (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     {viewingAsset.warrantyExpiration && (
-                                        <div className="bg-purple-50 dark:bg-purple-950/30 p-4 rounded-2xl border border-purple-100 dark:border-purple-800/50 flex items-center gap-3">
-                                            <ShieldCheck className="w-5 h-5 text-purple-600 shrink-0" />
+                                        <div className="bg-slate-50 dark:bg-slate-900/80 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 flex items-center gap-3">
+                                            <ShieldCheck className="w-5 h-5 text-slate-600 dark:text-slate-400 shrink-0" />
                                             <div>
-                                                <span className="font-extrabold text-purple-900 dark:text-purple-200 block">
+                                                <span className="font-semibold text-slate-900 dark:text-white block">
                                                     Garantia do Fabricante / Loja
                                                 </span>
-                                                <span className="text-xs text-purple-700 dark:text-purple-300 block">
+                                                <span className="text-xs text-slate-500 dark:text-slate-400 block tabular-nums">
                                                     Válida até {new Date(viewingAsset.warrantyExpiration).toLocaleDateString('pt-BR')}
                                                 </span>
                                             </div>
@@ -1731,13 +1741,13 @@ export const PatrimonyView: React.FC = memo(() => {
                                     )}
 
                                     {viewingAsset.insuranceExpiration && (
-                                        <div className="bg-blue-50 dark:bg-blue-950/30 p-4 rounded-2xl border border-blue-100 dark:border-blue-800/50 flex items-center gap-3">
-                                            <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0" />
+                                        <div className="bg-sky-50/70 dark:bg-sky-950/30 p-4 rounded-xl border border-sky-200/70 dark:border-sky-900/40 flex items-center gap-3">
+                                            <ShieldCheck className="w-5 h-5 text-sky-600 dark:text-sky-400 shrink-0" />
                                             <div>
-                                                <span className="font-extrabold text-blue-900 dark:text-blue-200 block">
+                                                <span className="font-semibold text-sky-900 dark:text-sky-200 block">
                                                     Apólice de Seguro Ativa
                                                 </span>
-                                                <span className="text-xs text-blue-700 dark:text-blue-300 block">
+                                                <span className="text-xs text-sky-700 dark:text-sky-300 block tabular-nums">
                                                     Renovação necessária até {new Date(viewingAsset.insuranceExpiration).toLocaleDateString('pt-BR')}
                                                 </span>
                                             </div>
@@ -1749,10 +1759,10 @@ export const PatrimonyView: React.FC = memo(() => {
                             {/* Notes / History */}
                             {viewingAsset.notes && (
                                 <div className="space-y-2">
-                                    <h4 className="font-extrabold text-slate-800 dark:text-slate-200 text-xs uppercase tracking-wider">
+                                    <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs uppercase tracking-wide">
                                         Observações & Histórico do Bem
                                     </h4>
-                                    <p className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-300 leading-relaxed text-xs">
+                                    <p className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 text-slate-700 dark:text-slate-300 leading-relaxed text-xs">
                                         {viewingAsset.notes}
                                     </p>
                                 </div>
@@ -1761,38 +1771,38 @@ export const PatrimonyView: React.FC = memo(() => {
                             {/* Documents list */}
                             <div className="space-y-3">
                                 <div className="flex items-center justify-between">
-                                    <h4 className="font-extrabold text-slate-800 dark:text-slate-200 text-xs uppercase tracking-wider flex items-center gap-2">
-                                        <Paperclip className="w-4 h-4 text-amber-500" />
-                                        Documentos e Anexos Guardados ({viewingAsset.documents?.length || 0})
+                                    <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs uppercase tracking-wide flex items-center gap-2">
+                                        <Paperclip className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                                        Documentos e Anexos Guardados (<span className="tabular-nums">{viewingAsset.documents?.length || 0}</span>)
                                     </h4>
 
                                     <button
                                         onClick={() => {
                                             handleOpenEditModal(viewingAsset);
                                         }}
-                                        className="text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
+                                        className="text-xs font-semibold text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-1 cursor-pointer"
                                     >
                                         <Plus className="w-3.5 h-3.5" /> Adicionar Anexo
                                     </button>
                                 </div>
 
                                 {!viewingAsset.documents || viewingAsset.documents.length === 0 ? (
-                                    <div className="p-6 border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl text-center text-slate-400 text-xs">
+                                    <div className="p-6 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl text-center text-slate-400 text-xs">
                                         Nenhum documento anexado a este patrimônio ainda.
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         {viewingAsset.documents.map((doc) => (
-                                            <div key={doc.id} className="p-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl flex items-center justify-between hover:border-amber-500/50 transition-colors">
+                                            <div key={doc.id} className="p-4 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl flex items-center justify-between hover:border-orange-500/40 transition-colors">
                                                 <div className="flex items-center gap-3 min-w-0">
-                                                    <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400 flex items-center justify-center shrink-0">
-                                                        <FileText className="w-5 h-5" />
+                                                    <div className="w-9 h-9 rounded-lg bg-orange-50 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400 border border-orange-200/60 dark:border-orange-900/40 flex items-center justify-center shrink-0">
+                                                        <FileText className="w-4 h-4" />
                                                     </div>
                                                     <div className="min-w-0">
-                                                        <span className="font-bold text-slate-900 dark:text-white text-xs block truncate">
+                                                        <span className="font-semibold text-slate-900 dark:text-white text-xs block truncate">
                                                             {doc.title}
                                                         </span>
-                                                        <span className="text-[10px] text-slate-400 block uppercase font-medium">
+                                                        <span className="text-[11px] text-slate-500 dark:text-slate-400 block uppercase font-medium tabular-nums">
                                                             {doc.type} • {doc.uploadedAt}
                                                         </span>
                                                     </div>
@@ -1802,7 +1812,7 @@ export const PatrimonyView: React.FC = memo(() => {
                                                     onClick={() => {
                                                         alert(`Visualizando documento: ${doc.title} (${doc.fileName})`);
                                                     }}
-                                                    className="p-2 rounded-xl text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 cursor-pointer shrink-0"
+                                                    className="p-2 rounded-lg text-slate-400 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/40 cursor-pointer shrink-0 transition-colors"
                                                     title="Visualizar / Baixar"
                                                 >
                                                     <ExternalLink className="w-4 h-4" />
@@ -1816,15 +1826,15 @@ export const PatrimonyView: React.FC = memo(() => {
                             {/* Commitments & Financial Charges List in Dossier */}
                             <div className="space-y-3 pt-2">
                                 <div className="flex items-center justify-between">
-                                    <h4 className="font-extrabold text-slate-800 dark:text-slate-200 text-xs uppercase tracking-wider flex items-center gap-2">
-                                        <Receipt className="w-4 h-4 text-amber-500" />
-                                        Compromissos Financeiros & Encargos do Bem ({viewingAsset.commitments?.length || 0})
+                                    <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs uppercase tracking-wide flex items-center gap-2">
+                                        <Receipt className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                                        Compromissos Financeiros & Encargos do Bem (<span className="tabular-nums">{viewingAsset.commitments?.length || 0}</span>)
                                     </h4>
 
                                     {setActiveView && (
                                         <button
                                             onClick={() => setActiveView('financial')}
-                                            className="text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
+                                            className="text-xs font-semibold text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-1 cursor-pointer"
                                         >
                                             <ExternalLink className="w-3.5 h-3.5" /> Ver na Gestão de Contas
                                         </button>
@@ -1832,7 +1842,7 @@ export const PatrimonyView: React.FC = memo(() => {
                                 </div>
 
                                 {!viewingAsset.commitments || viewingAsset.commitments.length === 0 ? (
-                                    <div className="p-6 border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl text-center text-slate-400 text-xs">
+                                    <div className="p-6 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl text-center text-slate-400 text-xs">
                                         Nenhum compromisso financeiro (IPTU, IPVA, Seguro) registrado para este bem.
                                     </div>
                                 ) : (
@@ -1840,34 +1850,34 @@ export const PatrimonyView: React.FC = memo(() => {
                                         {viewingAsset.commitments.map((com) => {
                                             const isPaid = com.status === 'paid';
                                             return (
-                                                <div key={com.id} className="p-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-3">
+                                                <div key={com.id} className="p-4 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl space-y-3">
                                                     <div className="flex items-start justify-between gap-2">
                                                         <div className="flex items-center gap-2.5 min-w-0">
-                                                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isPaid ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400' : 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400'}`}>
+                                                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${isPaid ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-900/40' : 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200/60 dark:border-amber-900/40'}`}>
                                                                 <CreditCard className="w-4 h-4" />
                                                             </div>
                                                             <div className="min-w-0">
-                                                                <span className="font-bold text-slate-900 dark:text-white text-xs block truncate">
+                                                                <span className="font-semibold text-slate-900 dark:text-white text-xs block truncate">
                                                                     {com.title}
                                                                 </span>
-                                                                <span className="text-[10px] text-slate-400 block uppercase font-medium">
+                                                                <span className="text-[11px] text-slate-500 dark:text-slate-400 block uppercase font-medium tabular-nums">
                                                                     {com.type} • Vencimento: {new Date(com.dueDate).toLocaleDateString('pt-BR')}
                                                                 </span>
                                                             </div>
                                                         </div>
-                                                        <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wider ${isPaid ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'}`}>
+                                                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${isPaid ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-900/40' : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/60 dark:border-amber-900/40'}`}>
                                                             {isPaid ? 'Pago' : 'Pendente'}
                                                         </span>
                                                     </div>
 
-                                                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-700/50">
-                                                        <span className="font-black text-slate-900 dark:text-white text-sm">
+                                                    <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+                                                        <span className="font-bold text-slate-900 dark:text-white text-sm tabular-nums">
                                                             R$ {com.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                                         </span>
 
                                                         <button
                                                             onClick={() => handleToggleCommitmentStatus(viewingAsset.id, com.id, com.status)}
-                                                            className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 ${isPaid ? 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'}`}
+                                                            className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer inline-flex items-center gap-1.5 ${isPaid ? 'bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'}`}
                                                         >
                                                             <CheckCircle2 className="w-3.5 h-3.5" />
                                                             {isPaid ? 'Marcar Pendente' : 'Marcar como Pago'}
@@ -1883,46 +1893,50 @@ export const PatrimonyView: React.FC = memo(() => {
                         </div>
 
                         {/* Footer Actions */}
-                        <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex items-center justify-between border-t border-slate-100 dark:border-slate-800/50 mt-auto shrink-0">
+                        <div className="bg-slate-50 dark:bg-slate-900/80 px-6 py-4 flex items-center justify-between border-t border-slate-200/80 dark:border-slate-800 mt-auto shrink-0">
                             <button
                                 onClick={() => handleOpenEditModal(viewingAsset)}
-                                className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold rounded-full transition-colors text-[10px] tracking-wider uppercase inline-flex items-center gap-2 cursor-pointer shadow-sm"
+                                className="px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold rounded-lg transition-colors text-xs inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
                             >
-                                <Edit3 className="w-4 h-4" /> Editar Este Bem
+                                <Edit3 className="w-3.5 h-3.5" /> Editar Este Bem
                             </button>
 
                             <button
                                 onClick={() => setViewingAsset(null)}
-                                className="px-8 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-full shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                                className="px-5 py-2 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-xs transition-colors cursor-pointer"
                             >
                                 Fechar Pasta
                             </button>
                         </div>
                     </div>
                 </div>
+                </div>
             )}
 
             {/* Confirm Delete Modal */}
             {deletingAssetId && (
-                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4 text-center">
-                        <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 dark:bg-rose-950 dark:text-rose-400 flex items-center justify-center mx-auto">
-                            <Trash2 className="w-6 h-6" />
+                <div
+                    className="fixed inset-0 z-[56] flex items-center justify-center pt-16 md:pt-5 pb-3 md:pb-5 px-2 sm:px-6 bg-slate-900/55 backdrop-blur-[2px] animate-fade-in"
+                    onClick={(e) => { if (e.target === e.currentTarget) setDeletingAssetId(null); }}
+                >
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-sm w-full p-6 shadow-elevated border border-slate-200/90 dark:border-slate-800 space-y-4 text-center animate-scale-in">
+                        <div className="w-11 h-11 rounded-lg bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200/60 dark:border-rose-900/40 flex items-center justify-center mx-auto">
+                            <Trash2 className="w-5 h-5" />
                         </div>
                         <div>
-                            <h3 className="text-base font-black text-slate-900 dark:text-white">Excluir Registro do Patrimônio?</h3>
-                            <p className="text-xs text-slate-500 mt-1">Esta ação removerá este item e todos os vínculos de documentos das pesquisas.</p>
+                            <h3 className="text-base font-bold text-slate-900 dark:text-white">Excluir Registro do Patrimônio?</h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Esta ação removerá este item e todos os vínculos de documentos das pesquisas.</p>
                         </div>
                         <div className="flex items-center gap-3 pt-2">
                             <button
                                 onClick={() => setDeletingAssetId(null)}
-                                className="flex-1 px-5 py-2.5 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-2xl shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                                className="flex-1 px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 rounded-lg shadow-2xs transition-colors cursor-pointer"
                             >
                                 Cancelar
                             </button>
                             <button
                                 onClick={() => handleDeleteAsset(deletingAssetId)}
-                                className="flex-1 px-5 py-2.5 text-[10px] font-black text-white bg-rose-600 hover:bg-rose-700 rounded-2xl shadow-md transition-all tracking-wider uppercase cursor-pointer hover:-translate-y-0.5 active:translate-y-0"
+                                className="flex-1 px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-xs transition-colors cursor-pointer"
                             >
                                 Sim, Excluir
                             </button>

@@ -84,7 +84,7 @@ export const QuickRegisterModal: React.FC<QuickRegisterModalProps> = ({ entity, 
 
     return (
         <div
-            className="fixed inset-0 z-[52] flex items-center justify-center pt-16 md:pt-5 pb-3 md:pb-5 px-2 sm:px-6 bg-slate-900/55 backdrop-blur-[2px] animate-fade-in"
+            className="fixed inset-0 z-[120] flex items-center justify-center p-2.5 sm:p-6 bg-slate-900/55 backdrop-blur-[2px] animate-fade-in"
             onClick={() => {
                 if (!hasNestedOverlayOpen && !document.querySelector('[data-register-overlay="true"]')) {
                     onClose();
@@ -92,7 +92,7 @@ export const QuickRegisterModal: React.FC<QuickRegisterModalProps> = ({ entity, 
             }}
         >
             <div
-                className="relative bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-4xl h-[min(84vh,calc(100dvh-5rem))] md:h-[min(84vh,calc(100dvh-3rem))] max-h-[780px] flex flex-col overflow-hidden animate-scale-in"
+                className="relative bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-elevated w-full max-w-4xl h-[min(84vh,calc(100dvh-5rem))] md:h-[min(84vh,calc(100dvh-3rem))] max-h-[780px] flex flex-col overflow-hidden animate-scale-in"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}

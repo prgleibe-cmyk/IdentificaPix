@@ -86,58 +86,87 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
     const canBulkDelete = !isSecondaryUser || !hasBankTransactions;
 
     return (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] animate-fade-in-up">
-            <div className="bg-brand-deep/95 text-white px-4 py-2.5 rounded-2xl shadow-[0_15px_40px_rgba(0,0,0,0.6)] border border-white/10 flex items-center gap-3 backdrop-blur-xl ring-1 ring-white/10 max-w-[720px]">
-                
-                <div className="flex items-center gap-3 border-r border-white/10 pr-3">
-                    <div className="flex flex-col">
-                        <span className="text-[7px] font-black text-brand-teal uppercase tracking-widest opacity-80 leading-none">Qtd</span>
-                        <span className="text-sm font-black tabular-nums leading-tight">{selectedIds.length}</span>
-                    </div>
-                    <div className="flex flex-col min-w-[80px]">
-                        <span className="text-[7px] font-black text-brand-blue uppercase tracking-widest opacity-80 leading-none">Soma</span>
-                        <span className="text-sm font-black tabular-nums text-brand-blue leading-tight">
-                            {formatCurrency(totalAmount, language)}
+        <div
+            role="region"
+            aria-label="Ações para registros selecionados"
+            className="sticky top-0 z-30 w-full shrink-0 bg-orange-50/95 dark:bg-orange-950/35 backdrop-blur-sm border-b border-orange-200/90 dark:border-orange-900/60 px-3 sm:px-4 py-2 animate-fade-in"
+        >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3">
+                <div className="flex items-center justify-between gap-2.5 min-w-0">
+                    <div className="flex items-center flex-wrap gap-2 min-w-0">
+                        <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-md bg-orange-600 text-white text-xs font-bold tabular-nums shadow-xs shrink-0">
+                            {selectedIds.length}
                         </span>
+                        <span className="text-xs font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
+                            {selectedIds.length === 1 ? 'registro selecionado' : 'registros selecionados'}
+                        </span>
+                        <span className="h-3.5 w-px bg-orange-200/90 dark:bg-orange-800/70 shrink-0" aria-hidden="true" />
+                        <div className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
+                            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                                Soma:
+                            </span>
+                            <span className="text-xs sm:text-sm font-bold tabular-nums text-orange-700 dark:text-orange-300">
+                                {formatCurrency(totalAmount, language)}
+                            </span>
+                        </div>
                     </div>
+
+                    <button
+                        type="button"
+                        onClick={onClear}
+                        title="Limpar seleção"
+                        aria-label="Limpar seleção"
+                        className="sm:hidden w-7 h-7 rounded-lg inline-flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100 hover:bg-orange-100/80 dark:hover:bg-orange-900/40 transition-colors cursor-pointer shrink-0"
+                    >
+                        <XMarkIcon className="w-4 h-4" />
+                    </button>
                 </div>
 
-                <div className="flex items-center gap-1.5 flex-wrap">
+                <div className="flex items-center flex-wrap sm:flex-nowrap gap-1.5 sm:gap-2 w-full sm:w-auto sm:ml-auto">
                     {canIdentify && (
                         <button
+                            type="button"
                             onClick={handleBulkIdentify}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-[8px] font-black uppercase tracking-widest transition-all border border-white/10 cursor-pointer"
+                            title="Identificar contribuinte, igreja e categoria dos selecionados"
+                            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 active:bg-orange-800 text-white rounded-lg text-xs font-semibold shadow-xs transition-all cursor-pointer whitespace-nowrap shrink-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40"
                         >
-                            <UserPlusIcon className="w-2.5 h-2.5" />
-                            Identificar
+                            <UserPlusIcon className="w-3.5 h-3.5 shrink-0" />
+                            <span>Identificar</span>
                         </button>
                     )}
 
                     {canConfirm && canConfirmFinal && (
                         <button
+                            type="button"
                             onClick={handleBulkConfirm}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all border border-indigo-500/20 cursor-pointer"
+                            title="Confirmar e travar os lançamentos selecionados como conferidos"
+                            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-slate-700 dark:text-slate-200 hover:text-indigo-700 dark:hover:text-indigo-300 border border-slate-200/90 dark:border-slate-700 rounded-lg text-xs font-semibold shadow-xs transition-all cursor-pointer whitespace-nowrap shrink-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/30"
                         >
-                            <LockClosedIcon className="w-2.5 h-2.5" />
-                            Confirmar Final
+                            <LockClosedIcon className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                            <span className="truncate">Confirmar Final</span>
                         </button>
                     )}
 
                     {canBulkDelete && (
                         <button
+                            type="button"
                             onClick={handleBulkDelete}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all border border-rose-500/20 cursor-pointer"
+                            title="Excluir os lançamentos selecionados"
+                            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-900 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200/90 dark:border-rose-900/60 rounded-lg text-xs font-semibold shadow-xs transition-all cursor-pointer whitespace-nowrap shrink-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/30"
                         >
-                            <TrashIcon className="w-2.5 h-2.5" />
-                            Excluir
+                            <TrashIcon className="w-3.5 h-3.5 shrink-0" />
+                            <span>Excluir</span>
                         </button>
                     )}
 
                     <button
+                        type="button"
                         onClick={onClear}
-                        className="p-1.5 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-colors ml-1 cursor-pointer"
+                        title="Limpar seleção"
+                        aria-label="Limpar seleção"
+                        className="hidden sm:inline-flex w-7 h-7 rounded-lg items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100 hover:bg-orange-100/80 dark:hover:bg-orange-900/40 transition-colors ml-0.5 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/30"
                     >
-                        <XMarkIcon className="w-3 h-3" />
+                        <XMarkIcon className="w-4 h-4" />
                     </button>
                 </div>
             </div>

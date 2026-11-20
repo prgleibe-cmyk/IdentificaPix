@@ -299,24 +299,24 @@ export const UsersManagementPage: React.FC = () => {
     );
 
     return (
-        <div className="flex flex-col flex-1 min-h-[calc(100dvh-5.5rem)] md:min-h-[calc(100dvh-2.5rem)] h-full w-full gap-6 animate-fade-in pb-8 md:pb-4 relative">
+        <div className="flex flex-col flex-1 min-h-[calc(100dvh-5.5rem)] md:min-h-[calc(100dvh-2.5rem)] h-full w-full gap-4 animate-fade-in pb-8 md:pb-4 relative">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-1 mt-1">
-                <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-brand-blue/10 rounded-2xl text-brand-blue">
-                        <UsersIcon className="w-6 h-6" />
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs px-4 py-2.5 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 bg-orange-50 dark:bg-orange-950/40 border border-orange-200/60 dark:border-orange-900/40 rounded-lg flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
+                        <UsersIcon className="w-4 h-4" />
                     </div>
                     <div>
-                        <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-none">Usuários</h2>
-                        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1 font-medium">
+                        <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight leading-tight">Usuários</h2>
+                        <p className="text-slate-500 dark:text-slate-400 text-[11px] leading-tight">
                             Gerencie os acessos das congregações vinculadas à sua igreja.
                         </p>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                    <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <div className="flex flex-wrap items-center gap-2.5">
+                    <div className="relative flex-1 sm:flex-initial">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                             <UsersIcon className="w-4 h-4" />
                         </div>
                         <input
@@ -324,14 +324,14 @@ export const UsersManagementPage: React.FC = () => {
                             placeholder="Buscar usuário..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-10 pr-4 py-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl text-xs font-medium focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all w-48 md:w-64"
+                            className="pl-9 pr-3.5 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-800 dark:text-white focus:ring-2 focus:ring-orange-500/15 focus:border-orange-500 outline-none transition-all w-full sm:w-56 md:w-64"
                         />
                     </div>
                     <button
                         onClick={() => setIsModalOpen(true)}
-                        className="flex items-center space-x-1.5 px-5 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-full shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 transition-all tracking-wider uppercase cursor-pointer"
+                        className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-xs transition-colors cursor-pointer shrink-0"
                     >
-                        <PlusCircleIcon className="w-3.5 h-3.5" />
+                        <PlusCircleIcon className="w-4 h-4" />
                         <span>Criar Usuário</span>
                     </button>
                 </div>
@@ -340,41 +340,41 @@ export const UsersManagementPage: React.FC = () => {
             {/* Listagem */}
             {isLoadingUsers ? (
                 <div className="flex-1 flex items-center justify-center">
-                    <div className="w-10 h-10 border-4 border-brand-blue/30 border-t-brand-blue rounded-full animate-spin" />
+                    <div className="w-8 h-8 border-2 border-orange-600/20 border-t-orange-600 rounded-full animate-spin" />
                 </div>
             ) : filteredUsers.length > 0 ? (
-                <div className="flex-1 overflow-hidden bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700/50 shadow-xs flex flex-col">
-                    <div className="overflow-x-auto custom-scrollbar">
+                <div className="flex-1 overflow-hidden bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col">
+                    <div className="overflow-x-auto custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}>
                         <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="border-b border-slate-100 dark:border-slate-700/50">
-                                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Usuário</th>
-                                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Congregações</th>
-                                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Bancos</th>
-                                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Permissões</th>
-                                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right">Ações</th>
+                            <thead className="bg-slate-50/90 dark:bg-slate-800/80 border-b border-slate-200/90 dark:border-slate-800">
+                                <tr>
+                                    <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Usuário</th>
+                                    <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Congregações</th>
+                                    <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Bancos</th>
+                                    <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Permissões</th>
+                                    <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 text-right">Ações</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-50 dark:divide-slate-700/30">
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {filteredUsers.map((user) => {
                                     const church = churches.find(c => c.id === user.congregation);
                                     const perms = user.permissions || {};
                                     const activePermsCount = Object.values(perms).filter(v => v === true).length;
 
                                     return (
-                                        <tr key={user.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors group">
-                                            <td className="px-4 py-2.5">
+                                        <tr key={user.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors group">
+                                            <td className="px-4 py-3">
                                                 <div className="flex items-center gap-2.5">
-                                                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-bold uppercase shrink-0">
+                                                    <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 text-xs font-bold uppercase shrink-0">
                                                         {user.name?.substring(0, 2) || user.email?.substring(0, 2)}
                                                     </div>
                                                     <div>
-                                                        <div className="text-xs font-bold text-slate-800 dark:text-white leading-snug">{user.name || 'Sem nome'}</div>
-                                                        <div className="text-[11px] text-slate-400 dark:text-slate-500 font-medium leading-none mt-0.5">{user.email}</div>
+                                                        <div className="text-xs font-bold text-slate-900 dark:text-white leading-snug">{user.name || 'Sem nome'}</div>
+                                                        <div className="text-[11px] text-slate-500 dark:text-slate-400 leading-none mt-0.5">{user.email}</div>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-2.5">
+                                            <td className="px-4 py-3">
                                                 <div className="flex flex-wrap gap-1 max-w-[200px]">
                                                     {(() => {
                                                         const perms = user.permissions || {};
@@ -391,12 +391,12 @@ export const UsersManagementPage: React.FC = () => {
                                                             ids = [congregationRaw];
                                                         }
                                                         
-                                                        if (ids.length === 0) return <span className="text-[11px] text-slate-400">Nenhuma</span>;
+                                                        if (ids.length === 0) return <span className="text-xs text-slate-400">Nenhuma</span>;
                                                         
                                                         return ids.map((id: string) => {
                                                             const church = churches.find(c => c.id === id);
                                                             return (
-                                                                <span key={id} className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[9.5px] font-bold rounded-md whitespace-nowrap">
+                                                                <span key={id} className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-medium rounded-md whitespace-nowrap">
                                                                     {church?.name || 'Desconhecida'}
                                                                 </span>
                                                             );
@@ -404,18 +404,18 @@ export const UsersManagementPage: React.FC = () => {
                                                     })()}
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-2.5">
+                                            <td className="px-4 py-3">
                                                 <div className="flex flex-wrap gap-1 max-w-[200px]">
                                                     {(() => {
                                                         const perms = user.permissions || {};
                                                         const bankIds = perms.bankIds || [];
                                                         
-                                                        if (bankIds.length === 0) return <span className="text-[11px] text-slate-400">Nenhum</span>;
+                                                        if (bankIds.length === 0) return <span className="text-xs text-slate-400">Nenhum</span>;
                                                         
                                                         return bankIds.map((id: string) => {
                                                             const bank = banks.find(b => b.id === id);
                                                             return (
-                                                                <span key={id} className="px-2 py-0.5 bg-orange-50 dark:bg-orange-950/20 text-orange-600 dark:text-orange-400 text-[9.5px] font-bold rounded-md whitespace-nowrap">
+                                                                <span key={id} className="px-2 py-0.5 bg-orange-50 dark:bg-orange-950/40 border border-orange-200/60 dark:border-orange-900/40 text-orange-700 dark:text-orange-300 text-[11px] font-semibold rounded-md whitespace-nowrap">
                                                                     {bank?.name || 'Desconhecido'}
                                                                 </span>
                                                             );
@@ -423,24 +423,24 @@ export const UsersManagementPage: React.FC = () => {
                                                     })()}
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-2.5">
+                                            <td className="px-4 py-3">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="px-2 py-0.5 bg-brand-blue/10 text-brand-blue text-[9.5px] font-bold rounded-full">
+                                                    <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-semibold rounded-md tabular-nums">
                                                         {activePermsCount} Permissões
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-2.5 text-right">
+                                            <td className="px-4 py-3 text-right">
                                                 <div className="flex items-center justify-end gap-1">
                                                     <button 
-                                                        className="p-1.5 text-slate-400 hover:text-brand-blue hover:bg-brand-blue/10 rounded-lg transition-all cursor-pointer"
+                                                        className="p-1.5 text-slate-400 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/40 rounded-lg transition-colors cursor-pointer"
                                                         title="Editar Usuário"
                                                         onClick={() => handleEditClick(user)}
                                                     >
                                                         <PencilIcon className="w-4 h-4" />
                                                     </button>
                                                     <button 
-                                                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-all cursor-pointer"
+                                                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer"
                                                         title="Excluir Usuário"
                                                         onClick={() => handleDeleteUser(user.id)}
                                                     >
@@ -456,15 +456,15 @@ export const UsersManagementPage: React.FC = () => {
                     </div>
                 </div>
             ) : (
-                <div className="flex-1 flex items-center justify-center bg-white dark:bg-slate-800/50 rounded-[2.5rem] border-2 border-dashed border-slate-100 dark:border-slate-700/50 min-h-[400px]">
+                <div className="flex-1 flex items-center justify-center bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 min-h-[380px]">
                     <div className="flex flex-col items-center text-center p-8">
-                        <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6 border border-slate-100 dark:border-slate-700">
-                            <UserIcon className="w-10 h-10 text-slate-300 dark:text-slate-600" />
+                        <div className="w-14 h-14 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-center mb-4 border border-slate-200/80 dark:border-slate-700">
+                            <UserIcon className="w-7 h-7 text-slate-400 dark:text-slate-500" />
                         </div>
-                        <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
-                            {searchTerm ? 'Nenhum usuário encontrado' : 'Nenhum usuário cadastrado ainda.'}
+                        <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1.5">
+                            {searchTerm ? 'Nenhum usuário encontrado' : 'Nenhum usuário cadastrado ainda'}
                         </h3>
-                        <p className="text-slate-500 dark:text-slate-400 max-w-xs text-sm font-medium">
+                        <p className="text-slate-500 dark:text-slate-400 max-w-xs text-xs">
                             {searchTerm 
                                 ? 'Não encontramos nenhum usuário correspondente à sua busca.' 
                                 : 'Comece adicionando novos usuários para permitir que outras pessoas gerenciem suas congregações.'}
@@ -475,133 +475,136 @@ export const UsersManagementPage: React.FC = () => {
 
             {/* Modal de Cadastro/Edição */}
             {isModalOpen && (
-                <div className="absolute inset-0 z-40 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full min-h-[calc(100dvh-5.5rem)] md:min-h-[calc(100dvh-2.5rem)] rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
-                    <form onSubmit={handleSubmitUser} className="flex flex-col h-full w-full flex-1">
+                <div
+                    className="fixed inset-0 z-[56] flex items-center justify-center pt-16 md:pt-5 pb-3 md:pb-5 px-2 sm:px-6 bg-slate-900/55 backdrop-blur-[2px] animate-fade-in"
+                    onClick={(e) => { if (e.target === e.currentTarget && !loading) handleCloseModal(); }}
+                >
+                    <form
+                        onSubmit={handleSubmitUser}
+                        onClick={(e) => e.stopPropagation()}
+                        className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-elevated w-full max-w-3xl max-h-[calc(100dvh-5rem)] md:max-h-[min(88vh,calc(100dvh-3rem))] flex flex-col overflow-hidden animate-scale-in"
+                    >
                         {/* Header */}
-                        <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
-                            <div className="flex flex-row flex-wrap items-center gap-4 md:gap-8 w-full md:w-auto">
-                                <div className="flex items-center gap-4">
-                                    <div className="p-3 rounded-2xl bg-orange-500 text-white shadow-lg shadow-orange-500/20">
-                                        <UserIcon className="w-6 h-6" />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight uppercase">
-                                            {editingUser ? 'Editar Usuário' : 'Novo Usuário'}
-                                        </h3>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">
-                                            {editingUser ? 'Alterar Dados e Permissões do Usuário' : 'Cadastro de Acesso e Permissões de Usuário'}
-                                        </p>
-                                    </div>
+                        <div className="px-5 py-3.5 border-b border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 flex justify-between items-center gap-3 shrink-0">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-8 h-8 bg-orange-50 dark:bg-orange-950/40 border border-orange-200/60 dark:border-orange-900/40 rounded-lg flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
+                                    <UserIcon className="w-4 h-4" />
+                                </div>
+                                <div className="min-w-0">
+                                    <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
+                                        {editingUser ? 'Editar Usuário' : 'Novo Usuário'}
+                                    </h3>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight truncate">
+                                        {editingUser ? 'Alterar Dados e Permissões do Usuário' : 'Cadastro de Acesso e Permissões de Usuário'}
+                                    </p>
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-2 self-end md:self-auto">
-                                <button 
-                                    type="button"
-                                    onClick={handleCloseModal}
-                                    className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors"
-                                >
-                                    <XMarkIcon className="w-6 h-6" />
-                                </button>
-                            </div>
+                            <button 
+                                type="button"
+                                onClick={handleCloseModal}
+                                className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer shrink-0"
+                            >
+                                <XMarkIcon className="w-4 h-4" />
+                            </button>
                         </div>
 
                         {/* Body */}
-                        <div className="p-8 flex-1 overflow-y-auto custom-scrollbar w-full min-h-0">
+                        <div className="p-6 flex-1 overflow-y-auto custom-scrollbar w-full min-h-0" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
                             <div className="space-y-6 w-full">
                                 {statusMessage && (
-                                    <div className={`p-4 rounded-2xl text-sm font-bold flex items-center gap-3 animate-fade-in ${
+                                    <div className={`p-3.5 rounded-xl text-xs font-semibold flex items-center gap-2.5 animate-fade-in ${
                                         statusMessage.type === 'success' 
-                                            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-800' 
-                                            : 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-100 dark:border-red-800'
+                                            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/60' 
+                                            : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200/80 dark:border-rose-800/60'
                                     }`}>
-                                        <div className={`w-2 h-2 rounded-full ${statusMessage.type === 'success' ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                                        <div className={`w-2 h-2 rounded-full shrink-0 ${statusMessage.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                                         {statusMessage.text}
                                     </div>
                                 )}
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {/* Nome */}
-                                    <div className="space-y-2">
-                                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 ml-1">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Nome Completo
                                         </label>
                                         <div className="relative">
-                                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
-                                                <UserIcon className="w-5 h-5" />
+                                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                                                <UserIcon className="w-4 h-4" />
                                             </div>
                                             <input
                                                 type="text"
                                                 required
                                                 value={formData.name}
                                                 onChange={e => setFormData({...formData, name: e.target.value})}
-                                                className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-slate-900 dark:text-white font-medium"
+                                                className="w-full pl-10 pr-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500/15 focus:border-orange-500 outline-none transition-all text-slate-900 dark:text-white text-sm font-medium shadow-2xs"
                                                 placeholder="Ex: João Silva"
                                             />
                                         </div>
                                     </div>
 
                                     {/* Email */}
-                                    <div className="space-y-2">
-                                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 ml-1">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             E-mail
                                         </label>
                                         <div className="relative">
-                                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
-                                                <EnvelopeIcon className="w-5 h-5" />
+                                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                                                <EnvelopeIcon className="w-4 h-4" />
                                             </div>
                                             <input
                                                 type="email"
                                                 required
                                                 value={formData.email}
                                                 onChange={e => setFormData({...formData, email: e.target.value})}
-                                                className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-slate-900 dark:text-white font-medium"
+                                                className="w-full pl-10 pr-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500/15 focus:border-orange-500 outline-none transition-all text-slate-900 dark:text-white text-sm font-medium shadow-2xs"
                                                 placeholder="joao@exemplo.com"
                                             />
                                         </div>
                                     </div>
 
                                     {/* Senha */}
-                                    <div className="space-y-2 md:col-span-2">
-                                        <div className="flex items-center justify-between ml-1">
-                                            <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                                    <div className="space-y-1.5 md:col-span-2">
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                                 {editingUser ? 'Nova Senha (deixe em branco para manter a atual)' : 'Senha Provisória'}
                                             </label>
                                             <button
                                                 type="button"
                                                 onClick={handleGeneratePassword}
-                                                className="flex items-center gap-1.5 text-[10px] font-bold text-brand-blue hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors cursor-pointer bg-blue-50 dark:bg-blue-950/40 px-3 py-1 rounded-full border border-blue-100 dark:border-blue-800"
+                                                className="flex items-center gap-1.5 text-xs font-semibold text-orange-700 hover:text-orange-800 dark:text-orange-300 dark:hover:text-orange-200 transition-colors cursor-pointer bg-orange-50 hover:bg-orange-100 dark:bg-orange-950/40 dark:hover:bg-orange-950/60 px-2.5 py-1 rounded-md border border-orange-200/70 dark:border-orange-900/40"
                                             >
-                                                <Key className="w-3 h-3" />
+                                                <Key className="w-3.5 h-3.5" />
                                                 <span>Gerar Senha Sugerida</span>
                                             </button>
                                         </div>
 
                                         <div className="relative">
-                                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
-                                                <LockClosedIcon className="w-5 h-5" />
+                                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                                                <LockClosedIcon className="w-4 h-4" />
                                             </div>
                                             <input
                                                 type={showPassword ? 'text' : 'password'}
                                                 required={!editingUser}
                                                 value={formData.password}
                                                 onChange={e => setFormData({...formData, password: e.target.value})}
-                                                className="w-full pl-12 pr-28 py-3.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-slate-900 dark:text-white font-medium"
+                                                className="w-full pl-10 pr-28 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500/15 focus:border-orange-500 outline-none transition-all text-slate-900 dark:text-white text-sm font-medium shadow-2xs"
                                                 placeholder={editingUser ? "•••••••• (Manter a senha atual)" : "Digite ou gere uma senha provisória"}
                                             />
 
-                                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center gap-1">
+                                            <div className="absolute inset-y-0 right-0 pr-2 flex items-center gap-1">
                                                 {formData.password && (
                                                     <button
                                                         type="button"
                                                         onClick={handleCopyPassword}
-                                                        className="p-2 text-slate-400 hover:text-brand-blue dark:hover:text-white transition-colors cursor-pointer rounded-xl hover:bg-slate-200/50 dark:hover:bg-slate-700/50 flex items-center gap-1 text-[10px] font-bold"
+                                                        className="p-1.5 text-slate-400 hover:text-orange-600 dark:hover:text-white transition-colors cursor-pointer rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1 text-xs font-semibold"
                                                         title="Copiar senha"
                                                     >
                                                         {copiedPassword ? (
                                                             <>
                                                                 <Check className="w-4 h-4 text-emerald-500" />
-                                                                <span className="text-emerald-500 hidden sm:inline">Copiado</span>
+                                                                <span className="text-emerald-600 dark:text-emerald-400 hidden sm:inline">Copiado</span>
                                                             </>
                                                         ) : (
                                                             <>
@@ -614,32 +617,32 @@ export const UsersManagementPage: React.FC = () => {
                                                 <button
                                                     type="button"
                                                     onClick={() => setShowPassword(!showPassword)}
-                                                    className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer rounded-xl hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
+                                                    className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer rounded-md hover:bg-slate-100 dark:hover:bg-slate-800"
                                                     title={showPassword ? "Ocultar senha" : "Mostrar senha"}
                                                 >
-                                                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                                 </button>
                                             </div>
                                         </div>
 
-                                        <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium ml-1 flex items-start gap-1.5 pt-1">
+                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-start gap-1.5 pt-1">
                                             <span>💡 Por diretrizes de segurança (OWASP/Google), senhas salvas são encriptadas (hash unidirecional) e não podem ser reveladas após o registro. Use o ícone de olho ou "Gerar Senha Sugerida" para visualizar/copiar a senha provisória antes de salvar e repassar ao usuário.</span>
                                         </p>
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
                                     {/* Congregações Autorizadas */}
-                                    <div className="bg-slate-50/70 dark:bg-slate-900/60 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 space-y-4">
-                                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 ml-1">
+                                    <div className="bg-slate-50/70 dark:bg-slate-900/60 p-5 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-3">
+                                        <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                                             Congregações Autorizadas
                                         </label>
-                                        <div className="grid grid-cols-1 gap-2 max-h-[260px] overflow-y-auto custom-scrollbar p-1">
+                                        <div className="grid grid-cols-1 gap-2 max-h-[260px] overflow-y-auto custom-scrollbar p-1" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
                                             {churches.length > 0 ? (
                                                 churches.map(church => (
                                                     <label 
                                                         key={church.id}
-                                                        className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group"
+                                                        className="flex items-center gap-3 p-2.5 rounded-lg border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-orange-300 dark:hover:border-orange-800 transition-colors cursor-pointer group"
                                                     >
                                                         <input
                                                             type="checkbox"
@@ -652,9 +655,9 @@ export const UsersManagementPage: React.FC = () => {
                                                                     return { ...prev, churchIds: ids };
                                                                 });
                                                             }}
-                                                            className="w-5 h-5 rounded-lg border-slate-300 text-brand-blue focus:ring-brand-blue/20"
+                                                            className="w-4 h-4 rounded border-slate-300 accent-orange-600"
                                                         />
-                                                        <span className="text-sm font-bold text-slate-700 dark:text-slate-300 group-hover:text-brand-blue transition-colors">
+                                                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">
                                                             {church.name}
                                                         </span>
                                                     </label>
@@ -666,16 +669,16 @@ export const UsersManagementPage: React.FC = () => {
                                     </div>
 
                                     {/* Bancos Autorizados */}
-                                    <div className="bg-slate-50/70 dark:bg-slate-900/60 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 space-y-4">
-                                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 ml-1">
+                                    <div className="bg-slate-50/70 dark:bg-slate-900/60 p-5 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-3">
+                                        <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                                             Bancos Autorizados
                                         </label>
-                                        <div className="grid grid-cols-1 gap-2 max-h-[260px] overflow-y-auto custom-scrollbar p-1">
+                                        <div className="grid grid-cols-1 gap-2 max-h-[260px] overflow-y-auto custom-scrollbar p-1" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
                                             {banks.length > 0 ? (
                                                 banks.map(bank => (
                                                     <label 
                                                         key={bank.id}
-                                                        className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group"
+                                                        className="flex items-center gap-3 p-2.5 rounded-lg border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-orange-300 dark:hover:border-orange-800 transition-colors cursor-pointer group"
                                                     >
                                                         <input
                                                             type="checkbox"
@@ -688,9 +691,9 @@ export const UsersManagementPage: React.FC = () => {
                                                                     return { ...prev, bankIds: ids };
                                                                 });
                                                             }}
-                                                            className="w-5 h-5 rounded-lg border-slate-300 text-brand-blue focus:ring-brand-blue/20"
+                                                            className="w-4 h-4 rounded border-slate-300 accent-orange-600"
                                                         />
-                                                        <span className="text-sm font-bold text-slate-700 dark:text-slate-300 group-hover:text-brand-blue transition-colors">
+                                                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">
                                                             {bank.name}
                                                         </span>
                                                     </label>
@@ -703,11 +706,11 @@ export const UsersManagementPage: React.FC = () => {
                                 </div>
 
                                 {/* Permissões */}
-                                <div className="bg-slate-50/70 dark:bg-slate-900/60 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 space-y-4">
-                                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 ml-1">
+                                <div className="bg-slate-50/70 dark:bg-slate-900/60 p-5 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-3">
+                                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                                         Permissões de Acesso
                                     </label>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
                                         {[
                                             { key: 'confirmFinal', label: 'Confirmar final' },
                                             { key: 'identifyPayments', label: 'Identificar pagamentos' },
@@ -720,15 +723,15 @@ export const UsersManagementPage: React.FC = () => {
                                         ].map(perm => (
                                             <label 
                                                 key={perm.key}
-                                                className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group"
+                                                className="flex items-center gap-3 p-2.5 rounded-lg border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-orange-300 dark:hover:border-orange-800 transition-colors cursor-pointer group"
                                             >
                                                 <input
                                                     type="checkbox"
                                                     checked={formData.permissions[perm.key as keyof typeof formData.permissions]}
                                                     onChange={() => togglePermission(perm.key as keyof typeof formData.permissions)}
-                                                    className="w-5 h-5 rounded-lg border-slate-300 text-brand-blue focus:ring-brand-blue/20"
+                                                    className="w-4 h-4 rounded border-slate-300 accent-orange-600"
                                                 />
-                                                <span className="text-sm font-bold text-slate-700 dark:text-slate-300 group-hover:text-brand-blue transition-colors">
+                                                <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">
                                                     {perm.label}
                                                 </span>
                                             </label>
@@ -739,22 +742,22 @@ export const UsersManagementPage: React.FC = () => {
                         </div>
 
                         {/* Footer */}
-                        <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 border-t border-slate-100 dark:border-slate-800/50 mt-auto shrink-0">
+                        <div className="bg-slate-50 dark:bg-slate-900/80 px-6 py-4 flex justify-end gap-3 border-t border-slate-200/80 dark:border-slate-800 mt-auto shrink-0">
                             <button
                                 type="button"
                                 onClick={handleCloseModal}
-                                className="px-6 py-2.5 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-full shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 rounded-lg shadow-2xs transition-colors cursor-pointer"
                             >
                                 Cancelar
                             </button>
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="px-8 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-full shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
+                                className="px-5 py-2 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                             >
                                 {loading ? (
                                     <>
-                                        <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                         <span>Processando...</span>
                                     </>
                                 ) : (

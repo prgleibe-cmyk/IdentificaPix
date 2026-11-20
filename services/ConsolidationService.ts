@@ -38,10 +38,22 @@ export const consolidationService = {
         let offset = 0;
         let hasMore = true;
         const headers = await getAuthHeaders();
+        if (!headers['Authorization']) {
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('iggestor:auth-expired'));
+            }
+            return [];
+        }
 
         while (hasMore && (!maxRecords || allData.length < maxRecords)) {
             const url = urlBuilder(offset, step);
             const res = await safeFetch(url, { headers, cache: 'no-store' });
+            if (res.status === 401) {
+                if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('iggestor:auth-expired'));
+                }
+                return [];
+            }
             if (!res.ok) {
                 throw new Error(`Erro ao buscar dados paginados da VPS: ${res.status} ${res.statusText}`);
             }

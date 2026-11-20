@@ -1,4 +1,5 @@
 import React from 'react';
+import { Check } from 'lucide-react';
 
 interface PortalStepperProps {
     currentStep: number;
@@ -16,13 +17,14 @@ const STEPS = [
 export const PortalStepper: React.FC<PortalStepperProps> = ({ currentStep, onStepClick }) => {
     return (
         <div className="w-full mb-6 sm:mb-8">
-            <div className="flex items-center justify-between relative max-w-4xl mx-auto px-2">
-                {/* Connecting progress line */}
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-slate-200 dark:bg-slate-800 w-full z-0 rounded-full" />
-                <div 
-                    className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-brand-blue dark:bg-blue-500 z-0 rounded-full transition-all duration-300"
-                    style={{ width: `${((currentStep - 1) / (STEPS.length - 1)) * 100}%` }}
-                />
+            <div className="flex items-start justify-between relative max-w-3xl mx-auto px-2">
+                {/* Connecting progress line aligned to step circle centers */}
+                <div className="absolute left-6 right-6 top-4 sm:top-[18px] h-0.5 bg-slate-200 dark:bg-slate-800 z-0 rounded-full overflow-hidden">
+                    <div 
+                        className="h-full bg-orange-600 dark:bg-orange-500 rounded-full transition-all duration-300"
+                        style={{ width: `${((currentStep - 1) / (STEPS.length - 1)) * 100}%` }}
+                    />
+                </div>
 
                 {STEPS.map((step) => {
                     const isCompleted = step.number < currentStep;
@@ -34,23 +36,25 @@ export const PortalStepper: React.FC<PortalStepperProps> = ({ currentStep, onSte
                                 type="button"
                                 disabled={step.number > currentStep}
                                 onClick={() => onStepClick && onStepClick(step.number)}
-                                className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-black text-xs sm:text-sm transition-all duration-200 cursor-pointer ${
+                                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm tabular-nums transition-colors duration-200 ${
+                                    step.number <= currentStep ? 'cursor-pointer' : 'cursor-default'
+                                } ${
                                     isCompleted 
-                                        ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20' 
+                                        ? 'bg-emerald-600 text-white shadow-xs' 
                                         : isCurrent 
-                                            ? 'bg-brand-blue text-white ring-4 ring-blue-500/20 dark:ring-blue-500/40 shadow-lg scale-110' 
-                                            : 'bg-white dark:bg-slate-800 text-slate-400 border border-slate-300 dark:border-slate-700'
+                                            ? 'bg-orange-600 text-white ring-4 ring-orange-500/15 dark:ring-orange-500/30 shadow-sm' 
+                                            : 'bg-white dark:bg-slate-900 text-slate-400 border border-slate-300 dark:border-slate-700'
                                 }`}
                             >
-                                {isCompleted ? '✓' : step.number}
+                                {isCompleted ? <Check className="w-4 h-4 stroke-[2.5]" /> : step.number}
                             </button>
 
-                            <span className={`text-[10px] sm:text-xs font-bold mt-1.5 hidden md:block transition-colors ${
+                            <span className={`text-[11px] font-semibold mt-1.5 hidden md:block whitespace-nowrap transition-colors ${
                                 isCurrent 
-                                    ? 'text-brand-blue dark:text-blue-400' 
+                                    ? 'text-orange-600 dark:text-orange-400' 
                                     : isCompleted 
                                         ? 'text-slate-700 dark:text-slate-300' 
-                                        : 'text-slate-400 dark:text-slate-600'
+                                        : 'text-slate-400 dark:text-slate-500'
                             }`}>
                                 {step.label}
                             </span>

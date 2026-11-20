@@ -3,7 +3,7 @@ import { PortalCard } from '../components/PortalCard';
 import { PortalButton } from '../components/PortalButton';
 import { ContributionItemMock, ChurchBankAccountPublic } from '../types/portal';
 import { formatCurrencyBrl } from '../utils/portalFormatters';
-import { Sparkles, Building2, Check, ArrowRight } from 'lucide-react';
+import { Info, Building2, Check, AlertCircle } from 'lucide-react';
 
 interface PortalContributionsStepProps {
     items: ContributionItemMock[];
@@ -58,12 +58,12 @@ export const PortalContributionsStep: React.FC<PortalContributionsStepProps> = (
         >
             <div className="space-y-6">
                 {/* Header Banner */}
-                <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50/70 dark:from-slate-800/80 dark:to-slate-800/40 border border-blue-100 dark:border-slate-700/80 flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-brand-blue/10 dark:bg-blue-500/20 text-brand-blue dark:text-blue-400 flex items-center justify-center shrink-0 mt-0.5">
-                        <Sparkles className="w-4 h-4" />
+                <div className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0 mt-0.5">
+                        <Info className="w-4 h-4" />
                     </div>
                     <div>
-                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-white">
+                        <h4 className="text-xs font-bold text-slate-900 dark:text-white">
                             Instruções para Contribuição
                         </h4>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
@@ -96,25 +96,25 @@ export const PortalContributionsStep: React.FC<PortalContributionsStepProps> = (
                                             if (onSelectBank) onSelectBank(acc.id);
                                             setError(null);
                                         }}
-                                        className={`p-3.5 rounded-xl border text-left transition-all flex items-center gap-3 cursor-pointer ${
+                                        className={`p-3.5 rounded-xl border text-left transition-colors flex items-center gap-3 cursor-pointer ${
                                             isSelected
-                                                ? 'bg-blue-50/90 dark:bg-blue-950/40 border-brand-blue dark:border-blue-500 ring-2 ring-brand-blue/30 shadow-xs'
+                                                ? 'bg-orange-50/60 dark:bg-orange-950/20 border-orange-500 ring-1 ring-orange-500/20 shadow-xs'
                                                 : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                                         }`}
                                     >
-                                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-black text-xs shrink-0 ${
-                                            isSelected ? 'bg-brand-blue text-white shadow-xs' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                                            isSelected ? 'bg-orange-600 text-white shadow-xs' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
                                         }`}>
                                             <Building2 className="w-4 h-4" />
                                         </div>
                                         <div className="min-w-0 flex-1">
                                             <div className="flex items-center justify-between gap-1">
-                                                <p className="text-xs font-black text-slate-800 dark:text-white truncate">
+                                                <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
                                                     {acc.name}
                                                 </p>
                                                 {isSelected && (
-                                                    <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-brand-blue/10 dark:bg-blue-500/20 text-brand-blue dark:text-blue-300 shrink-0 flex items-center gap-1">
-                                                        <Check className="w-2.5 h-2.5" /> Selecionada
+                                                    <span className="text-[10px] font-semibold text-orange-600 dark:text-orange-400 shrink-0 flex items-center gap-1">
+                                                        <Check className="w-3 h-3" /> Selecionada
                                                     </span>
                                                 )}
                                             </div>
@@ -167,9 +167,9 @@ export const PortalContributionsStep: React.FC<PortalContributionsStepProps> = (
                         {items.map((item) => (
                             <div
                                 key={item.id}
-                                className={`p-4 rounded-2xl border transition-all ${
+                                className={`p-4 rounded-xl border transition-colors ${
                                     item.selected
-                                        ? 'bg-blue-50/80 dark:bg-slate-800/90 border-brand-blue dark:border-blue-500 shadow-xs ring-1 ring-brand-blue/20'
+                                        ? 'bg-orange-50/50 dark:bg-slate-800/90 border-orange-500 shadow-xs ring-1 ring-orange-500/15'
                                         : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                                 }`}
                             >
@@ -220,9 +220,9 @@ export const PortalContributionsStep: React.FC<PortalContributionsStepProps> = (
                                                 if (error) setError(null);
                                             }}
                                             placeholder="0,00"
-                                            className={`w-36 px-3.5 py-2 rounded-xl border text-right font-black text-base focus:outline-none transition-all ${
+                                            className={`w-36 px-3 py-2 rounded-lg border text-right font-bold tabular-nums text-base focus:outline-none transition-colors ${
                                                 item.selected
-                                                    ? 'bg-white dark:bg-slate-900 border-brand-blue text-slate-900 dark:text-white ring-2 ring-blue-500/20'
+                                                    ? 'bg-white dark:bg-slate-900 border-orange-500 text-slate-900 dark:text-white ring-2 ring-orange-500/20'
                                                     : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
                                             }`}
                                         />
@@ -232,7 +232,7 @@ export const PortalContributionsStep: React.FC<PortalContributionsStepProps> = (
                                 {/* Atalhos rápidos de acréscimo (+R$20, +R$50, +R$100, +R$200) */}
                                 {item.selected && (
                                     <div className="flex items-center gap-1.5 flex-wrap pt-2.5 mt-2.5 border-t border-slate-200/60 dark:border-slate-700/60">
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+                                        <span className="text-[11px] font-medium text-slate-500 mr-1">
                                             Adicionar rápido:
                                         </span>
                                         {[20, 50, 100, 200].map((val) => (
@@ -240,7 +240,7 @@ export const PortalContributionsStep: React.FC<PortalContributionsStepProps> = (
                                                 key={val}
                                                 type="button"
                                                 onClick={() => handleQuickAdd(item.id, item.amount, val)}
-                                                className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-blue-50 hover:text-brand-blue dark:hover:bg-blue-900/40 dark:hover:text-blue-300 border border-slate-200/80 dark:border-slate-700 transition-colors cursor-pointer"
+                                                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold tabular-nums bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-950/40 dark:hover:text-orange-300 border border-slate-200/80 dark:border-slate-700 transition-colors cursor-pointer"
                                             >
                                                 +{formatCurrencyBrl(val)}
                                             </button>
@@ -253,24 +253,25 @@ export const PortalContributionsStep: React.FC<PortalContributionsStepProps> = (
                 </div>
 
                 {/* 3. TOTALIZADOR EM TEMPO REAL */}
-                <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <div className="p-4 sm:p-5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/90 dark:border-slate-800 flex items-center justify-between gap-3">
                     <div>
-                        <span className="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 block">
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200 block">
                             Total da Contribuição
                         </span>
-                        <span className="text-[11px] text-slate-400">
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
                             {items.filter(i => i.selected && i.amount > 0).length} categoria(s) informada(s)
-                            {items.filter(i => i.selected && i.amount > 0).length > 1 ? ' • Rateio automático' : ''}
+                            {items.filter(i => i.selected && i.amount > 0).length > 1 ? ' · Rateio automático' : ''}
                         </span>
                     </div>
-                    <span className="text-2xl sm:text-3xl font-black text-brand-blue dark:text-blue-400">
+                    <span className="text-2xl sm:text-3xl font-bold tabular-nums text-orange-600 dark:text-orange-400">
                         {formatCurrencyBrl(totalAmount)}
                     </span>
                 </div>
 
                 {error && (
-                    <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs font-bold text-center">
-                        ⚠️ {error}
+                    <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-center justify-center gap-1.5">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>{error}</span>
                     </div>
                 )}
 
@@ -288,10 +289,10 @@ export const PortalContributionsStep: React.FC<PortalContributionsStepProps> = (
                         variant="primary"
                         size="md"
                         disabled={isSaving}
-                        className="flex-1 py-3 text-sm font-bold shadow-md bg-gradient-to-r from-brand-blue to-amber-500 hover:from-blue-600 hover:to-amber-600 cursor-pointer"
+                        className="flex-1 py-2.5"
                         onClick={handleNext}
                     >
-                        {isSaving ? 'Gravando intenção...' : 'Prosseguir para Receber Chave Pix →'}
+                        {isSaving ? 'Gravando intenção...' : 'Prosseguir para Receber Chave Pix'}
                     </PortalButton>
                 </div>
             </div>

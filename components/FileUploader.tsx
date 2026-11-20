@@ -151,8 +151,8 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
   return (
     <div className="flex-shrink-0">
       <input type="file" id={id} ref={fileInputRef} className="hidden" onChange={handleFileChange} disabled={disabled || isParsing} accept={acceptFilter} />
-      <button type="button" onClick={handleClick} disabled={disabled || isParsing} className={`group inline-flex items-center justify-center space-x-1.5 px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wide transition-all ${disabled ? 'bg-slate-100 text-slate-400' : 'text-white bg-emerald-600 hover:bg-emerald-50 shadow-sm'}`}>
-         {isParsing ? <div className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full mr-2"></div> : <UploadIcon className="w-3 h-3" />}
+      <button type="button" onClick={handleClick} disabled={disabled || isParsing} className={`group inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${disabled || isParsing ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed border border-slate-200 dark:border-slate-700' : 'text-white bg-orange-600 hover:bg-orange-700 active:scale-[0.98] shadow-xs cursor-pointer'}`}>
+         {isParsing ? <div className="animate-spin h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full"></div> : <UploadIcon className="w-3.5 h-3.5" />}
          <span>{isParsing ? 'Carregando...' : title}</span>
       </button>
     </div>

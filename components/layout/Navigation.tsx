@@ -40,22 +40,22 @@ const NavItem: React.FC<NavItemProps> = memo(({ icon, label, isActive, onClick, 
         );
     }
 
-    // Standard styling with SaaS Premium look FOR DARK HEADER
+    // Standard styling with executive look
     return (
         <button
             onClick={onClick}
             className={`
-                relative flex-shrink-0 flex items-center justify-center px-4 py-2.5 text-xs font-bold rounded-xl 
+                relative flex-shrink-0 flex items-center justify-center px-4 py-2 text-xs font-semibold rounded-lg 
                 transition-all duration-200 outline-none select-none whitespace-nowrap mx-0.5
                 ${isActive
-                    ? 'bg-brand-blue text-white shadow-lg shadow-brand-blue/20 transform scale-[1.02]'
+                    ? 'bg-orange-600 text-white shadow-xs'
                     : 'text-slate-300 hover:text-white hover:bg-white/10'
                 }
             `}
         >
             <span className="relative z-10 flex items-center gap-2">
-                {React.cloneElement(icon as React.ReactElement<any>, { className: isActive ? "w-4 h-4 stroke-[2]" : "w-4 h-4 stroke-[1.5]" })}
-                <span className="tracking-wide">{label}</span>
+                {React.cloneElement(icon as React.ReactElement<any>, { className: isActive ? "w-4 h-4 stroke-[2]" : "w-4 h-4 stroke-[1.75]" })}
+                <span>{label}</span>
             </span>
         </button>
     );

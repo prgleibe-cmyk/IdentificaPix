@@ -3,6 +3,7 @@ import { PortalCard } from '../components/PortalCard';
 import { PortalButton } from '../components/PortalButton';
 import { ContributorMockProfile, ContributionItemMock, PortalChurch } from '../types/portal';
 import { formatCurrencyBrl } from '../utils/portalFormatters';
+import { CreditCard, Smartphone, AlertCircle } from 'lucide-react';
 
 interface PortalSummaryStepProps {
     church?: PortalChurch | null;
@@ -63,39 +64,45 @@ export const PortalSummaryStep: React.FC<PortalSummaryStepProps> = ({
                             {(contributor.congregation && contributor.congregation !== 'Sede Central') ? contributor.congregation : (church?.name || 'Igreja Local')}
                         </span>
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
-                        <span>🪪 CPF: {contributor.cpf}</span>
-                        <span>📱 {contributor.phone}</span>
+                    <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600 dark:text-slate-400 tabular-nums">
+                        <span className="inline-flex items-center gap-1.5">
+                            <CreditCard className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span>CPF: {contributor.cpf}</span>
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                            <Smartphone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span>{contributor.phone}</span>
+                        </span>
                     </div>
                 </div>
 
                 {/* Contribution Breakdown */}
                 <div className="space-y-2">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
                         Detalhamento dos Valores
                     </span>
                     <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200/80 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
                         {selectedItems.map((item) => (
                             <div key={item.id} className="flex items-center justify-between p-3">
                                 <div>
-                                    <span className="text-xs font-bold text-slate-800 dark:text-white block">
+                                    <span className="text-xs font-semibold text-slate-800 dark:text-white block">
                                         {item.label}
                                     </span>
-                                    <span className="text-[10px] text-slate-400">
+                                    <span className="text-[11px] text-slate-400">
                                         {item.description}
                                     </span>
                                 </div>
-                                <span className="text-sm font-black text-slate-800 dark:text-slate-200">
+                                <span className="text-sm font-bold tabular-nums text-slate-900 dark:text-slate-100">
                                     {formatCurrencyBrl(item.amount)}
                                 </span>
                             </div>
                         ))}
                         
                         <div className="p-4 bg-slate-50 dark:bg-slate-800/80 flex items-center justify-between">
-                            <span className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
                                 Total Geral
                             </span>
-                            <span className="text-xl font-black text-brand-blue dark:text-blue-400">
+                            <span className="text-xl font-bold tabular-nums text-orange-600 dark:text-orange-400">
                                 {formatCurrencyBrl(totalAmount)}
                             </span>
                         </div>
@@ -104,8 +111,9 @@ export const PortalSummaryStep: React.FC<PortalSummaryStepProps> = ({
 
                 {/* Error Banner */}
                 {apiError && (
-                    <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs font-semibold">
-                        ⚠️ {apiError}
+                    <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>{apiError}</span>
                     </div>
                 )}
 

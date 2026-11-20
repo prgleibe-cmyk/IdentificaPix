@@ -17,20 +17,18 @@ import {
     CheckCircle2, 
     BookOpen, 
     Heart, 
-    Sparkles, 
     User, 
     Phone, 
     Mail, 
     Lock, 
     Building2, 
     ArrowRight,
-    Search,
     RefreshCw,
-    Edit3,
-    Calendar,
-    MapPin,
     ChevronDown,
-    Briefcase
+    Briefcase,
+    CreditCard,
+    Smartphone,
+    AlertCircle
 } from 'lucide-react';
 import { usePortalRoles } from '../hooks/usePortalRoles';
 
@@ -173,115 +171,110 @@ export const PortalIdentifyStep: React.FC<PortalIdentifyStepProps> = ({
 
     // --- LEFT COLUMN: HERO & BIBLICAL CONSCIENTIZATION ---
     const renderHeroSection = () => (
-        <div className="space-y-6 lg:pr-4">
+        <div className="space-y-5 lg:pr-4">
             {/* Header Brand */}
-            <div className="flex items-center gap-4">
-                <div className="relative group">
-                    <div className="absolute inset-0 bg-amber-500/10 rounded-full blur-xl"></div>
-                    <img 
-                        src={logoImg} 
-                        className="h-14 sm:h-16 w-auto object-contain drop-shadow-md" 
-                        alt="Logo IgGestor" 
-                        loading="eager"
-                        decoding="async"
-                    />
-                </div>
+            <div className="flex items-center gap-3.5">
+                <img 
+                    src={logoImg} 
+                    className="h-12 sm:h-14 w-auto object-contain shrink-0" 
+                    alt="Logo IgGestor" 
+                    loading="eager"
+                    decoding="async"
+                />
                 <div>
-                    <h2 className="text-2xl sm:text-3xl font-black text-slate-800 dark:text-white tracking-tight">
+                    <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
                         IgGestor
                     </h2>
-                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-brand-blue dark:text-blue-400 block">
+                    <span className="text-xs font-medium text-orange-600 dark:text-orange-400 block">
                         Portal Oficial do Contribuinte
                     </span>
                 </div>
             </div>
 
-            {/* Certified Badge */}
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 rounded-xl">
-                <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span className="text-[11px] font-bold tracking-wider text-slate-700 dark:text-slate-300 uppercase">
-                    Plataforma Segura • Certificada
-                </span>
+            {/* Certified Trust Line (Unboxed) */}
+            <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                <ShieldCheck className="w-4 h-4 shrink-0" />
+                <span>Plataforma Segura &middot; Certificada</span>
             </div>
 
             {/* Title */}
-            <div className="space-y-3">
-                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-800 dark:text-white leading-[1.15] tracking-tight">
-                    Fidelidade, Gratidão &amp; <br />
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-blue via-indigo-600 to-amber-600 dark:from-blue-400 dark:to-amber-400">
+            <div className="space-y-2.5">
+                <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white leading-[1.15] tracking-tight text-balance">
+                    Fidelidade, Gratidão &amp;{' '}
+                    <span className="text-orange-600 dark:text-orange-400">
                         Adoração a Deus.
                     </span>
                 </h1>
-                <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
+                <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed max-w-xl">
                     As contribuições e entregas voluntárias são atos de culto, consagração e amor ao Senhor, reconhecendo que d&apos;Ele vem toda a nossa provisão.
                 </p>
             </div>
 
             {/* Sound Biblical Verses Card */}
-            <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-amber-500/5 via-blue-500/5 to-slate-100/50 dark:from-slate-800/80 dark:to-slate-900/80 border border-amber-500/20 dark:border-slate-700/80 shadow-sm space-y-4">
-                <div className="flex items-center gap-2.5 text-amber-700 dark:text-amber-400">
-                    <BookOpen className="w-5 h-5 shrink-0" />
-                    <h3 className="text-xs font-black uppercase tracking-wider">
+            <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-4">
+                <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400">
+                    <BookOpen className="w-4 h-4 shrink-0" />
+                    <h3 className="text-xs font-bold tracking-tight">
                         Fundamentos Bíblicos do Contribuir
                     </h3>
                 </div>
 
-                <div className="space-y-3 text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
-                    <div className="pl-3 border-l-2 border-amber-500/60 space-y-1">
-                        <p className="italic">
+                <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                    <div className="pb-3 space-y-1">
+                        <p className="italic text-slate-700 dark:text-slate-300">
                             &ldquo;Honra ao Senhor com os teus bens, e com a primeira parte de todos os teus ganhos; E se encherão os teus celeiros, e transbordarão de vinho os teus lagares.&rdquo;
                         </p>
-                        <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 block">
-                            — Provérbios 3:9-10
+                        <span className="text-[11px] font-semibold text-orange-600 dark:text-orange-400 block">
+                            &mdash; Provérbios 3:9-10
                         </span>
                     </div>
 
-                    <div className="pl-3 border-l-2 border-brand-blue/60 space-y-1">
-                        <p className="italic">
+                    <div className="pt-3 space-y-1">
+                        <p className="italic text-slate-700 dark:text-slate-300">
                             &ldquo;Cada um contribua segundo propôs no seu coração; não com tristeza, ou por necessidade; porque Deus ama ao que dá com alegria.&rdquo;
                         </p>
-                        <span className="text-[10px] font-bold text-brand-blue dark:text-blue-400 block">
-                            — 2 Coríntios 9:7
+                        <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 block">
+                            &mdash; 2 Coríntios 9:7
                         </span>
                     </div>
                 </div>
 
-                <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
-                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                         Contribua com alegria e inteireza de coração. Suas contribuições sustentam o Reino de Deus, fortalecem a obra da igreja local e impulsionam missões que levam o Evangelho além das fronteiras, alcançando vidas até os confins da terra, em gesto de gratidão, culto e louvor ao Senhor.
                     </p>
                 </div>
             </div>
 
             {/* Trust Features Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 font-bold">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
                         <Heart className="w-4 h-4" />
                     </div>
-                    <div>
-                        <span className="text-xs font-bold text-slate-800 dark:text-white block">Gratidão &amp; Culto</span>
-                        <span className="text-[10px] text-slate-500 dark:text-slate-400">Atitude voluntária e louvor</span>
+                    <div className="min-w-0">
+                        <span className="text-xs font-semibold text-slate-900 dark:text-white block truncate">Gratidão &amp; Culto</span>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400 block truncate">Atitude voluntária e louvor</span>
                     </div>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-brand-blue dark:text-blue-400 flex items-center justify-center shrink-0 font-bold">
+                <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
                         <Building2 className="w-4 h-4" />
                     </div>
-                    <div>
-                        <span className="text-xs font-bold text-slate-800 dark:text-white block">Obra Local &amp; Global</span>
-                        <span className="text-[10px] text-slate-500 dark:text-slate-400">Igreja e confins da terra</span>
+                    <div className="min-w-0">
+                        <span className="text-xs font-semibold text-slate-900 dark:text-white block truncate">Obra Local &amp; Global</span>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400 block truncate">Igreja e confins da terra</span>
                     </div>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 font-bold">
+                <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0">
                         <Lock className="w-4 h-4" />
                     </div>
-                    <div>
-                        <span className="text-xs font-bold text-slate-800 dark:text-white block">Segurança</span>
-                        <span className="text-[10px] text-slate-500 dark:text-slate-400">Dados protegidos</span>
+                    <div className="min-w-0">
+                        <span className="text-xs font-semibold text-slate-900 dark:text-white block truncate">Segurança</span>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400 block truncate">Dados protegidos</span>
                     </div>
                 </div>
             </div>
@@ -305,11 +298,10 @@ export const PortalIdentifyStep: React.FC<PortalIdentifyStepProps> = ({
                             <PortalCard
                                 title="Bem-vindo(a) de Volta!"
                                 subtitle="Sua identificação como contribuinte foi confirmada no sistema."
-                                className="shadow-xl border-slate-200 dark:border-slate-700"
                             >
                                 <div className="space-y-5">
-                                    <div className="p-5 rounded-2xl bg-gradient-to-br from-blue-50/80 to-indigo-50/50 dark:from-slate-800 dark:to-slate-900 border border-blue-100 dark:border-slate-700 flex flex-col items-center text-center space-y-3">
-                                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-brand-blue to-amber-500 text-white flex items-center justify-center font-black text-2xl shadow-md ring-4 ring-white dark:ring-slate-800 shrink-0 overflow-hidden">
+                                    <div className="p-5 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 flex flex-col items-center text-center space-y-3">
+                                        <div className="w-16 h-16 rounded-full bg-orange-600 text-white flex items-center justify-center font-bold text-2xl shadow-xs ring-4 ring-white dark:ring-slate-900 shrink-0 overflow-hidden">
                                             {(contributor.photo_url || contributor.avatarUrl || contributor.photo) ? (
                                                 <img 
                                                     src={contributor.photo_url || contributor.avatarUrl || contributor.photo} 
@@ -323,49 +315,49 @@ export const PortalIdentifyStep: React.FC<PortalIdentifyStepProps> = ({
                                         </div>
 
                                         <div className="space-y-1 w-full">
-                                            <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
                                                 <CheckCircle2 className="w-3.5 h-3.5" /> Contribuinte Conectado
                                             </span>
-                                            <h3 className="text-lg font-black text-slate-800 dark:text-white pt-1 truncate">
+                                            <h3 className="text-base font-bold text-slate-900 dark:text-white pt-0.5 truncate">
                                                 {contributor.name}
                                             </h3>
-                                            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                                                Congregação: <span className="text-slate-700 dark:text-slate-200">{(contributor.congregation && contributor.congregation !== 'Sede Central') ? contributor.congregation : (church?.name || 'Igreja Local')}</span>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                                Congregação: <span className="font-semibold text-slate-700 dark:text-slate-200">{(contributor.congregation && contributor.congregation !== 'Sede Central') ? contributor.congregation : (church?.name || 'Igreja Local')}</span>
                                             </p>
-                                            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                                                Cargo / Função: <span className="text-slate-700 dark:text-slate-200 font-bold">{contributor.role_position || defaultMembro || 'Membro'}</span>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                                Cargo / Função: <span className="font-semibold text-slate-700 dark:text-slate-200">{contributor.role_position || defaultMembro || 'Membro'}</span>
                                             </p>
                                         </div>
 
-                                        <div className="w-full pt-3 border-t border-slate-200/60 dark:border-slate-700/60 flex flex-col gap-1.5 text-xs text-slate-600 dark:text-slate-300 text-left">
+                                        <div className="w-full pt-3 border-t border-slate-200/70 dark:border-slate-700/60 flex flex-col gap-1.5 text-xs text-slate-600 dark:text-slate-300 text-left tabular-nums">
                                             {contributor.cpf && (
                                                 <div className="flex items-center justify-between">
                                                     <span className="text-[11px] text-slate-400">CPF:</span>
-                                                    <span className="font-bold">{contributor.cpf}</span>
+                                                    <span className="font-semibold">{contributor.cpf}</span>
                                                 </div>
                                             )}
                                             {(contributor.phone || contributor.whatsapp) && (
                                                 <div className="flex items-center justify-between">
                                                     <span className="text-[11px] text-slate-400">Telefone:</span>
-                                                    <span className="font-bold">{contributor.phone || contributor.whatsapp}</span>
+                                                    <span className="font-semibold">{contributor.phone || contributor.whatsapp}</span>
                                                 </div>
                                             )}
                                             {contributor.email && (
                                                 <div className="flex items-center justify-between">
                                                     <span className="text-[11px] text-slate-400">E-mail:</span>
-                                                    <span className="font-bold truncate max-w-[180px]">{contributor.email}</span>
+                                                    <span className="font-semibold truncate max-w-[180px]">{contributor.email}</span>
                                                 </div>
                                             )}
                                             {contributor.birth_date && (
                                                 <div className="flex items-center justify-between">
                                                     <span className="text-[11px] text-slate-400">Nascimento:</span>
-                                                    <span className="font-bold">{formatDateToDmy(contributor.birth_date)}</span>
+                                                    <span className="font-semibold">{formatDateToDmy(contributor.birth_date)}</span>
                                                 </div>
                                             )}
                                             {(contributor.address_city || contributor.address_street) && (
                                                 <div className="flex items-center justify-between">
                                                     <span className="text-[11px] text-slate-400">Cidade/UF:</span>
-                                                    <span className="font-bold">{contributor.address_city || contributor.city || ''} {contributor.address_state ? `- ${contributor.address_state}` : ''}</span>
+                                                    <span className="font-semibold">{contributor.address_city || contributor.city || ''} {contributor.address_state ? `- ${contributor.address_state}` : ''}</span>
                                                 </div>
                                             )}
                                         </div>
@@ -382,10 +374,11 @@ export const PortalIdentifyStep: React.FC<PortalIdentifyStepProps> = ({
                                         <PortalButton
                                             variant="primary"
                                             size="md"
-                                            className="w-full py-3 text-sm font-bold shadow-md bg-gradient-to-r from-brand-blue to-amber-500 hover:from-blue-600 hover:to-amber-600 cursor-pointer"
+                                            className="w-full py-2.5"
                                             onClick={onContinue}
                                         >
-                                            Continuar para Contribuição &rarr;
+                                            <span>Continuar para Contribuição</span>
+                                            <ArrowRight className="w-4 h-4 inline ml-1" />
                                         </PortalButton>
 
                                         <button
@@ -395,7 +388,7 @@ export const PortalIdentifyStep: React.FC<PortalIdentifyStepProps> = ({
                                                 onValueChange('');
                                                 setShowRegisterForm(false);
                                             }}
-                                            className="w-full py-2 text-xs font-bold text-slate-500 hover:text-brand-blue dark:text-slate-400 dark:hover:text-blue-400 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                                            className="w-full py-2 text-xs font-semibold text-slate-500 hover:text-orange-600 dark:text-slate-400 dark:hover:text-orange-400 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                                         >
                                             <RefreshCw className="w-3.5 h-3.5" /> Entrar com outro cadastro
                                         </button>
@@ -408,12 +401,11 @@ export const PortalIdentifyStep: React.FC<PortalIdentifyStepProps> = ({
                         <PortalCard
                             title="Completar Cadastro"
                             subtitle="Informe seus dados para registrar e vincular suas ofertas com transparência."
-                            className="shadow-xl border-slate-200 dark:border-slate-700"
                         >
                             <form onSubmit={handleRegisterSubmit} className="space-y-4">
-                                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-2.5">
-                                    <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                                    <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
+                                <div className="p-3 rounded-xl bg-orange-50/70 dark:bg-orange-950/20 border border-orange-200/80 dark:border-orange-900/50 flex items-start gap-2.5">
+                                    <ShieldCheck className="w-4 h-4 text-orange-600 dark:text-orange-400 shrink-0 mt-0.5" />
+                                    <p className="text-xs text-slate-700 dark:text-slate-300">
                                         Seus dados serão vinculados com segurança ao sistema da igreja para emissão dos comprovantes.
                                     </p>
                                 </div>
@@ -535,8 +527,9 @@ export const PortalIdentifyStep: React.FC<PortalIdentifyStepProps> = ({
                                 </div>
 
                                 {apiError && (
-                                    <p className="text-xs font-semibold text-rose-500 mt-1 flex items-center gap-1">
-                                        ⚠️ {apiError}
+                                    <p className="text-xs font-semibold text-rose-600 dark:text-rose-400 mt-1 flex items-center gap-1.5">
+                                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                        <span>{apiError}</span>
                                     </p>
                                 )}
 
@@ -544,7 +537,7 @@ export const PortalIdentifyStep: React.FC<PortalIdentifyStepProps> = ({
                                     <button
                                         type="button"
                                         onClick={() => setShowRegisterForm(false)}
-                                        className="text-xs font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors py-2 cursor-pointer"
+                                        className="text-xs font-semibold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors py-2 cursor-pointer"
                                     >
                                         &larr; Voltar
                                     </button>
@@ -552,10 +545,10 @@ export const PortalIdentifyStep: React.FC<PortalIdentifyStepProps> = ({
                                     <PortalButton
                                         variant="primary"
                                         size="md"
-                                        className="w-full sm:w-auto px-6 py-2.5 font-bold text-sm shadow-sm bg-gradient-to-r from-brand-blue to-amber-500 hover:from-blue-600 hover:to-amber-600"
+                                        className="w-full sm:w-auto px-5 py-2.5"
                                         disabled={isSaving}
                                     >
-                                        {isSaving ? 'Salvando...' : 'Salvar e Continuar &rarr;'}
+                                        {isSaving ? 'Salvando...' : 'Salvar e Continuar'}
                                     </PortalButton>
                                 </div>
                             </form>
@@ -565,54 +558,56 @@ export const PortalIdentifyStep: React.FC<PortalIdentifyStepProps> = ({
                         <PortalCard
                             title="Identificação do Contribuinte"
                             subtitle="Digite seu CPF, Telefone ou E-mail para acessar o portal de ofertas."
-                            className="shadow-xl border-slate-200 dark:border-slate-700"
                         >
-                            <form onSubmit={handleSearchAndContinue} className="space-y-5">
-                                {/* Type selector tabs */}
+                            <form onSubmit={handleSearchAndContinue} className="space-y-4">
+                                {/* Type selector tabs — Standard #8 Segmented Capsule */}
                                 <div>
-                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">
-                                        Método de Entrada
+                                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
+                                        Método de entrada
                                     </label>
-                                    <div className="grid grid-cols-3 gap-2">
+                                    <div className="grid grid-cols-3 gap-1 p-1 bg-slate-100/90 dark:bg-slate-800/80 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
                                         <button
                                             type="button"
                                             onClick={() => { onTypeChange('cpf'); setInputError(null); }}
-                                            className={`py-2.5 px-2 rounded-xl border font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                                            className={`py-2 px-2 rounded-lg font-semibold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                                                 identificationType === 'cpf'
-                                                    ? 'bg-brand-blue text-white border-brand-blue shadow-md'
-                                                    : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                                                    ? 'bg-orange-600 text-white shadow-xs'
+                                                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                                             }`}
                                         >
-                                            🪪 CPF
+                                            <CreditCard className="w-3.5 h-3.5 shrink-0" />
+                                            <span>CPF</span>
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => { onTypeChange('phone'); setInputError(null); }}
-                                            className={`py-2.5 px-2 rounded-xl border font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                                            className={`py-2 px-2 rounded-lg font-semibold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                                                 identificationType === 'phone'
-                                                    ? 'bg-brand-blue text-white border-brand-blue shadow-md'
-                                                    : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                                                    ? 'bg-orange-600 text-white shadow-xs'
+                                                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                                             }`}
                                         >
-                                            📱 Celular
+                                            <Smartphone className="w-3.5 h-3.5 shrink-0" />
+                                            <span>Celular</span>
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => { onTypeChange('email'); setInputError(null); }}
-                                            className={`py-2.5 px-2 rounded-xl border font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                                            className={`py-2 px-2 rounded-lg font-semibold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                                                 identificationType === 'email'
-                                                    ? 'bg-brand-blue text-white border-brand-blue shadow-md'
-                                                    : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                                                    ? 'bg-orange-600 text-white shadow-xs'
+                                                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                                             }`}
                                         >
-                                            ✉️ E-mail
+                                            <Mail className="w-3.5 h-3.5 shrink-0" />
+                                            <span>E-mail</span>
                                         </button>
                                     </div>
                                 </div>
 
                                 {/* Dynamic Input */}
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                                         {identificationType === 'cpf' && 'Número do CPF'}
                                         {identificationType === 'phone' && 'Celular / WhatsApp com DDD'}
                                         {identificationType === 'email' && 'E-mail Cadastrado'}
@@ -627,40 +622,42 @@ export const PortalIdentifyStep: React.FC<PortalIdentifyStepProps> = ({
                                                 identificationType === 'phone' ? '(11) 98765-4321' :
                                                 'seu.email@exemplo.com'
                                             }
-                                            className={`w-full px-4 py-3 rounded-xl border bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 transition-all ${
+                                            className={`w-full px-3.5 py-2.5 rounded-lg border bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm font-medium tabular-nums focus:outline-none focus:ring-2 transition-colors ${
                                                 inputError 
                                                     ? 'border-rose-500 focus:ring-rose-500/20' 
-                                                    : 'border-slate-200 dark:border-slate-700 focus:border-brand-blue focus:ring-blue-500/20'
+                                                    : 'border-slate-300 dark:border-slate-700 focus:border-orange-500 focus:ring-orange-500/20'
                                             }`}
                                         />
                                     </div>
                                     {inputError && (
-                                        <p className="text-xs font-semibold text-rose-500 mt-1.5 flex items-center gap-1">
-                                            ⚠️ {inputError}
+                                        <p className="text-xs font-medium text-rose-600 dark:text-rose-400 mt-1.5 flex items-center gap-1.5">
+                                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                            <span>{inputError}</span>
                                         </p>
                                     )}
                                     {apiError && (
-                                        <p className="text-xs font-semibold text-rose-500 mt-1.5 flex items-center gap-1">
-                                            ⚠️ {apiError}
+                                        <p className="text-xs font-medium text-rose-600 dark:text-rose-400 mt-1.5 flex items-center gap-1.5">
+                                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                            <span>{apiError}</span>
                                         </p>
                                     )}
                                 </div>
 
                                 {/* Realtime Security Info */}
-                                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 flex items-center gap-3">
-                                    <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 flex items-center gap-2.5">
+                                    <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
                                         <ShieldCheck className="w-4 h-4" />
                                     </div>
-                                    <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 leading-tight">
+                                    <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300 leading-snug">
                                         Sua identificação é encriptada e validada em tempo real com o sistema financeiro da igreja.
                                     </p>
                                 </div>
 
-                                <div className="pt-2">
+                                <div className="pt-1">
                                     <PortalButton
                                         variant="primary"
                                         size="md"
-                                        className="w-full py-3 text-sm font-bold shadow-md bg-gradient-to-r from-brand-blue to-amber-500 hover:from-blue-600 hover:to-amber-600 cursor-pointer"
+                                        className="w-full py-2.5"
                                         disabled={isSearching}
                                     >
                                         {isSearching ? (

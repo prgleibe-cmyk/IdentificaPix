@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { PortalChurch, ContributorMockProfile } from '../types/portal';
-import { Smartphone, CheckCircle2, Sparkles, X, ArrowRight, Building2, ShieldCheck, Heart } from 'lucide-react';
+import { Smartphone, CheckCircle2, X, ArrowRight, Building2 } from 'lucide-react';
 import { PortalPwaInstallModal } from './PortalPwaInstallModal';
 
 interface PortalWelcomeRegisterModalProps {
@@ -60,54 +60,54 @@ export const PortalWelcomeRegisterModal: React.FC<PortalWelcomeRegisterModalProp
 
     const modalContent = (
         <>
-            <div className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
-                <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-[2.5rem] max-w-md w-full p-6 sm:p-8 shadow-2xl relative overflow-hidden my-auto animate-scale-in text-slate-800 dark:text-slate-100">
-                    
-                    {/* Ambient celebratory lights */}
-                    <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none -mr-16 -mt-16" />
-                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-500/15 rounded-full blur-3xl pointer-events-none -ml-16 -mb-16" />
-
+            <div
+                onClick={onClose}
+                className="fixed inset-0 z-[90] bg-slate-900/55 backdrop-blur-[2px] flex items-center justify-center p-4 animate-fade-in overflow-y-auto"
+            >
+                <div
+                    onClick={(e) => e.stopPropagation()}
+                    className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-elevated relative overflow-hidden my-auto animate-scale-in text-slate-800 dark:text-slate-100"
+                >
                     {/* Close button */}
                     <button
                         onClick={onClose}
                         type="button"
-                        className="absolute top-5 right-5 p-2 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        className="absolute top-3.5 right-3.5 p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                         title="Fechar"
+                        aria-label="Fechar"
                     >
                         <X className="w-5 h-5" />
                     </button>
 
                     {/* Church Icon & Badge Header */}
                     <div className="flex flex-col items-center text-center pt-2">
-                        <div className="relative mb-4">
-                            <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-emerald-500 to-teal-400 p-1 shadow-xl shadow-emerald-500/25 flex items-center justify-center">
+                        <div className="relative mb-3.5">
+                            <div className="w-16 h-16 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 p-2 shadow-xs flex items-center justify-center">
                                 {church?.logoUrl ? (
                                     <img
                                         src={church.logoUrl}
                                         alt={churchName}
-                                        className="w-full h-full object-contain p-2 rounded-[1.3rem] bg-white"
+                                        referrerPolicy="no-referrer"
+                                        className="w-full h-full object-contain rounded-xl"
                                     />
                                 ) : (
-                                    <div className="w-full h-full rounded-[1.3rem] bg-white dark:bg-slate-800 flex items-center justify-center text-emerald-600">
-                                        <Building2 className="w-9 h-9" />
-                                    </div>
+                                    <Building2 className="w-7 h-7 text-orange-600 dark:text-orange-400" />
                                 )}
                             </div>
-                            <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white p-1.5 rounded-full shadow-md">
-                                <CheckCircle2 className="w-4 h-4" />
+                            <div className="absolute -bottom-1 -right-1 bg-emerald-600 text-white p-1 rounded-full shadow-xs">
+                                <CheckCircle2 className="w-3.5 h-3.5" />
                             </div>
                         </div>
 
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 mb-2 border border-emerald-200 dark:border-emerald-800">
-                            <Sparkles className="w-3 h-3 text-emerald-500" />
+                        <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 mb-1">
                             Cadastro Concluído com Sucesso
-                        </span>
+                        </p>
 
-                        <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                            A Paz do Senhor, {firstName}! 🙏
+                        <h3 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+                            A Paz do Senhor, {firstName}!
                         </h3>
-                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mt-1 max-w-xs">
-                            Seja bem-vindo(a) ao Portal Oficial da <span className="text-slate-800 dark:text-slate-200 font-black">{churchName}</span>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xs">
+                            Seja bem-vindo(a) ao Portal Oficial da <span className="text-slate-800 dark:text-slate-200 font-semibold">{churchName}</span>
                         </p>
                     </div>
 
@@ -141,11 +141,11 @@ export const PortalWelcomeRegisterModal: React.FC<PortalWelcomeRegisterModalProp
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="space-y-3">
+                    <div className="space-y-2.5">
                         <button
                             type="button"
                             onClick={handleInstallAppClick}
-                            className="w-full flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-2xl text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition-all shadow-lg shadow-emerald-600/25 cursor-pointer uppercase tracking-wider"
+                            className="w-full flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors shadow-xs cursor-pointer"
                         >
                             <Smartphone className="w-4 h-4" />
                             <span>Baixar / Instalar App da Igreja</span>
@@ -154,7 +154,7 @@ export const PortalWelcomeRegisterModal: React.FC<PortalWelcomeRegisterModalProp
                         <button
                             type="button"
                             onClick={onClose}
-                            className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-2xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                            className="w-full flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
                         >
                             <span>Acessar Portal da Igreja</span>
                             <ArrowRight className="w-3.5 h-3.5" />

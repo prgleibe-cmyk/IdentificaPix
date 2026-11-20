@@ -171,19 +171,19 @@ export const ChurchPortalShareModal: React.FC<ChurchPortalShareModalProps> = ({ 
         >
             <div
                 onClick={(e) => e.stopPropagation()}
-                className="relative bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[calc(100dvh-5rem)] md:max-h-[min(88vh,calc(100dvh-3rem))] flex flex-col overflow-hidden animate-scale-in"
+                className="relative bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-elevated w-full max-w-4xl max-h-[calc(100dvh-5rem)] md:max-h-[min(88vh,calc(100dvh-3rem))] flex flex-col overflow-hidden animate-scale-in"
             >
                 {/* Header */}
-                <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 shrink-0 bg-white dark:bg-slate-900">
+                <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 shrink-0 bg-white dark:bg-slate-900">
                     <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/70 dark:border-emerald-900/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                            <QrCode className="w-5 h-5" />
+                        <div className="w-8 h-8 rounded-lg bg-orange-50 dark:bg-orange-950/50 border border-orange-200/70 dark:border-orange-900/50 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
+                            <QrCode className="w-4 h-4" />
                         </div>
                         <div className="min-w-0">
-                            <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight truncate">
+                            <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight truncate">
                                 Portal do Contribuinte
                             </h3>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
                                 Divulgação e QR Code oficial da congregação.
                             </p>
                         </div>
@@ -201,29 +201,32 @@ export const ChurchPortalShareModal: React.FC<ChurchPortalShareModalProps> = ({ 
                 </div>
 
                 {/* Content Body */}
-                <div className="p-4 sm:p-5 flex-1 overflow-y-auto custom-scrollbar w-full min-h-0">
-                <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+                <div
+                    style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}
+                    className="p-4 sm:p-5 flex-1 overflow-y-auto custom-scrollbar w-full min-h-0"
+                >
+                <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-start">
                     
                     {/* Left Column: Church Info & QR Code */}
-                    <div className="lg:col-span-5 space-y-6 w-full">
+                    <div className="lg:col-span-5 space-y-4 w-full">
                         {/* Church Banner */}
-                        <div className="flex items-center gap-4 p-5 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800 shadow-sm">
+                        <div className="flex items-center gap-3.5 p-4 rounded-xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-800 shadow-xs">
                             {church.logoUrl ? (
                                 <img
                                     src={church.logoUrl}
                                     alt={church.name}
-                                    className="w-14 h-14 rounded-2xl object-cover border border-slate-200 dark:border-slate-700 bg-white shadow-sm"
+                                    className="w-12 h-12 rounded-xl object-cover border border-slate-200 dark:border-slate-700 bg-white shadow-xs shrink-0"
                                 />
                             ) : (
-                                <div className="w-14 h-14 rounded-2xl bg-brand-blue/10 text-brand-blue dark:bg-blue-900/40 dark:text-blue-300 flex items-center justify-center shadow-sm">
-                                    <Building2 className="w-7 h-7" />
+                                <div className="w-12 h-12 rounded-xl bg-orange-50 text-orange-600 border border-orange-200/80 dark:bg-orange-950/40 dark:text-orange-400 dark:border-orange-900/50 flex items-center justify-center shadow-xs shrink-0">
+                                    <Building2 className="w-6 h-6" />
                                 </div>
                             )}
                             <div className="flex-1 min-w-0">
-                                <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wider uppercase bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 mb-1">
+                                <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold bg-orange-50 text-orange-700 border border-orange-200/70 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-900/50 mb-1">
                                     Congregação
                                 </span>
-                                <h4 className="text-base font-black text-slate-800 dark:text-white truncate">
+                                <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">
                                     {church.name}
                                 </h4>
                                 {church.pastor && (
@@ -235,21 +238,21 @@ export const ChurchPortalShareModal: React.FC<ChurchPortalShareModalProps> = ({ 
                         </div>
 
                         {/* QR Code Presentation Box */}
-                        <div className="flex flex-col items-center justify-center p-6 md:p-8 bg-slate-50 dark:bg-slate-900/40 rounded-3xl border border-slate-200/80 dark:border-slate-800 space-y-5 text-center shadow-sm">
+                        <div className="flex flex-col items-center justify-center p-5 bg-slate-50/80 dark:bg-slate-800/40 rounded-xl border border-slate-200/90 dark:border-slate-800 space-y-4 text-center shadow-xs">
                             <div
                                 ref={qrContainerRef}
-                                className="p-4 bg-white rounded-2xl shadow-lg border border-slate-100 flex items-center justify-center transform hover:scale-105 transition-transform"
+                                className="p-3.5 bg-white rounded-xl shadow-xs border border-slate-200/90 flex items-center justify-center"
                             >
                                 <QRCodeCanvas
                                     value={portalUrl}
-                                    size={230}
+                                    size={220}
                                     level="H"
                                     includeMargin={true}
                                 />
                             </div>
 
-                            <div className="space-y-1.5 max-w-sm">
-                                <p className="text-sm font-black text-slate-800 dark:text-slate-200 tracking-tight">
+                            <div className="space-y-1 max-w-sm">
+                                <p className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">
                                     QR Code de Acesso Rápido
                                 </p>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
@@ -260,65 +263,65 @@ export const ChurchPortalShareModal: React.FC<ChurchPortalShareModalProps> = ({ 
                             <button
                                 type="button"
                                 onClick={handleDownloadQrCode}
-                                className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition-all shadow-sm cursor-pointer"
+                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200/90 dark:border-slate-700 transition-colors shadow-xs cursor-pointer"
                             >
-                                <Download className="w-4 h-4 text-emerald-500" />
+                                <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                                 <span>Baixar Imagem do QR Code (PNG)</span>
                             </button>
                         </div>
                     </div>
 
                     {/* Right Column: Portal Public Link, Share Actions & Instructions */}
-                    <div className="lg:col-span-7 space-y-6 w-full">
+                    <div className="lg:col-span-7 space-y-4 w-full">
                         
                         {/* WhatsApp Self-Registration Box (NEW) */}
-                        <div className="space-y-3 p-6 bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-transparent rounded-3xl border border-emerald-500/30 shadow-sm relative overflow-hidden">
+                        <div className="space-y-3 p-4 sm:p-5 bg-emerald-50/60 dark:bg-emerald-950/20 rounded-xl border border-emerald-200/80 dark:border-emerald-900/50 shadow-xs relative overflow-hidden">
                             <div className="flex flex-wrap items-center justify-between gap-2">
-                                <div className="flex items-center gap-2">
-                                    <div className="p-2 rounded-xl bg-emerald-600 text-white shadow-md shadow-emerald-600/20">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-xs shrink-0">
                                         <MessageCircle className="w-4 h-4" />
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">
+                                        <label className="block text-xs font-bold text-emerald-800 dark:text-emerald-300">
                                             Link de Cadastro para WhatsApp
                                         </label>
-                                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                        <p className="text-[11px] text-slate-600 dark:text-slate-400">
                                             O membro preenche seus dados e é direcionado para baixar o App e acessar o Portal
                                         </p>
                                     </div>
                                 </div>
-                                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 px-2.5 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-700">
-                                    ✦ Recomendado
+                                <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-950/80 px-2.5 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
+                                    Recomendado
                                 </span>
                             </div>
 
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2 rounded-2xl bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800 shadow-inner">
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-emerald-200/90 dark:border-emerald-800">
                                 <input
                                     type="text"
                                     readOnly
                                     value={registerUrl}
-                                    className="w-full bg-transparent text-xs font-mono font-bold text-slate-800 dark:text-slate-200 outline-none select-all px-3 py-2"
+                                    className="min-w-0 flex-1 bg-transparent text-xs font-medium text-slate-800 dark:text-slate-200 outline-none select-all px-2 py-1.5"
                                 />
-                                <div className="flex items-center gap-2 shrink-0">
+                                <div className="flex items-center gap-1.5 shrink-0">
                                     <button
                                         type="button"
                                         onClick={handleCopyRegister}
-                                        className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer shadow-xs ${
                                             copiedRegister
                                                 ? 'bg-emerald-700 text-white'
-                                                : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
+                                                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
                                         }`}
                                     >
-                                        {copiedRegister ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                                        {copiedRegister ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                                         <span>{copiedRegister ? 'Copiado!' : 'Copiar'}</span>
                                     </button>
                                     <button
                                         type="button"
                                         onClick={handleWhatsAppShare}
-                                        className="px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer bg-emerald-500 hover:bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
+                                        className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer bg-emerald-500 hover:bg-emerald-600 text-white shadow-xs"
                                         title="Enviar no WhatsApp"
                                     >
-                                        <MessageCircle className="w-4 h-4 fill-white" />
+                                        <MessageCircle className="w-3.5 h-3.5 fill-white" />
                                         <span>WhatsApp</span>
                                     </button>
                                 </div>
@@ -326,41 +329,41 @@ export const ChurchPortalShareModal: React.FC<ChurchPortalShareModalProps> = ({ 
                         </div>
 
                         {/* Portal Public URL Box */}
-                        <div className="space-y-2.5 p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
-                            <div className="flex items-center justify-between">
-                                <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                        <div className="space-y-2.5 p-4 sm:p-5 bg-slate-50/80 dark:bg-slate-800/40 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs">
+                            <div className="flex items-center justify-between gap-2">
+                                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                                     Link Público do Portal do Contribuinte
                                 </label>
-                                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
-                                    ● Ativo e Seguro
+                                <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+                                    Ativo e Seguro
                                 </span>
                             </div>
 
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-inner">
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700">
                                 <input
                                     type="text"
                                     readOnly
                                     value={portalUrl}
-                                    className="w-full bg-transparent text-xs font-mono font-bold text-slate-800 dark:text-slate-200 outline-none select-all px-3 py-2"
+                                    className="min-w-0 flex-1 bg-transparent text-xs font-medium text-slate-800 dark:text-slate-200 outline-none select-all px-2 py-1.5"
                                 />
-                                <div className="flex items-center gap-2 shrink-0">
+                                <div className="flex items-center gap-1.5 shrink-0">
                                     <button
                                         type="button"
                                         onClick={handleCopy}
-                                        className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer shadow-xs ${
                                             copied
                                                 ? 'bg-emerald-600 text-white'
-                                                : 'bg-brand-blue hover:bg-brand-deep text-white shadow-sm'
+                                                : 'bg-orange-600 hover:bg-orange-700 text-white'
                                         }`}
                                     >
-                                        {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                                        {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                                         <span>{copied ? 'Copiado!' : 'Copiar'}</span>
                                     </button>
                                     <a
                                         href={portalUrl}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="p-2.5 rounded-xl text-slate-500 hover:text-brand-blue hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0"
+                                        className="p-1.5 rounded-lg text-slate-500 hover:text-orange-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 border border-slate-200/80 dark:border-slate-700"
                                         title="Abrir em nova aba"
                                     >
                                         <ExternalLink className="w-4 h-4" />
@@ -371,29 +374,29 @@ export const ChurchPortalShareModal: React.FC<ChurchPortalShareModalProps> = ({ 
 
                         {/* Share Notification Message */}
                         {shareMessage && (
-                            <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2.5 animate-fade-in shadow-sm">
-                                <Check className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                            <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2.5 animate-fade-in">
+                                <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
                                 <span>{shareMessage}</span>
                             </div>
                         )}
 
                         {/* Action Buttons Grid */}
-                        <div className="space-y-3">
-                            <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 ml-1">
+                        <div className="space-y-2.5">
+                            <h5 className="text-xs font-semibold text-slate-600 dark:text-slate-400 ml-0.5">
                                 Opções de Divulgação
                             </h5>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                                 {/* Copy Link Button */}
                                 <button
                                     type="button"
                                     onClick={handleCopy}
-                                    className={`flex items-center justify-center gap-2.5 px-5 py-4 rounded-2xl text-xs font-bold transition-all shadow-sm cursor-pointer ${
+                                    className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors shadow-xs cursor-pointer ${
                                         copied
                                             ? 'bg-emerald-600 text-white'
-                                            : 'bg-brand-blue hover:bg-brand-deep text-white'
+                                            : 'bg-orange-600 hover:bg-orange-700 text-white'
                                     }`}
                                 >
-                                    {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                                    {copied ? <Check className="w-3.5 h-3.5 shrink-0" /> : <Copy className="w-3.5 h-3.5 shrink-0" />}
                                     <span>{copied ? 'Link Copiado!' : 'Copiar Link'}</span>
                                 </button>
 
@@ -401,9 +404,9 @@ export const ChurchPortalShareModal: React.FC<ChurchPortalShareModalProps> = ({ 
                                 <button
                                     type="button"
                                     onClick={handleDownloadQrCode}
-                                    className="flex items-center justify-center gap-2.5 px-5 py-4 rounded-2xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition-all shadow-sm cursor-pointer"
+                                    className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200/90 dark:border-slate-700 transition-colors shadow-xs cursor-pointer"
                                 >
-                                    <Download className="w-4 h-4 text-emerald-500" />
+                                    <Download className="w-3.5 h-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
                                     <span>Baixar QR Code</span>
                                 </button>
 
@@ -411,32 +414,32 @@ export const ChurchPortalShareModal: React.FC<ChurchPortalShareModalProps> = ({ 
                                 <button
                                     type="button"
                                     onClick={handleShare}
-                                    className="flex items-center justify-center gap-2.5 px-5 py-4 rounded-2xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition-all shadow-sm cursor-pointer"
+                                    className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200/90 dark:border-slate-700 transition-colors shadow-xs cursor-pointer"
                                 >
-                                    <Share2 className="w-4 h-4 text-brand-blue" />
+                                    <Share2 className="w-3.5 h-3.5 shrink-0 text-orange-600 dark:text-orange-400" />
                                     <span>Compartilhar</span>
                                 </button>
                             </div>
                         </div>
 
                         {/* Informational Cards / Usage Guide */}
-                        <div className="p-6 bg-slate-50 dark:bg-slate-900/40 rounded-3xl border border-slate-200/80 dark:border-slate-800 space-y-4">
-                            <h5 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                                <span>💡 Como funciona o Portal do Contribuinte</span>
+                        <div className="p-4 sm:p-5 bg-slate-50/80 dark:bg-slate-800/40 rounded-xl border border-slate-200/90 dark:border-slate-800 space-y-3">
+                            <h5 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                <span>Como funciona o Portal do Contribuinte</span>
                             </h5>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-slate-600 dark:text-slate-400">
-                                <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700/60 space-y-1">
-                                    <p className="font-bold text-slate-800 dark:text-slate-200">
-                                        📱 Acesso Sem Instalação
+                                <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-1">
+                                    <p className="font-semibold text-slate-800 dark:text-slate-200">
+                                        Acesso Sem Instalação
                                     </p>
                                     <p className="text-[11px] leading-relaxed">
                                         O contribuinte não precisa baixar aplicativos. Basta escanear o QR Code ou clicar no link enviado.
                                     </p>
                                 </div>
 
-                                <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700/60 space-y-1">
-                                    <p className="font-bold text-slate-800 dark:text-slate-200">
-                                        ⚡ Identificação Rápida
+                                <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-1">
+                                    <p className="font-semibold text-slate-800 dark:text-slate-200">
+                                        Identificação Rápida
                                     </p>
                                     <p className="text-[11px] leading-relaxed">
                                         Permite o envio direto de comprovantes Pix e identificação de dízimos ou ofertas para a tesouraria.

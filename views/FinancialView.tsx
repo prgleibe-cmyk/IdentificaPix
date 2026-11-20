@@ -838,24 +838,28 @@ export const FinancialView: React.FC = memo(() => {
     return (
         <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full min-h-full pb-8 md:pb-4">
             {/* Header Area */}
-            <div className="flex flex-col gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-white/5 shadow-sm">
+            <div className="flex flex-col gap-3 bg-white dark:bg-slate-900 px-4 py-2.5 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs">
                 {/* Top Row: Title & Subtitle + Action Buttons */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div>
-                        <h1 className="text-xl font-black text-slate-800 dark:text-white flex items-center gap-2 tracking-tight">
-                            <Building className="w-5 h-5 text-orange-500" />
-                            Gestão de Contas
-                        </h1>
-                        <p className="text-xs text-slate-400">
-                            Gerencie contas a pagar, contas a receber, pagamentos e faça a conciliação bancária do seu extrato.
-                        </p>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 bg-orange-50 dark:bg-orange-950/40 border border-orange-200/60 dark:border-orange-900/40 rounded-lg flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
+                            <Building className="w-4 h-4" />
+                        </div>
+                        <div>
+                            <h1 className="text-base font-bold text-slate-900 dark:text-white tracking-tight leading-tight">
+                                Gestão de Contas
+                            </h1>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
+                                Gerencie contas a pagar, contas a receber, pagamentos e faça a conciliação bancária do seu extrato.
+                            </p>
+                        </div>
                     </div>
 
                     {/* Compact Action Buttons */}
                     <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
                         <button
                             onClick={() => openModal(null)}
-                            className="flex-1 sm:flex-none flex items-center justify-center space-x-1.5 px-5 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-full shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 transition-all tracking-wider uppercase cursor-pointer"
+                            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-xs transition-colors cursor-pointer"
                         >
                             <Plus className="w-3.5 h-3.5" />
                             <span>Novo Lançamento</span>
@@ -863,7 +867,7 @@ export const FinancialView: React.FC = memo(() => {
 
                         <button 
                             onClick={fetchRecords} 
-                            className="flex items-center justify-center w-9 h-9 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-white/5 rounded-xl border border-slate-200 dark:border-white/5 transition-all cursor-pointer active:scale-95 shrink-0"
+                            className="flex items-center justify-center w-9 h-9 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs transition-colors cursor-pointer shrink-0"
                             title="Atualizar"
                         >
                             <RefreshCw className="w-4 h-4" />
@@ -872,35 +876,35 @@ export const FinancialView: React.FC = memo(() => {
                 </div>
 
                 {/* Bottom Row: Tabs Selector + Search Input & Filter Button */}
-                <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-3 pt-3 border-t border-slate-100 dark:border-white/5">
+                <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
                     {/* Tabs on Top Left */}
-                    <div className="flex bg-slate-100 dark:bg-black/30 p-1 rounded-xl shadow-inner border border-slate-200/50 dark:border-white/5 flex-wrap">
+                    <div className="flex bg-slate-100/90 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200/70 dark:border-slate-700/60 flex-wrap gap-0.5">
                         <button
                             onClick={() => setActiveTab('payable')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeTab === 'payable' ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${activeTab === 'payable' ? 'bg-orange-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'}`}
                         >
                             Contas a Pagar
                         </button>
                         <button
                             onClick={() => setActiveTab('receivable')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeTab === 'receivable' ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${activeTab === 'receivable' ? 'bg-orange-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'}`}
                         >
                             Contas a Receber
                         </button>
                         <button
                             onClick={() => setActiveTab('payments')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeTab === 'payments' ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${activeTab === 'payments' ? 'bg-orange-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'}`}
                         >
                             Pagamentos
                         </button>
                         {!isSecondaryUser && (
                             <button
                                 onClick={() => setActiveTab('reconciliation')}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${activeTab === 'reconciliation' ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${activeTab === 'reconciliation' ? 'bg-orange-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'}`}
                             >
                                 <span>Conciliar Extrato</span>
                                 {pendingDebitsCount > 0 && (
-                                    <span className="bg-amber-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full leading-none animate-pulse">
+                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md leading-none tabular-nums ${activeTab === 'reconciliation' ? 'bg-white/20 text-white' : 'bg-amber-500 text-white'}`}>
                                         {pendingDebitsCount}
                                     </span>
                                 )}
@@ -909,9 +913,9 @@ export const FinancialView: React.FC = memo(() => {
                         {!isSecondaryUser && (
                             <button
                                 onClick={() => setActiveTab('pastors')}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${activeTab === 'pastors' ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${activeTab === 'pastors' ? 'bg-orange-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'}`}
                             >
-                                <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                <Zap className={`w-3.5 h-3.5 shrink-0 ${activeTab === 'pastors' ? 'text-white' : 'text-orange-600 dark:text-orange-400'}`} />
                                 <span>Automação de Recorrentes</span>
                             </button>
                         )}
@@ -927,17 +931,17 @@ export const FinancialView: React.FC = memo(() => {
                                     placeholder="Buscar por título, descrição ou beneficiário..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full pl-9 pr-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-orange-500"
+                                    className="w-full pl-9 pr-4 py-2 text-xs font-medium bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15"
                                 />
                             </div>
                             <button
                                 onClick={() => setIsFilterModalOpen(true)}
-                                className="flex items-center justify-center w-9 h-9 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-150 dark:border-white/5 rounded-xl transition-all shrink-0 cursor-pointer relative"
+                                className="flex items-center justify-center w-9 h-9 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg shadow-2xs transition-colors shrink-0 cursor-pointer relative"
                                 title="Filtros Avançados"
                             >
-                                <SlidersHorizontal className="w-4 h-4 text-orange-500" />
+                                <SlidersHorizontal className="w-4 h-4 text-orange-600 dark:text-orange-400" />
                                 {hasActiveFilters && (
-                                    <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-[9px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center font-mono shadow-sm">
+                                    <span className="absolute -top-1.5 -right-1.5 bg-orange-600 text-white text-[9px] font-bold min-w-[18px] h-[18px] px-1 rounded-md flex items-center justify-center tabular-nums shadow-xs">
                                         {activeFiltersCount}
                                     </span>
                                 )}
@@ -949,79 +953,81 @@ export const FinancialView: React.FC = memo(() => {
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-5 rounded-2xl flex items-center justify-between shadow-sm">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-4 rounded-xl flex items-center justify-between shadow-xs">
                     <div className="space-y-1">
-                        <span className="text-xs text-slate-400 font-bold uppercase tracking-wider block">Contas a Pagar</span>
-                        <span className="text-xl font-black text-amber-500 font-mono block">
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide block">Contas a Pagar</span>
+                        <span className="text-lg font-bold text-amber-600 dark:text-amber-400 tabular-nums block">
                             {formatCurrency(summary.totalPayable, language)}
                         </span>
                         {summary.overdueCount > 0 && (
-                            <span className="text-[10px] font-black text-red-500 bg-red-500/10 px-1.5 py-0.5 rounded uppercase tracking-wide inline-block">
+                            <span className="text-[10px] font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 border border-rose-200/60 dark:border-rose-900/40 px-1.5 py-0.5 rounded-md tabular-nums inline-block">
                                 {summary.overdueCount} {summary.overdueCount === 1 ? 'atrasada' : 'atrasadas'}
                             </span>
                         )}
                     </div>
-                    <div className="w-10 h-10 bg-amber-50 dark:bg-amber-950/30 text-amber-500 rounded-xl flex items-center justify-center">
+                    <div className="w-10 h-10 bg-amber-50 dark:bg-amber-950/30 border border-amber-200/50 dark:border-amber-900/40 text-amber-600 dark:text-amber-400 rounded-lg flex items-center justify-center shrink-0">
                         <TrendingDown className="w-5 h-5" />
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-5 rounded-2xl flex items-center justify-between shadow-sm">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-4 rounded-xl flex items-center justify-between shadow-xs">
                     <div className="space-y-1">
-                        <span className="text-xs text-slate-400 font-bold uppercase tracking-wider block">Contas a Receber</span>
-                        <span className="text-xl font-black text-orange-500 font-mono block">
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide block">Contas a Receber</span>
+                        <span className="text-lg font-bold text-orange-600 dark:text-orange-400 tabular-nums block">
                             {formatCurrency(summary.totalReceivable, language)}
                         </span>
                     </div>
-                    <div className="w-10 h-10 bg-orange-50 dark:bg-orange-950/30 text-orange-500 rounded-xl flex items-center justify-center">
+                    <div className="w-10 h-10 bg-orange-50 dark:bg-orange-950/30 border border-orange-200/50 dark:border-orange-900/40 text-orange-600 dark:text-orange-400 rounded-lg flex items-center justify-center shrink-0">
                         <TrendingUp className="w-5 h-5" />
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-5 rounded-2xl flex items-center justify-between shadow-sm">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-4 rounded-xl flex items-center justify-between shadow-xs">
                     <div className="space-y-1">
-                        <span className="text-xs text-slate-400 font-bold uppercase tracking-wider block">Total Pago</span>
-                        <span className="text-xl font-black text-rose-500 font-mono block">
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide block">Total Pago</span>
+                        <span className="text-lg font-bold text-rose-600 dark:text-rose-400 tabular-nums block">
                             {formatCurrency(summary.totalPaid, language)}
                         </span>
                     </div>
-                    <div className="w-10 h-10 bg-rose-50 dark:bg-rose-950/30 text-rose-500 rounded-xl flex items-center justify-center">
+                    <div className="w-10 h-10 bg-rose-50 dark:bg-rose-950/30 border border-rose-200/50 dark:border-rose-900/40 text-rose-600 dark:text-rose-400 rounded-lg flex items-center justify-center shrink-0">
                         <DollarSign className="w-5 h-5" />
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-5 rounded-2xl flex items-center justify-between shadow-sm">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-4 rounded-xl flex items-center justify-between shadow-xs">
                     <div className="space-y-1">
-                        <span className="text-xs text-slate-400 font-bold uppercase tracking-wider block">Total Recebido</span>
-                        <span className="text-xl font-black text-emerald-500 font-mono block">
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide block">Total Recebido</span>
+                        <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400 tabular-nums block">
                             {formatCurrency(summary.totalReceived, language)}
                         </span>
                     </div>
-                    <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-500 rounded-xl flex items-center justify-center">
+                    <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded-lg flex items-center justify-center shrink-0">
                         <CheckCircle2 className="w-5 h-5" />
                     </div>
                 </div>
-            </div>            {/* Records List or Reconciliation Split View */}
+            </div>
+
+            {/* Records List or Reconciliation Split View */}
             {activeTab === 'reconciliation' ? (
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start animate-fade-in">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
                     {/* LEFT COLUMN: Bank statement debits */}
-                    <div className="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl p-4 space-y-4 shadow-sm">
+                    <div className="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 space-y-4 shadow-xs">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1">
                             <div>
-                                <h3 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider block">Débitos no Extrato</h3>
-                                <p className="text-[10px] text-slate-400">Transações negativas encontradas no extrato.</p>
+                                <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wide block">Débitos no Extrato</h3>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400">Transações negativas encontradas no extrato.</p>
                             </div>
                             {/* Mode Selector (Pending vs Matched) */}
-                            <div className="flex bg-slate-50 dark:bg-black/30 p-1 rounded-lg self-start sm:self-auto">
+                            <div className="flex bg-slate-100/90 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200/70 dark:border-slate-700/60 self-start sm:self-auto">
                                 <button
                                     onClick={() => { setReconFilter('pending'); setSelectedDebitId(null); }}
-                                    className={`px-2 py-1 rounded-md text-[9px] font-black uppercase transition-all ${reconFilter === 'pending' ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm' : 'text-slate-400'}`}
+                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${reconFilter === 'pending' ? 'bg-orange-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'}`}
                                 >
                                     Pendentes
                                 </button>
                                 <button
                                     onClick={() => { setReconFilter('matched'); setSelectedDebitId(null); }}
-                                    className={`px-2 py-1 rounded-md text-[9px] font-black uppercase transition-all ${reconFilter === 'matched' ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm' : 'text-slate-400'}`}
+                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${reconFilter === 'matched' ? 'bg-orange-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'}`}
                                 >
                                     Conciliados
                                 </button>
@@ -1036,22 +1042,22 @@ export const FinancialView: React.FC = memo(() => {
                                 placeholder="Buscar transações do extrato..."
                                 value={reconSearch}
                                 onChange={(e) => setReconSearch(e.target.value)}
-                                className="w-full pl-9 pr-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-orange-500"
+                                className="w-full pl-9 pr-4 py-2 text-xs font-medium bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15"
                             />
                         </div>
 
                         {/* List of Debits */}
-                        <div className="space-y-2 max-h-[500px] overflow-y-auto custom-scrollbar pr-1">
+                        <div className="space-y-2 max-h-[500px] overflow-y-auto custom-scrollbar pr-1" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
                             {bankDebits.length === 0 ? (
-                                <div className="p-10 text-center text-slate-400 flex flex-col items-center gap-3 bg-slate-50/50 dark:bg-black/10 rounded-xl">
-                                    <FileSpreadsheet className="w-8 h-8 text-orange-500 animate-bounce" />
-                                    <div className="text-xs font-bold text-slate-700 dark:text-slate-300">Nenhum extrato carregado</div>
-                                    <p className="text-[10px] text-slate-400 leading-relaxed max-w-xs">
+                                <div className="p-10 text-center text-slate-500 flex flex-col items-center gap-3 bg-slate-50/70 dark:bg-slate-800/40 rounded-xl border border-slate-200/60 dark:border-slate-800">
+                                    <FileSpreadsheet className="w-8 h-8 text-orange-600 dark:text-orange-400" />
+                                    <div className="text-xs font-bold text-slate-800 dark:text-slate-200">Nenhum extrato carregado</div>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed max-w-xs">
                                         Para realizar a conciliação de despesas, você precisa importar um extrato (arquivos OFX ou planilhas Excel) na tela de Lançamento de Dados.
                                     </p>
                                     <button
                                         onClick={() => setActiveView('upload')}
-                                        className="mt-2 flex items-center gap-1.5 px-3 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-bold text-[10px] uppercase shadow-md shadow-orange-600/10 transition-all active:scale-95 cursor-pointer"
+                                        className="mt-1 flex items-center gap-1.5 px-3.5 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-semibold text-xs shadow-xs transition-colors cursor-pointer"
                                     >
                                         <span>Importar Extrato Bancário</span>
                                     </button>
@@ -1067,38 +1073,38 @@ export const FinancialView: React.FC = memo(() => {
                                         <div
                                             key={d.transaction.id}
                                             onClick={() => setSelectedDebitId(d.transaction.id)}
-                                            className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col gap-2 ${
+                                            className={`p-3 rounded-xl border transition-colors cursor-pointer flex flex-col gap-2 ${
                                                 isSelected 
-                                                    ? 'border-orange-500 bg-orange-50/20 dark:bg-orange-950/20 shadow-sm' 
-                                                    : 'border-slate-150 dark:border-white/5 hover:bg-slate-50/50 dark:hover:bg-white/[0.01]'
+                                                    ? 'border-orange-500 bg-orange-50/40 dark:bg-orange-950/20 shadow-2xs' 
+                                                    : 'border-slate-200/80 dark:border-slate-800 hover:bg-slate-50/70 dark:hover:bg-slate-800/40'
                                             }`}
                                         >
                                             <div className="flex items-start justify-between gap-2">
                                                 <div className="flex-1 min-w-0">
-                                                    <span className="text-[9px] font-mono font-bold text-slate-400 block">
+                                                    <span className="text-[10px] tabular-nums font-semibold text-slate-500 dark:text-slate-400 block">
                                                         {formatDate(d.transaction.date)}
                                                     </span>
-                                                    <span className="font-bold text-slate-700 dark:text-slate-200 text-xs uppercase block truncate" title={d.transaction.description}>
+                                                    <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs uppercase block truncate" title={d.transaction.description}>
                                                         {d.transaction.description}
                                                     </span>
                                                 </div>
-                                                <span className="text-xs font-mono font-black text-red-500 whitespace-nowrap">
+                                                <span className="text-xs tabular-nums font-bold text-rose-600 dark:text-rose-400 whitespace-nowrap">
                                                     {formatCurrency(Math.abs(d.transaction.amount), language)}
                                                 </span>
                                             </div>
 
-                                            <div className="flex items-center justify-between border-t border-dashed border-slate-100 dark:border-white/5 pt-2 mt-1">
+                                            <div className="flex items-center justify-between border-t border-dashed border-slate-200/70 dark:border-slate-800 pt-2 mt-1">
                                                 {d.matchedRecord ? (
-                                                    <div className="flex items-center gap-1.5 text-emerald-500">
+                                                    <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
                                                         <CheckCircle2 className="w-3.5 h-3.5" />
-                                                        <span className="text-[10px] font-black uppercase">
+                                                        <span className="text-[10px] font-bold uppercase">
                                                             Conciliado
                                                         </span>
                                                     </div>
                                                 ) : (
-                                                    <div className="flex items-center gap-1.5 text-amber-500">
-                                                        <AlertTriangle className="w-3.5 h-3.5 animate-pulse" />
-                                                        <span className="text-[10px] font-bold uppercase">Pendente</span>
+                                                    <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                                                        <AlertTriangle className="w-3.5 h-3.5" />
+                                                        <span className="text-[10px] font-semibold uppercase">Pendente</span>
                                                     </div>
                                                 )}
 
@@ -1108,7 +1114,7 @@ export const FinancialView: React.FC = memo(() => {
                                                             e.stopPropagation();
                                                             handleUnlinkRecord(d.matchedRecord);
                                                         }}
-                                                        className="px-2 py-0.5 text-[9px] font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded border border-red-500/10 flex items-center gap-1 transition-all cursor-pointer"
+                                                        className="px-2 py-0.5 text-[10px] font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-md border border-rose-200/70 dark:border-rose-900/40 flex items-center gap-1 transition-colors cursor-pointer"
                                                         title="Desfazer conciliação"
                                                     >
                                                         <Link2Off className="w-3 h-3" />
@@ -1124,41 +1130,41 @@ export const FinancialView: React.FC = memo(() => {
                     </div>
 
                     {/* RIGHT COLUMN: Association Panel */}
-                    <div className="lg:col-span-7 bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl p-5 space-y-5 shadow-sm min-h-[300px]">
+                    <div className="lg:col-span-7 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl p-5 space-y-5 shadow-xs min-h-[300px]">
                         {!selectedDebit ? (
                             <div className="h-full flex flex-col items-center justify-center text-center py-20 text-slate-400 gap-3">
-                                <Link className="w-10 h-10 text-orange-500 animate-pulse" />
-                                <span className="font-bold text-sm text-slate-700 dark:text-slate-300">Selecione uma transação do Extrato</span>
-                                <span className="text-xs max-w-sm">
+                                <Link className="w-10 h-10 text-orange-600 dark:text-orange-400" />
+                                <span className="font-bold text-sm text-slate-800 dark:text-slate-200">Selecione uma transação do Extrato</span>
+                                <span className="text-xs text-slate-500 dark:text-slate-400 max-w-sm">
                                     Escolha um débito na lista ao lado para buscar lançamentos pendentes correspondentes ou realizar um novo cadastro integrado.
                                 </span>
                             </div>
                         ) : (
-                            <div className="space-y-6 animate-fade-in">
+                            <div className="space-y-6">
                                 {/* Active Transaction Header */}
-                                <div className="bg-slate-50 dark:bg-black/30 p-4 rounded-xl space-y-3 border border-slate-100 dark:border-white/5">
-                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Débito Selecionado no Extrato</span>
+                                <div className="bg-slate-50/80 dark:bg-slate-800/50 p-4 rounded-xl space-y-3 border border-slate-200/80 dark:border-slate-700/60">
+                                    <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Débito Selecionado no Extrato</span>
                                     <div className="flex items-center justify-between gap-4">
                                         <div>
-                                            <span className="text-sm font-black text-slate-800 dark:text-white uppercase leading-tight block">
+                                            <span className="text-sm font-bold text-slate-900 dark:text-white uppercase leading-tight block">
                                                 {selectedDebit.transaction.description}
                                             </span>
-                                            <span className="text-xs font-mono font-semibold text-slate-500 mt-1 block">
+                                            <span className="text-xs tabular-nums font-medium text-slate-500 dark:text-slate-400 mt-1 block">
                                                 Data: {formatDate(selectedDebit.transaction.date)} | ID: {selectedDebit.transaction.id}
                                             </span>
                                         </div>
-                                        <span className="text-base font-mono font-black text-red-500 whitespace-nowrap bg-red-50 dark:bg-red-950/20 px-3 py-1.5 rounded-lg border border-red-100 dark:border-red-900/30">
+                                        <span className="text-base tabular-nums font-bold text-rose-600 dark:text-rose-400 whitespace-nowrap bg-rose-50 dark:bg-rose-950/30 px-3 py-1.5 rounded-lg border border-rose-200/70 dark:border-rose-900/40">
                                             {formatCurrency(Math.abs(selectedDebit.transaction.amount), language)}
                                         </span>
                                     </div>
 
                                     {selectedDebit.matchedRecord ? (
-                                        <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-150 dark:border-emerald-900/40 p-3 rounded-lg text-emerald-700 dark:text-emerald-300 text-xs flex flex-col gap-1.5">
-                                            <div className="font-bold flex items-center gap-1">
+                                        <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/70 dark:border-emerald-900/40 p-3 rounded-lg text-emerald-700 dark:text-emerald-300 text-xs flex flex-col gap-1.5">
+                                            <div className="font-semibold flex items-center gap-1.5">
                                                 <CheckCircle2 className="w-4 h-4" />
                                                 Esta transação já está conciliada!
                                             </div>
-                                            <div className="font-medium text-[11px] opacity-90 pl-5">
+                                            <div className="font-medium text-[11px] opacity-90 pl-5 tabular-nums">
                                                 Vinculada ao lançamento: <strong className="uppercase">{selectedDebit.matchedRecord.title}</strong> ({formatCurrency(selectedDebit.matchedRecord.amount, language)})
                                             </div>
                                         </div>
@@ -1166,7 +1172,7 @@ export const FinancialView: React.FC = memo(() => {
                                         <div className="flex justify-end pt-1">
                                             <button
                                                 onClick={() => handleImportAsExpense(selectedDebit.transaction)}
-                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 hover:bg-orange-100 dark:bg-white/5 dark:hover:bg-white/10 text-orange-600 dark:text-orange-400 rounded-lg font-black text-[10px] uppercase border border-orange-500/10 transition-all active:scale-95 cursor-pointer animate-pulse"
+                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 hover:bg-orange-100 dark:bg-orange-950/30 dark:hover:bg-orange-950/50 text-orange-700 dark:text-orange-400 rounded-lg font-semibold text-xs border border-orange-200/70 dark:border-orange-900/40 transition-colors cursor-pointer"
                                             >
                                                 <PlusCircle className="w-3.5 h-3.5" />
                                                 Criar Lançamento com este Débito
@@ -1179,13 +1185,13 @@ export const FinancialView: React.FC = memo(() => {
                                     <>
                                         {/* Suggested Matches Section */}
                                         <div className="space-y-3">
-                                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                                                <Sparkles className="w-4 h-4 text-orange-500 animate-pulse" />
+                                            <h4 className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+                                                <Sparkles className="w-4 h-4 text-orange-600 dark:text-orange-400" />
                                                 Sugestões de Vínculo Inteligente
                                             </h4>
                                             
                                             {suggestedRecords.length === 0 ? (
-                                                <div className="p-4 text-center border border-dashed border-slate-100 dark:border-white/5 text-slate-400 text-xs rounded-xl bg-slate-50/20 dark:bg-black/5">
+                                                <div className="p-4 text-center border border-dashed border-slate-200 dark:border-slate-700 text-slate-400 text-xs rounded-xl bg-slate-50/50 dark:bg-slate-800/30">
                                                     Nenhum lançamento pendente corresponde automaticamente a este valor ou descrição.
                                                 </div>
                                             ) : (
@@ -1193,27 +1199,27 @@ export const FinancialView: React.FC = memo(() => {
                                                     {suggestedRecords.map(r => {
                                                         const isExactAmount = Math.abs(selectedDebit.transaction.amount) === Number(r.amount);
                                                         return (
-                                                            <div key={r.id} className="p-3 border border-orange-100 dark:border-orange-900/30 bg-orange-50/10 dark:bg-orange-950/10 rounded-xl flex items-center justify-between gap-4 transition-all hover:bg-orange-50/20">
+                                                            <div key={r.id} className="p-3 border border-orange-200/80 dark:border-orange-900/40 bg-orange-50/20 dark:bg-orange-950/10 rounded-xl flex items-center justify-between gap-4 transition-colors hover:bg-orange-50/40">
                                                                 <div>
                                                                     <div className="flex items-center gap-2">
-                                                                        <span className="font-bold text-xs text-slate-700 dark:text-slate-200 uppercase">{r.title}</span>
+                                                                        <span className="font-semibold text-xs text-slate-800 dark:text-slate-200 uppercase">{r.title}</span>
                                                                         {isExactAmount && (
-                                                                            <span className="bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 text-[8px] font-black uppercase px-1.5 py-0.5 rounded tracking-wide">
+                                                                            <span className="bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded-md">
                                                                                 Valor Exato
                                                                             </span>
                                                                         )}
                                                                     </div>
-                                                                    <span className="text-[10px] text-slate-400 block mt-0.5">
+                                                                    <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5 tabular-nums">
                                                                         {r.description || 'Sem descrição'} | Vencimento: {r.due_date ? formatDate(r.due_date) : '---'}
                                                                     </span>
                                                                 </div>
                                                                 <div className="flex items-center gap-3 shrink-0">
-                                                                    <span className="font-mono text-xs font-black text-slate-700 dark:text-slate-200">
+                                                                    <span className="tabular-nums text-xs font-bold text-slate-800 dark:text-slate-200">
                                                                         {formatCurrency(r.amount, language)}
                                                                     </span>
                                                                     <button
                                                                         onClick={() => handleLinkRecord(r.id, selectedDebit.transaction)}
-                                                                        className="flex items-center gap-1 px-2.5 py-1.5 bg-orange-600 hover:bg-orange-700 text-white font-black uppercase text-[10px] rounded-lg tracking-wider transition-all active:scale-95 shadow-sm shadow-orange-600/10 cursor-pointer"
+                                                                        className="flex items-center gap-1 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white font-semibold text-xs rounded-lg transition-colors shadow-xs cursor-pointer"
                                                                     >
                                                                         <Link2 className="w-3.5 h-3.5" />
                                                                         Vincular
@@ -1229,10 +1235,10 @@ export const FinancialView: React.FC = memo(() => {
                                         {/* All Other Pending Expenses */}
                                         <div className="space-y-3 pt-2">
                                             <div className="flex items-center justify-between gap-2">
-                                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                                                <h4 className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                                                     Buscar Outros Lançamentos Pendentes
                                                 </h4>
-                                                <span className="text-[9px] font-black text-orange-500 bg-orange-50 dark:bg-orange-950/20 px-2 py-0.5 rounded-full uppercase">
+                                                <span className="text-[10px] font-semibold text-orange-700 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/30 border border-orange-200/60 dark:border-orange-900/40 px-2 py-0.5 rounded-md tabular-nums">
                                                     {pendingFinancialRecords.length} pendentes
                                                 </span>
                                             </div>
@@ -1244,11 +1250,11 @@ export const FinancialView: React.FC = memo(() => {
                                                     placeholder="Pesquisar lançamentos pendentes..."
                                                     value={reconPaneSearch}
                                                     onChange={(e) => setReconPaneSearch(e.target.value)}
-                                                    className="w-full pl-9 pr-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-orange-500"
+                                                    className="w-full pl-9 pr-4 py-2 text-xs font-medium bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15"
                                                 />
                                             </div>
 
-                                            <div className="space-y-2 max-h-[220px] overflow-y-auto custom-scrollbar pr-1">
+                                            <div className="space-y-2 max-h-[220px] overflow-y-auto custom-scrollbar pr-1" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
                                                 {pendingFinancialRecords.length === 0 ? (
                                                     <div className="p-6 text-center text-slate-400 text-xs">
                                                         Nenhum lançamento financeiro pendente encontrado.
@@ -1263,20 +1269,20 @@ export const FinancialView: React.FC = memo(() => {
                                                             return true;
                                                         })
                                                         .map(r => (
-                                                            <div key={r.id} className="p-2.5 border border-slate-100 dark:border-white/5 rounded-xl flex items-center justify-between gap-4 hover:bg-slate-50/50 dark:hover:bg-white/[0.01]">
+                                                            <div key={r.id} className="p-2.5 border border-slate-200/80 dark:border-slate-800 rounded-xl flex items-center justify-between gap-4 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
                                                                 <div className="min-w-0">
-                                                                    <span className="font-bold text-xs text-slate-700 dark:text-slate-200 uppercase block truncate">{r.title}</span>
-                                                                    <span className="text-[9px] text-slate-400 block mt-0.5">
+                                                                    <span className="font-semibold text-xs text-slate-800 dark:text-slate-200 uppercase block truncate">{r.title}</span>
+                                                                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5 tabular-nums">
                                                                         Venc: {r.due_date ? formatDate(r.due_date) : '---'} | Fav: {r.recipient_name || '---'}
                                                                     </span>
                                                                 </div>
                                                                 <div className="flex items-center gap-2 shrink-0">
-                                                                    <span className="font-mono text-xs font-bold text-slate-600 dark:text-slate-300">
+                                                                    <span className="tabular-nums text-xs font-bold text-slate-700 dark:text-slate-300">
                                                                         {formatCurrency(r.amount, language)}
                                                                     </span>
                                                                     <button
                                                                         onClick={() => handleLinkRecord(r.id, selectedDebit.transaction)}
-                                                                        className="flex items-center gap-1 px-2.5 py-1 bg-slate-100 hover:bg-orange-600 hover:text-white dark:bg-white/5 dark:hover:bg-orange-600 text-slate-600 dark:text-slate-200 font-black uppercase text-[9px] rounded-lg transition-all cursor-pointer"
+                                                                        className="flex items-center gap-1 px-2.5 py-1 bg-slate-100 hover:bg-orange-600 hover:text-white dark:bg-slate-800 dark:hover:bg-orange-600 text-slate-700 dark:text-slate-200 font-semibold text-[11px] rounded-lg transition-colors cursor-pointer"
                                                                     >
                                                                         Vincular
                                                                     </button>
@@ -1304,99 +1310,99 @@ export const FinancialView: React.FC = memo(() => {
             ) : (
                 <div className="space-y-3">
                     {/* Quick Semaphore Filter Bar for Outflows/Expenses */}
-                    <div className="flex items-center justify-between bg-white dark:bg-slate-900 px-4 py-2.5 rounded-2xl border border-slate-100 dark:border-white/5 flex-wrap gap-2 text-xs">
+                    <div className="flex items-center justify-between bg-white dark:bg-slate-900 px-4 py-2.5 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex-wrap gap-2 text-xs">
                         <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1">
+                            <span className="text-[11px] font-semibold uppercase text-slate-500 dark:text-slate-400 tracking-wide flex items-center gap-1.5">
                                 <FileText className="w-3.5 h-3.5 text-slate-500" />
                                 Auditoria de Comprovantes / NF:
                             </span>
-                            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-black/30 p-1 rounded-xl">
+                            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/90 p-1 rounded-lg border border-slate-200/70 dark:border-slate-700/60 flex-wrap">
                                 <button
                                     onClick={() => setDocumentValidationFilter('all')}
-                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                                    className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer tabular-nums ${
                                         documentValidationFilter === 'all'
-                                            ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm'
-                                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                                            ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs'
+                                            : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
                                     }`}
                                 >
                                     Todos ({records.length})
                                 </button>
                                 <button
                                     onClick={() => setDocumentValidationFilter('validated')}
-                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                                    className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors flex items-center gap-1 cursor-pointer ${
                                         documentValidationFilter === 'validated'
-                                            ? 'bg-emerald-500 text-white shadow-sm'
-                                            : 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
+                                            ? 'bg-emerald-600 text-white shadow-2xs'
+                                            : 'text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
                                     }`}
                                 >
                                     <FileCheck className="w-3.5 h-3.5" />
                                     <span>Validados</span>
-                                    <span className={`text-[9px] px-1 rounded-full ${documentValidationFilter === 'validated' ? 'bg-white/20' : 'bg-emerald-100 dark:bg-emerald-900/50'}`}>
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-md tabular-nums ${documentValidationFilter === 'validated' ? 'bg-white/20 text-white' : 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300'}`}>
                                         {records.filter(r => r.validation_status === 'validated' || r.attachments?.[0]?.validationStatus === 'validated').length}
                                     </span>
                                 </button>
                                 <button
                                     onClick={() => setDocumentValidationFilter('divergent')}
-                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                                    className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors flex items-center gap-1 cursor-pointer ${
                                         documentValidationFilter === 'divergent'
-                                            ? 'bg-rose-500 text-white shadow-sm'
-                                            : 'text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30'
+                                            ? 'bg-rose-600 text-white shadow-2xs'
+                                            : 'text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30'
                                     }`}
                                 >
                                     <AlertTriangle className="w-3.5 h-3.5" />
                                     <span>Com Divergência</span>
-                                    <span className={`text-[9px] px-1 rounded-full ${documentValidationFilter === 'divergent' ? 'bg-white/20' : 'bg-rose-100 dark:bg-rose-900/50'}`}>
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-md tabular-nums ${documentValidationFilter === 'divergent' ? 'bg-white/20 text-white' : 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300'}`}>
                                         {records.filter(r => r.validation_status === 'divergent' || r.attachments?.[0]?.validationStatus === 'divergent').length}
                                     </span>
                                 </button>
                                 <button
                                     onClick={() => setDocumentValidationFilter('pending_attachment')}
-                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                                    className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors flex items-center gap-1 cursor-pointer ${
                                         documentValidationFilter === 'pending_attachment'
-                                            ? 'bg-amber-500 text-white shadow-sm'
-                                            : 'text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30'
+                                            ? 'bg-amber-600 text-white shadow-2xs'
+                                            : 'text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30'
                                     }`}
                                 >
                                     <FileMinus className="w-3.5 h-3.5" />
                                     <span>Sem Comprovante</span>
-                                    <span className={`text-[9px] px-1 rounded-full ${documentValidationFilter === 'pending_attachment' ? 'bg-white/20' : 'bg-amber-100 dark:bg-amber-900/50'}`}>
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-md tabular-nums ${documentValidationFilter === 'pending_attachment' ? 'bg-white/20 text-white' : 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'}`}>
                                         {records.filter(r => (!r.attachments || r.attachments.length === 0) && r.type !== 'receivable').length}
                                     </span>
                                 </button>
                             </div>
                         </div>
 
-                        <div className="text-[11px] text-slate-400 font-medium hidden sm:block">
-                            Mostrando <strong className="text-slate-700 dark:text-white font-mono">{filteredRecords.length}</strong> de {records.length} lançamentos
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium hidden sm:block tabular-nums">
+                            Mostrando <strong className="text-slate-900 dark:text-white font-semibold">{filteredRecords.length}</strong> de {records.length} lançamentos
                         </div>
                     </div>
 
-                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl overflow-hidden shadow-sm animate-fade-in">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs">
                     {loading ? (
-                        <div className="p-12 text-center text-slate-400 flex flex-col items-center gap-2">
-                            <RefreshCw className="w-6 h-6 animate-spin text-orange-500" />
-                            <span>Carregando dados financeiros...</span>
+                        <div className="p-12 text-center text-slate-500 dark:text-slate-400 flex flex-col items-center gap-2">
+                            <RefreshCw className="w-6 h-6 animate-spin text-orange-600 dark:text-orange-400" />
+                            <span className="text-xs font-medium">Carregando dados financeiros...</span>
                         </div>
                     ) : filteredRecords.length === 0 ? (
-                        <div className="p-16 text-center text-slate-400 flex flex-col items-center gap-2">
+                        <div className="p-16 text-center text-slate-500 dark:text-slate-400 flex flex-col items-center gap-2">
                             <Info className="w-8 h-8 text-slate-300 dark:text-slate-600" />
-                            <span className="font-bold text-sm">Nenhum lançamento encontrado</span>
+                            <span className="font-semibold text-sm text-slate-700 dark:text-slate-200">Nenhum lançamento encontrado</span>
                             <span className="text-xs">Clique em "Novo Lançamento" para cadastrar sua primeira despesa ou adiantamento.</span>
                         </div>
                     ) : (
                         <div className="overflow-x-auto custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}>
                             <table className="w-full text-left border-collapse min-w-[950px]">
                                 <thead>
-                                    <tr className="border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-black/10">
-                                        <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Título / Descrição</th>
-                                        <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Igreja</th>
-                                        <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Favorecido</th>
-                                        <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Vencimento</th>
-                                        <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Tipo</th>
-                                        <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Valor</th>
-                                        <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Comprovante / NF</th>
-                                        <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Status</th>
-                                        <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-right">Ações</th>
+                                    <tr className="border-b border-slate-200/90 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-800/80">
+                                        <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Título / Descrição</th>
+                                        <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Igreja</th>
+                                        <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Favorecido</th>
+                                        <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Vencimento</th>
+                                        <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Tipo</th>
+                                        <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Valor</th>
+                                        <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Comprovante / NF</th>
+                                        <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Status</th>
+                                        <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-right">Ações</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1408,33 +1414,33 @@ export const FinancialView: React.FC = memo(() => {
                                         const docStatus: ExpenseValidationStatus = record.validation_status || (primaryDoc?.validationStatus || (hasAttachments ? 'manual_review' : 'pending_attachment'));
                                         
                                         return (
-                                            <tr key={record.id} className="border-b border-slate-100 dark:border-white/5 hover:bg-slate-50/50 dark:hover:bg-white/[0.01] transition-all">
-                                                <td className="p-4">
-                                                    <div className="font-bold text-slate-700 dark:text-slate-200 text-xs uppercase flex items-center gap-1.5">
+                                            <tr key={record.id} className="border-b border-slate-100 dark:border-slate-800/70 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                                                <td className="px-4 py-3.5">
+                                                    <div className="font-semibold text-slate-800 dark:text-slate-100 text-xs uppercase flex items-center gap-1.5">
                                                         <span>{record.title}</span>
                                                         {record.bank_transaction_id && (
-                                                            <span className="bg-emerald-50 dark:bg-emerald-950/50 text-emerald-500 border border-emerald-500/10 text-[8px] font-black uppercase px-1.5 py-0.5 rounded flex items-center gap-0.5" title="Conciliado com transação bancária">
+                                                            <span className="bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-900/40 text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded-md flex items-center gap-0.5" title="Conciliado com transação bancária">
                                                                 <Link2 className="w-2.5 h-2.5" />
                                                                 Conciliado
                                                             </span>
                                                         )}
                                                     </div>
                                                     {record.description && (
-                                                        <div className="text-[10px] text-slate-400 mt-0.5 line-clamp-1">{record.description}</div>
+                                                        <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">{record.description}</div>
                                                     )}
                                                 </td>
-                                                <td className="p-4">
-                                                    <span className="text-[10px] font-extrabold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2.5 py-1 rounded-full uppercase">
+                                                <td className="px-4 py-3.5">
+                                                    <span className="text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2.5 py-1 rounded-md uppercase">
                                                         {churchName}
                                                     </span>
                                                 </td>
-                                                <td className="p-4">
+                                                <td className="px-4 py-3.5">
                                                     {record.recipient_name ? (
                                                         <div className="flex items-center gap-1.5">
-                                                            <User className="w-3 h-3 text-slate-400" />
-                                                            <div className="text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase">
+                                                            <User className="w-3 h-3 text-slate-400 shrink-0" />
+                                                            <div className="text-xs font-medium text-slate-700 dark:text-slate-300 uppercase">
                                                                 {record.recipient_name}
-                                                                <span className="text-[8px] bg-slate-50 dark:bg-white/5 text-slate-400 px-1 py-0.5 rounded ml-1.5 uppercase">
+                                                                <span className="text-[9px] bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded-md ml-1.5 uppercase font-semibold">
                                                                     {record.recipient_type === 'pastor' ? 'Pastor' : record.recipient_type === 'employee' ? 'Func.' : 'Fornec.'}
                                                                 </span>
                                                             </div>
@@ -1443,11 +1449,11 @@ export const FinancialView: React.FC = memo(() => {
                                                         <span className="text-xs text-slate-400">---</span>
                                                     )}
                                                 </td>
-                                                <td className="p-4">
+                                                <td className="px-4 py-3.5">
                                                     {record.due_date ? (
                                                         <div className="flex items-center gap-1.5">
-                                                            <Calendar className={`w-3.5 h-3.5 ${isOverdue ? 'text-red-500' : 'text-slate-400'}`} />
-                                                            <span className={`text-xs font-mono font-bold ${isOverdue ? 'text-red-500' : 'text-slate-600 dark:text-slate-300'}`}>
+                                                            <Calendar className={`w-3.5 h-3.5 ${isOverdue ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}`} />
+                                                            <span className={`text-xs tabular-nums font-semibold ${isOverdue ? 'text-rose-600 dark:text-rose-400' : 'text-slate-700 dark:text-slate-300'}`}>
                                                                 {formatDate(record.due_date)}
                                                             </span>
                                                         </div>
@@ -1455,37 +1461,37 @@ export const FinancialView: React.FC = memo(() => {
                                                         <span className="text-xs text-slate-400">---</span>
                                                     )}
                                                 </td>
-                                                <td className="p-4">
-                                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase ${
-                                                        record.type === 'invoice' ? 'bg-sky-50 dark:bg-sky-950/30 text-sky-500' :
-                                                        record.type === 'fixed' ? 'bg-purple-50 dark:bg-purple-950/30 text-purple-500' :
-                                                        record.type === 'advance' ? 'bg-orange-50 dark:bg-orange-950/30 text-orange-500' :
-                                                        record.type === 'receivable' ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-500' :
-                                                        'bg-slate-50 dark:bg-white/5 text-slate-400'
+                                                <td className="px-4 py-3.5">
+                                                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md uppercase ${
+                                                        record.type === 'invoice' ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300' :
+                                                        record.type === 'fixed' ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400' :
+                                                        record.type === 'advance' ? 'bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-400' :
+                                                        record.type === 'receivable' ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400' :
+                                                        'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
                                                     }`}>
                                                         {record.type === 'invoice' ? 'Fatura' : record.type === 'fixed' ? 'Fixa' : record.type === 'advance' ? 'Adiantam.' : record.type === 'receivable' ? 'Receita' : 'Outra'}
                                                     </span>
                                                 </td>
-                                                <td className="p-4 text-xs font-mono font-black text-slate-700 dark:text-slate-200">
+                                                <td className="px-4 py-3.5 text-xs tabular-nums font-bold text-slate-900 dark:text-white whitespace-nowrap">
                                                     {formatCurrency(record.amount, language)}
                                                 </td>
 
                                                 {/* Comprovante / NF Semaphore Column */}
-                                                <td className="p-4">
+                                                <td className="px-4 py-3.5">
                                                     {record.type === 'receivable' ? (
-                                                        <span className="text-[10px] text-slate-400">N/A</span>
+                                                        <span className="text-[11px] text-slate-400">N/A</span>
                                                     ) : hasAttachments && primaryDoc ? (
                                                         <div className="flex items-center gap-1.5">
                                                             {docStatus === 'validated' ? (
                                                                 <button
                                                                     onClick={() => setSelectedDocPreview({ record, attachment: primaryDoc })}
-                                                                    className="px-2.5 py-1 rounded-xl text-[10px] font-black flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-100 transition-all cursor-pointer shadow-xs"
+                                                                    className="px-2.5 py-1 rounded-md text-[10px] font-semibold flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/70 dark:border-emerald-900/40 hover:bg-emerald-100 transition-colors cursor-pointer"
                                                                     title={record.validation_notes || 'Valor confere exatamente com o documento'}
                                                                 >
-                                                                    <FileCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                                                    <FileCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                                                                     <span>VALIDADO</span>
                                                                     {record.attachments!.length > 1 && (
-                                                                        <span className="bg-emerald-200 dark:bg-emerald-800 text-[8px] px-1 rounded-full">
+                                                                        <span className="bg-emerald-200 dark:bg-emerald-800 text-[9px] px-1 rounded-md tabular-nums">
                                                                             +{record.attachments!.length - 1}
                                                                         </span>
                                                                     )}
@@ -1493,25 +1499,25 @@ export const FinancialView: React.FC = memo(() => {
                                                             ) : docStatus === 'divergent' ? (
                                                                 <button
                                                                     onClick={() => setSelectedDocPreview({ record, attachment: primaryDoc })}
-                                                                    className="px-2.5 py-1 rounded-xl text-[10px] font-black flex items-center gap-1.5 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-500/20 hover:bg-rose-100 transition-all cursor-pointer shadow-xs animate-pulse"
+                                                                    className="px-2.5 py-1 rounded-md text-[10px] font-semibold flex items-center gap-1.5 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200/70 dark:border-rose-900/40 hover:bg-rose-100 transition-colors cursor-pointer"
                                                                     title={record.validation_notes || 'Divergência entre o valor lançado e o documento anexado'}
                                                                 >
-                                                                    <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                                                                    <AlertTriangle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
                                                                     <span>DIVERGÊNCIA</span>
                                                                 </button>
                                                             ) : (
                                                                 <button
                                                                     onClick={() => setSelectedDocPreview({ record, attachment: primaryDoc })}
-                                                                    className="px-2.5 py-1 rounded-xl text-[10px] font-black flex items-center gap-1.5 bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 border border-sky-500/20 hover:bg-sky-100 transition-all cursor-pointer shadow-xs"
+                                                                    className="px-2.5 py-1 rounded-md text-[10px] font-semibold flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700 hover:bg-slate-200/70 dark:hover:bg-slate-700 transition-colors cursor-pointer"
                                                                     title="Comprovante anexado (Clique para visualizar)"
                                                                 >
-                                                                    <Paperclip className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+                                                                    <Paperclip className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400 shrink-0" />
                                                                     <span>ANEXADO</span>
                                                                 </button>
                                                             )}
                                                             <button
                                                                 onClick={() => setSelectedDocPreview({ record, attachment: primaryDoc })}
-                                                                className="p-1 text-slate-400 hover:text-orange-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                                                                className="p-1 text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
                                                                 title="Visualizar documento"
                                                             >
                                                                 <Eye className="w-3.5 h-3.5" />
@@ -1520,22 +1526,22 @@ export const FinancialView: React.FC = memo(() => {
                                                     ) : (
                                                         <button
                                                             onClick={() => openModal(record)}
-                                                            className="px-2 py-1 rounded-xl text-[10px] font-bold flex items-center gap-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/20 border border-dashed border-slate-250 dark:border-slate-700 transition-all cursor-pointer"
+                                                            className="px-2.5 py-1 rounded-md text-[10px] font-semibold flex items-center gap-1 text-slate-500 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20 border border-dashed border-slate-300 dark:border-slate-700 transition-colors cursor-pointer"
                                                             title="Clique para editar e anexar a nota fiscal ou comprovante"
                                                         >
-                                                            <FileMinus className="w-3 h-3 text-amber-500/80" />
+                                                            <FileMinus className="w-3 h-3 text-amber-600 dark:text-amber-400" />
                                                             <span>Sem anexo</span>
                                                         </button>
                                                     )}
                                                 </td>
 
-                                                <td className="p-4">
+                                                <td className="px-4 py-3.5">
                                                     <button
                                                         onClick={() => handleToggleStatus(record)}
-                                                        className={`px-3 py-1 rounded-xl text-[10px] font-black flex items-center gap-1 transition-all cursor-pointer ${
+                                                        className={`px-2.5 py-1 rounded-md text-[10px] font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
                                                             record.status === 'paid'
-                                                                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-500 hover:bg-emerald-100'
-                                                                : 'bg-amber-50 dark:bg-amber-950/40 text-amber-500 hover:bg-amber-100'
+                                                                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-900/40 hover:bg-emerald-100'
+                                                                : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200/60 dark:border-amber-900/40 hover:bg-amber-100'
                                                         }`}
                                                     >
                                                         {record.status === 'paid' ? (
@@ -1551,18 +1557,18 @@ export const FinancialView: React.FC = memo(() => {
                                                         )}
                                                     </button>
                                                 </td>
-                                                <td className="p-4 text-right">
-                                                    <div className="flex justify-end gap-2">
+                                                <td className="px-4 py-3.5 text-right">
+                                                    <div className="flex justify-end gap-1.5">
                                                         <button
                                                             onClick={() => openModal(record)}
-                                                            className="p-1.5 text-slate-400 hover:text-orange-500 dark:hover:text-orange-400 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-all cursor-pointer"
+                                                            className="p-1.5 text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
                                                             title="Editar"
                                                         >
                                                             <Edit className="w-3.5 h-3.5" />
                                                         </button>
                                                         <button
                                                             onClick={() => handleDelete(record.id)}
-                                                            className="p-1.5 text-slate-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-all cursor-pointer"
+                                                            className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors cursor-pointer"
                                                             title="Excluir"
                                                         >
                                                             <Trash2 className="w-3.5 h-3.5" />
@@ -1577,22 +1583,22 @@ export const FinancialView: React.FC = memo(() => {
                         </div>
                     )}
                     {filteredRecords.length > ITEMS_PER_PAGE && (
-                        <div className="flex-shrink-0 flex justify-between items-center px-4 py-3 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-white/5">
-                            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                                Página <strong className="text-slate-800 dark:text-white">{currentPage}</strong> de {totalPages} ({filteredRecords.length} lançamentos)
+                        <div className="flex-shrink-0 flex justify-between items-center px-4 py-3 bg-white dark:bg-slate-900 border-t border-slate-200/80 dark:border-slate-800">
+                            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 tabular-nums">
+                                Página <strong className="text-slate-900 dark:text-white font-semibold">{currentPage}</strong> de {totalPages} ({filteredRecords.length} lançamentos)
                             </span>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1">
                                 <button
                                     onClick={() => setCurrentPage(1)}
                                     disabled={currentPage === 1}
-                                    className="px-2 py-1 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg disabled:opacity-30 cursor-pointer"
+                                    className="px-2.5 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg disabled:opacity-30 cursor-pointer transition-colors"
                                 >
                                     Primeira
                                 </button>
                                 <button
                                     onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                                     disabled={currentPage === 1}
-                                    className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg disabled:opacity-30 cursor-pointer"
+                                    className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg disabled:opacity-30 cursor-pointer transition-colors"
                                     title="Página Anterior"
                                 >
                                     <ChevronLeft className="w-4 h-4" />
@@ -1600,7 +1606,7 @@ export const FinancialView: React.FC = memo(() => {
                                 <button
                                     onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                                     disabled={currentPage === totalPages}
-                                    className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg disabled:opacity-30 cursor-pointer"
+                                    className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg disabled:opacity-30 cursor-pointer transition-colors"
                                     title="Próxima Página"
                                 >
                                     <ChevronRight className="w-4 h-4" />
@@ -1608,7 +1614,7 @@ export const FinancialView: React.FC = memo(() => {
                                 <button
                                     onClick={() => setCurrentPage(totalPages)}
                                     disabled={currentPage === totalPages}
-                                    className="px-2 py-1 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg disabled:opacity-30 cursor-pointer"
+                                    className="px-2.5 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg disabled:opacity-30 cursor-pointer transition-colors"
                                 >
                                     Última
                                 </button>
@@ -1621,44 +1627,47 @@ export const FinancialView: React.FC = memo(() => {
 
             {/* Modal para Novo / Editar Lançamento */}
             {isModalOpen && (
-                <div className="absolute inset-0 z-40 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full overflow-hidden">
-                    <form onSubmit={handleSubmit} className="flex flex-col h-full w-full overflow-hidden">
+                <div
+                    className="fixed inset-0 z-[56] flex items-center justify-center pt-16 md:pt-5 pb-3 md:pb-5 px-2 sm:px-6 bg-slate-900/55 backdrop-blur-[2px] animate-fade-in"
+                    onClick={(e) => { if (e.target === e.currentTarget) setIsModalOpen(false); }}
+                >
+                    <form
+                        onSubmit={handleSubmit}
+                        onClick={(e) => e.stopPropagation()}
+                        className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-elevated w-full max-w-3xl max-h-[calc(100dvh-5rem)] md:max-h-[min(88vh,calc(100dvh-3rem))] flex flex-col overflow-hidden animate-scale-in"
+                    >
                         {/* Header */}
-                        <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                            <div className="flex flex-row flex-wrap items-center gap-4 md:gap-8 w-full md:w-auto">
-                                <div className="flex items-center gap-4">
-                                    <div className="p-3 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/20">
-                                        <PlusCircle className="w-6 h-6" />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight uppercase">
-                                            {editingRecord ? 'Editar Lançamento' : 'Novo Lançamento'}
-                                        </h3>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">
-                                            {editingRecord ? 'Atualizar registro financeiro' : 'Cadastrar conta ou receita'}
-                                        </p>
-                                    </div>
+                        <div className="px-5 py-3.5 border-b border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-row justify-between items-center gap-3 shrink-0">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-8 h-8 bg-orange-50 dark:bg-orange-950/40 border border-orange-200/60 dark:border-orange-900/40 rounded-lg flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
+                                    <PlusCircle className="w-4 h-4" />
+                                </div>
+                                <div className="min-w-0">
+                                    <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
+                                        {editingRecord ? 'Editar Lançamento' : 'Novo Lançamento'}
+                                    </h3>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight truncate">
+                                        {editingRecord ? 'Atualizar registro financeiro' : 'Cadastrar conta ou receita'}
+                                    </p>
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-2 self-end md:self-auto">
-                                <button 
-                                    type="button" 
-                                    onClick={() => setIsModalOpen(false)} 
-                                    className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors cursor-pointer"
-                                >
-                                    <X className="w-6 h-6" />
-                                </button>
-                            </div>
+                            <button 
+                                type="button" 
+                                onClick={() => setIsModalOpen(false)} 
+                                className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer shrink-0"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
                         </div>
 
                         {/* Body */}
-                        <div className="p-8 flex-1 overflow-y-auto w-full custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
-                            <div className="space-y-6 w-full">
+                        <div className="p-6 flex-1 overflow-y-auto w-full custom-scrollbar bg-slate-50/40 dark:bg-slate-950" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
+                            <div className="space-y-5 w-full max-w-5xl mx-auto">
                                 {/* Title & Amount */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <div className="md:col-span-2 space-y-3">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="md:col-span-2 space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Título *
                                         </label>
                                         <input
@@ -1666,12 +1675,12 @@ export const FinancialView: React.FC = memo(() => {
                                             placeholder="Ex: Fatura de Energia"
                                             value={formTitle}
                                             onChange={(e) => setFormTitle(e.target.value)}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2.5 px-3.5 text-sm font-medium focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 transition-colors"
                                             required
                                         />
                                     </div>
-                                    <div className="space-y-3">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Valor (R$) *
                                         </label>
                                         <input
@@ -1680,22 +1689,22 @@ export const FinancialView: React.FC = memo(() => {
                                             placeholder="0.00"
                                             value={formAmount}
                                             onChange={(e) => setFormAmount(e.target.value)}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-mono font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2.5 px-3.5 text-sm tabular-nums font-semibold focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 transition-colors"
                                             required
                                         />
                                     </div>
                                 </div>
 
                                 {/* Description */}
-                                <div className="space-y-3">
-                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                <div className="space-y-1.5">
+                                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                         Descrição / Observações
                                     </label>
                                     <textarea
                                         placeholder="Detalhes sobre a despesa ou finalidade do adiantamento..."
                                         value={formDescription}
                                         onChange={(e) => setFormDescription(e.target.value)}
-                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-bold h-24 resize-none"
+                                        className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2.5 px-3.5 text-sm font-medium focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 transition-colors h-24 resize-none"
                                     />
                                 </div>
 
@@ -1715,15 +1724,15 @@ export const FinancialView: React.FC = memo(() => {
                                 )}
 
                                 {/* Church, Account & Type */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <div className="space-y-3">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Igreja Destinação
                                         </label>
                                         <select
                                             value={formChurchId}
                                             onChange={(e) => setFormChurchId(e.target.value)}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2.5 px-3.5 text-sm font-medium focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 transition-colors"
                                         >
                                             {churches?.map((c: any) => (
                                                 <option key={c.id} value={c.id}>{c.name}</option>
@@ -1731,14 +1740,14 @@ export const FinancialView: React.FC = memo(() => {
                                         </select>
                                     </div>
 
-                                    <div className="space-y-3">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Conta Bancária / Caixa
                                         </label>
                                         <select
                                             value={formBankId}
                                             onChange={(e) => setFormBankId(e.target.value)}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2.5 px-3.5 text-sm font-medium focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 transition-colors"
                                         >
                                             <option value="">-- Sem Conta / Caixa Principal --</option>
                                             {availableBanks.map((b: any) => (
@@ -1749,14 +1758,14 @@ export const FinancialView: React.FC = memo(() => {
                                         </select>
                                     </div>
 
-                                    <div className="space-y-3">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Tipo de Lançamento *
                                         </label>
                                         <select
                                             value={formType}
                                             onChange={(e: any) => setFormType(e.target.value)}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2.5 px-3.5 text-sm font-medium focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 transition-colors"
                                         >
                                             <option value="invoice">Fatura / Despesa Geral</option>
                                             <option value="fixed">Despesa Fixa Recorrente</option>
@@ -1768,9 +1777,9 @@ export const FinancialView: React.FC = memo(() => {
                                 </div>
 
                                 {/* Recipient Details */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <div className="md:col-span-2 space-y-3">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="md:col-span-2 space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             {formType === 'receivable' ? 'Doador / Origem da Receita' : 'Favorecido / Beneficiário'}
                                         </label>
                                         <input
@@ -1778,17 +1787,17 @@ export const FinancialView: React.FC = memo(() => {
                                             placeholder={formType === 'receivable' ? "Ex: Membro doador, Empresa patrocinadora" : "Nome do pastor, funcionário ou fornecedor"}
                                             value={formRecipientName}
                                             onChange={(e) => setFormRecipientName(e.target.value)}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2.5 px-3.5 text-sm font-medium focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 transition-colors"
                                         />
                                     </div>
-                                    <div className="space-y-3">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Tipo do Favorecido / Origem
                                         </label>
                                         <select
                                             value={formRecipientType}
                                             onChange={(e: any) => setFormRecipientType(e.target.value)}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2.5 px-3.5 text-sm font-medium focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 transition-colors"
                                         >
                                             <option value="pastor">Pastor</option>
                                             <option value="employee">Funcionário</option>
@@ -1799,42 +1808,42 @@ export const FinancialView: React.FC = memo(() => {
                                 </div>
 
                                 {/* Dates */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-3">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             {formType === 'receivable' ? 'Previsão de Recebimento' : 'Data de Vencimento'}
                                         </label>
                                         <input
                                             type="date"
                                             value={formDueDate}
                                             onChange={(e) => setFormDueDate(e.target.value)}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-mono font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2.5 px-3.5 text-sm tabular-nums font-medium focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 transition-colors"
                                         />
                                     </div>
 
-                                    <div className="space-y-3">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             {formType === 'receivable' ? 'Data de Recebimento' : 'Data de Pagamento'}
                                         </label>
                                         <input
                                             type="date"
                                             value={formPaymentDate}
                                             onChange={(e) => setFormPaymentDate(e.target.value)}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-mono font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2.5 px-3.5 text-sm tabular-nums font-medium focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 transition-colors"
                                         />
                                     </div>
                                 </div>
 
                                 {/* Status & Recurrence */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-3">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Status Inicial
                                         </label>
                                         <select
                                             value={formStatus}
                                             onChange={(e: any) => setFormStatus(e.target.value)}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2.5 px-3.5 text-sm font-medium focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 transition-colors"
                                         >
                                             <option value="pending">
                                                 {formType === 'receivable' ? 'Pendente / Não Recebido' : 'Pendente / Não Pago'}
@@ -1845,14 +1854,14 @@ export const FinancialView: React.FC = memo(() => {
                                         </select>
                                     </div>
 
-                                    <div className="space-y-3">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Recorrência
                                         </label>
                                         <select
                                             value={formRecurrence}
                                             onChange={(e: any) => setFormRecurrence(e.target.value)}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2.5 px-3.5 text-sm font-medium focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 transition-colors"
                                         >
                                             <option value="none">Nenhuma</option>
                                             <option value="monthly">Mensal</option>
@@ -1864,17 +1873,17 @@ export const FinancialView: React.FC = memo(() => {
                         </div>
 
                         {/* Footer */}
-                        <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 border-t border-slate-100 dark:border-slate-800/50 mt-auto">
+                        <div className="bg-slate-50/80 dark:bg-slate-900/80 px-6 py-4 flex justify-end gap-3 border-t border-slate-200/80 dark:border-slate-800 mt-auto">
                             <button
                                 type="button"
                                 onClick={() => setIsModalOpen(false)}
-                                className="px-6 py-2.5 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-full shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                                className="px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg shadow-2xs transition-colors cursor-pointer"
                             >
                                 Cancelar
                             </button>
                             <button
                                 type="submit"
-                                className="px-8 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-full shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                                className="px-5 py-2 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-xs transition-colors cursor-pointer"
                             >
                                 Salvar Lançamento
                             </button>
@@ -1885,35 +1894,38 @@ export const FinancialView: React.FC = memo(() => {
 
             {/* Advanced Financial Filters Modal */}
             {isFilterModalOpen && (
-                <div className="glass-overlay">
-                    <div className="glass-modal animate-fade-in">
+                <div
+                    className="fixed inset-0 z-[56] flex items-center justify-center pt-16 md:pt-5 pb-3 md:pb-5 px-2 sm:px-6 bg-slate-900/55 backdrop-blur-[2px] animate-fade-in"
+                    onClick={(e) => { if (e.target === e.currentTarget) setIsFilterModalOpen(false); }}
+                >
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl w-full max-w-2xl max-h-[calc(100dvh-5rem)] md:max-h-[min(88vh,calc(100dvh-3rem))] flex flex-col shadow-elevated overflow-hidden animate-scale-in">
                         {/* Header Compacto */}
-                        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md flex items-center justify-between flex-shrink-0">
-                            <div className="flex items-center gap-2.5">
-                                <div className="p-2 bg-orange-500/10 dark:bg-orange-500/20 rounded-xl text-orange-500">
+                        <div className="px-5 py-3.5 border-b border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between gap-3 flex-shrink-0">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-8 h-8 bg-orange-50 dark:bg-orange-950/40 border border-orange-200/60 dark:border-orange-900/40 rounded-lg flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
                                     <SlidersHorizontal className="w-4 h-4" />
                                 </div>
-                                <div>
-                                    <h3 className="text-sm font-black text-slate-800 dark:text-white tracking-tight leading-none">Filtros Avançados</h3>
-                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">Refine sua busca na gestão de contas</p>
+                                <div className="min-w-0">
+                                    <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">Filtros Avançados</h3>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight truncate">Refine sua busca na gestão de contas</p>
                                 </div>
                             </div>
-                            <button type="button" onClick={() => setIsFilterModalOpen(false)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer">
+                            <button type="button" onClick={() => setIsFilterModalOpen(false)} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer shrink-0">
                                 <X className="w-4 h-4" />
                             </button>
                         </div>
 
                         {/* Scrollable Content */}
-                        <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1 bg-slate-50/30 dark:bg-[#0F172A]/50">
+                        <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1 bg-slate-50/40 dark:bg-slate-950/40" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {/* Igreja / Centro de Custo */}
-                                <div className="p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50 bg-white/50 dark:bg-slate-800/30 space-y-3">
+                                <div className="p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-3 shadow-2xs">
                                     <div>
-                                        <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Igreja / Centro de Custo</label>
+                                        <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5">Igreja / Centro de Custo</label>
                                         <select
                                             value={tempChurchId}
                                             onChange={(e) => setTempChurchId(e.target.value)}
-                                            className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs font-medium text-slate-800 dark:text-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 transition-colors"
                                         >
                                             <option value="all">Todas as Igrejas</option>
                                             {churches?.map((c: any) => (
@@ -1923,11 +1935,11 @@ export const FinancialView: React.FC = memo(() => {
                                     </div>
 
                                     <div>
-                                        <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Status do Lançamento</label>
+                                        <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5">Status do Lançamento</label>
                                         <select
                                             value={tempStatus}
                                             onChange={(e) => setTempStatus(e.target.value)}
-                                            className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs font-medium text-slate-800 dark:text-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 transition-colors"
                                         >
                                             <option value="all">Todos os Status</option>
                                             <option value="pending">Pendentes</option>
@@ -1937,13 +1949,13 @@ export const FinancialView: React.FC = memo(() => {
                                 </div>
 
                                 {/* Period & Date Filters */}
-                                <div className="p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50 bg-white/50 dark:bg-slate-800/30 space-y-3">
+                                <div className="p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-3 shadow-2xs">
                                     <div>
-                                        <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Filtrar por Período</label>
+                                        <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5">Filtrar por Período</label>
                                         <select
                                             value={tempDateRangeType}
                                             onChange={(e) => setTempDateRangeType(e.target.value as any)}
-                                            className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs font-medium text-slate-800 dark:text-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 transition-colors"
                                         >
                                             <option value="all">Qualquer Período</option>
                                             <option value="this_month">Este Mês</option>
@@ -1956,11 +1968,11 @@ export const FinancialView: React.FC = memo(() => {
                                     {tempDateRangeType !== 'custom' ? (
                                         <div className="grid grid-cols-2 gap-2">
                                             <div>
-                                                <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Ano</label>
+                                                <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5">Ano</label>
                                                 <select
                                                     value={tempYear}
                                                     onChange={(e) => setTempYear(e.target.value)}
-                                                    className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
+                                                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs font-medium text-slate-800 dark:text-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 transition-colors tabular-nums"
                                                 >
                                                     <option value="all">Todos os Anos</option>
                                                     {years.map(y => (
@@ -1970,11 +1982,11 @@ export const FinancialView: React.FC = memo(() => {
                                             </div>
 
                                             <div>
-                                                <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Mês</label>
+                                                <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5">Mês</label>
                                                 <select
                                                     value={tempMonth}
                                                     onChange={(e) => setTempMonth(e.target.value)}
-                                                    className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
+                                                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs font-medium text-slate-800 dark:text-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 transition-colors"
                                                 >
                                                     <option value="all">Todos os Meses</option>
                                                     {months.map(m => (
@@ -1984,23 +1996,23 @@ export const FinancialView: React.FC = memo(() => {
                                             </div>
                                         </div>
                                     ) : (
-                                        <div className="grid grid-cols-2 gap-2 animate-fade-in">
+                                        <div className="grid grid-cols-2 gap-2">
                                             <div>
-                                                <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">De</label>
+                                                <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5">De</label>
                                                 <input
                                                     type="date"
                                                     value={tempStartDate}
                                                     onChange={(e) => setTempStartDate(e.target.value)}
-                                                    className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
+                                                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs font-medium text-slate-800 dark:text-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 transition-colors tabular-nums"
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Até</label>
+                                                <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5">Até</label>
                                                 <input
                                                     type="date"
                                                     value={tempEndDate}
                                                     onChange={(e) => setTempEndDate(e.target.value)}
-                                                    className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
+                                                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs font-medium text-slate-800 dark:text-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 transition-colors tabular-nums"
                                                 />
                                             </div>
                                         </div>
@@ -2010,11 +2022,11 @@ export const FinancialView: React.FC = memo(() => {
                         </div>
 
                         {/* Footer Compacto */}
-                        <div className="bg-white dark:bg-slate-900 px-6 py-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-800 flex-shrink-0">
+                        <div className="bg-slate-50/80 dark:bg-slate-900/80 px-6 py-4 flex justify-between items-center border-t border-slate-200/80 dark:border-slate-800 flex-shrink-0">
                             <button
                                 type="button"
                                 onClick={handleClearAllFilters}
-                                className="px-5 py-2.5 text-[10px] font-bold rounded-full border border-slate-200 text-slate-500 hover:text-red-500 hover:border-red-200 hover:bg-red-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors uppercase tracking-wide cursor-pointer"
+                                className="px-4 py-2 text-xs font-semibold rounded-lg border border-slate-200 text-slate-600 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
                             >
                                 Limpar Filtros
                             </button>
@@ -2022,14 +2034,14 @@ export const FinancialView: React.FC = memo(() => {
                                 <button
                                     type="button"
                                     onClick={() => setIsFilterModalOpen(false)}
-                                    className="px-6 py-2.5 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-full shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                                    className="px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg shadow-2xs transition-colors cursor-pointer"
                                 >
                                     Cancelar
                                 </button>
                                 <button
                                     type="button"
                                     onClick={handleApplyFilters}
-                                    className="flex items-center gap-1.5 px-8 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-full shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                                    className="flex items-center gap-1.5 px-5 py-2 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-xs transition-colors cursor-pointer"
                                 >
                                     <Check className="w-3.5 h-3.5" />
                                     Aplicar Filtros
@@ -2041,33 +2053,36 @@ export const FinancialView: React.FC = memo(() => {
             )}
             {/* Document Preview & Validation Details Modal */}
             {selectedDocPreview && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-                    <div className="bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-scale-in">
+                <div
+                    className="fixed inset-0 z-[56] flex items-center justify-center pt-16 md:pt-5 pb-3 md:pb-5 px-2 sm:px-6 bg-slate-900/55 backdrop-blur-[2px] animate-fade-in"
+                    onClick={(e) => { if (e.target === e.currentTarget) setSelectedDocPreview(null); }}
+                >
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl w-full max-w-3xl max-h-[calc(100dvh-5rem)] md:max-h-[min(88vh,calc(100dvh-3rem))] flex flex-col shadow-elevated overflow-hidden animate-scale-in">
                         {/* Header */}
-                        <div className="px-6 py-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2.5 rounded-2xl bg-orange-500/10 text-orange-500">
-                                    <FileText className="w-5 h-5" />
+                        <div className="px-5 py-3.5 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 bg-white dark:bg-slate-900 shrink-0">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-8 h-8 bg-orange-50 dark:bg-orange-950/40 border border-orange-200/60 dark:border-orange-900/40 rounded-lg flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
+                                    <FileText className="w-4 h-4" />
                                 </div>
-                                <div>
-                                    <h3 className="text-base font-black text-slate-800 dark:text-white tracking-tight uppercase">
+                                <div className="min-w-0">
+                                    <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
                                         Auditoria do Documento
                                     </h3>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight truncate max-w-md">
                                         {selectedDocPreview.record.title}
                                     </p>
                                 </div>
                             </div>
                             <button
                                 onClick={() => setSelectedDocPreview(null)}
-                                className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors cursor-pointer"
+                                className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer shrink-0"
                             >
-                                <X className="w-5 h-5" />
+                                <X className="w-4 h-4" />
                             </button>
                         </div>
 
                         {/* Body */}
-                        <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1">
+                        <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
                             {/* Validation Status Banner */}
                             {(() => {
                                 const rec = selectedDocPreview.record;
@@ -2078,25 +2093,25 @@ export const FinancialView: React.FC = memo(() => {
 
                                 return (
                                     <div className="space-y-4">
-                                        <div className={`p-4 rounded-2xl border flex items-start gap-3.5 ${
+                                        <div className={`p-4 rounded-xl border flex items-start gap-3.5 ${
                                             status === 'validated'
-                                                ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-500/20 text-emerald-800 dark:text-emerald-300'
+                                                ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200/70 dark:border-emerald-900/40 text-emerald-800 dark:text-emerald-300'
                                                 : status === 'divergent'
-                                                ? 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-500/20 text-rose-800 dark:text-rose-300'
-                                                : 'bg-sky-50/70 dark:bg-sky-950/30 border-sky-500/20 text-sky-800 dark:text-sky-300'
+                                                ? 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-200/70 dark:border-rose-900/40 text-rose-800 dark:text-rose-300'
+                                                : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700 text-slate-800 dark:text-slate-200'
                                         }`}>
-                                            <div className="mt-0.5">
+                                            <div className="mt-0.5 shrink-0">
                                                 {status === 'validated' ? (
-                                                    <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+                                                    <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                                                 ) : status === 'divergent' ? (
-                                                    <AlertTriangle className="w-6 h-6 text-rose-500" />
+                                                    <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400" />
                                                 ) : (
-                                                    <Paperclip className="w-6 h-6 text-sky-500" />
+                                                    <Paperclip className="w-5 h-5 text-orange-600 dark:text-orange-400" />
                                                 )}
                                             </div>
                                             <div className="flex-1">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="text-xs font-black uppercase tracking-wider">
+                                                    <span className="text-xs font-bold uppercase tracking-wide">
                                                         {status === 'validated'
                                                             ? 'Lançamento Validado com Sucesso'
                                                             : status === 'divergent'
@@ -2116,21 +2131,21 @@ export const FinancialView: React.FC = memo(() => {
 
                                         {/* Comparison Cards */}
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-white/5 space-y-1">
-                                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
+                                            <div className="p-4 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/60 space-y-1">
+                                                <span className="text-[11px] font-semibold uppercase text-slate-500 dark:text-slate-400 tracking-wide block">
                                                     Valor Lançado na Saída
                                                 </span>
-                                                <span className="text-xl font-black font-mono text-slate-800 dark:text-white">
+                                                <span className="text-lg font-bold tabular-nums text-slate-900 dark:text-white">
                                                     {formatCurrency(rec.amount, language)}
                                                 </span>
                                             </div>
 
-                                            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-white/5 space-y-1">
-                                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
+                                            <div className="p-4 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/60 space-y-1">
+                                                <span className="text-[11px] font-semibold uppercase text-slate-500 dark:text-slate-400 tracking-wide block">
                                                     Valor no Documento (Extraído)
                                                 </span>
-                                                <span className={`text-xl font-black font-mono ${
-                                                    status === 'validated' ? 'text-emerald-500' : status === 'divergent' ? 'text-rose-500' : 'text-slate-500'
+                                                <span className={`text-lg font-bold tabular-nums ${
+                                                    status === 'validated' ? 'text-emerald-600 dark:text-emerald-400' : status === 'divergent' ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400'
                                                 }`}>
                                                     {extracted?.extractedAmount != null ? formatCurrency(extracted.extractedAmount, language as any) : 'Não detectado'}
                                                 </span>
@@ -2139,33 +2154,33 @@ export const FinancialView: React.FC = memo(() => {
 
                                         {/* Extracted Details Grid */}
                                         {extracted && (
-                                            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-white/5 space-y-2 text-xs">
-                                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
+                                            <div className="p-4 rounded-xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/60 space-y-2 text-xs">
+                                                <span className="text-[11px] font-semibold uppercase text-slate-500 dark:text-slate-400 tracking-wide block">
                                                     Dados Estruturados Extraídos do PDF:
                                                 </span>
-                                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 font-mono">
+                                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1 tabular-nums">
                                                     {extracted.documentTypeLabel && (
                                                         <div>
-                                                            <span className="text-[9px] text-slate-400 block uppercase">Tipo de Documento</span>
-                                                            <span className="font-bold text-slate-700 dark:text-slate-200">{extracted.documentTypeLabel}</span>
+                                                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block uppercase">Tipo de Documento</span>
+                                                            <span className="font-semibold text-slate-800 dark:text-slate-200">{extracted.documentTypeLabel}</span>
                                                         </div>
                                                     )}
                                                     {extracted.extractedDate && (
                                                         <div>
-                                                            <span className="text-[9px] text-slate-400 block uppercase">Data do Documento</span>
-                                                            <span className="font-bold text-slate-700 dark:text-slate-200">{extracted.extractedDate}</span>
+                                                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block uppercase">Data do Documento</span>
+                                                            <span className="font-semibold text-slate-800 dark:text-slate-200">{extracted.extractedDate}</span>
                                                         </div>
                                                     )}
                                                     {extracted.barcodeOrAuth && (
                                                         <div>
-                                                            <span className="text-[9px] text-slate-400 block uppercase">Autenticação / Código</span>
-                                                            <span className="font-bold text-slate-700 dark:text-slate-200 truncate block">{extracted.barcodeOrAuth}</span>
+                                                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block uppercase">Autenticação / Código</span>
+                                                            <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">{extracted.barcodeOrAuth}</span>
                                                         </div>
                                                     )}
                                                     {extracted.extractedRecipient && (
                                                         <div className="col-span-2">
-                                                            <span className="text-[9px] text-slate-400 block uppercase">Favorecido / Destinatário</span>
-                                                            <span className="font-bold text-slate-700 dark:text-slate-200 truncate block">{extracted.extractedRecipient}</span>
+                                                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block uppercase">Favorecido / Destinatário</span>
+                                                            <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">{extracted.extractedRecipient}</span>
                                                         </div>
                                                     )}
                                                 </div>
@@ -2176,7 +2191,7 @@ export const FinancialView: React.FC = memo(() => {
                                         {doc && (
                                             <div className="space-y-2">
                                                 <div className="flex items-center justify-between">
-                                                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                                                    <span className="text-[11px] font-semibold uppercase text-slate-500 dark:text-slate-400 tracking-wide">
                                                         Visualização do Arquivo ({doc.fileName})
                                                     </span>
                                                     {doc.dataUrl && (
@@ -2185,17 +2200,17 @@ export const FinancialView: React.FC = memo(() => {
                                                             download={doc.fileName}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
-                                                            className="text-xs font-bold text-orange-500 hover:text-orange-600 underline flex items-center gap-1"
+                                                            className="text-xs font-semibold text-orange-600 hover:text-orange-700 underline flex items-center gap-1"
                                                         >
                                                             Abrir / Baixar Arquivo
                                                         </a>
                                                     )}
                                                 </div>
-                                                <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-slate-100 dark:bg-black/40 min-h-[260px] flex items-center justify-center">
+                                                <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-950 min-h-[260px] flex items-center justify-center">
                                                     {doc.fileType?.includes('pdf') || doc.fileName?.toLowerCase().endsWith('.pdf') ? (
                                                         <iframe
                                                             src={doc.dataUrl}
-                                                            className="w-full h-80 border-0 rounded-2xl"
+                                                            className="w-full h-80 border-0 rounded-xl"
                                                             title="Pré-visualização do PDF"
                                                         />
                                                     ) : doc.fileType?.includes('image') ? (
@@ -2207,7 +2222,7 @@ export const FinancialView: React.FC = memo(() => {
                                                     ) : (
                                                         <div className="p-8 text-center text-slate-400 space-y-2">
                                                             <FileText className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600" />
-                                                            <p className="text-xs font-bold">{doc.fileName}</p>
+                                                            <p className="text-xs font-semibold">{doc.fileName}</p>
                                                         </div>
                                                     )}
                                                 </div>
@@ -2219,7 +2234,7 @@ export const FinancialView: React.FC = memo(() => {
                         </div>
 
                         {/* Footer */}
-                        <div className="bg-slate-50 dark:bg-slate-900/80 px-6 py-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-800 flex-shrink-0">
+                        <div className="bg-slate-50/80 dark:bg-slate-900/80 px-6 py-4 flex justify-between items-center border-t border-slate-200/80 dark:border-slate-800 flex-shrink-0">
                             <button
                                 type="button"
                                 onClick={() => {
@@ -2227,7 +2242,7 @@ export const FinancialView: React.FC = memo(() => {
                                     setSelectedDocPreview(null);
                                     openModal(rec);
                                 }}
-                                className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl transition-all cursor-pointer"
+                                className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg shadow-2xs transition-colors cursor-pointer"
                             >
                                 <Edit className="w-3.5 h-3.5" />
                                 <span>Editar Lançamento</span>
@@ -2236,7 +2251,7 @@ export const FinancialView: React.FC = memo(() => {
                             <button
                                 type="button"
                                 onClick={() => setSelectedDocPreview(null)}
-                                className="px-6 py-2 text-xs font-black text-white bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-xl transition-all cursor-pointer uppercase tracking-wider"
+                                className="px-5 py-2 text-xs font-semibold text-white bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-lg shadow-xs transition-colors cursor-pointer"
                             >
                                 Fechar
                             </button>

@@ -27,10 +27,10 @@ export const AdminUsersTab: React.FC = () => {
     } = useAdminUsers();
 
     return (
-        <div className="bg-white dark:bg-slate-800 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 overflow-hidden animate-fade-in relative h-full flex flex-col">
-            <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
-                <h3 className="text-sm font-bold text-slate-800 dark:text-white">
-                    {t('admin.users.title')} ({usersList.length})
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xs border border-slate-200/90 dark:border-slate-800 overflow-hidden animate-fade-in relative h-full flex flex-col">
+            <div className="p-4 border-b border-slate-200/80 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                    {t('admin.users.title')} (<span className="tabular-nums">{usersList.length}</span>)
                 </h3>
                 <div className="relative">
                     <MagnifyingGlassIcon className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -39,7 +39,7 @@ export const AdminUsersTab: React.FC = () => {
                         placeholder={t('admin.users.searchPlaceholder')} 
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-8 pr-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs focus:ring-2 focus:ring-brand-blue outline-none w-full md:w-64 font-medium"
+                        className="pl-8 pr-3 py-1.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 outline-none w-full md:w-64 font-medium transition-all"
                     />
                 </div>
             </div>
@@ -65,25 +65,25 @@ export const AdminUsersTab: React.FC = () => {
             )}
 
             {userToDelete && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-fade-in">
-                    <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-md border border-slate-200 dark:border-slate-700 overflow-hidden">
-                        <div className="p-8">
-                            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-4">Confirmar Exclusão</h3>
-                            <p className="text-sm text-slate-600 dark:text-slate-300 mb-6">
-                                Tem certeza que deseja excluir o usuário <span className="font-bold text-red-500">{userToDelete.email}</span>? 
+                <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-[2px] z-[60] flex items-center justify-center p-4 animate-fade-in">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-elevated w-full max-w-md border border-slate-200/90 dark:border-slate-800 overflow-hidden">
+                        <div className="p-6">
+                            <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2">Confirmar Exclusão</h3>
+                            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mb-6 leading-relaxed">
+                                Tem certeza que deseja excluir o usuário <span className="font-semibold text-rose-600 dark:text-rose-400">{userToDelete.email}</span>? 
                                 Esta ação não pode ser desfeita e removerá permanentemente o perfil do usuário.
                             </p>
-                            <div className="flex justify-end gap-3">
+                            <div className="flex justify-end gap-2.5">
                                 <button 
                                     onClick={() => setUserToDelete(null)}
-                                    className="px-6 py-2.5 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-full shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                                    className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 rounded-lg shadow-2xs transition-colors cursor-pointer"
                                 >
                                     Cancelar
                                 </button>
                                 <button 
                                     onClick={confirmDeleteUser}
                                     disabled={isDeleting === userToDelete.id}
-                                    className="px-6 py-2.5 text-[10px] font-black text-white bg-red-600 hover:bg-red-700 rounded-full shadow-md transition-all tracking-wider uppercase cursor-pointer hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-2"
+                                    className="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-xs transition-colors cursor-pointer flex items-center gap-2 disabled:opacity-60"
                                 >
                                     {isDeleting === userToDelete.id ? (
                                         <>

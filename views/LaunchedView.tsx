@@ -14,13 +14,12 @@ import {
     BuildingOfficeIcon,
     XMarkIcon,
     ArrowPathIcon,
-    DocumentArrowDownIcon,
-    PrinterIcon,
     DocumentDuplicateIcon,
     ArrowUturnLeftIcon
 } from '../components/Icons';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { ExportService } from '../services/ExportService';
+import { ExportPrintActions } from '../components/reports/ExportPrintActions';
 
 export const LaunchedView: React.FC = () => {
     const { launchedResults, deleteLaunchedItem, undoLaunch, hydrate, openSaveReportModal } = useContext(AppContext);
@@ -83,70 +82,70 @@ export const LaunchedView: React.FC = () => {
     }
 
     return (
-        <div className="flex flex-col min-h-full animate-fade-in gap-4 pb-8 md:pb-4 px-1">
-            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 flex-shrink-0">
-                <div className="flex items-center gap-4">
-                    <div>
-                        <h2 className="text-2xl font-black text-brand-deep dark:text-white tracking-tight leading-none">{t('launched.title')}</h2>
-                        <p className="text-slate-500 dark:text-slate-400 text-xs mt-1 font-medium">{t('launched.subtitle')}</p>
+        <div className="flex flex-col min-h-full animate-fade-in gap-3 pb-8 md:pb-4 px-1">
+            {/* Header Card Padronizado */}
+            <div className="bg-white dark:bg-slate-900 px-4 py-2.5 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex-shrink-0">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 bg-orange-50 dark:bg-orange-950/40 border border-orange-200/60 dark:border-orange-900/40 rounded-lg flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
+                            <CheckCircleIcon className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                            <h1 className="text-base font-bold text-slate-900 dark:text-white tracking-tight leading-tight">{t('launched.title')}</h1>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">{t('launched.subtitle')}</p>
+                        </div>
                     </div>
 
-                    {/* TOOLSET (Update, Download, Print) */}
-                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-full p-0.5 border border-slate-200 dark:border-slate-700 shadow-sm ml-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <div className="relative">
+                            <SearchIcon className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                            <input 
+                                type="text" 
+                                placeholder="Pesquisar lançados..." 
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="h-8 pl-8 pr-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-900 dark:text-white outline-none focus:border-orange-500 w-48 sm:w-56 shadow-2xs"
+                            />
+                        </div>
+
+                        <div className="px-3 py-1 bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/70 dark:border-emerald-800/50 rounded-lg flex items-center gap-1.5 h-8">
+                            <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider leading-none">Total:</span>
+                            <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 tabular-nums">{formatCurrency(totalValue, language)}</span>
+                        </div>
+
                         <button 
+                            type="button"
+                            onClick={handleSaveReport}
+                            className="h-8 flex items-center gap-1.5 px-3 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/90 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 rounded-lg shadow-2xs transition-colors cursor-pointer"
+                        >
+                            <DocumentDuplicateIcon className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                            <span>{t('reports.saveReport')}</span>
+                        </button>
+
+                        <button 
+                            type="button"
                             onClick={() => hydrate()}
-                            className="p-1.5 rounded-full text-slate-500 hover:text-orange-600 hover:bg-white dark:hover:bg-slate-700 transition-all"
+                            className="w-8 h-8 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200/90 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-orange-600 transition-colors flex items-center justify-center cursor-pointer shadow-2xs"
                             title="Sincronizar"
                         >
                             <ArrowPathIcon className="w-3.5 h-3.5" />
                         </button>
-                        <button 
-                            onClick={handleDownload}
-                            className="p-1.5 rounded-full text-slate-400 hover:text-brand-blue hover:bg-white dark:hover:bg-slate-700 transition-all"
-                            title="Baixar CSV"
-                        >
-                            <DocumentArrowDownIcon className="w-3.5 h-3.5" />
-                        </button>
-                        <button 
-                            onClick={handlePrint}
-                            className="p-1.5 rounded-full text-slate-400 hover:text-brand-blue hover:bg-white dark:hover:bg-slate-700 transition-all"
-                            title="Imprimir"
-                        >
-                            <PrinterIcon className="w-3.5 h-3.5" />
-                        </button>
-                    </div>
 
-                    {/* Botão Salvar Novo Relatório */}
-                    <button 
-                        onClick={handleSaveReport}
-                        className="flex items-center gap-1.5 px-5 py-2 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-full shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
-                    >
-                        <DocumentDuplicateIcon className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-                        <span>{t('reports.saveReport')}</span>
-                    </button>
-                </div>
-                
-                <div className="flex items-center gap-3">
-                    <div className="px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 rounded-2xl flex flex-col">
-                        <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest leading-none">Total Lançado</span>
-                        <span className="text-sm font-black text-emerald-700 dark:text-emerald-300 font-mono mt-0.5">{formatCurrency(totalValue, language)}</span>
-                    </div>
-                    
-                    <div className="relative">
-                        <SearchIcon className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                        <input 
-                            type="text" 
-                            placeholder="Pesquisar lançados..." 
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-8 pr-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold outline-none focus:ring-2 focus:ring-brand-blue w-64"
+                        <ExportPrintActions
+                            onDownloadCsv={handleDownload}
+                            onPrint={handlePrint}
+                            downloadTitle="Baixar CSV"
+                            printTitle="Imprimir"
                         />
                     </div>
                 </div>
             </div>
 
-            <div className="flex-1 min-h-0 bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-card border border-slate-100 dark:border-slate-700 overflow-hidden flex flex-col">
-                <div className="flex-1 overflow-auto custom-scrollbar">
+            <div className="flex-1 min-h-0 bg-white dark:bg-slate-900 rounded-2xl shadow-card border border-slate-200/80 dark:border-slate-800 overflow-hidden flex flex-col">
+                <div
+                    className="flex-1 overflow-auto custom-scrollbar"
+                    style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}
+                >
                     <table className="w-full text-left border-collapse">
                         <thead className="bg-slate-50/80 dark:bg-slate-900/50 sticky top-0 backdrop-blur-sm z-10 border-b border-slate-100 dark:border-slate-700">
                             <tr>

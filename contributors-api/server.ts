@@ -7692,6 +7692,149 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
 app.get('/api/v1/reference/data/:ownerId', getReferenceDataHandler);
 app.get('/api/reference/data/:ownerId', getReferenceDataHandler);
 
+const getReferenceReportHandler = async (req: Request, res: Response) => {
+  try {
+    const ctx = getTenantContext(req);
+    if (!ctx.isAuthenticated) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Autenticação necessária para consultar relatório.' });
+    }
+    await enrichSecondaryUserContext(pool, ctx);
+
+    const { reportId } = req.params;
+    const paramOwnerId = (req.query.ownerId || req.query.user_id) as string | undefined;
+
+    if (!ctx.isSuperAdmin && ctx.userId) {
+      if (paramOwnerId && paramOwnerId !== ctx.userId && paramOwnerId !== ctx.ownerId && paramOwnerId !== ctx.churchId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado ao relatório de outro usuário.' });
+      }
+    }
+
+    const result = await pool.query(
+      'SELECT id, name, data, user_id, church_id FROM saved_reports WHERE id = $1 LIMIT 1',
+      [reportId]
+    );
+    const found = result.rows?.[0] || null;
+    if (!found) {
+      return res.status(404).json({ error: 'NOT_FOUND' });
+    }
+
+    if (!ctx.isSuperAdmin) {
+      const effectiveOwnerId = (ctx.isSecondaryUser && ctx.ownerId)
+        ? ctx.ownerId
+        : (ctx.ownerId || ctx.userId || '');
+      const equivalentIds = effectiveOwnerId ? await getEquivalentUserIds(effectiveOwnerId) : [];
+
+      if (found.user_id && !equivalentIds.includes(String(found.user_id))) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o relatório pertence a outro usuário.' });
+      }
+
+      if (ctx.isSecondaryUser && found.name !== '[SESSÃO_ATIVA]') {
+        if (found.church_id && (!ctx.allowedChurchIds || !ctx.allowedChurchIds.includes(String(found.church_id)))) {
+          return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o relatório pertence a uma congregação não autorizada.' });
+        }
+        if (!found.church_id && (!ctx.allowedChurchIds || ctx.allowedChurchIds.length === 0)) {
+          return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: nenhuma congregação autorizada.' });
+        }
+      }
+    }
+
+    let parsedData = found.data;
+    if (typeof parsedData === 'string') {
+      try {
+        parsedData = JSON.parse(parsedData);
+      } catch (_) {}
+    }
+
+    return res.json({
+      name: found.name,
+      data: parsedData
+    });
+  } catch (err: any) {
+    console.error('[Contributors API] Error fetching reference report:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+};
+
+const syncReferenceReportHandler = async (req: Request, res: Response) => {
+  try {
+    const ctx = getTenantContext(req);
+    if (!ctx.isAuthenticated) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Autenticação necessária para sincronizar relatório.' });
+    }
+    await enrichSecondaryUserContext(pool, ctx);
+
+    const { reportId, name, data, recordCount, churchId, ownerId } = req.body || {};
+
+    if (!ctx.isSuperAdmin && ctx.userId) {
+      if (ownerId && ownerId !== ctx.userId && ownerId !== ctx.ownerId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Não é permitido sincronizar relatório de outro usuário.' });
+      }
+    }
+
+    if (ctx.isSecondaryUser && name !== '[SESSÃO_ATIVA]' && !hasPermission(ctx, 'reports') && !hasPermission(ctx, 'view') && !hasPermission(ctx, 'create')) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: permissão para salvar relatórios necessária.' });
+    }
+
+    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId)
+      ? (ctx.ownerId || ctx.userId)
+      : (ownerId || ctx.ownerId || ctx.userId);
+
+    if (!name || !effectiveUserId || !data) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR' });
+    }
+
+    const targetChurchId = churchId || ctx.churchId || null;
+    if (targetChurchId) {
+      if (ctx.isSecondaryUser) {
+        if (!ctx.allowedChurchIds || !ctx.allowedChurchIds.includes(targetChurchId)) {
+          return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: congregação não autorizada para este usuário.' });
+        }
+      } else if (ctx.isOwner && !ctx.isSuperAdmin) {
+        const churchCheck = await pool.query(
+          'SELECT id FROM churches WHERE id::text = $1 AND (user_id::text = $2 OR user_id::text = $3) LIMIT 1',
+          [targetChurchId, ctx.userId, ctx.ownerId || ctx.userId]
+        );
+        if (churchCheck.rows.length === 0) {
+          return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: congregação não pertence à sua organização.' });
+        }
+      }
+    }
+
+    const finalData = typeof data === 'string' ? data : JSON.stringify(data);
+    let result;
+    if (reportId) {
+      result = await pool.query(
+        `INSERT INTO saved_reports (id, name, record_count, user_id, data, church_id)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (id) DO UPDATE SET
+           name = EXCLUDED.name,
+           record_count = EXCLUDED.record_count,
+           data = EXCLUDED.data,
+           church_id = EXCLUDED.church_id
+         RETURNING *`,
+        [reportId, name, recordCount || 0, effectiveUserId, finalData, targetChurchId]
+      );
+    } else {
+      result = await pool.query(
+        'INSERT INTO saved_reports (name, record_count, user_id, data, church_id) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+        [name, recordCount || 0, effectiveUserId, finalData, targetChurchId]
+      );
+    }
+
+    const syncedReport = result.rows[0];
+    notifyTenantRealtime(effectiveUserId || ctx.ownerId || ctx.userId, { type: 'REPORT_UPDATED', action: 'SYNC', id: syncedReport?.id });
+    return res.json(syncedReport);
+  } catch (err: any) {
+    console.error('[Contributors API] Error syncing reference report:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+};
+
+app.get('/api/v1/reference/report/:reportId', getReferenceReportHandler);
+app.get('/api/reference/report/:reportId', getReferenceReportHandler);
+app.post('/api/v1/reference/report/sync', syncReferenceReportHandler);
+app.post('/api/reference/report/sync', syncReferenceReportHandler);
+
 // ==========================================
 // BANKS ENDPOINTS
 // ==========================================

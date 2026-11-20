@@ -81,46 +81,50 @@ export const PortalPwaInstallModal: React.FC<PortalPwaInstallModalProps> = ({
     const appLogo = (church?.logoUrl && church.logoUrl.trim()) ? church.logoUrl.trim() : '/pwa/icon-512.png?v=15';
 
     const modalContent = (
-        <div className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl relative overflow-hidden my-auto animate-scale-in text-slate-800 dark:text-slate-100">
-                {/* Background ambient glow */}
-                <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none -mr-16 -mt-16" />
-
+        <div
+            onClick={onClose}
+            className="fixed inset-0 z-[90] bg-slate-900/55 backdrop-blur-[2px] flex items-center justify-center p-4 animate-fade-in overflow-y-auto"
+        >
+            <div
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-elevated relative overflow-hidden my-auto animate-scale-in text-slate-800 dark:text-slate-100"
+            >
                 {/* Close Button */}
                 <button
                     onClick={onClose}
                     type="button"
-                    className="absolute top-4 right-4 p-2 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                    className="absolute top-3.5 right-3.5 p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                    aria-label="Fechar"
                 >
                     <X className="w-5 h-5" />
                 </button>
 
                 {/* App Icon & Name Preview Header */}
                 <div className="flex flex-col items-center text-center pt-2 pb-4">
-                    <div className="relative mb-3 group">
-                        <div className="w-24 h-24 rounded-3xl bg-white p-3 shadow-xl border border-slate-200/90 dark:border-slate-700 flex items-center justify-center overflow-hidden transition-transform duration-300 group-hover:scale-105">
+                    <div className="relative mb-3">
+                        <div className="w-20 h-20 rounded-2xl bg-white p-2.5 shadow-sm border border-slate-200/90 dark:border-slate-700 flex items-center justify-center overflow-hidden">
                             <img
                                 src={appLogo}
                                 alt={appName}
                                 referrerPolicy="no-referrer"
-                                className="w-full h-full object-contain p-0.5 rounded-xl transition-all"
+                                className="w-full h-full object-contain p-0.5 rounded-xl"
                                 onError={(e) => {
                                     (e.target as HTMLImageElement).src = '/pwa/icon-512.png?v=15';
                                 }}
                             />
                         </div>
-                        <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white p-1.5 rounded-full shadow-md">
-                            <ShieldCheck className="w-4 h-4" />
+                        <div className="absolute -bottom-1 -right-1 bg-emerald-600 text-white p-1 rounded-full shadow-xs">
+                            <ShieldCheck className="w-3.5 h-3.5" />
                         </div>
                     </div>
 
-                    <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">
                         {appName}
                     </h3>
-                    <p className="text-xs font-bold text-brand-blue dark:text-blue-400 uppercase tracking-wider mt-0.5">
+                    <p className="text-xs font-semibold text-orange-600 dark:text-orange-400 mt-0.5">
                         App Oficial do Portal do Contribuinte
                     </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 max-w-xs leading-relaxed">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 max-w-xs leading-relaxed">
                         Instale o aplicativo da congregação no seu celular para acessar rapidamente suas ofertas, carnês e comprovantes com um toque!
                     </p>
                 </div>
@@ -148,7 +152,7 @@ export const PortalPwaInstallModal: React.FC<PortalPwaInstallModalProps> = ({
                                 <button
                                     type="button"
                                     onClick={handleDirectInstall}
-                                    className="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black rounded-2xl shadow-lg shadow-emerald-500/25 transition-all text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transform hover:-translate-y-0.5 active:translate-y-0"
+                                    className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg shadow-xs transition-colors text-xs flex items-center justify-center gap-2 cursor-pointer"
                                 >
                                     <Download className="w-4 h-4" />
                                     <span>Instalar Aplicativo Agora</span>
@@ -239,7 +243,7 @@ export const PortalPwaInstallModal: React.FC<PortalPwaInstallModalProps> = ({
                     <button
                         type="button"
                         onClick={onClose}
-                        className="w-full py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors uppercase tracking-wider cursor-pointer"
+                        className="w-full py-2 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
                     >
                         Entendi / Fechar
                     </button>

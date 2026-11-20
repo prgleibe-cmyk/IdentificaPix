@@ -35,18 +35,18 @@ const MainLayout: React.FC = () => {
 
     if (!initialDataLoaded) {
         return (
-            <div className="h-[100dvh] w-screen flex items-center justify-center bg-brand-deep">
+            <div className="h-[100dvh] w-screen flex items-center justify-center bg-slate-50 dark:bg-[#0B0F17]">
                 <div className="flex flex-col items-center">
-                    <img src={logoImg} className="h-48 w-auto mb-8 object-contain animate-fade-in" alt="IgGestor" />
-                    <div className="animate-spin rounded-full h-8 w-8 border-4 border-brand-blue border-t-transparent mb-4"></div>
-                    <p className="text-white/50 text-[10px] font-bold uppercase tracking-[0.3em]">Iniciando Sistema</p>
+                    <img src={logoImg} className="h-36 w-auto mb-6 object-contain animate-fade-in" alt="IgGestor" />
+                    <div className="animate-spin rounded-full h-8 w-8 border-[3px] border-orange-600 border-t-transparent mb-3"></div>
+                    <p className="text-slate-500 dark:text-slate-400 text-xs font-medium tracking-wide">Iniciando Sistema...</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="flex h-[100dvh] bg-[#F1F5F9] dark:bg-brand-deep bg-noise font-sans overflow-hidden relative">
+        <div className="flex h-[100dvh] bg-slate-50 dark:bg-[#0B0F17] font-sans overflow-hidden relative">
             <Sidebar />
 
             <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative pt-16 md:pt-0">
@@ -69,7 +69,7 @@ const MainLayout: React.FC = () => {
 
                         {isLoading && (
                             <div className="absolute inset-0 z-[100] flex items-center justify-center backdrop-blur-[1px]">
-                                <div className="bg-white/80 dark:bg-slate-900/80 p-8 rounded-[2.5rem] shadow-2xl border border-white/20">
+                                <div className="bg-white/95 dark:bg-slate-900/95 p-6 rounded-xl shadow-elevated border border-slate-200/90 dark:border-slate-800 backdrop-blur-md">
                                     <LoadingSpinner />
                                 </div>
                             </div>
@@ -125,8 +125,8 @@ const AppContent: React.FC = () => {
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-brand-deep">
-                <div className="animate-spin rounded-full h-10 w-10 border-4 border-brand-blue border-t-transparent"></div>
+            <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#0B0F17]">
+                <div className="animate-spin rounded-full h-9 w-9 border-[3px] border-orange-600 border-t-transparent"></div>
             </div>
         );
     }

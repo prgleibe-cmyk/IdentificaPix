@@ -416,15 +416,15 @@ export const AdminCommunicationTab: React.FC = () => {
     return (
         <div className="flex flex-col h-full gap-4 animate-fade-in">
             {/* Header & Church Selector */}
-            <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-brand-blue/10 text-brand-blue rounded-xl">
-                        <MessageSquare className="w-6 h-6" />
+                    <div className="w-10 h-10 bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 border border-orange-200/60 dark:border-orange-900/40 rounded-lg flex items-center justify-center shrink-0">
+                        <MessageSquare className="w-5 h-5" />
                     </div>
                     <div>
-                        <h3 className="text-base font-black text-slate-800 dark:text-white tracking-tight leading-tight flex items-center gap-2">
+                        <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight leading-tight flex items-center gap-2 flex-wrap">
                             Central de Comunicação IgGestor
-                            <span className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 font-extrabold px-2 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-700">
+                            <span className="text-[11px] bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 font-semibold px-2 py-0.5 rounded-md border border-emerald-200/80 dark:border-emerald-900/50">
                                 WhatsApp Oficial
                             </span>
                         </h3>
@@ -436,15 +436,15 @@ export const AdminCommunicationTab: React.FC = () => {
 
                 {/* Church Dropdown */}
                 {churches.length > 1 && (
-                    <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/60 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950/60 p-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
                         <Building2 className="w-4 h-4 text-slate-400 ml-1" />
                         <select
                             value={selectedChurchId}
                             onChange={(e) => setSelectedChurchId(e.target.value)}
-                            className="bg-transparent text-xs font-bold text-slate-700 dark:text-slate-200 border-none focus:outline-none pr-4 cursor-pointer"
+                            className="bg-transparent text-xs font-semibold text-slate-700 dark:text-slate-200 border-none focus:outline-none pr-4 cursor-pointer"
                         >
                             {churches.map(c => (
-                                <option key={c.id} value={c.id} className="bg-white dark:bg-slate-800 text-slate-800 dark:text-white">
+                                <option key={c.id} value={c.id} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-white">
                                     {c.name}
                                 </option>
                             ))}
@@ -454,12 +454,15 @@ export const AdminCommunicationTab: React.FC = () => {
             </div>
 
             {/* Sub-Navigation Tabs */}
-            <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/60 p-1 rounded-xl border border-slate-200 dark:border-slate-700 overflow-x-auto custom-scrollbar">
+            <div
+                style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y' }}
+                className="flex items-center gap-1.5 bg-slate-100/90 dark:bg-slate-900 p-1 rounded-xl border border-slate-200/90 dark:border-slate-800 overflow-x-auto custom-scrollbar"
+            >
                 <button
                     onClick={() => setActiveSubTab('overview')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                         activeSubTab === 'overview'
-                            ? 'bg-white dark:bg-slate-800 text-brand-blue dark:text-sky-400 shadow-sm'
+                            ? 'bg-white dark:bg-slate-800 text-orange-600 dark:text-orange-400 shadow-xs'
                             : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
                 >
@@ -469,9 +472,9 @@ export const AdminCommunicationTab: React.FC = () => {
 
                 <button
                     onClick={() => setActiveSubTab('settings')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                         activeSubTab === 'settings'
-                            ? 'bg-white dark:bg-slate-800 text-brand-blue dark:text-sky-400 shadow-sm'
+                            ? 'bg-white dark:bg-slate-800 text-orange-600 dark:text-orange-400 shadow-xs'
                             : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
                 >
@@ -481,9 +484,9 @@ export const AdminCommunicationTab: React.FC = () => {
 
                 <button
                     onClick={() => setActiveSubTab('pastoral')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                         activeSubTab === 'pastoral'
-                            ? 'bg-white dark:bg-slate-800 text-brand-blue dark:text-sky-400 shadow-sm'
+                            ? 'bg-white dark:bg-slate-800 text-orange-600 dark:text-orange-400 shadow-xs'
                             : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
                 >
@@ -493,9 +496,9 @@ export const AdminCommunicationTab: React.FC = () => {
 
                 <button
                     onClick={() => setActiveSubTab('history')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                         activeSubTab === 'history'
-                            ? 'bg-white dark:bg-slate-800 text-brand-blue dark:text-sky-400 shadow-sm'
+                            ? 'bg-white dark:bg-slate-800 text-orange-600 dark:text-orange-400 shadow-xs'
                             : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
                 >
@@ -505,16 +508,16 @@ export const AdminCommunicationTab: React.FC = () => {
 
                 <button
                     onClick={() => setActiveSubTab('queue')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                         activeSubTab === 'queue'
-                            ? 'bg-white dark:bg-slate-800 text-brand-blue dark:text-sky-400 shadow-sm'
+                            ? 'bg-white dark:bg-slate-800 text-orange-600 dark:text-orange-400 shadow-xs'
                             : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
                 >
-                    <Radio className="w-4 h-4 text-emerald-500 animate-pulse" />
+                    <Radio className="w-4 h-4 text-emerald-500" />
                     <span>Fila de Processamento</span>
                     {queueItems.filter(i => i.status === 'PENDING' || i.status === 'READY_FOR_SEND').length > 0 && (
-                        <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-500 text-white font-extrabold">
+                        <span className="px-1.5 py-0.5 rounded-md text-[10px] bg-orange-600 text-white font-semibold tabular-nums">
                             {queueItems.filter(i => i.status === 'PENDING' || i.status === 'READY_FOR_SEND').length}
                         </span>
                     )}
@@ -526,119 +529,119 @@ export const AdminCommunicationTab: React.FC = () => {
                 <div className="space-y-4">
                     {/* Metrics Overview Cards */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between">
+                        <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex items-center justify-between">
                             <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mensagens Enviadas</p>
-                                <h4 className="text-2xl font-black text-slate-800 dark:text-white mt-1">
+                                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Mensagens Enviadas</p>
+                                <h4 className="text-2xl font-bold tabular-nums text-slate-900 dark:text-white mt-1">
                                     {historyLogs.filter(l => l.status === 'enviado').length}
                                 </h4>
-                                <span className="text-[10px] font-semibold text-emerald-600 flex items-center gap-1 mt-1">
-                                    <CheckCircle2 className="w-3 h-3" /> Comunicações ativas
+                                <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1 mt-1">
+                                    <CheckCircle2 className="w-3.5 h-3.5" /> Comunicações ativas
                                 </span>
                             </div>
-                            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-xl">
-                                <Send className="w-6 h-6" />
+                            <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-lg border border-emerald-200/60 dark:border-emerald-900/40 flex items-center justify-center shrink-0">
+                                <Send className="w-5 h-5" />
                             </div>
                         </div>
 
-                        <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between">
+                        <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex items-center justify-between">
                             <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mensagens Pendentes</p>
-                                <h4 className="text-2xl font-black text-slate-800 dark:text-white mt-1">
+                                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Mensagens Pendentes</p>
+                                <h4 className="text-2xl font-bold tabular-nums text-slate-900 dark:text-white mt-1">
                                     {historyLogs.filter(l => l.status === 'pendente').length}
                                 </h4>
-                                <span className="text-[10px] font-semibold text-amber-600 flex items-center gap-1 mt-1">
-                                    <Clock className="w-3 h-3" /> Fila assíncrona
+                                <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400 flex items-center gap-1 mt-1">
+                                    <Clock className="w-3.5 h-3.5" /> Fila assíncrona
                                 </span>
                             </div>
-                            <div className="p-3 bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 rounded-xl">
-                                <Clock className="w-6 h-6" />
+                            <div className="w-10 h-10 bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 rounded-lg border border-amber-200/60 dark:border-amber-900/40 flex items-center justify-center shrink-0">
+                                <Clock className="w-5 h-5" />
                             </div>
                         </div>
 
-                        <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between">
+                        <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex items-center justify-between">
                             <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Falhas / Erros</p>
-                                <h4 className="text-2xl font-black text-slate-800 dark:text-white mt-1">
+                                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Falhas / Erros</p>
+                                <h4 className="text-2xl font-bold tabular-nums text-slate-900 dark:text-white mt-1">
                                     {historyLogs.filter(l => l.status === 'falha').length}
                                 </h4>
-                                <span className="text-[10px] font-semibold text-slate-400 flex items-center gap-1 mt-1">
+                                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-1">
                                     Taxa de entrega 100%
                                 </span>
                             </div>
-                            <div className="p-3 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 rounded-xl">
-                                <AlertTriangle className="w-6 h-6" />
+                            <div className="w-10 h-10 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 rounded-lg border border-rose-200/60 dark:border-rose-900/40 flex items-center justify-center shrink-0">
+                                <AlertTriangle className="w-5 h-5" />
                             </div>
                         </div>
 
-                        <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between">
+                        <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex items-center justify-between">
                             <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Contribuintes Alcançados</p>
-                                <h4 className="text-2xl font-black text-slate-800 dark:text-white mt-1">
+                                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Contribuintes Alcançados</p>
+                                <h4 className="text-2xl font-bold tabular-nums text-slate-900 dark:text-white mt-1">
                                     {new Set(historyLogs.map(l => l.contributor_name)).size}
                                 </h4>
-                                <span className="text-[10px] font-semibold text-sky-600 flex items-center gap-1 mt-1">
-                                    <Users className="w-3 h-3" /> Base da igreja
+                                <span className="text-[11px] font-medium text-sky-600 dark:text-sky-400 flex items-center gap-1 mt-1">
+                                    <Users className="w-3.5 h-3.5" /> Base da igreja
                                 </span>
                             </div>
-                            <div className="p-3 bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 rounded-xl">
-                                <Users className="w-6 h-6" />
+                            <div className="w-10 h-10 bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 rounded-lg border border-sky-200/60 dark:border-sky-900/40 flex items-center justify-center shrink-0">
+                                <Users className="w-5 h-5" />
                             </div>
                         </div>
                     </div>
 
                     {/* Architecture & Status Banner */}
-                    <div className="bg-gradient-to-r from-indigo-50/90 via-blue-50/60 to-slate-50 dark:from-slate-800 dark:via-slate-800/90 dark:to-indigo-950/80 p-6 rounded-2xl shadow-card border border-indigo-100 dark:border-slate-700 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div className="bg-slate-50 dark:bg-slate-900 p-5 rounded-xl shadow-xs border border-slate-200/90 dark:border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                         <div className="space-y-1">
-                            <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
+                            <span className="text-[11px] font-semibold uppercase tracking-wider text-orange-600 dark:text-orange-400">
                                 Arquitetura de Eventos Oficial
                             </span>
-                            <h4 className="text-lg font-black tracking-tight text-slate-800 dark:text-white">
+                            <h4 className="text-base font-bold tracking-tight text-slate-900 dark:text-white">
                                 Central de Comunicação Pronta para Eventos Oficiais
                             </h4>
                             <p className="text-xs text-slate-600 dark:text-slate-300 max-w-2xl leading-relaxed">
-                                As notificações automáticas são ativadas diretamente pelo evento oficial <code className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900/80 dark:text-indigo-200 px-1.5 py-0.5 rounded font-mono text-[11px]">ContributionConfirmed</code>, disparado quando o Motor de Conciliação valida a contribuição.
+                                As notificações automáticas são ativadas diretamente pelo evento oficial <code className="bg-orange-50 text-orange-700 dark:bg-orange-950/50 dark:text-orange-300 px-1.5 py-0.5 rounded font-mono text-[11px] border border-orange-200/60 dark:border-orange-900/40">ContributionConfirmed</code>, disparado quando o Motor de Conciliação valida a contribuição.
                             </p>
                         </div>
                         <div className="flex items-center gap-3">
-                            <span className="px-3 py-1.5 rounded-xl bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30 text-xs font-bold flex items-center gap-1.5">
-                                <span className="w-2 h-2 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse"></span>
+                            <span className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-900/50 text-xs font-semibold flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                                 WhatsApp Ativo
                             </span>
                         </div>
                     </div>
 
                     {/* Recent Event Log Sample */}
-                    <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs">
                         <div className="flex items-center justify-between mb-4">
-                            <h4 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                                <Clock className="w-4 h-4 text-brand-blue" />
+                            <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                <Clock className="w-4 h-4 text-orange-600 dark:text-orange-400" />
                                 Atividades Recentes de Comunicação
                             </h4>
                             <button
                                 onClick={() => setActiveSubTab('history')}
-                                className="text-xs font-bold text-brand-blue dark:text-sky-400 hover:underline"
+                                className="text-xs font-semibold text-orange-600 dark:text-orange-400 hover:underline cursor-pointer"
                             >
                                 Ver Histórico Completo &rarr;
                             </button>
                         </div>
                         <div className="space-y-2">
                             {historyLogs.slice(0, 3).map((log) => (
-                                <div key={log.id} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/60 flex items-center justify-between text-xs">
+                                <div key={log.id} className="p-3 rounded-lg bg-slate-50/80 dark:bg-slate-950/50 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between text-xs">
                                     <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 rounded-lg font-bold text-[10px]">
+                                        <div className="px-2 py-1 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/70 dark:border-emerald-900/50 rounded-md font-semibold text-[11px]">
                                             WhatsApp
                                         </div>
                                         <div>
-                                            <p className="font-bold text-slate-800 dark:text-slate-200">{log.contributor_name}</p>
+                                            <p className="font-semibold text-slate-900 dark:text-slate-100">{log.contributor_name}</p>
                                             <p className="text-[11px] text-slate-500 dark:text-slate-400">{log.message_summary}</p>
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <span className="inline-block px-2 py-0.5 text-[10px] font-extrabold rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 uppercase">
+                                        <span className="inline-block px-2 py-0.5 text-[10px] font-semibold rounded-md bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/70 dark:border-emerald-900/50 uppercase">
                                             {log.status}
                                         </span>
-                                        <p className="text-[10px] text-slate-400 mt-0.5">
+                                        <p className="text-[10px] text-slate-400 mt-0.5 tabular-nums">
                                             {new Date(log.created_at || '').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                         </p>
                                     </div>
@@ -651,11 +654,11 @@ export const AdminCommunicationTab: React.FC = () => {
 
             {/* TAB 2: CONFIGURAÇÕES DA IGREJA */}
             {activeSubTab === 'settings' && currentChurch && (
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-6">
-                    <div className="border-b border-slate-200 dark:border-slate-700 pb-4 flex items-center justify-between">
+                <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-6">
+                    <div className="border-b border-slate-200/80 dark:border-slate-800 pb-4 flex items-center justify-between">
                         <div>
-                            <h4 className="text-base font-black text-slate-800 dark:text-white flex items-center gap-2">
-                                <Building2 className="w-5 h-5 text-brand-blue" />
+                            <h4 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 tracking-tight">
+                                <Building2 className="w-5 h-5 text-orange-600 dark:text-orange-400" />
                                 Configurações da Igreja: {currentChurch.name}
                             </h4>
                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -667,7 +670,7 @@ export const AdminCommunicationTab: React.FC = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* WhatsApp Oficial */}
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                            <label className="text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                                 <Send className="w-4 h-4 text-emerald-600" />
                                 WhatsApp Oficial da Igreja
                             </label>
@@ -676,7 +679,7 @@ export const AdminCommunicationTab: React.FC = () => {
                                 value={whatsappOfficial}
                                 onChange={(e) => setWhatsappOfficial(e.target.value)}
                                 placeholder="(11) 99999-9999 ou +5511999999999"
-                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs font-medium focus:ring-2 focus:ring-brand-blue focus:outline-none"
+                                className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-medium tabular-nums focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 focus:outline-none transition-colors"
                             />
                             <p className="text-[11px] text-slate-500 dark:text-slate-400">
                                 Número oficial da tesouraria ou secretaria para emissão de mensagens automáticas.
@@ -685,14 +688,14 @@ export const AdminCommunicationTab: React.FC = () => {
 
                         {/* Responsável pelo Número */}
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                                <Users className="w-4 h-4 text-brand-blue" />
+                            <label className="text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                <Users className="w-4 h-4 text-orange-600 dark:text-orange-400" />
                                 Responsável pelo Número
                             </label>
                             <select
                                 value={whatsappResponsible}
                                 onChange={(e) => setWhatsappResponsible(e.target.value)}
-                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs font-medium focus:ring-2 focus:ring-brand-blue focus:outline-none cursor-pointer"
+                                className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-medium focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 focus:outline-none cursor-pointer transition-colors"
                             >
                                 <option value="tesouraria">Tesouraria Principal</option>
                                 <option value="pastor">Pastor Responsável</option>
@@ -705,9 +708,9 @@ export const AdminCommunicationTab: React.FC = () => {
                         </div>
 
                         {/* Toggle: Comunicação Automática Geral */}
-                        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 flex items-center justify-between">
+                        <div className="p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/40 flex items-center justify-between">
                             <div className="space-y-0.5">
-                                <label className="text-xs font-bold text-slate-800 dark:text-white block">
+                                <label className="text-xs font-semibold text-slate-900 dark:text-white block">
                                     Status da Comunicação Automática
                                 </label>
                                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
@@ -730,13 +733,13 @@ export const AdminCommunicationTab: React.FC = () => {
                         </div>
 
                         {/* Toggle: Envio pós Confirmação de Contribuição */}
-                        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 flex items-center justify-between">
+                        <div className="p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/40 flex items-center justify-between">
                             <div className="space-y-0.5">
-                                <label className="text-xs font-bold text-slate-800 dark:text-white block">
+                                <label className="text-xs font-semibold text-slate-900 dark:text-white block">
                                     Envio em Confirmação de Contribuição
                                 </label>
                                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                                    Disparar recibo automático ao evento <code className="font-mono text-[10px] font-bold">ContributionConfirmed</code>.
+                                    Disparar recibo automático ao evento <code className="font-mono text-[10px] font-semibold">ContributionConfirmed</code>.
                                 </p>
                             </div>
                             <button
@@ -755,12 +758,12 @@ export const AdminCommunicationTab: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="pt-4 border-t border-slate-200 dark:border-slate-700 flex justify-end">
+                    <div className="pt-4 border-t border-slate-200/80 dark:border-slate-800 flex justify-end">
                         <button
                             type="button"
                             onClick={handleSaveSettings}
                             disabled={isSavingSettings}
-                            className="px-6 py-2.5 rounded-xl bg-brand-blue hover:bg-brand-blue/90 text-white font-bold text-xs shadow-md transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                            className="px-5 py-2.5 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-semibold text-xs shadow-xs transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
                         >
                             {isSavingSettings ? (
                                 <>
@@ -781,10 +784,10 @@ export const AdminCommunicationTab: React.FC = () => {
             {/* TAB 3: MENSAGENS PASTORAIS */}
             {activeSubTab === 'pastoral' && (
                 <div className="space-y-4">
-                    <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div>
-                            <h4 className="text-base font-black text-slate-800 dark:text-white flex items-center gap-2">
-                                <Sparkles className="w-5 h-5 text-amber-500" />
+                            <h4 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 tracking-tight">
+                                <Sparkles className="w-5 h-5 text-orange-600 dark:text-orange-400" />
                                 Mensagens Pastorais da Igreja
                             </h4>
                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -796,7 +799,7 @@ export const AdminCommunicationTab: React.FC = () => {
                                 closePastoralModal();
                                 setShowPastoralModal(true);
                             }}
-                            className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold text-xs shadow-md hover:from-amber-600 hover:to-orange-700 transition-all flex items-center gap-2 cursor-pointer self-start sm:self-auto"
+                            className="px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-semibold text-xs shadow-xs transition-colors flex items-center gap-2 cursor-pointer self-start sm:self-auto"
                         >
                             <Plus className="w-4 h-4" />
                             <span>Nova Mensagem Pastoral</span>
@@ -807,27 +810,27 @@ export const AdminCommunicationTab: React.FC = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {isLoadingPastoral ? (
                             <div className="col-span-2 text-center py-12 text-slate-400">
-                                <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-brand-blue" />
+                                <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-orange-600" />
                                 Carregando mensagens pastorais...
                             </div>
                         ) : pastoralMessages.length === 0 ? (
-                            <div className="col-span-2 text-center py-12 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 text-slate-400">
-                                <Sparkles className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                                <p className="text-xs font-bold text-slate-600 dark:text-slate-300">Nenhuma mensagem pastoral cadastrada</p>
+                            <div className="col-span-2 text-center py-12 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 text-slate-400">
+                                <Sparkles className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
+                                <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">Nenhuma mensagem pastoral cadastrada</p>
                                 <p className="text-[11px] text-slate-400 mt-1">Cadastre uma mensagem para acompanhar automaticamente os comprovantes enviados aos membros.</p>
                             </div>
                         ) : (
                             pastoralMessages.map((msg) => (
-                                <div key={msg.id} className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between space-y-4">
-                                    <div className="space-y-2">
+                                <div key={msg.id} className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col justify-between space-y-4">
+                                    <div className="space-y-2.5">
                                         <div className="flex items-start justify-between gap-2">
-                                            <div className="flex items-center gap-2">
-                                                <span className={`p-1.5 rounded-lg text-xs font-bold uppercase ${
-                                                    msg.type === 'texto' ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300' :
-                                                    msg.type === 'audio' ? 'bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300' :
-                                                    msg.type === 'video' ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' :
-                                                    msg.type === 'imagem' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' :
-                                                    'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
+                                            <div className="flex items-center gap-2.5">
+                                                <span className={`p-1.5 rounded-lg text-xs font-semibold ${
+                                                    msg.type === 'texto' ? 'bg-sky-50 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300' :
+                                                    msg.type === 'audio' ? 'bg-purple-50 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300' :
+                                                    msg.type === 'video' ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300' :
+                                                    msg.type === 'imagem' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300' :
+                                                    'bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300'
                                                 }`}>
                                                     {msg.type === 'texto' && <FileText className="w-4 h-4" />}
                                                     {msg.type === 'audio' && <Volume2 className="w-4 h-4" />}
@@ -835,16 +838,16 @@ export const AdminCommunicationTab: React.FC = () => {
                                                     {msg.type === 'imagem' && <ImageIcon className="w-4 h-4" />}
                                                     {msg.type === 'link' && <LinkIcon className="w-4 h-4" />}
                                                 </span>
-                                                <h5 className="font-extrabold text-sm text-slate-800 dark:text-white leading-tight">
+                                                <h5 className="font-bold text-sm text-slate-900 dark:text-white leading-tight">
                                                     {msg.title}
                                                 </h5>
                                             </div>
 
                                             <button
                                                 onClick={() => handleTogglePastoralActive(msg)}
-                                                className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase border cursor-pointer transition-colors ${
+                                                className={`px-2 py-0.5 rounded-md text-[11px] font-semibold border cursor-pointer transition-colors ${
                                                     msg.is_active 
-                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' 
+                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/50' 
                                                         : 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
                                                 }`}
                                             >
@@ -852,7 +855,7 @@ export const AdminCommunicationTab: React.FC = () => {
                                             </button>
                                         </div>
 
-                                        <p className="text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-100 dark:border-slate-700/60 leading-relaxed whitespace-pre-wrap">
+                                        <p className="text-xs text-slate-600 dark:text-slate-300 bg-slate-50/80 dark:bg-slate-950/50 p-3 rounded-lg border border-slate-200/70 dark:border-slate-800 leading-relaxed whitespace-pre-wrap">
                                             {msg.content}
                                         </p>
 
@@ -860,24 +863,24 @@ export const AdminCommunicationTab: React.FC = () => {
                                             <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
                                                 <Calendar className="w-3.5 h-3.5 text-slate-400" />
                                                 <span>Vigência:</span>
-                                                <span className="font-bold">
+                                                <span className="font-semibold tabular-nums">
                                                     {msg.start_date ? new Date(msg.start_date).toLocaleDateString() : 'Indefinida'} até {msg.end_date ? new Date(msg.end_date).toLocaleDateString() : 'Indefinido'}
                                                 </span>
                                             </div>
                                         )}
                                     </div>
 
-                                    <div className="pt-3 border-t border-slate-100 dark:border-slate-700/80 flex items-center justify-end gap-2">
+                                    <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-1.5">
                                         <button
                                             onClick={() => openEditPastoral(msg)}
-                                            className="p-1.5 rounded-lg text-slate-500 hover:text-brand-blue hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                            className="p-1.5 rounded-lg text-slate-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/40 transition-colors cursor-pointer"
                                             title="Editar"
                                         >
                                             <Edit3 className="w-4 h-4" />
                                         </button>
                                         <button
                                             onClick={() => msg.id && handleDeletePastoral(msg.id)}
-                                            className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                                            className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
                                             title="Excluir"
                                         >
                                             <Trash2 className="w-4 h-4" />
@@ -892,11 +895,11 @@ export const AdminCommunicationTab: React.FC = () => {
 
             {/* TAB 4: HISTÓRICO DE COMUNICAÇÃO */}
             {activeSubTab === 'history' && (
-                <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-700 pb-4">
+                <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/80 dark:border-slate-800 pb-4">
                         <div>
-                            <h4 className="text-base font-black text-slate-800 dark:text-white flex items-center gap-2">
-                                <Clock className="w-5 h-5 text-brand-blue" />
+                            <h4 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 tracking-tight">
+                                <Clock className="w-5 h-5 text-orange-600 dark:text-orange-400" />
                                 Histórico de Comunicações Enviadas
                             </h4>
                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -910,7 +913,7 @@ export const AdminCommunicationTab: React.FC = () => {
                             <select
                                 value={historyStatusFilter}
                                 onChange={(e) => setHistoryStatusFilter(e.target.value)}
-                                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
+                                className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-300 focus:border-orange-500 focus:outline-none cursor-pointer"
                             >
                                 <option value="all">Todos os Status</option>
                                 <option value="enviado">Enviado</option>
@@ -921,7 +924,7 @@ export const AdminCommunicationTab: React.FC = () => {
                             <select
                                 value={historyEventFilter}
                                 onChange={(e) => setHistoryEventFilter(e.target.value)}
-                                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
+                                className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-300 focus:border-orange-500 focus:outline-none cursor-pointer"
                             >
                                 <option value="all">Todos os Eventos</option>
                                 <option value="ContributionConfirmed">Confirmação de Contribuição</option>
@@ -934,9 +937,12 @@ export const AdminCommunicationTab: React.FC = () => {
                     </div>
 
                     {/* Log Table */}
-                    <div className="overflow-x-auto">
+                    <div
+                        style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}
+                        className="overflow-x-auto"
+                    >
                         <table className="w-full text-left text-xs">
-                            <thead className="bg-slate-50 dark:bg-slate-900/60 uppercase font-bold text-[10px] text-slate-400 border-b border-slate-200 dark:border-slate-700">
+                            <thead className="bg-slate-50/90 dark:bg-slate-950/60 uppercase font-semibold text-[11px] tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200/80 dark:border-slate-800">
                                 <tr>
                                     <th className="px-4 py-3">Data / Hora</th>
                                     <th className="px-4 py-3">Contribuinte</th>
@@ -946,7 +952,7 @@ export const AdminCommunicationTab: React.FC = () => {
                                     <th className="px-4 py-3 text-right">Ações</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {isLoadingHistory ? (
                                     <tr>
                                         <td colSpan={6} className="text-center py-8 text-slate-400">
@@ -961,20 +967,20 @@ export const AdminCommunicationTab: React.FC = () => {
                                     </tr>
                                 ) : (
                                     filteredHistory.map((log) => (
-                                        <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors">
-                                            <td className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">
+                                        <tr key={log.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                                            <td className="px-4 py-3 font-medium tabular-nums text-slate-600 dark:text-slate-300 whitespace-nowrap">
                                                 {new Date(log.created_at || '').toLocaleString()}
                                             </td>
-                                            <td className="px-4 py-3 font-bold text-slate-800 dark:text-white">
+                                            <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">
                                                 {log.contributor_name || 'Contribuinte'}
                                                 {log.recipient_phone && (
-                                                    <span className="block text-[10px] text-slate-400 font-normal">
+                                                    <span className="block text-[11px] text-slate-400 font-normal tabular-nums">
                                                         {log.recipient_phone}
                                                     </span>
                                                 )}
                                             </td>
-                                            <td className="px-4 py-3 font-bold text-slate-700 dark:text-slate-300">
-                                                <span className="inline-block bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 px-2 py-0.5 rounded text-[10px] uppercase font-mono border border-indigo-200 dark:border-indigo-800">
+                                            <td className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300">
+                                                <span className="inline-block bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 px-2 py-0.5 rounded-md text-[10px] uppercase font-mono border border-slate-200 dark:border-slate-700">
                                                     {log.event_type}
                                                 </span>
                                                 {log.provider_message_id && (
@@ -984,15 +990,15 @@ export const AdminCommunicationTab: React.FC = () => {
                                                 )}
                                             </td>
                                             <td className="px-4 py-3 text-center">
-                                                <span className="inline-block bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-emerald-200 dark:border-emerald-800">
+                                                <span className="inline-block bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase border border-emerald-200/80 dark:border-emerald-900/50">
                                                     {log.channel}
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3 text-center">
-                                                <span className={`inline-block px-2.5 py-0.5 rounded text-[10px] font-extrabold uppercase border ${
-                                                    log.status === 'enviado' ? 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300' :
-                                                    log.status === 'pendente' ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300' :
-                                                    'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/60 dark:text-rose-300'
+                                                <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase border ${
+                                                    log.status === 'enviado' ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/50' :
+                                                    log.status === 'pendente' ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/50' :
+                                                    'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900/50'
                                                 }`}>
                                                     {log.status}
                                                 </span>
@@ -1000,7 +1006,7 @@ export const AdminCommunicationTab: React.FC = () => {
                                             <td className="px-4 py-3 text-right">
                                                 <button
                                                     onClick={() => showToast(`Reprocessamento simulado para ${log.contributor_name}`, 'success')}
-                                                    className="p-1.5 rounded-lg text-slate-500 hover:text-brand-blue hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                                    className="p-1.5 rounded-lg text-slate-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/40 transition-colors cursor-pointer"
                                                     title="Reprocessar Envio"
                                                 >
                                                     <RefreshCw className="w-4 h-4" />
@@ -1017,11 +1023,11 @@ export const AdminCommunicationTab: React.FC = () => {
 
             {/* TAB 5: FILA DE PROCESSAMENTO (COMMUNICATION_QUEUE) */}
             {activeSubTab === 'queue' && (
-                <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-700 pb-4">
+                <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-4">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200/80 dark:border-slate-800 pb-4">
                         <div>
-                            <h4 className="text-base font-black text-slate-800 dark:text-white flex items-center gap-2">
-                                <Radio className="w-5 h-5 text-emerald-500 animate-pulse" />
+                            <h4 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 tracking-tight">
+                                <Radio className="w-5 h-5 text-emerald-500" />
                                 Fila de Processamento de Comunicações (communication_queue)
                             </h4>
                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -1033,7 +1039,7 @@ export const AdminCommunicationTab: React.FC = () => {
                             <select
                                 value={queueStatusFilter}
                                 onChange={(e) => setQueueStatusFilter(e.target.value)}
-                                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
+                                className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-300 focus:border-orange-500 focus:outline-none cursor-pointer"
                             >
                                 <option value="all">Todos os Status</option>
                                 <option value="PENDING">PENDING (Aguardando)</option>
@@ -1047,7 +1053,7 @@ export const AdminCommunicationTab: React.FC = () => {
                             <button
                                 onClick={handleTriggerProcessQueue}
                                 disabled={isProcessingQueue}
-                                className="px-3.5 py-1.5 rounded-xl bg-brand-blue hover:bg-brand-blue/90 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                                className="px-3.5 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white font-semibold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
                             >
                                 <Play className={`w-3.5 h-3.5 ${isProcessingQueue ? 'animate-spin' : ''}`} />
                                 <span>{isProcessingQueue ? 'Processando...' : 'Processar Fila Agora'}</span>
@@ -1056,7 +1062,7 @@ export const AdminCommunicationTab: React.FC = () => {
                             <button
                                 onClick={fetchQueue}
                                 disabled={isLoadingQueue}
-                                className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                                className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                                 title="Atualizar Fila"
                             >
                                 <RefreshCw className={`w-4 h-4 ${isLoadingQueue ? 'animate-spin' : ''}`} />
@@ -1065,49 +1071,52 @@ export const AdminCommunicationTab: React.FC = () => {
                     </div>
 
                     {/* Status Counters Header */}
-                    <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
-                        <div className="p-2.5 bg-amber-50 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-800/50 text-center">
-                            <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase">PENDING</p>
-                            <p className="text-base font-black text-amber-800 dark:text-amber-300">
+                    <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5">
+                        <div className="p-2.5 bg-amber-50/70 dark:bg-amber-950/30 rounded-lg border border-amber-200/80 dark:border-amber-900/50 text-center">
+                            <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 uppercase">PENDING</p>
+                            <p className="text-base font-bold tabular-nums text-amber-800 dark:text-amber-300">
                                 {queueItems.filter(i => i.status === 'PENDING').length}
                             </p>
                         </div>
-                        <div className="p-2.5 bg-blue-50 dark:bg-blue-950/30 rounded-xl border border-blue-200 dark:border-blue-800/50 text-center">
-                            <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase">PROCESSING</p>
-                            <p className="text-base font-black text-blue-800 dark:text-blue-300">
+                        <div className="p-2.5 bg-sky-50/70 dark:bg-sky-950/30 rounded-lg border border-sky-200/80 dark:border-sky-900/50 text-center">
+                            <p className="text-[10px] font-semibold text-sky-700 dark:text-sky-400 uppercase">PROCESSING</p>
+                            <p className="text-base font-bold tabular-nums text-sky-800 dark:text-sky-300">
                                 {queueItems.filter(i => i.status === 'PROCESSING').length}
                             </p>
                         </div>
-                        <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl border border-indigo-200 dark:border-indigo-800/50 text-center">
-                            <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase">READY FOR SEND</p>
-                            <p className="text-base font-black text-indigo-800 dark:text-indigo-300">
+                        <div className="p-2.5 bg-orange-50/70 dark:bg-orange-950/30 rounded-lg border border-orange-200/80 dark:border-orange-900/50 text-center">
+                            <p className="text-[10px] font-semibold text-orange-700 dark:text-orange-400 uppercase">READY FOR SEND</p>
+                            <p className="text-base font-bold tabular-nums text-orange-800 dark:text-orange-300">
                                 {queueItems.filter(i => i.status === 'READY_FOR_SEND').length}
                             </p>
                         </div>
-                        <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/30 rounded-xl border border-emerald-200 dark:border-emerald-800/50 text-center">
-                            <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">SENT (ENVIADO)</p>
-                            <p className="text-base font-black text-emerald-800 dark:text-emerald-300">
+                        <div className="p-2.5 bg-emerald-50/70 dark:bg-emerald-950/30 rounded-lg border border-emerald-200/80 dark:border-emerald-900/50 text-center">
+                            <p className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 uppercase">SENT (ENVIADO)</p>
+                            <p className="text-base font-bold tabular-nums text-emerald-800 dark:text-emerald-300">
                                 {queueItems.filter(i => i.status === 'SENT').length}
                             </p>
                         </div>
-                        <div className="p-2.5 bg-slate-100 dark:bg-slate-900/40 rounded-xl border border-slate-200 dark:border-slate-700 text-center">
-                            <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">SKIPPED</p>
-                            <p className="text-base font-black text-slate-700 dark:text-slate-300">
+                        <div className="p-2.5 bg-slate-100 dark:bg-slate-950/60 rounded-lg border border-slate-200 dark:border-slate-800 text-center">
+                            <p className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 uppercase">SKIPPED</p>
+                            <p className="text-base font-bold tabular-nums text-slate-800 dark:text-slate-300">
                                 {queueItems.filter(i => i.status === 'SKIPPED').length}
                             </p>
                         </div>
-                        <div className="p-2.5 bg-rose-50 dark:bg-rose-950/30 rounded-xl border border-rose-200 dark:border-rose-800/50 text-center col-span-2 sm:col-span-1">
-                            <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase">FAILED</p>
-                            <p className="text-base font-black text-rose-800 dark:text-rose-300">
+                        <div className="p-2.5 bg-rose-50/70 dark:bg-rose-950/30 rounded-lg border border-rose-200/80 dark:border-rose-900/50 text-center col-span-2 sm:col-span-1">
+                            <p className="text-[10px] font-semibold text-rose-700 dark:text-rose-400 uppercase">FAILED</p>
+                            <p className="text-base font-bold tabular-nums text-rose-800 dark:text-rose-300">
                                 {queueItems.filter(i => i.status === 'FAILED').length}
                             </p>
                         </div>
                     </div>
 
                     {/* Queue Table */}
-                    <div className="overflow-x-auto">
+                    <div
+                        style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}
+                        className="overflow-x-auto"
+                    >
                         <table className="w-full text-left text-xs">
-                            <thead className="bg-slate-50 dark:bg-slate-900/60 uppercase font-bold text-[10px] text-slate-400 border-b border-slate-200 dark:border-slate-700">
+                            <thead className="bg-slate-50/90 dark:bg-slate-950/60 uppercase font-semibold text-[11px] tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200/80 dark:border-slate-800">
                                 <tr>
                                     <th className="px-4 py-3">Criado em</th>
                                     <th className="px-4 py-3">Destinatário & WhatsApp</th>
@@ -1117,7 +1126,7 @@ export const AdminCommunicationTab: React.FC = () => {
                                     <th className="px-4 py-3 text-right">Ações</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {isLoadingQueue ? (
                                     <tr>
                                         <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
@@ -1134,13 +1143,13 @@ export const AdminCommunicationTab: React.FC = () => {
                                     queueItems
                                         .filter(item => queueStatusFilter === 'all' || item.status === queueStatusFilter)
                                         .map((item) => (
-                                            <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/30 transition-colors">
-                                                <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
+                                            <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                                                <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap tabular-nums">
                                                     {item.created_at ? new Date(item.created_at).toLocaleString('pt-BR') : '-'}
                                                 </td>
                                                 <td className="px-4 py-3 font-medium">
                                                     <div className="flex flex-col">
-                                                        <span className="font-bold text-slate-800 dark:text-slate-200">
+                                                        <span className="font-semibold text-slate-800 dark:text-slate-200 tabular-nums">
                                                             {item.recipient_phone || 'Sem Telefone'}
                                                         </span>
                                                         <span className="text-[10px] text-slate-400 font-mono">
@@ -1153,7 +1162,7 @@ export const AdminCommunicationTab: React.FC = () => {
                                                         {item.rendered_content}
                                                     </p>
                                                     {item.provider_message_id && (
-                                                        <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono mt-0.5 font-bold">
+                                                        <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono mt-0.5 font-semibold">
                                                             ID Provedor: {item.provider_message_id}
                                                         </p>
                                                     )}
@@ -1163,17 +1172,17 @@ export const AdminCommunicationTab: React.FC = () => {
                                                         </p>
                                                     )}
                                                 </td>
-                                                <td className="px-4 py-3 text-center font-mono font-bold">
+                                                <td className="px-4 py-3 text-center font-mono font-semibold tabular-nums">
                                                     {item.attempts} / {item.max_attempts}
                                                 </td>
                                                 <td className="px-4 py-3 text-center">
-                                                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-extrabold uppercase border ${
-                                                        item.status === 'SENT' ? 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300' :
-                                                        item.status === 'READY_FOR_SEND' ? 'bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-indigo-950/60 dark:text-indigo-300' :
-                                                        item.status === 'PENDING' ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300' :
-                                                        item.status === 'PROCESSING' ? 'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/60 dark:text-blue-300' :
-                                                        item.status === 'SKIPPED' ? 'bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-900/60 dark:text-slate-400' :
-                                                        'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/60 dark:text-rose-300'
+                                                    <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase border ${
+                                                        item.status === 'SENT' ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/50' :
+                                                        item.status === 'READY_FOR_SEND' ? 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-900/50' :
+                                                        item.status === 'PENDING' ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/50' :
+                                                        item.status === 'PROCESSING' ? 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-900/50' :
+                                                        item.status === 'SKIPPED' ? 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700' :
+                                                        'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900/50'
                                                     }`}>
                                                         {item.status}
                                                     </span>
@@ -1182,7 +1191,7 @@ export const AdminCommunicationTab: React.FC = () => {
                                                     {(item.status === 'FAILED' || item.status === 'SKIPPED' || item.status === 'READY_FOR_SEND') && (
                                                         <button
                                                             onClick={() => handleRetryQueueItem(item.id)}
-                                                            className="p-1.5 rounded-lg text-slate-500 hover:text-brand-blue hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                                                            className="p-1.5 rounded-lg text-slate-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/40 transition-colors cursor-pointer"
                                                             title="Reiniciar para PENDING"
                                                         >
                                                             <RotateCcw className="w-4 h-4 text-amber-600" />
@@ -1200,38 +1209,38 @@ export const AdminCommunicationTab: React.FC = () => {
 
             {/* Pastoral Message Create/Edit Modal */}
             {showPastoralModal && (
-                <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-[#020610]/60 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white dark:bg-[#0F172A] rounded-2xl shadow-2xl w-full max-w-lg border border-slate-200 dark:border-slate-700 overflow-hidden animate-scale-in">
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50">
-                            <h3 className="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                                <Sparkles className="w-5 h-5 text-amber-500" />
+                <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-[2px] animate-fade-in">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-elevated w-full max-w-lg border border-slate-200/90 dark:border-slate-800 overflow-hidden animate-scale-in">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900">
+                            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 tracking-tight">
+                                <Sparkles className="w-5 h-5 text-orange-600 dark:text-orange-400" />
                                 {editingPastoral ? 'Editar Mensagem Pastoral' : 'Nova Mensagem Pastoral'}
                             </h3>
-                            <button onClick={closePastoralModal} className="p-1 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors">
+                            <button onClick={closePastoralModal} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-white transition-colors cursor-pointer">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
 
                         <form onSubmit={handleSavePastoralMessage} className="p-6 space-y-4">
-                            <div className="space-y-1">
-                                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Título da Mensagem *</label>
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Título da Mensagem *</label>
                                 <input
                                     type="text"
                                     required
                                     value={pastoralTitle}
                                     onChange={(e) => setPastoralTitle(e.target.value)}
                                     placeholder="Ex: Palavra Pastoral de Gratidão"
-                                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs font-medium focus:ring-2 focus:ring-brand-blue focus:outline-none"
+                                    className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-medium focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 focus:outline-none transition-colors"
                                 />
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Tipo de Conteúdo</label>
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Tipo de Conteúdo</label>
                                     <select
                                         value={pastoralType}
                                         onChange={(e) => setPastoralType(e.target.value as any)}
-                                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs font-medium focus:ring-2 focus:ring-brand-blue focus:outline-none cursor-pointer"
+                                        className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-medium focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 focus:outline-none cursor-pointer transition-colors"
                                     >
                                         <option value="texto">Texto</option>
                                         <option value="audio">Áudio (Link/URL)</option>
@@ -1241,12 +1250,12 @@ export const AdminCommunicationTab: React.FC = () => {
                                     </select>
                                 </div>
 
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Status Inicial</label>
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Status Inicial</label>
                                     <select
                                         value={pastoralIsActive ? 'true' : 'false'}
                                         onChange={(e) => setPastoralIsActive(e.target.value === 'true')}
-                                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs font-medium focus:ring-2 focus:ring-brand-blue focus:outline-none cursor-pointer"
+                                        className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-medium focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 focus:outline-none cursor-pointer transition-colors"
                                     >
                                         <option value="true">Ativa</option>
                                         <option value="false">Inativa</option>
@@ -1254,50 +1263,50 @@ export const AdminCommunicationTab: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="space-y-1">
-                                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Conteúdo da Mensagem *</label>
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Conteúdo da Mensagem *</label>
                                 <textarea
                                     required
                                     rows={4}
                                     value={pastoralContent}
                                     onChange={(e) => setPastoralContent(e.target.value)}
                                     placeholder="Escreva a mensagem pastoral ou insira o link da mídia..."
-                                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs font-medium focus:ring-2 focus:ring-brand-blue focus:outline-none"
+                                    className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-medium focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 focus:outline-none transition-colors"
                                 />
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Início da Vigência</label>
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Início da Vigência</label>
                                     <input
                                         type="date"
                                         value={pastoralStartDate}
                                         onChange={(e) => setPastoralStartDate(e.target.value)}
-                                        className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs font-medium focus:ring-2 focus:ring-brand-blue focus:outline-none"
+                                        className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-medium tabular-nums focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 focus:outline-none transition-colors"
                                     />
                                 </div>
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Fim da Vigência</label>
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Fim da Vigência</label>
                                     <input
                                         type="date"
                                         value={pastoralEndDate}
                                         onChange={(e) => setPastoralEndDate(e.target.value)}
-                                        className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs font-medium focus:ring-2 focus:ring-brand-blue focus:outline-none"
+                                        className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-medium tabular-nums focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 focus:outline-none transition-colors"
                                     />
                                 </div>
                             </div>
 
-                            <div className="pt-4 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
+                            <div className="pt-4 border-t border-slate-200/80 dark:border-slate-800 flex justify-end gap-2.5">
                                 <button
                                     type="button"
                                     onClick={closePastoralModal}
-                                    className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors uppercase"
+                                    className="px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
                                 >
                                     Cancelar
                                 </button>
                                 <button
                                     type="submit"
-                                    className="px-5 py-2 rounded-xl bg-brand-blue hover:bg-brand-blue/90 text-white font-bold text-xs shadow-md transition-all uppercase"
+                                    className="px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-semibold text-xs shadow-xs transition-colors cursor-pointer"
                                 >
                                     Salvar Mensagem
                                 </button>

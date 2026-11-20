@@ -656,98 +656,104 @@ export const WhatsAppReceiptModal: React.FC<WhatsAppReceiptModalProps> = ({
     const cleanPhone = phoneInput ? phoneInput.replace(/\D/g, '') : '';
 
     return (
-        <div className="absolute inset-0 z-40 bg-white dark:bg-[#0F172A] flex flex-col overflow-hidden animate-scale-in">
+        <div className="absolute inset-0 z-40 bg-white dark:bg-slate-900 flex flex-col overflow-hidden animate-scale-in">
             
-            {/* Header matching Novo Lançamento */}
-                <div className="px-8 py-5 border-b border-slate-100 dark:border-white/5 flex flex-wrap items-center justify-between gap-4 shrink-0 bg-white dark:bg-[#0F172A]">
-                    <div className="flex items-center gap-4">
-                        <div className="p-3 rounded-2xl bg-emerald-600 text-white shadow-lg shadow-emerald-600/20">
-                            <MessageCircle className="w-6 h-6" />
+            {/* Header */}
+                <div className="px-6 py-4 border-b border-slate-200/80 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4 shrink-0 bg-white dark:bg-slate-900">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-900/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                            <MessageCircle className="w-5 h-5" />
                         </div>
                         <div>
-                            <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight uppercase">
-                                CONFIGURAÇÃO DE MODELOS WHATSAPP
+                            <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
+                                Configuração de Modelos WhatsApp
                             </h3>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">
-                                PERSONALIZAÇÃO DE MENSAGENS, REMETENTE ATIVO E DISPARO DIRETO
+                            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                                Personalização de mensagens, remetente ativo e disparo direto
                             </p>
                         </div>
                     </div>
 
-                    {/* Small model buttons directly in header matching exact screenshot layout */}
-                    <div className="bg-slate-100 dark:bg-slate-800/90 p-1.5 rounded-full border border-slate-200/80 dark:border-slate-700/80 flex items-center gap-1.5">
+                    {/* Model switcher */}
+                    <div
+                        className="bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200/80 dark:border-slate-700 flex items-center gap-1 overflow-x-auto max-w-full"
+                        style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y' }}
+                    >
                         <button
                             type="button"
                             onClick={() => setActiveSender('treasury')}
-                            className={`px-4 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+                            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
                                 activeSender === 'treasury'
-                                    ? 'bg-emerald-600 text-white shadow-sm'
-                                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-700/50'
+                                    ? 'bg-emerald-600 text-white shadow-xs'
+                                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/60'
                             }`}
                         >
-                            <span className={`w-2 h-2 rounded-full ${activeSender === 'treasury' ? 'bg-white animate-pulse' : 'bg-emerald-500'}`}></span>
-                            <span>1. TESOURARIA</span>
+                            <span className={`w-1.5 h-1.5 rounded-full ${activeSender === 'treasury' ? 'bg-white' : 'bg-emerald-500'}`}></span>
+                            <span>1. Tesouraria</span>
                         </button>
 
                         <button
                             type="button"
                             onClick={() => setActiveSender('pastor')}
-                            className={`px-4 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+                            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
                                 activeSender === 'pastor'
-                                    ? 'bg-emerald-600 text-white shadow-sm'
-                                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-700/50'
+                                    ? 'bg-emerald-600 text-white shadow-xs'
+                                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/60'
                             }`}
                         >
-                            <span className={`w-2 h-2 rounded-full ${activeSender === 'pastor' ? 'bg-white animate-pulse' : 'bg-amber-500'}`}></span>
-                            <span>2. PASTOR / BÊNÇÃO</span>
+                            <span className={`w-1.5 h-1.5 rounded-full ${activeSender === 'pastor' ? 'bg-white' : 'bg-amber-500'}`}></span>
+                            <span>2. Pastor / Bênção</span>
                         </button>
 
                         <button
                             type="button"
                             onClick={() => setActiveSender('closing')}
-                            className={`px-4 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+                            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
                                 activeSender === 'closing'
-                                    ? 'bg-emerald-600 text-white shadow-sm'
-                                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-700/50'
+                                    ? 'bg-emerald-600 text-white shadow-xs'
+                                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/60'
                             }`}
                         >
-                            <span className={`w-2 h-2 rounded-full ${activeSender === 'closing' ? 'bg-white animate-pulse' : 'bg-blue-500'}`}></span>
-                            <span>3. EXTRATO PORTAL</span>
+                            <span className={`w-1.5 h-1.5 rounded-full ${activeSender === 'closing' ? 'bg-white' : 'bg-orange-500'}`}></span>
+                            <span>3. Extrato Portal</span>
                         </button>
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <span className="text-[7px] font-black text-slate-400 uppercase border border-slate-200 dark:border-slate-800 px-1 py-0.5 rounded">Esc</span>
+                        <span className="text-[10px] font-semibold text-slate-400 uppercase border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 rounded">Esc</span>
                         <button 
                             type="button" 
                             onClick={onClose} 
-                            className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
                         >
-                            <XMarkIcon className="w-6 h-6" />
+                            <XMarkIcon className="w-5 h-5" />
                         </button>
                     </div>
                 </div>
 
                 {/* Content Body filling workspace area */}
-                <div className="p-8 overflow-y-auto custom-scrollbar space-y-6 flex-1 w-full max-w-7xl mx-auto">
+                <div
+                    className="p-6 overflow-y-auto custom-scrollbar space-y-5 flex-1 w-full max-w-7xl mx-auto"
+                    style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+                >
                     
                     {/* Contributor & Transaction Summary Card */}
-                    <div className="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-3xl border border-slate-200/80 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                    <div className="p-4 bg-slate-50/80 dark:bg-slate-800/40 rounded-xl border border-slate-200/90 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs shadow-xs">
                         <div>
-                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block mb-1">Exemplo Contribuinte</span>
-                            <span className="font-extrabold text-slate-900 dark:text-white truncate block uppercase">
+                            <span className="text-[10px] font-semibold uppercase text-slate-500 dark:text-slate-400 tracking-wider block mb-1">Exemplo Contribuinte</span>
+                            <span className="font-bold text-slate-900 dark:text-white truncate block uppercase">
                                 {currentItem.contributorName || 'FABIO PEREIRA MENDONÇA'}
                             </span>
                         </div>
                         <div>
-                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block mb-1">Valor & Tipo</span>
-                            <span className="font-extrabold text-emerald-600 dark:text-emerald-400 block uppercase">
+                            <span className="text-[10px] font-semibold uppercase text-slate-500 dark:text-slate-400 tracking-wider block mb-1">Valor & Tipo</span>
+                            <span className="font-bold text-emerald-600 dark:text-emerald-400 block uppercase tabular-nums">
                                 {formatCurrency(currentItem.amount || 50)} ({currentItem.contributionType || 'DÍZIMO'})
                             </span>
                         </div>
                         <div>
-                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block mb-1">Data & Igreja</span>
-                            <span className="font-extrabold text-slate-700 dark:text-slate-300 block truncate uppercase">
+                            <span className="text-[10px] font-semibold uppercase text-slate-500 dark:text-slate-400 tracking-wider block mb-1">Data & Igreja</span>
+                            <span className="font-semibold text-slate-700 dark:text-slate-200 block truncate uppercase tabular-nums">
                                 {formattedDate} • {resolvedChurchName}
                             </span>
                         </div>
@@ -755,8 +761,8 @@ export const WhatsAppReceiptModal: React.FC<WhatsAppReceiptModalProps> = ({
 
                     {/* Pastor Name Input if pastor profile selected */}
                     {activeSender === 'pastor' && (
-                        <div className="space-y-2">
-                            <label className="block text-[10px] font-black uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400 ml-1">
+                        <div className="space-y-1.5">
+                            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                 Nome do Pastor (substitui &#123;PASTOR&#125;)
                             </label>
                             <input
@@ -764,20 +770,20 @@ export const WhatsAppReceiptModal: React.FC<WhatsAppReceiptModalProps> = ({
                                 value={pastorName}
                                 onChange={(e) => setPastorName(e.target.value)}
                                 placeholder="Ex: Pr. João Silva"
-                                className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-amber-500/10 py-3.5 px-4 transition-all outline-none text-sm font-bold"
+                                className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15 py-2 px-3 transition-colors outline-none text-xs font-medium"
                             />
                         </div>
                     )}
 
                     {/* Presets List Section - Ultra Compact Button Bar */}
-                    <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-3">
+                    <div className="p-4 bg-slate-50/80 dark:bg-slate-800/40 rounded-xl border border-slate-200/90 dark:border-slate-800 space-y-3 shadow-xs">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                             <div className="flex items-center gap-2">
-                                <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
-                                <span className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-white">
+                                <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                <span className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-white">
                                     Modelos Cadastrados ({activeSender === 'pastor' ? 'Pastor' : activeSender === 'closing' ? 'Extrato' : 'Tesouraria'})
                                 </span>
-                                <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400">
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/50 tabular-nums">
                                     {filteredPresets.length} modelos
                                 </span>
                             </div>
@@ -786,7 +792,7 @@ export const WhatsAppReceiptModal: React.FC<WhatsAppReceiptModalProps> = ({
                             <button
                                 type="button"
                                 onClick={handlePickRandomPreset}
-                                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-emerald-600 hover:from-amber-600 hover:to-emerald-700 text-white font-extrabold text-[10px] uppercase tracking-wider flex items-center gap-1.5 shadow-xs transition-all cursor-pointer shrink-0"
+                                className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer shrink-0"
                                 title="Sorteia uma mensagem que ainda não foi enviada para este contribuinte"
                             >
                                 <Shuffle className="w-3.5 h-3.5" />
@@ -807,21 +813,24 @@ export const WhatsAppReceiptModal: React.FC<WhatsAppReceiptModalProps> = ({
                                         setPresetPage(1);
                                     }}
                                     placeholder="Buscar por número ou tema (ex: #05, Oração, Salmo)..."
-                                    className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-[11px] font-medium outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                    className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-medium outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
                                 />
                                 {presetSearch && (
                                     <button
                                         type="button"
                                         onClick={() => setPresetSearch('')}
-                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600"
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
                                     >
                                         ×
                                     </button>
                                 )}
                             </div>
 
-                            {/* Category Filter Pills */}
-                            <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0 scrollbar-none shrink-0">
+                            {/* Category Filter Buttons */}
+                            <div
+                                className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0 scrollbar-none shrink-0"
+                                style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y' }}
+                            >
                                 {categoriesList.map((cat) => (
                                     <button
                                         key={cat}
@@ -830,10 +839,10 @@ export const WhatsAppReceiptModal: React.FC<WhatsAppReceiptModalProps> = ({
                                             setSelectedCategory(cat);
                                             setPresetPage(1);
                                         }}
-                                        className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase transition-all whitespace-nowrap cursor-pointer ${
+                                        className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors whitespace-nowrap cursor-pointer ${
                                             selectedCategory === cat
-                                                ? 'bg-slate-800 text-white dark:bg-emerald-600 dark:text-white'
-                                                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                                                ? 'bg-slate-900 text-white dark:bg-emerald-600 dark:text-white'
+                                                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-slate-300'
                                         }`}
                                     >
                                         {cat === 'all' ? 'Todos' : cat}
@@ -842,7 +851,7 @@ export const WhatsAppReceiptModal: React.FC<WhatsAppReceiptModalProps> = ({
                             </div>
                         </div>
 
-                        {/* Compact Pill Buttons Grid */}
+                        {/* Compact Preset Buttons Grid */}
                         <div className="flex flex-wrap gap-1.5 pt-1">
                             {paginatedPresets.length > 0 ? (
                                 paginatedPresets.map((preset) => {
@@ -856,14 +865,14 @@ export const WhatsAppReceiptModal: React.FC<WhatsAppReceiptModalProps> = ({
                                                 handleSelectPreset(preset.text);
                                             }}
                                             title={`Clique para carregar "${preset.title}" no editor abaixo`}
-                                            className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold border flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ${
+                                            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs ${
                                                 isSelected
-                                                    ? 'bg-emerald-600 text-white border-emerald-600 ring-2 ring-emerald-500/30'
-                                                    : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/30'
+                                                    ? 'bg-emerald-600 text-white border-emerald-600'
+                                                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/30'
                                             }`}
                                         >
-                                            <span className={`px-1.5 py-0.2 rounded-md text-[9px] font-extrabold uppercase ${
-                                                isSelected ? 'bg-emerald-700 text-emerald-100' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase ${
+                                                isSelected ? 'bg-emerald-700 text-emerald-100' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
                                             }`}>
                                                 {preset.badge}
                                             </span>
@@ -881,14 +890,14 @@ export const WhatsAppReceiptModal: React.FC<WhatsAppReceiptModalProps> = ({
 
                         {/* Pagination Footer */}
                         {totalPresetPages > 1 && (
-                            <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                            <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-200/70 dark:border-slate-800 tabular-nums">
                                 <span>Página <b>{presetPage}</b> de <b>{totalPresetPages}</b></span>
-                                <div className="flex items-center gap-1">
+                                <div className="flex items-center gap-1.5">
                                     <button
                                         type="button"
                                         disabled={presetPage === 1}
                                         onClick={() => setPresetPage(p => Math.max(1, p - 1))}
-                                        className="p-1 px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 disabled:opacity-30 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-1 font-bold cursor-pointer"
+                                        className="p-1 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 disabled:opacity-30 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-1 font-semibold cursor-pointer"
                                     >
                                         <ChevronLeft className="w-3.5 h-3.5" />
                                         <span>Anterior</span>
@@ -897,7 +906,7 @@ export const WhatsAppReceiptModal: React.FC<WhatsAppReceiptModalProps> = ({
                                         type="button"
                                         disabled={presetPage >= totalPresetPages}
                                         onClick={() => setPresetPage(p => Math.min(totalPresetPages, p + 1))}
-                                        className="p-1 px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 disabled:opacity-30 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-1 font-bold cursor-pointer"
+                                        className="p-1 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 disabled:opacity-30 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-1 font-semibold cursor-pointer"
                                     >
                                         <span>Próxima</span>
                                         <ChevronRight className="w-3.5 h-3.5" />
@@ -908,27 +917,27 @@ export const WhatsAppReceiptModal: React.FC<WhatsAppReceiptModalProps> = ({
                     </div>
 
                     {/* Audio Recording & Audio Attachment Section */}
-                    <div className="p-5 bg-gradient-to-br from-slate-50 via-slate-50 to-emerald-50/30 dark:from-slate-900/80 dark:via-slate-900/50 dark:to-emerald-950/20 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-4">
+                    <div className="p-4 sm:p-5 bg-slate-50/80 dark:bg-slate-800/40 rounded-xl border border-slate-200/90 dark:border-slate-800 space-y-4 shadow-xs">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div className="flex items-center gap-3">
-                                <div className="p-2.5 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                <div className="w-9 h-9 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200/70 dark:border-amber-800/50 flex items-center justify-center shrink-0">
                                     <FileAudio className="w-5 h-5" />
                                 </div>
                                 <div>
-                                    <h4 className="text-xs font-black uppercase text-slate-800 dark:text-white tracking-wider flex items-center gap-2">
+                                    <h4 className="text-xs font-bold uppercase text-slate-900 dark:text-white tracking-wider flex items-center gap-2 flex-wrap">
                                         <span>Áudio de Bênção / Agradecimento</span>
-                                        <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400">
+                                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/50">
                                             {activeSender === 'pastor' ? 'ÁUDIO DO PASTOR' : 'ÁUDIO DA TESOURARIA'}
                                         </span>
                                     </h4>
-                                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
                                         Grave ou carregue uma mensagem de áudio em voz para o contribuinte ouvir no recebimento.
                                     </p>
                                 </div>
                             </div>
 
                             {/* Audio Include Checkbox */}
-                            <label className="flex items-center gap-2 text-[11px] font-bold text-slate-700 dark:text-slate-300 cursor-pointer bg-white dark:bg-slate-800 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-slate-300 shrink-0">
+                            <label className="flex items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-200 cursor-pointer bg-white dark:bg-slate-900 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-slate-300 shrink-0 shadow-xs">
                                 <input
                                     type="checkbox"
                                     checked={includeAudioWithText}
@@ -941,13 +950,13 @@ export const WhatsAppReceiptModal: React.FC<WhatsAppReceiptModalProps> = ({
 
                         {/* Active Audio Player if recorded/uploaded */}
                         {(activeSender === 'pastor' ? pastoralAudioUrl : treasuryAudioUrl) ? (
-                            <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                            <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
                                 <div className="flex items-center gap-3 flex-1 min-w-0">
-                                    <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">
-                                        <Volume2 className="w-5 h-5 animate-pulse" />
+                                    <div className="w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                                        <Volume2 className="w-5 h-5" />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
+                                        <span className="text-[10px] font-semibold uppercase text-slate-500 dark:text-slate-400 tracking-wider block">
                                             {activeSender === 'pastor' ? 'Áudio Pastoral Gravado' : 'Áudio da Tesouraria Gravado'}
                                         </span>
                                         <audio
@@ -961,7 +970,7 @@ export const WhatsAppReceiptModal: React.FC<WhatsAppReceiptModalProps> = ({
                                 <button
                                     type="button"
                                     onClick={handleRemoveAudio}
-                                    className="px-3 py-2 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/60 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+                                    className="px-3 py-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 border border-rose-200/70 dark:border-rose-800/50"
                                 >
                                     <Trash2 className="w-3.5 h-3.5" />
                                     <span>Remover</span>
@@ -969,29 +978,29 @@ export const WhatsAppReceiptModal: React.FC<WhatsAppReceiptModalProps> = ({
                             </div>
                         ) : (
                             /* Recording & Uploading Action Controls */
-                            <div className="flex flex-wrap items-center gap-3">
+                            <div className="flex flex-wrap items-center gap-2.5">
                                 {isRecording ? (
                                     <button
                                         type="button"
                                         onClick={stopRecording}
-                                        className="px-5 py-2.5 rounded-2xl bg-red-600 text-white text-[11px] font-black uppercase tracking-wider flex items-center gap-2 shadow-md animate-pulse cursor-pointer"
+                                        className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold flex items-center gap-2 shadow-xs cursor-pointer tabular-nums"
                                     >
-                                        <Square className="w-4 h-4 fill-white" />
+                                        <Square className="w-3.5 h-3.5 fill-white" />
                                         <span>Parar Gravação ({recordingTime}s)</span>
                                     </button>
                                 ) : (
                                     <button
                                         type="button"
                                         onClick={startRecording}
-                                        className="px-5 py-2.5 rounded-2xl bg-white dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-[11px] font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-xs"
+                                        className="px-4 py-2 rounded-lg bg-white dark:bg-slate-900 hover:bg-rose-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer shadow-xs"
                                     >
-                                        <Mic className="w-4 h-4 text-red-500" />
+                                        <Mic className="w-4 h-4 text-rose-500" />
                                         <span>Gravar Voz ({activeSender === 'pastor' ? 'Pastor' : 'Tesouraria'})</span>
                                     </button>
                                 )}
 
-                                <label className="px-5 py-2.5 rounded-2xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-[11px] font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-xs">
-                                    <Upload className="w-4 h-4 text-emerald-500" />
+                                <label className="px-4 py-2 rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer shadow-xs">
+                                    <Upload className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                                     <span>Carregar Arquivo Áudio</span>
                                     <input
                                         type="file"
@@ -1005,16 +1014,16 @@ export const WhatsAppReceiptModal: React.FC<WhatsAppReceiptModalProps> = ({
                     </div>
 
                     {/* Live Editor */}
-                    <div className="space-y-3">
+                    <div className="space-y-2.5">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                            <label className="block text-[10px] font-black uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400 ml-1">
+                            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                 Texto do Modelo selecionado ({activeSender === 'pastor' ? 'PASTOR' : activeSender === 'closing' ? 'EXTRATO PORTAL' : 'TESOURARIA'})
                             </label>
 
                             <button
                                 type="button"
                                 onClick={handleRestoreDefault}
-                                className="text-[10px] font-bold text-slate-500 hover:text-emerald-600 transition-colors cursor-pointer shrink-0"
+                                className="text-xs font-semibold text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer shrink-0"
                             >
                                 Restaurar Padrão deste Modelo
                             </button>
@@ -1024,41 +1033,41 @@ export const WhatsAppReceiptModal: React.FC<WhatsAppReceiptModalProps> = ({
                             value={currentRawTemplate}
                             onChange={(e) => handleTextareaChange(e.target.value)}
                             rows={6}
-                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-emerald-500/10 p-4 transition-all outline-none text-xs font-mono leading-relaxed"
+                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15 p-3.5 transition-colors outline-none text-xs font-mono leading-relaxed"
                         />
 
                         {/* Variables legend */}
-                        <div className="flex items-center gap-1.5 flex-wrap text-[10px] font-bold text-slate-400 ml-1">
+                        <div className="flex items-center gap-1.5 flex-wrap text-[11px] font-medium text-slate-500 dark:text-slate-400">
                             <span>Tags suportadas:</span>
-                            <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800/80 rounded-lg font-mono text-slate-600 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700/50">&#123;NOME&#125;</span>
-                            <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800/80 rounded-lg font-mono text-slate-600 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700/50">&#123;VALOR&#125;</span>
-                            <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800/80 rounded-lg font-mono text-slate-600 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700/50">&#123;DATA&#125;</span>
-                            <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800/80 rounded-lg font-mono text-slate-600 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700/50">&#123;TIPO&#125;</span>
-                            <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800/80 rounded-lg font-mono text-slate-600 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700/50">&#123;IGREJA&#125;</span>
-                            <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800/80 rounded-lg font-mono text-slate-600 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700/50">&#123;PASTOR&#125;</span>
-                            <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800/80 rounded-lg font-mono text-slate-600 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700/50">&#123;LINK_PORTAL&#125;</span>
+                            <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md font-mono text-slate-700 dark:text-slate-300 border border-slate-200/70 dark:border-slate-700">&#123;NOME&#125;</span>
+                            <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md font-mono text-slate-700 dark:text-slate-300 border border-slate-200/70 dark:border-slate-700">&#123;VALOR&#125;</span>
+                            <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md font-mono text-slate-700 dark:text-slate-300 border border-slate-200/70 dark:border-slate-700">&#123;DATA&#125;</span>
+                            <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md font-mono text-slate-700 dark:text-slate-300 border border-slate-200/70 dark:border-slate-700">&#123;TIPO&#125;</span>
+                            <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md font-mono text-slate-700 dark:text-slate-300 border border-slate-200/70 dark:border-slate-700">&#123;IGREJA&#125;</span>
+                            <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md font-mono text-slate-700 dark:text-slate-300 border border-slate-200/70 dark:border-slate-700">&#123;PASTOR&#125;</span>
+                            <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md font-mono text-slate-700 dark:text-slate-300 border border-slate-200/70 dark:border-slate-700">&#123;LINK_PORTAL&#125;</span>
                         </div>
                     </div>
 
-                    {/* WhatsApp Visual Chat Bubble Preview */}
-                    <div className="p-5 bg-[#E5DDD5] dark:bg-[#0B141A] rounded-3xl border border-slate-300/80 dark:border-slate-800 shadow-inner space-y-3">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400 block">
+                    {/* WhatsApp Visual Chat Bubble Preview — authentic WhatsApp surface colors preserved */}
+                    <div className="p-5 bg-[#E5DDD5] dark:bg-[#0B141A] rounded-xl border border-slate-300/80 dark:border-slate-800 shadow-inner space-y-3">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400 block">
                             Prévia Visual do Envio WhatsApp
                         </span>
 
-                        <div className="max-w-[85%] ml-auto bg-[#DCF8C6] dark:bg-[#005C4B] text-slate-900 dark:text-slate-100 p-4 rounded-3xl rounded-tr-none shadow-md text-xs whitespace-pre-wrap leading-relaxed font-sans relative border border-emerald-200/50 dark:border-emerald-700/50 space-y-3">
+                        <div className="max-w-[85%] ml-auto bg-[#DCF8C6] dark:bg-[#005C4B] text-slate-900 dark:text-slate-100 p-4 rounded-2xl rounded-tr-none shadow-md text-xs whitespace-pre-wrap leading-relaxed font-sans relative border border-emerald-200/50 dark:border-emerald-700/50 space-y-3">
                             <div>{messageContent}</div>
 
                             {/* Audio Card inside Preview if active audio available */}
                             {(activeSender === 'pastor' ? pastoralAudioUrl : treasuryAudioUrl) && (
-                                <div className="p-3 bg-white/40 dark:bg-black/20 rounded-2xl border border-black/5 flex items-center gap-3">
+                                <div className="p-3 bg-white/40 dark:bg-black/20 rounded-xl border border-black/5 flex items-center gap-3">
                                     <div className="p-2 rounded-full bg-emerald-600 text-white shadow-xs shrink-0">
                                         <Play className="w-4 h-4 fill-white" />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <div className="flex items-center justify-between text-[10px] font-extrabold uppercase tracking-wide">
+                                        <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wide">
                                             <span>{activeSender === 'pastor' ? `Áudio: Pr. ${pastorName}` : 'Áudio: Tesouraria'}</span>
-                                            <span className="text-[9px] text-slate-500 dark:text-slate-300">0:45</span>
+                                            <span className="text-[9px] text-slate-500 dark:text-slate-300 tabular-nums">0:45</span>
                                         </div>
                                         <div className="w-full bg-slate-300 dark:bg-slate-700 h-1.5 rounded-full mt-1.5 overflow-hidden">
                                             <div className="bg-emerald-600 h-full w-1/3 rounded-full"></div>
@@ -1067,7 +1076,7 @@ export const WhatsAppReceiptModal: React.FC<WhatsAppReceiptModalProps> = ({
                                 </div>
                             )}
 
-                            <div className="text-[9px] text-slate-500 dark:text-slate-300 text-right flex items-center justify-end gap-1">
+                            <div className="text-[10px] text-slate-500 dark:text-slate-300 text-right flex items-center justify-end gap-1 tabular-nums">
                                 <span>{new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
                                 <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-300" />
                             </div>
@@ -1076,13 +1085,13 @@ export const WhatsAppReceiptModal: React.FC<WhatsAppReceiptModalProps> = ({
 
                 </div>
 
-                {/* Footer Actions matching Novo Lançamento style */}
-                <div className="px-8 py-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-white/5 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                {/* Footer Actions */}
+                <div className="px-6 py-4 bg-slate-50/70 dark:bg-slate-900 border-t border-slate-200/80 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
                     <div className="flex items-center gap-2">
                         <button
                             type="button"
                             onClick={handleCopy}
-                            className="px-6 py-2.5 text-[10px] font-bold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-2xl shadow-xs transition-all tracking-wider uppercase flex items-center gap-1.5 cursor-pointer"
+                            className="px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
                         >
                             {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
                             <span>{copied ? 'Copiado' : 'Copiar Texto'}</span>
@@ -1091,19 +1100,19 @@ export const WhatsAppReceiptModal: React.FC<WhatsAppReceiptModalProps> = ({
                         <button
                             type="button"
                             onClick={handleTestSend}
-                            className="px-6 py-2.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/80 rounded-2xl shadow-xs transition-all tracking-wider uppercase flex items-center gap-1.5 cursor-pointer"
+                            className="px-4 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/80 rounded-lg shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
                             title="Disparar envio de teste direto no WhatsApp"
                         >
-                            <Send className="w-3.5 h-3.5 text-emerald-600" />
+                            <Send className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                             <span>Testar Disparo</span>
                         </button>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2.5">
                         <button
                             type="button"
                             onClick={onClose}
-                            className="px-6 py-2.5 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-2xl shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                            className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 rounded-lg shadow-xs transition-colors cursor-pointer"
                         >
                             Cancelar
                         </button>
@@ -1111,11 +1120,11 @@ export const WhatsAppReceiptModal: React.FC<WhatsAppReceiptModalProps> = ({
                         <button
                             type="button"
                             onClick={handleSaveAllSettings}
-                            className="px-8 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-emerald-600 via-teal-600 to-slate-900 rounded-2xl shadow-md shadow-emerald-600/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase flex items-center gap-2 cursor-pointer"
+                            className="px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-xs transition-colors flex items-center gap-2 cursor-pointer"
                         >
                             <Save className="w-4 h-4" />
                             <span>{savedNotice ? 'Salvo!' : 'Salvar Configurações'}</span>
-                            {!savedNotice && <span className="ml-1 text-[8px] opacity-70 bg-white/20 px-1 rounded">Enter</span>}
+                            {!savedNotice && <span className="ml-1 text-[10px] opacity-80 bg-white/20 px-1.5 py-0.5 rounded">Enter</span>}
                         </button>
                     </div>
                 </div>

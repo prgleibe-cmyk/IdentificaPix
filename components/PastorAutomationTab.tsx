@@ -386,20 +386,24 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
 
     return (
         <div className="space-y-6 animate-fade-in relative min-h-[500px]">
-            {/* Top overview card - Discrete style as requested */}
-            <div className="bg-slate-50 dark:bg-slate-900/50 text-slate-800 dark:text-white rounded-2xl p-5 border border-slate-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm">
-                <div className="space-y-1">
-                    <h2 className="text-base font-black uppercase tracking-wider flex items-center gap-2 text-slate-800 dark:text-white">
-                        <PiggyBank className="w-5 h-5 text-orange-500" />
-                        Automação de Lançamentos Recorrentes
-                    </h2>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 max-w-2xl">
-                        Configure e acompanhe pagamentos recorrentes para prestadores de serviços, fornecedores ou colaboradores. Controle adiantamentos avulsos, retenções mensais e gere lançamentos automáticos no extrato.
-                    </p>
+            {/* Top overview card */}
+            <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-xl p-4 sm:p-5 border border-slate-200/90 dark:border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-xs">
+                <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 bg-orange-50 dark:bg-orange-950/40 border border-orange-200/60 dark:border-orange-900/40 rounded-lg flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0 mt-0.5">
+                        <PiggyBank className="w-4 h-4" />
+                    </div>
+                    <div className="space-y-0.5">
+                        <h2 className="text-base font-bold tracking-tight text-slate-900 dark:text-white leading-tight">
+                            Automação de Lançamentos Recorrentes
+                        </h2>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 max-w-2xl">
+                            Configure e acompanhe pagamentos recorrentes para prestadores de serviços, fornecedores ou colaboradores. Controle adiantamentos avulsos, retenções mensais e gere lançamentos automáticos no extrato.
+                        </p>
+                    </div>
                 </div>
                 <button
                     onClick={handleNewRule}
-                    className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold px-4 py-2.5 rounded-xl shadow-md shadow-orange-500/15 text-xs uppercase tracking-wider transition-all hover:-translate-y-0.5 active:scale-95 flex items-center gap-1.5 cursor-pointer shrink-0"
+                    className="bg-orange-600 hover:bg-orange-700 text-white font-semibold px-4 py-2 rounded-lg shadow-xs text-xs transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
                 >
                     <Plus className="w-4 h-4" />
                     Nova Regra
@@ -407,17 +411,17 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
             </div>
 
             {/* List of rules */}
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 {/* Active Rules List */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl p-5 space-y-4 shadow-sm">
-                    <div className="flex justify-between items-center pb-2 border-b border-slate-50 dark:border-white/5">
-                        <h3 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                            <Settings className="w-4 h-4 text-orange-500" />
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl p-5 space-y-4 shadow-xs">
+                    <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800">
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                            <Settings className="w-4 h-4 text-orange-600 dark:text-orange-400" />
                             Regras Ativas de Recorrência
                         </h3>
                         <button 
                             onClick={fetchRules}
-                            className="text-slate-400 hover:text-slate-600 dark:hover:text-white transition-all cursor-pointer"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-white transition-colors cursor-pointer"
                             title="Atualizar lista"
                         >
                             <RefreshCw className="w-3.5 h-3.5" />
@@ -426,47 +430,47 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
 
                     {loading ? (
                         <div className="py-12 text-center text-slate-400 flex flex-col items-center gap-2">
-                            <RefreshCw className="w-5 h-5 animate-spin text-orange-500" />
-                            <span className="text-xs">Buscando regras...</span>
+                            <RefreshCw className="w-5 h-5 animate-spin text-orange-600" />
+                            <span className="text-xs font-medium">Buscando regras...</span>
                         </div>
                     ) : rules.length === 0 ? (
                         <div className="py-12 text-center text-slate-400 flex flex-col items-center gap-2">
                             <User className="w-8 h-8 text-slate-300 dark:text-slate-600" />
-                            <span className="text-xs font-bold">Nenhuma regra cadastrada</span>
-                            <span className="text-[10px] text-slate-400">Cadastre regras de recorrência para automatizar lançamentos.</span>
+                            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Nenhuma regra cadastrada</span>
+                            <span className="text-xs text-slate-400">Cadastre regras de recorrência para automatizar lançamentos.</span>
                         </div>
                     ) : (
-                        <div className="space-y-3 max-h-[550px] overflow-y-auto pr-1">
+                        <div className="space-y-3 max-h-[550px] overflow-y-auto pr-1 custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
                             {rules.map((rule) => {
                                 const church = churches.find(c => c.id === rule.church_id);
                                 const isRulePastor = rule.pastor_name.toLowerCase().includes('pr.') || rule.pastor_name.toLowerCase().includes('pastor');
 
                                 return (
-                                    <div key={rule.id} className={`p-4 border rounded-xl flex flex-col gap-3 transition-all ${rule.active ? 'border-slate-100 dark:border-white/5 bg-slate-50/20 dark:bg-black/5' : 'border-slate-100 opacity-60 bg-slate-100/30'}`}>
+                                    <div key={rule.id} className={`p-4 border rounded-xl flex flex-col gap-3 transition-colors ${rule.active ? 'border-slate-200/80 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-950/30' : 'border-slate-200/60 dark:border-slate-800/60 opacity-60 bg-slate-100/50 dark:bg-slate-900/40'}`}>
                                         <div className="flex justify-between items-start gap-4">
                                             <div>
-                                                <h4 className="font-extrabold text-sm text-slate-800 dark:text-white flex items-center gap-2">
-                                                    <User className="w-4 h-4 text-orange-500 shrink-0" />
+                                                <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                                                    <User className="w-4 h-4 text-orange-600 dark:text-orange-400 shrink-0" />
                                                     {rule.pastor_name}
                                                     {!rule.active && (
-                                                        <span className="bg-slate-200 dark:bg-slate-800 text-slate-500 text-[8px] font-bold px-1.5 py-0.5 rounded uppercase">Inativo</span>
+                                                        <span className="bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-semibold px-2 py-0.5 rounded-md">Inativo</span>
                                                     )}
                                                 </h4>
-                                                <p className="text-[10px] text-slate-400 mt-1">
-                                                    Igreja: {church ? church.name : '---'} | Chave Pix ({rule.pix_key_type.toUpperCase()}): {rule.pix_key}
+                                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 tabular-nums">
+                                                    Igreja: {church ? church.name : '---'} • Chave Pix ({rule.pix_key_type.toUpperCase()}): {rule.pix_key}
                                                 </p>
                                             </div>
                                             <div className="flex items-center gap-1.5 shrink-0">
                                                 <button
                                                     onClick={() => handleEditRule(rule)}
-                                                    className="p-1.5 bg-slate-50 hover:bg-slate-100 dark:bg-white/5 dark:hover:bg-white/10 rounded-lg text-slate-500 dark:text-slate-300 transition-all cursor-pointer"
+                                                    className="p-1.5 bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700 rounded-lg text-slate-500 dark:text-slate-300 transition-colors cursor-pointer"
                                                     title="Editar Regra"
                                                 >
                                                     <Edit className="w-3.5 h-3.5" />
                                                 </button>
                                                 <button
                                                     onClick={() => handleDeleteRule(rule.id)}
-                                                    className="p-1.5 bg-red-50 hover:bg-red-100 dark:bg-red-950/20 rounded-lg text-red-500 transition-all cursor-pointer"
+                                                    className="p-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-950/50 border border-rose-200/60 dark:border-rose-900/40 rounded-lg text-rose-600 dark:text-rose-400 transition-colors cursor-pointer"
                                                     title="Excluir Regra"
                                                 >
                                                     <Trash2 className="w-3.5 h-3.5" />
@@ -475,30 +479,30 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
                                         </div>
 
                                         {/* Amounts Breakdown Grid */}
-                                        <div className="grid grid-cols-3 gap-2 bg-slate-50 dark:bg-black/30 p-2.5 rounded-xl border border-slate-100 dark:border-white/5">
+                                        <div className="grid grid-cols-3 gap-2 bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200/80 dark:border-slate-800">
                                             <div className="text-center">
-                                                <span className="text-[9px] font-bold text-slate-400 block uppercase">{isRulePastor ? 'Espótula Bruta' : 'Valor Bruto'}</span>
-                                                <span className="text-xs font-black text-slate-700 dark:text-slate-200 font-mono block mt-0.5">
+                                                <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 block uppercase tracking-wide">{isRulePastor ? 'Espótula Bruta' : 'Valor Bruto'}</span>
+                                                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 tabular-nums block mt-0.5">
                                                     {formatCurrency(rule.gross_amount, language)}
                                                 </span>
                                             </div>
-                                            <div className="text-center border-x border-slate-100 dark:border-white/5">
-                                                <span className="text-[9px] font-bold text-slate-400 block uppercase">{isRulePastor ? 'Dízimo Desconto' : 'Retenção/Desconto'}</span>
-                                                <span className="text-xs font-black text-rose-500 font-mono block mt-0.5">
+                                            <div className="text-center border-x border-slate-100 dark:border-slate-800">
+                                                <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 block uppercase tracking-wide">{isRulePastor ? 'Dízimo Desconto' : 'Retenção/Desconto'}</span>
+                                                <span className="text-xs font-bold text-rose-600 dark:text-rose-400 tabular-nums block mt-0.5">
                                                     {rule.tithe_enabled ? `- ${formatCurrency(rule.tithe_amount, language)}` : '---'}
                                                 </span>
                                             </div>
                                             <div className="text-center">
-                                                <span className="text-[9px] font-bold text-slate-400 block uppercase">Pix Líquido Final</span>
-                                                <span className="text-xs font-black text-emerald-500 font-mono block mt-0.5">
+                                                <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 block uppercase tracking-wide">Pix Líquido Final</span>
+                                                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 tabular-nums block mt-0.5">
                                                     {formatCurrency(rule.net_amount, language)}
                                                 </span>
                                             </div>
                                         </div>
 
-                                        <div className="flex justify-between items-center text-[10px] text-slate-400 mt-1">
-                                            <span className="flex items-center gap-1">
-                                                <Calendar className="w-3.5 h-3.5 text-orange-500" />
+                                        <div className="flex justify-between items-center text-xs text-slate-500 dark:text-slate-400 mt-0.5 tabular-nums">
+                                            <span className="flex items-center gap-1.5">
+                                                <Calendar className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
                                                 Vencimento recorrente: Todo dia {rule.payment_day}
                                             </span>
                                         </div>
@@ -510,21 +514,21 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
                 </div>
 
                 {/* Reminders & Real-time Alerts Panel */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl p-5 space-y-4 shadow-sm flex flex-col">
-                    <div className="pb-2 border-b border-slate-50 dark:border-white/5">
-                        <h3 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                            <Clock className="w-4 h-4 text-orange-500 animate-pulse" />
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl p-5 space-y-4 shadow-xs flex flex-col">
+                    <div className="pb-3 border-b border-slate-100 dark:border-slate-800">
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-orange-600 dark:text-orange-400" />
                             Lembretes e Controle de Saldos
                         </h3>
-                        <p className="text-[10px] text-slate-400 mt-1">Calculado dinamicamente com base em adiantamentos e pagamentos confirmados no mês atual.</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Calculado dinamicamente com base em adiantamentos e pagamentos confirmados no mês atual.</p>
                     </div>
 
-                    <div className="space-y-4 flex-1 overflow-y-auto max-h-[550px] pr-1">
+                    <div className="space-y-4 flex-1 overflow-y-auto max-h-[550px] pr-1 custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
                         {rules.filter(r => r.active).length === 0 ? (
                             <div className="py-12 text-center text-slate-400 flex flex-col items-center gap-2">
                                 <Clock className="w-8 h-8 text-slate-300 dark:text-slate-600" />
-                                <span className="text-xs font-bold">Nenhum lembrete para este mês</span>
-                                <span className="text-[10px] text-slate-400">Ative ou cadastre regras de recorrência para visualizar os status de vencimento.</span>
+                                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Nenhum lembrete para este mês</span>
+                                <span className="text-xs text-slate-400">Ative ou cadastre regras de recorrência para visualizar os status de vencimento.</span>
                             </div>
                         ) : (
                             rules.filter(r => r.active).map(rule => {
@@ -537,50 +541,50 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
                                 const isAlreadyPaid = currentMonthPayments.some(pay => pay.recipient_name?.toLowerCase() === rule.pastor_name.toLowerCase());
 
                                 return (
-                                    <div key={`reminder-${rule.id}`} className={`p-4 border rounded-xl flex flex-col gap-3 relative overflow-hidden ${isAlreadyPaid ? 'border-emerald-100 bg-emerald-50/5 dark:bg-emerald-950/5' : totalAdvances > 0 ? 'border-amber-100 bg-amber-50/5 dark:bg-amber-950/5' : 'border-slate-100'}`}>
+                                    <div key={`reminder-${rule.id}`} className={`p-4 border rounded-xl flex flex-col gap-3 relative overflow-hidden ${isAlreadyPaid ? 'border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/40 dark:bg-emerald-950/15' : totalAdvances > 0 ? 'border-amber-200 dark:border-amber-800/60 bg-amber-50/40 dark:bg-amber-950/15' : 'border-slate-200/80 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-950/30'}`}>
                                         
                                         {/* Status header banner */}
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-xs font-extrabold text-slate-800 dark:text-white uppercase">
+                                        <div className="flex justify-between items-center gap-2">
+                                            <span className="text-xs font-bold text-slate-900 dark:text-white">
                                                 {rule.pastor_name}
                                             </span>
                                             {isAlreadyPaid ? (
-                                                <span className="bg-emerald-500 text-white text-[8px] font-black uppercase px-2 py-0.5 rounded flex items-center gap-1">
-                                                    <CheckCircle className="w-2.5 h-2.5" /> Pago este mês
+                                                <span className="bg-emerald-600 text-white text-[11px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-1">
+                                                    <CheckCircle className="w-3 h-3" /> Pago este mês
                                                 </span>
                                             ) : (
-                                                <span className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-300 text-[8px] font-black uppercase px-2 py-0.5 rounded flex items-center gap-1">
-                                                    <Clock className="w-2.5 h-2.5 text-orange-500" /> Pendente dia {rule.payment_day}
+                                                <span className="bg-slate-100 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-[11px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-1 tabular-nums">
+                                                    <Clock className="w-3 h-3 text-orange-600 dark:text-orange-400" /> Pendente dia {rule.payment_day}
                                                 </span>
                                             )}
                                         </div>
 
                                         {/* Real-time Advance Warning alert */}
                                         {totalAdvances > 0 ? (
-                                            <div className="p-3 bg-amber-500/10 border border-amber-500/15 rounded-xl text-amber-600 dark:text-amber-400 flex items-start gap-2.5">
-                                                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 animate-bounce" />
+                                            <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/50 rounded-lg text-amber-800 dark:text-amber-300 flex items-start gap-2.5">
+                                                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
                                                 <div className="space-y-0.5">
-                                                    <span className="text-[10px] font-extrabold uppercase block leading-none">Atenção: Adiantamentos Detectados!</span>
-                                                    <p className="text-[10px] leading-relaxed">
-                                                        Este favorecido recebeu um total de <strong>{formatCurrency(totalAdvances, language)}</strong> em adiantamentos este mês.
+                                                    <span className="text-[11px] font-bold block leading-none">Atenção: Adiantamentos Detectados</span>
+                                                    <p className="text-xs leading-relaxed">
+                                                        Este favorecido recebeu um total de <strong className="tabular-nums">{formatCurrency(totalAdvances, language)}</strong> em adiantamentos este mês.
                                                     </p>
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="p-2.5 bg-slate-50 dark:bg-black/20 rounded-xl text-slate-500 text-[10px]">
+                                            <div className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-lg text-slate-500 dark:text-slate-400 text-xs">
                                                 Nenhum adiantamento registrado para este favorecido neste mês.
                                             </div>
                                         )}
 
                                         {/* List details of registered advances in small tags */}
                                         {ruleAdvances.length > 0 && (
-                                            <div className="space-y-1">
-                                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider block">Lista de Adiantamentos:</span>
-                                                <div className="flex flex-wrap gap-1">
+                                            <div className="space-y-1.5">
+                                                <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block">Lista de Adiantamentos:</span>
+                                                <div className="flex flex-wrap gap-1.5">
                                                     {ruleAdvances.map(adv => (
-                                                        <span key={adv.id} className="bg-slate-100 dark:bg-slate-800 border border-slate-200/50 dark:border-white/5 text-[9px] font-bold text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                                                        <span key={adv.id} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] font-medium text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded-md flex items-center gap-1.5 tabular-nums">
                                                             <span>{formatDate(adv.payment_date || adv.due_date || adv.created_at)}</span>
-                                                            <span className="font-black text-orange-500 font-mono">{formatCurrency(adv.amount, language)}</span>
+                                                            <span className="font-bold text-orange-600 dark:text-orange-400 tabular-nums">{formatCurrency(adv.amount, language)}</span>
                                                         </span>
                                                     ))}
                                                 </div>
@@ -588,19 +592,19 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
                                         )}
 
                                         {/* Bottom remaining calculation statement */}
-                                        <div className="flex justify-between items-center py-1 border-t border-dashed border-slate-100 dark:border-white/5">
+                                        <div className="flex flex-wrap justify-between items-center gap-2 pt-2 border-t border-dashed border-slate-200 dark:border-slate-800">
                                             <div>
-                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Líquido Ajustado</span>
-                                                <span className="text-sm font-black text-slate-800 dark:text-white font-mono block mt-0.5">
+                                                <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block">Líquido Ajustado</span>
+                                                <span className="text-sm font-bold text-slate-900 dark:text-white tabular-nums block mt-0.5">
                                                     {formatCurrency(finalRemainingToPay, language)}
                                                 </span>
                                             </div>
-                                            <div className="flex items-center gap-1.5 shrink-0">
+                                            <div className="flex items-center gap-2 shrink-0">
                                                 {/* Register Advance Trigger */}
                                                 {!isAlreadyPaid && (
                                                     <button
                                                         onClick={() => handleOpenAdvance(rule)}
-                                                        className="px-2.5 py-1.5 border border-amber-500/10 hover:border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 text-amber-500 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer"
+                                                        className="px-3 py-1.5 border border-amber-300 dark:border-amber-700/60 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:hover:bg-amber-950/50 text-amber-700 dark:text-amber-300 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
                                                     >
                                                         Registrar Adiantamento
                                                     </button>
@@ -610,7 +614,7 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
                                                 {!isAlreadyPaid && (
                                                     <button
                                                         onClick={() => handleConfirmMonthlyPayment(rule, finalRemainingToPay)}
-                                                        className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm shadow-emerald-600/15 transition-all active:scale-95 cursor-pointer flex items-center gap-1"
+                                                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer flex items-center gap-1"
                                                     >
                                                         <Check className="w-3.5 h-3.5" /> Confirmar Pagamento
                                                     </button>
@@ -628,44 +632,47 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
             {/* Section: Configuração de Mensagens de Agradecimento e Bênção Pastoral via WhatsApp */}
             <WhatsAppTemplateConfig showToast={showToast as any} />
 
-            {/* MODAL 1: Create or Edit Rule - Standardized Full-Page Takeover */}
+            {/* MODAL 1: Create or Edit Rule - Suspended Sub-Screen Modal */}
             {isRuleModalOpen && (
-                <div className="absolute inset-0 z-50 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full overflow-hidden">
-                    <form onSubmit={handleSaveRule} className="flex flex-col h-full w-full overflow-hidden">
+                <div
+                    className="fixed inset-0 z-[56] flex items-center justify-center pt-16 md:pt-5 pb-3 md:pb-5 px-2 sm:px-6 bg-slate-900/55 backdrop-blur-[2px] animate-fade-in"
+                    onClick={(e) => { if (e.target === e.currentTarget) setIsRuleModalOpen(false); }}
+                >
+                    <form
+                        onSubmit={handleSaveRule}
+                        onClick={(e) => e.stopPropagation()}
+                        className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-elevated w-full max-w-3xl max-h-[calc(100dvh-5rem)] md:max-h-[min(88vh,calc(100dvh-3rem))] flex flex-col overflow-hidden animate-scale-in"
+                    >
                         {/* Header */}
-                        <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                            <div className="flex flex-row flex-wrap items-center gap-4 md:gap-8 w-full md:w-auto">
-                                <div className="flex items-center gap-4">
-                                    <div className="p-3 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/20">
-                                        <Settings className="w-6 h-6" />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight uppercase">
-                                            {editingRule ? 'Editar Regra de Automação' : 'Nova Regra de Automação'}
-                                        </h3>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">
-                                            {editingRule ? 'Atualizar regra de pagamento recorrente' : 'Cadastrar automação de fornecedor ou prestador'}
-                                        </p>
-                                    </div>
+                        <div className="px-5 py-3.5 border-b border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 flex justify-between items-center gap-3 shrink-0">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-8 h-8 bg-orange-50 dark:bg-orange-950/40 border border-orange-200/60 dark:border-orange-900/40 rounded-lg flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
+                                    <Settings className="w-4 h-4" />
+                                </div>
+                                <div className="min-w-0">
+                                    <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
+                                        {editingRule ? 'Editar Regra de Automação' : 'Nova Regra de Automação'}
+                                    </h3>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight truncate">
+                                        {editingRule ? 'Atualizar regra de pagamento recorrente' : 'Cadastrar automação de fornecedor ou prestador'}
+                                    </p>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2 self-end md:self-auto">
-                                <button 
-                                    type="button" 
-                                    onClick={() => setIsRuleModalOpen(false)} 
-                                    className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors cursor-pointer"
-                                >
-                                    <X className="w-6 h-6" />
-                                </button>
-                            </div>
+                            <button 
+                                type="button" 
+                                onClick={() => setIsRuleModalOpen(false)} 
+                                className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer shrink-0"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
                         </div>
 
                         {/* Body */}
-                        <div className="p-8 flex-1 overflow-y-auto w-full custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
-                            <div className="space-y-6 w-full max-w-3xl mx-auto">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-3">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                        <div className="p-6 flex-1 overflow-y-auto w-full custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
+                            <div className="space-y-5 w-full max-w-3xl mx-auto">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Nome do Beneficiário / Prestador *
                                         </label>
                                         <input
@@ -673,19 +680,19 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
                                             value={pastorName}
                                             onChange={(e) => setPastorName(e.target.value)}
                                             placeholder="Ex: Pr. João Santos, Maria Silva, Fornecedor"
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-medium"
                                             required
                                         />
                                     </div>
 
-                                    <div className="space-y-3">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Igreja Associada
                                         </label>
                                         <select
                                             value={churchId}
                                             onChange={(e) => setChurchId(e.target.value)}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-medium"
                                         >
                                             <option value="">Selecione uma Igreja...</option>
                                             {churches.map(c => (
@@ -694,14 +701,14 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
                                         </select>
                                     </div>
 
-                                    <div className="space-y-3">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Tipo de Chave Pix
                                         </label>
                                         <select
                                             value={pixKeyType}
                                             onChange={(e) => setPixKeyType(e.target.value)}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-medium"
                                         >
                                             <option value="cpf">CPF</option>
                                             <option value="cnpj">CNPJ</option>
@@ -711,8 +718,8 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
                                         </select>
                                     </div>
 
-                                    <div className="space-y-3">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Chave Pix *
                                         </label>
                                         <input
@@ -720,13 +727,13 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
                                             value={pixKey}
                                             onChange={(e) => setPixKey(e.target.value)}
                                             placeholder="Digite a chave pix..."
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-medium"
                                             required
                                         />
                                     </div>
 
-                                    <div className="space-y-3">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Dia de Vencimento *
                                         </label>
                                         <input
@@ -735,13 +742,13 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
                                             max="31"
                                             value={paymentDay}
                                             onChange={(e) => setPaymentDay(Math.min(31, Math.max(1, Number(e.target.value))))}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-mono font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-semibold tabular-nums"
                                             required
                                         />
                                     </div>
 
-                                    <div className="space-y-3">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Valor Bruto (R$) *
                                         </label>
                                         <input
@@ -750,19 +757,19 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
                                             value={grossAmount}
                                             onChange={(e) => setGrossAmount(e.target.value)}
                                             placeholder="Ex: 3000"
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-mono font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-semibold tabular-nums"
                                             required
                                         />
                                     </div>
                                 </div>
 
-                                <div className="bg-slate-50 dark:bg-slate-900/40 p-6 rounded-2xl border border-slate-100 dark:border-white/5 space-y-4">
-                                    <div className="flex items-center justify-between">
+                                <div className="bg-slate-50 dark:bg-slate-900/60 p-5 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-4">
+                                    <div className="flex items-center justify-between gap-4">
                                         <div>
-                                            <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                                            <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 block">
                                                 Habilitar Desconto Retido (Ex: Dízimo)
                                             </span>
-                                            <span className="text-[9px] text-slate-400">
+                                            <span className="text-xs text-slate-500 dark:text-slate-400">
                                                 Deduzir valor automaticamente do pagamento líquido final.
                                             </span>
                                         </div>
@@ -770,13 +777,13 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
                                             type="checkbox"
                                             checked={titheEnabled}
                                             onChange={(e) => setTitheEnabled(e.target.checked)}
-                                            className="w-5 h-5 accent-orange-500 cursor-pointer"
+                                            className="w-4 h-4 accent-orange-600 cursor-pointer rounded"
                                         />
                                     </div>
 
                                     {titheEnabled && (
-                                        <div className="space-y-3 animate-fade-in">
-                                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                        <div className="space-y-1.5 animate-fade-in">
+                                            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                                 Valor do Desconto / Retenção (R$)
                                             </label>
                                             <input
@@ -785,28 +792,28 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
                                                 value={titheAmount}
                                                 onChange={(e) => setTitheAmount(e.target.value)}
                                                 placeholder="Ex: 300"
-                                                className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-mono font-bold"
+                                                className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-semibold tabular-nums"
                                             />
                                         </div>
                                     )}
 
-                                    <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs">
-                                        <span className="font-extrabold text-slate-500">Valor Líquido do Pix:</span>
-                                        <span className="font-mono font-black text-emerald-500 text-base">
+                                    <div className="pt-3 border-t border-slate-200/80 dark:border-slate-800 flex justify-between items-center text-xs">
+                                        <span className="font-semibold text-slate-600 dark:text-slate-300">Valor Líquido do Pix:</span>
+                                        <span className="tabular-nums font-bold text-emerald-600 dark:text-emerald-400 text-base">
                                             {formatCurrency(calculatedNet, language)}
                                         </span>
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-3 bg-slate-50/50 dark:bg-slate-900/10 p-4 rounded-xl border border-slate-100 dark:border-white/5">
+                                <div className="flex items-center gap-3 bg-slate-50/70 dark:bg-slate-900/40 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800">
                                     <input
                                         type="checkbox"
                                         id="isActive"
                                         checked={isActive}
                                         onChange={(e) => setIsActive(e.target.checked)}
-                                        className="w-5 h-5 accent-orange-500 cursor-pointer"
+                                        className="w-4 h-4 accent-orange-600 cursor-pointer rounded"
                                     />
-                                    <label htmlFor="isActive" className="text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer select-none">
+                                    <label htmlFor="isActive" className="text-xs font-medium text-slate-700 dark:text-slate-300 cursor-pointer select-none">
                                         Regra Ativa (habilitar lembretes automáticos e controle de saldos)
                                     </label>
                                 </div>
@@ -814,17 +821,17 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
                         </div>
 
                         {/* Footer */}
-                        <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 border-t border-slate-100 dark:border-slate-800/50">
+                        <div className="bg-slate-50 dark:bg-slate-900/80 px-6 py-4 flex justify-end gap-3 border-t border-slate-200/80 dark:border-slate-800 shrink-0">
                             <button 
                                 type="button" 
                                 onClick={() => setIsRuleModalOpen(false)} 
-                                className="px-6 py-2.5 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-full shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 rounded-lg shadow-2xs transition-colors cursor-pointer"
                             >
                                 Cancelar
                             </button>
                             <button 
                                 type="submit" 
-                                className="px-8 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-full shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                                className="px-5 py-2 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-xs transition-colors cursor-pointer"
                             >
                                 {editingRule ? 'Salvar Alterações' : 'Criar Automação'}
                             </button>
@@ -833,56 +840,59 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
                 </div>
             )}
 
-            {/* MODAL 2: Register Advance - Standardized Full-Page Takeover */}
+            {/* MODAL 2: Register Advance - Suspended Sub-Screen Modal */}
             {isAdvanceModalOpen && selectedRuleForAdvance && (
-                <div className="absolute inset-0 z-50 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full overflow-hidden">
-                    <form onSubmit={handleSaveAdvance} className="flex flex-col h-full w-full overflow-hidden">
+                <div
+                    className="fixed inset-0 z-[56] flex items-center justify-center pt-16 md:pt-5 pb-3 md:pb-5 px-2 sm:px-6 bg-slate-900/55 backdrop-blur-[2px] animate-fade-in"
+                    onClick={(e) => { if (e.target === e.currentTarget) setIsAdvanceModalOpen(false); }}
+                >
+                    <form
+                        onSubmit={handleSaveAdvance}
+                        onClick={(e) => e.stopPropagation()}
+                        className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-elevated w-full max-w-2xl max-h-[calc(100dvh-5rem)] md:max-h-[min(88vh,calc(100dvh-3rem))] flex flex-col overflow-hidden animate-scale-in"
+                    >
                         {/* Header */}
-                        <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                            <div className="flex flex-row flex-wrap items-center gap-4 md:gap-8 w-full md:w-auto">
-                                <div className="flex items-center gap-4">
-                                    <div className="p-3 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/20">
-                                        <Plus className="w-6 h-6" />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight uppercase">
-                                            Registrar Adiantamento
-                                        </h3>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">
-                                            Lançar adiantamento de valor recorrente
-                                        </p>
-                                    </div>
+                        <div className="px-5 py-3.5 border-b border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 flex justify-between items-center gap-3 shrink-0">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-8 h-8 bg-orange-50 dark:bg-orange-950/40 border border-orange-200/60 dark:border-orange-900/40 rounded-lg flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
+                                    <Plus className="w-4 h-4" />
+                                </div>
+                                <div className="min-w-0">
+                                    <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
+                                        Registrar Adiantamento
+                                    </h3>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight truncate">
+                                        Lançar adiantamento de valor recorrente
+                                    </p>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2 self-end md:self-auto">
-                                <button 
-                                    type="button" 
-                                    onClick={() => setIsAdvanceModalOpen(false)} 
-                                    className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors cursor-pointer"
-                                >
-                                    <X className="w-6 h-6" />
-                                </button>
-                            </div>
+                            <button 
+                                type="button" 
+                                onClick={() => setIsAdvanceModalOpen(false)} 
+                                className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer shrink-0"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
                         </div>
 
                         {/* Body */}
-                        <div className="p-8 flex-1 overflow-y-auto w-full">
-                            <div className="space-y-6 w-full max-w-3xl mx-auto">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-3 md:col-span-2">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                        <div className="p-6 flex-1 overflow-y-auto w-full custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
+                            <div className="space-y-5 w-full max-w-3xl mx-auto">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1.5 md:col-span-2">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Favorecido / Beneficiário
                                         </label>
                                         <input
                                             type="text"
                                             value={selectedRuleForAdvance.pastor_name}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 py-4 px-5 text-sm font-bold cursor-not-allowed outline-none"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 py-2.5 px-3.5 text-sm font-medium cursor-not-allowed outline-none"
                                             disabled
                                         />
                                     </div>
 
-                                    <div className="space-y-3">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Valor do Adiantamento (R$) *
                                         </label>
                                         <input
@@ -891,27 +901,27 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
                                             value={advanceAmount}
                                             onChange={(e) => setAdvanceAmount(e.target.value)}
                                             placeholder="Ex: 500"
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-mono font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-semibold tabular-nums"
                                             required
                                             autoFocus
                                         />
                                     </div>
 
-                                    <div className="space-y-3">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Data do Adiantamento *
                                         </label>
                                         <input
                                             type="date"
                                             value={advanceDate}
                                             onChange={(e) => setAdvanceDate(e.target.value)}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-mono font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-medium tabular-nums"
                                             required
                                         />
                                     </div>
 
-                                    <div className="space-y-3 md:col-span-2">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <div className="space-y-1.5 md:col-span-2">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Descrição / Finalidade *
                                         </label>
                                         <input
@@ -919,7 +929,7 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
                                             value={advanceDescription}
                                             onChange={(e) => setAdvanceDescription(e.target.value)}
                                             placeholder="Ex: Adiantamento solicitado para despesas extraordinárias"
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-medium"
                                             required
                                         />
                                     </div>
@@ -928,17 +938,17 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
                         </div>
 
                         {/* Footer */}
-                        <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 border-t border-slate-100 dark:border-slate-800/50">
+                        <div className="bg-slate-50 dark:bg-slate-900/80 px-6 py-4 flex justify-end gap-3 border-t border-slate-200/80 dark:border-slate-800 shrink-0">
                             <button 
                                 type="button" 
                                 onClick={() => setIsAdvanceModalOpen(false)} 
-                                className="px-6 py-2.5 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-full shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 rounded-lg shadow-2xs transition-colors cursor-pointer"
                             >
                                 Cancelar
                             </button>
                             <button 
                                 type="submit" 
-                                className="px-8 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-full shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                                className="px-5 py-2 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-xs transition-colors cursor-pointer"
                             >
                                 Registrar Adiantamento
                             </button>

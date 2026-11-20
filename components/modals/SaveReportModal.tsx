@@ -38,29 +38,27 @@ export const SaveReportModal: React.FC = () => {
         <div className="glass-overlay animate-fade-in">
             <div className="glass-modal animate-scale-in">
                 <form onSubmit={handleSubmit}>
-                    <div className="p-8">
-                        <div className="flex items-center justify-between mb-6">
-                            <h3 className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">{t('modal.saveReport.title')}</h3>
-                            <button type="button" onClick={closeSaveReportModal} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
-                                <XMarkIcon className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <div className="space-y-4">
-                            <label htmlFor="report-name" className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t('modal.saveReport.nameLabel')}</label>
-                            <input
-                                type="text"
-                                id="report-name"
-                                value={name}
-                                onChange={e => setName(e.target.value)}
-                                className="block w-full rounded-2xl border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/50 text-slate-900 dark:text-white shadow-inner focus:border-orange-500 focus:ring-orange-500 py-3.5 px-4 transition-all outline-none text-sm"
-                                required
-                                autoFocus
-                            />
-                        </div>
+                    <div className="px-6 py-4 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900">
+                        <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">{t('modal.saveReport.title')}</h3>
+                        <button type="button" onClick={closeSaveReportModal} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer">
+                            <XMarkIcon className="w-5 h-5" />
+                        </button>
                     </div>
-                    <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 rounded-b-[2rem] border-t border-slate-100 dark:border-slate-700/50">
-                        <button type="button" onClick={closeSaveReportModal} className="px-6 py-2.5 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-2xl shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer">{t('common.cancel')}</button>
-                        <button type="submit" disabled={isSaving || !name.trim()} className="px-8 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-2xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none">
+                    <div className="p-6 space-y-2">
+                        <label htmlFor="report-name" className="block text-xs font-medium text-slate-700 dark:text-slate-300">{t('modal.saveReport.nameLabel')}</label>
+                        <input
+                            type="text"
+                            id="report-name"
+                            value={name}
+                            onChange={e => setName(e.target.value)}
+                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3 transition-colors outline-none text-sm font-medium"
+                            required
+                            autoFocus
+                        />
+                    </div>
+                    <div className="bg-slate-50/70 dark:bg-slate-900 px-6 py-4 flex justify-end space-x-2.5 rounded-b-2xl border-t border-slate-200/80 dark:border-slate-800">
+                        <button type="button" onClick={closeSaveReportModal} className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 rounded-lg shadow-xs transition-colors cursor-pointer">{t('common.cancel')}</button>
+                        <button type="submit" disabled={isSaving || !name.trim()} className="px-5 py-2 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
                             {isSaving ? `${t('common.save')}...` : t('common.save')}
                         </button>
                     </div>

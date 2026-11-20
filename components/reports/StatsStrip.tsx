@@ -39,10 +39,10 @@ export const StatsStrip: React.FC<StatsStripProps> = ({
     };
 
     return (
-        <div className="px-4 py-3 bg-slate-50/70 dark:bg-slate-900/60 border-b border-slate-200/80 dark:border-slate-800 flex flex-col gap-3 shrink-0">
-            {/* Linha superior: Título do relatório + Campo de busca sempre visível */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                <div className="flex items-center gap-2.5 min-w-0">
+        <div className="px-3.5 sm:px-4 py-3 bg-slate-50/70 dark:bg-slate-900/60 border-b border-slate-200/80 dark:border-slate-800 flex flex-col gap-2.5 shrink-0">
+            {/* Linha superior: Título do relatório + Campo de busca sem corte no tablet */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 min-w-0">
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
                         category === 'unidentified'
                             ? 'bg-amber-50 text-amber-600 border-amber-200/70 dark:bg-amber-950/50 dark:text-amber-400 dark:border-amber-900/40'
@@ -56,14 +56,14 @@ export const StatsStrip: React.FC<StatsStripProps> = ({
                         <h3 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight truncate">
                             {reportName || 'Carregando...'}
                         </h3>
-                        <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 px-2 py-0.5 rounded-md tabular-nums shrink-0">
+                        <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 px-2 py-0.5 rounded-md tabular-nums shrink-0">
                             {stats.count} {stats.count === 1 ? 'registro' : 'registros'}
                         </span>
                     </div>
                 </div>
 
                 {/* Pesquisa dedicada e sempre acessível */}
-                <div className="relative w-full sm:w-56 md:w-64 shrink-0">
+                <div className="relative w-full md:w-64 lg:w-72 shrink-0">
                     <MagnifyingGlassIcon className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input 
                         type="text" 
@@ -75,39 +75,48 @@ export const StatsStrip: React.FC<StatsStripProps> = ({
                 </div>
             </div>
 
-            {/* Linha inferior: Totais Financeiros + Status de Conciliação sem corte horizontal */}
+            {/* Linha inferior: Faixa compacta e limpa de Totais Financeiros + Status */}
             <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-2 pt-2 border-t border-slate-200/60 dark:border-slate-800/80">
-                <div className="flex flex-wrap items-center gap-1.5">
+                <div className="grid grid-cols-3 sm:flex sm:flex-wrap items-center gap-2 sm:gap-3 bg-white dark:bg-slate-800/70 px-3 py-1.5 rounded-lg border border-slate-200/80 dark:border-slate-700/80">
                     <div 
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200/70 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300 text-xs"
+                        className="flex flex-col sm:flex-row sm:items-baseline sm:gap-1.5 text-xs min-w-0"
                         title="Total de todas as entradas do relatório (lançamentos manuais, arquivos e SMS)"
                     >
-                        <span className="text-[11px] font-medium text-emerald-700/80 dark:text-emerald-400">Entradas:</span>
-                        <span className="font-bold tabular-nums">{formatCurrency(stats.totalEntradas, language)}</span>
+                        <span className="text-[10px] sm:text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                            Entradas
+                        </span>
+                        <span className="font-bold tabular-nums text-emerald-700 dark:text-emerald-400 truncate">{formatCurrency(stats.totalEntradas, language)}</span>
                     </div>
 
+                    <div className="hidden sm:block w-px h-3.5 bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
+
                     <div 
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-50/90 dark:bg-rose-950/40 border border-rose-200/70 dark:border-rose-800/60 text-rose-800 dark:text-rose-300 text-xs"
+                        className="flex flex-col sm:flex-row sm:items-baseline sm:gap-1.5 text-xs min-w-0"
                         title="Total de todas as saídas e despesas do relatório"
                     >
-                        <span className="text-[11px] font-medium text-rose-700/80 dark:text-rose-400">Saídas:</span>
-                        <span className="font-bold tabular-nums">{formatCurrency(stats.totalSaidas, language)}</span>
+                        <span className="text-[10px] sm:text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                            Saídas
+                        </span>
+                        <span className="font-bold tabular-nums text-rose-700 dark:text-rose-400 truncate">{formatCurrency(stats.totalSaidas, language)}</span>
                     </div>
 
+                    <div className="hidden sm:block w-px h-3.5 bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
+
                     <div 
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs ${
-                            stats.saldo >= 0 
-                                ? 'bg-blue-50/90 dark:bg-blue-950/40 border-blue-200/70 dark:border-blue-800/60 text-blue-800 dark:text-blue-300' 
-                                : 'bg-amber-50/90 dark:bg-amber-950/40 border-amber-200/70 dark:border-amber-800/60 text-amber-800 dark:text-amber-300'
-                        }`}
+                        className="flex flex-col sm:flex-row sm:items-baseline sm:gap-1.5 text-xs min-w-0"
                         title="Saldo apurado do relatório (Entradas - Saídas)"
                     >
-                        <span className="text-[11px] font-medium opacity-80">Saldo:</span>
-                        <span className="font-bold tabular-nums">{formatCurrency(stats.saldo, language)}</span>
+                        <span className="text-[10px] sm:text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${stats.saldo >= 0 ? 'bg-blue-500' : 'bg-amber-500'}`} />
+                            Saldo
+                        </span>
+                        <span className={`font-bold tabular-nums truncate ${stats.saldo >= 0 ? 'text-blue-700 dark:text-blue-400' : 'text-amber-700 dark:text-amber-400'}`}>{formatCurrency(stats.saldo, language)}</span>
                     </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs px-1">
                     <StatPill label="Auto" count={stats.auto} value={stats.autoValue} theme="emerald" language={language} />
                     <StatPill label="Manual" count={stats.manual} value={stats.manualValue} theme="blue" language={language} />
                     {stats.pending > 0 && <StatPill label="Pendentes" count={stats.pending} value={stats.pendingValue} theme="amber" language={language} />}
@@ -118,18 +127,21 @@ export const StatsStrip: React.FC<StatsStripProps> = ({
 };
 
 const StatPill = ({ label, count, value, theme, language }: any) => (
-    <div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-lg border text-xs flex-shrink-0 ${
-        theme === 'emerald'
-            ? 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-300 border-slate-200/90 dark:border-slate-700'
-            : theme === 'blue'
-                ? 'bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-300 border-slate-200/90 dark:border-slate-700'
-                : 'bg-amber-50/70 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 border-amber-200/80 dark:border-amber-800/60'
-    }`}>
-        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-            {label} <strong className="font-bold text-slate-800 dark:text-white tabular-nums">{count}</strong>
+    <div className="inline-flex items-center gap-1.5 text-[11px] flex-shrink-0">
+        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+            theme === 'emerald' ? 'bg-emerald-500' : theme === 'blue' ? 'bg-blue-500' : 'bg-amber-500'
+        }`} />
+        <span className="font-medium text-slate-500 dark:text-slate-400">
+            {label} <strong className="font-bold text-slate-800 dark:text-slate-100 tabular-nums">{count}</strong>
         </span>
-        <span className="text-[11px] font-semibold tabular-nums border-l border-slate-200 dark:border-slate-700 pl-2">
-            {formatCurrency(value, language)}
+        <span className={`font-semibold tabular-nums ${
+            theme === 'emerald'
+                ? 'text-emerald-700 dark:text-emerald-400'
+                : theme === 'blue'
+                    ? 'text-blue-700 dark:text-blue-400'
+                    : 'text-amber-700 dark:text-amber-400'
+        }`}>
+            ({formatCurrency(value, language)})
         </span>
     </div>
 );

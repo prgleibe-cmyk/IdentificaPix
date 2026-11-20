@@ -661,7 +661,7 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
     const cornerKeys: (keyof DocumentCorners)[] = ['topLeft', 'topRight', 'bottomRight', 'bottomLeft'];
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-0 sm:p-4 select-none touch-manipulation">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-xs p-0 sm:p-4 select-none touch-manipulation">
             {/* Input oculto para captura nativa / fallback de qualquer celular */}
             <input 
                 ref={fileFallbackInputRef}
@@ -673,19 +673,19 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
             />
 
             {/* Container Principal do Scanner */}
-            <div className="relative w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-2xl bg-slate-900 text-white flex flex-col sm:rounded-2xl shadow-2xl overflow-hidden border border-slate-700/50">
+            <div className="relative w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-2xl bg-slate-900 text-white flex flex-col sm:rounded-2xl shadow-elevated overflow-hidden border border-slate-800">
                 
                 {/* 1. CABEÇALHO */}
-                <div className="flex items-center justify-between px-4 py-3 bg-slate-800/90 border-b border-slate-700/60 z-20">
-                    <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-blue-600/30 border border-blue-500/40 flex items-center justify-center text-blue-400">
+                <div className="flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800 z-20">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-orange-500/15 border border-orange-500/30 flex items-center justify-center text-orange-400 shrink-0">
                             <FileText className="w-4 h-4" />
                         </div>
                         <div>
-                            <h3 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
+                            <h3 className="text-sm font-bold text-white flex items-center gap-2 tracking-tight">
                                 Digitalizar Comprovante
                                 {pages.length > 0 && (
-                                    <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-orange-500/15 text-orange-300 border border-orange-500/30 tabular-nums">
                                         {pages.length} {pages.length === 1 ? 'pág' : 'págs'}
                                     </span>
                                 )}
@@ -699,15 +699,15 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
                         {step === 'camera' && torchSupported && (
                             <button
                                 type="button"
                                 onClick={toggleTorch}
-                                className={`p-2 rounded-lg transition-colors ${
+                                className={`p-2 rounded-lg transition-colors cursor-pointer ${
                                     torchOn 
-                                        ? 'bg-amber-500/30 text-amber-300 border border-amber-500/50' 
-                                        : 'bg-slate-700/60 text-slate-300 hover:bg-slate-700'
+                                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' 
+                                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'
                                 }`}
                                 title={torchOn ? 'Desligar Lanterna' : 'Ligar Lanterna'}
                             >
@@ -718,7 +718,7 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                         <button
                             type="button"
                             onClick={handleCloseModal}
-                            className="p-2 rounded-lg bg-slate-700/60 text-slate-300 hover:bg-slate-700 transition-colors"
+                            className="p-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 border border-slate-700 transition-colors cursor-pointer"
                             title="Fechar Scanner"
                         >
                             <X className="w-4 h-4" />
@@ -729,12 +729,12 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                 {/* 2. ÁREA CENTRAL DE CONTEÚDO */}
                 <div 
                     ref={cropContainerRef}
-                    className="relative flex-1 bg-black flex items-center justify-center overflow-hidden min-h-[360px] sm:min-h-[460px] p-2"
+                    className="relative flex-1 bg-[#0B0F17] flex items-center justify-center overflow-hidden min-h-[360px] sm:min-h-[460px] p-2"
                 >
                     
                     {/* PASSO 1: CÂMERA */}
                     {step === 'camera' && (
-                        <div className="relative w-full h-full flex flex-col items-center justify-center bg-black">
+                        <div className="relative w-full h-full flex flex-col items-center justify-center bg-[#0B0F17]">
                             {cameraActive && !cameraError ? (
                                 <>
                                     <video
@@ -747,30 +747,30 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
 
                                     {/* Molde Inteligente A4 Iluminado (Guia Ativa de Enquadramento) */}
                                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-3 sm:p-6">
-                                        <div className="relative w-full max-w-[320px] sm:max-w-[400px] aspect-[1/1.414] rounded-2xl shadow-[0_0_0_9999px_rgba(0,0,0,0.55)] flex flex-col items-center justify-between p-3 border border-cyan-400/30">
+                                        <div className="relative w-full max-w-[320px] sm:max-w-[400px] aspect-[1/1.414] rounded-2xl shadow-[0_0_0_9999px_rgba(0,0,0,0.55)] flex flex-col items-center justify-between p-3 border border-orange-400/35">
                                             
-                                            {/* 4 Cantos Iluminados (Luminous Brackets em Neon Cyan) */}
-                                            <div className="absolute -top-1 -left-1 w-7 h-7 border-t-[3.5px] border-l-[3.5px] border-cyan-400 rounded-tl-xl drop-shadow-[0_0_8px_rgba(34,211,238,0.9)]" />
-                                            <div className="absolute -top-1 -right-1 w-7 h-7 border-t-[3.5px] border-r-[3.5px] border-cyan-400 rounded-tr-xl drop-shadow-[0_0_8px_rgba(34,211,238,0.9)]" />
-                                            <div className="absolute -bottom-1 -left-1 w-7 h-7 border-b-[3.5px] border-l-[3.5px] border-cyan-400 rounded-bl-xl drop-shadow-[0_0_8px_rgba(34,211,238,0.9)]" />
-                                            <div className="absolute -bottom-1 -right-1 w-7 h-7 border-b-[3.5px] border-r-[3.5px] border-cyan-400 rounded-br-xl drop-shadow-[0_0_8px_rgba(34,211,238,0.9)]" />
+                                            {/* 4 Cantos Iluminados */}
+                                            <div className="absolute -top-1 -left-1 w-7 h-7 border-t-[3.5px] border-l-[3.5px] border-orange-500 rounded-tl-xl drop-shadow-[0_0_8px_rgba(234,88,12,0.8)]" />
+                                            <div className="absolute -top-1 -right-1 w-7 h-7 border-t-[3.5px] border-r-[3.5px] border-orange-500 rounded-tr-xl drop-shadow-[0_0_8px_rgba(234,88,12,0.8)]" />
+                                            <div className="absolute -bottom-1 -left-1 w-7 h-7 border-b-[3.5px] border-l-[3.5px] border-orange-500 rounded-bl-xl drop-shadow-[0_0_8px_rgba(234,88,12,0.8)]" />
+                                            <div className="absolute -bottom-1 -right-1 w-7 h-7 border-b-[3.5px] border-r-[3.5px] border-orange-500 rounded-br-xl drop-shadow-[0_0_8px_rgba(234,88,12,0.8)]" />
 
-                                            {/* Linha de Varredura Laser Suave */}
-                                            <div className="absolute inset-x-3 h-0.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent opacity-60 animate-pulse pointer-events-none top-1/2 -translate-y-1/2" />
+                                            {/* Linha de Varredura */}
+                                            <div className="absolute inset-x-3 h-0.5 bg-gradient-to-r from-transparent via-orange-400 to-transparent opacity-60 animate-pulse pointer-events-none top-1/2 -translate-y-1/2" />
 
                                             {/* Mira Central */}
-                                            <div className="w-5 h-5 border border-cyan-400/30 rounded-full flex items-center justify-center my-auto opacity-50">
-                                                <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-ping" />
+                                            <div className="w-5 h-5 border border-orange-400/40 rounded-full flex items-center justify-center my-auto opacity-60">
+                                                <div className="w-1.5 h-1.5 bg-orange-400 rounded-full animate-ping" />
                                             </div>
 
                                             {/* Badge Superior: Molde Inteligente A4 */}
-                                            <div className="bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-full text-[11px] text-cyan-200 border border-cyan-500/40 font-medium flex items-center gap-1.5 shadow-xl">
-                                                <Scan className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+                                            <div className="bg-slate-900/90 backdrop-blur-md px-3 py-1 rounded-lg text-[11px] text-orange-200 border border-orange-500/40 font-semibold flex items-center gap-1.5 shadow-lg">
+                                                <Scan className="w-3.5 h-3.5 text-orange-400" />
                                                 <span>Molde Inteligente A4 Ativo</span>
                                             </div>
 
                                             {/* Dica Inferior */}
-                                            <div className="bg-black/75 backdrop-blur-md px-3 py-1 rounded-lg text-[10px] text-slate-200 border border-white/10 text-center font-medium shadow-lg">
+                                            <div className="bg-slate-950/80 backdrop-blur-md px-3 py-1 rounded-lg text-[11px] text-slate-200 border border-white/10 text-center font-medium shadow-lg">
                                                 Alinhe o comprovante na moldura e dispare
                                             </div>
                                         </div>
@@ -783,10 +783,10 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                                 </>
                             ) : (
                                 <div className="p-6 text-center max-w-sm flex flex-col items-center">
-                                    <div className="w-14 h-14 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 mb-4">
+                                    <div className="w-14 h-14 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-orange-400 mb-4">
                                         <Camera className="w-7 h-7" />
                                     </div>
-                                    <h4 className="text-sm font-semibold text-slate-200 mb-1">
+                                    <h4 className="text-sm font-bold text-slate-100 mb-1">
                                         Captura de Comprovante
                                     </h4>
                                     <p className="text-xs text-slate-400 mb-5 leading-relaxed">
@@ -795,7 +795,7 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                                     <button
                                         type="button"
                                         onClick={() => fileFallbackInputRef.current?.click()}
-                                        className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs flex items-center justify-center gap-2 shadow-lg transition-all"
+                                        className="w-full py-2.5 px-4 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
                                     >
                                         <Camera className="w-4 h-4" />
                                         Abrir Câmera do Celular
@@ -821,7 +821,7 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                                     width: `${displayDimensions.width}px`, 
                                     height: `${displayDimensions.height}px` 
                                 }}
-                                className="relative rounded-lg overflow-hidden shadow-2xl border border-slate-700 bg-slate-900"
+                                className="relative rounded-lg overflow-hidden shadow-elevated border border-slate-700 bg-slate-900"
                             >
                                 <img
                                     src={rawCapturedImage.src}
@@ -842,8 +842,8 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                                             ${corners.bottomRight.x * displayDimensions.scale},${corners.bottomRight.y * displayDimensions.scale} 
                                             ${corners.bottomLeft.x * displayDimensions.scale},${corners.bottomLeft.y * displayDimensions.scale}
                                         `}
-                                        fill="rgba(59, 130, 246, 0.28)"
-                                        stroke="#3b82f6"
+                                        fill="rgba(234, 88, 12, 0.22)"
+                                        stroke="#ea580c"
                                         strokeWidth="3"
                                         strokeDasharray="6,4"
                                     />
@@ -853,7 +853,7 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                                         y1={corners.topLeft.y * displayDimensions.scale} 
                                         x2={corners.bottomRight.x * displayDimensions.scale} 
                                         y2={corners.bottomRight.y * displayDimensions.scale} 
-                                        stroke="rgba(59, 130, 246, 0.35)" 
+                                        stroke="rgba(234, 88, 12, 0.35)" 
                                         strokeWidth="1.5" 
                                     />
                                     <line 
@@ -861,7 +861,7 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                                         y1={corners.topRight.y * displayDimensions.scale} 
                                         x2={corners.bottomLeft.x * displayDimensions.scale} 
                                         y2={corners.bottomLeft.y * displayDimensions.scale} 
-                                        stroke="rgba(59, 130, 246, 0.35)" 
+                                        stroke="rgba(234, 88, 12, 0.35)" 
                                         strokeWidth="1.5" 
                                     />
                                 </svg>
@@ -893,7 +893,7 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                                                 setActiveCorner(cornerKey);
                                             }}
                                         >
-                                            <div className="w-7 h-7 rounded-full bg-blue-600 border-2 border-white shadow-xl flex items-center justify-center ring-4 ring-blue-500/40">
+                                            <div className="w-7 h-7 rounded-full bg-orange-600 border-2 border-white shadow-lg flex items-center justify-center ring-4 ring-orange-500/35">
                                                 <div className="w-2 h-2 rounded-full bg-white" />
                                             </div>
                                         </div>
@@ -905,8 +905,8 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
 
                     {/* PASSO 3: FILTRO / REALCE DO DOCUMENTO */}
                     {step === 'filter' && filteredPreviewUrl && (
-                        <div className="relative w-full h-full flex flex-col items-center justify-center p-2 bg-slate-950">
-                            <div className="relative max-w-full max-h-[58vh] rounded-lg overflow-hidden border border-slate-700 shadow-2xl bg-white">
+                        <div className="relative w-full h-full flex flex-col items-center justify-center p-2 bg-[#0B0F17]">
+                            <div className="relative max-w-full max-h-[58vh] rounded-xl overflow-hidden border border-slate-700 shadow-elevated bg-white">
                                 <img
                                     src={filteredPreviewUrl}
                                     alt="Pré-visualização do Documento Retificado"
@@ -914,14 +914,14 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                                 />
                             </div>
 
-                            <div className="mt-4 flex items-center gap-2 bg-slate-800/90 p-1.5 rounded-xl border border-slate-700">
+                            <div className="mt-4 flex items-center gap-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800">
                                 <button
                                     type="button"
                                     onClick={() => handleSelectFilter('color')}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
                                         currentFilter === 'color'
-                                            ? 'bg-blue-600 text-white shadow'
-                                            : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
+                                            ? 'bg-orange-600 text-white shadow-xs'
+                                            : 'text-slate-300 hover:text-white hover:bg-slate-800'
                                     }`}
                                 >
                                     <Sparkles className="w-3.5 h-3.5" />
@@ -931,10 +931,10 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                                 <button
                                     type="button"
                                     onClick={() => handleSelectFilter('grayscale')}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
                                         currentFilter === 'grayscale'
-                                            ? 'bg-blue-600 text-white shadow'
-                                            : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
+                                            ? 'bg-orange-600 text-white shadow-xs'
+                                            : 'text-slate-300 hover:text-white hover:bg-slate-800'
                                     }`}
                                 >
                                     <Sliders className="w-3.5 h-3.5" />
@@ -944,10 +944,10 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                                 <button
                                     type="button"
                                     onClick={() => handleSelectFilter('original')}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
                                         currentFilter === 'original'
-                                            ? 'bg-blue-600 text-white shadow'
-                                            : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
+                                            ? 'bg-orange-600 text-white shadow-xs'
+                                            : 'text-slate-300 hover:text-white hover:bg-slate-800'
                                     }`}
                                 >
                                     Original
@@ -958,29 +958,29 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
 
                     {/* PASSO 4: REVISÃO DE PÁGINAS ESCANEADAS */}
                     {step === 'review' && pages.length > 0 && (
-                        <div className="relative w-full h-full flex flex-col items-center justify-between p-4 bg-slate-950 overflow-y-auto">
+                        <div className="relative w-full h-full flex flex-col items-center justify-between p-4 bg-[#0B0F17] overflow-y-auto custom-scrollbar">
                             <div className="relative flex-1 flex items-center justify-center w-full min-h-[280px]">
-                                <div className="relative max-h-[50vh] rounded-lg overflow-hidden border border-slate-700 shadow-2xl bg-white">
+                                <div className="relative max-h-[50vh] rounded-xl overflow-hidden border border-slate-700 shadow-elevated bg-white">
                                     <img
                                         src={pages[activePageIndex]?.dataUrl}
                                         alt={`Página ${activePageIndex + 1}`}
                                         className="max-w-full max-h-[50vh] object-contain"
                                     />
-                                    <div className="absolute top-2 left-2 bg-slate-900/80 backdrop-blur-sm px-2.5 py-1 rounded text-[11px] text-white font-medium border border-slate-700">
+                                    <div className="absolute top-2 left-2 bg-slate-900/85 backdrop-blur-sm px-2.5 py-1 rounded-md text-[11px] text-white font-semibold border border-slate-700 tabular-nums">
                                         Página {activePageIndex + 1} de {pages.length}
                                     </div>
                                 </div>
                             </div>
 
                             <div className="w-full mt-4">
-                                <div className="flex items-center gap-2 overflow-x-auto pb-2 px-1">
+                                <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-2 px-1">
                                     {pages.map((p, idx) => (
                                         <div
                                             key={p.id}
                                             onClick={() => setActivePageIndex(idx)}
                                             className={`relative flex-shrink-0 w-16 h-20 rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${
                                                 activePageIndex === idx
-                                                    ? 'border-blue-500 scale-105 shadow-md shadow-blue-500/20'
+                                                    ? 'border-orange-500 scale-105 shadow-md shadow-orange-500/20'
                                                     : 'border-slate-700 opacity-70 hover:opacity-100'
                                             }`}
                                         >
@@ -995,12 +995,12 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                                                     e.stopPropagation();
                                                     handleDeletePage(idx);
                                                 }}
-                                                className="absolute top-0.5 right-0.5 p-1 rounded bg-red-600/90 text-white hover:bg-red-500 transition-colors"
+                                                className="absolute top-0.5 right-0.5 p-1 rounded bg-rose-600/90 text-white hover:bg-rose-500 transition-colors cursor-pointer"
                                                 title="Remover Página"
                                             >
                                                 <Trash2 className="w-3 h-3" />
                                             </button>
-                                            <span className="absolute bottom-0.5 left-0.5 text-[9px] font-bold px-1 rounded bg-black/70 text-white">
+                                            <span className="absolute bottom-0.5 left-0.5 text-[10px] font-semibold px-1 rounded bg-slate-900/80 text-white tabular-nums">
                                                 {idx + 1}
                                             </span>
                                         </div>
@@ -1010,11 +1010,11 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                                         <button
                                             type="button"
                                             onClick={handleAddMorePages}
-                                            className="flex-shrink-0 w-16 h-20 rounded-lg border-2 border-dashed border-slate-600 hover:border-blue-500 flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-blue-400 transition-all bg-slate-800/40"
+                                            className="flex-shrink-0 w-16 h-20 rounded-lg border-2 border-dashed border-slate-700 hover:border-orange-500 flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-orange-400 transition-colors bg-slate-900/60 cursor-pointer"
                                             title="Adicionar outra página"
                                         >
                                             <Plus className="w-5 h-5" />
-                                            <span className="text-[10px] font-medium">+ Página</span>
+                                            <span className="text-[10px] font-semibold">+ Página</span>
                                         </button>
                                     )}
                                 </div>
@@ -1024,8 +1024,8 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
 
                     {/* OVERLAY DE PROCESSAMENTO / LOADING */}
                     {isProcessing && (
-                        <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-sm z-30 flex flex-col items-center justify-center">
-                            <div className="w-10 h-10 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mb-3" />
+                        <div className="absolute inset-0 bg-[#0B0F17]/90 backdrop-blur-sm z-30 flex flex-col items-center justify-center">
+                            <div className="w-9 h-9 border-[3px] border-orange-500/25 border-t-orange-500 rounded-full animate-spin mb-3" />
                             <p className="text-xs text-slate-200 font-medium">
                                 {processingMessage || 'Processando...'}
                             </p>
@@ -1034,14 +1034,14 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                 </div>
 
                 {/* 3. BARRA INFERIOR DE AÇÕES / BOTOES */}
-                <div className="px-4 py-3 bg-slate-800/95 border-t border-slate-700/60 flex items-center justify-between gap-2 sm:gap-3 z-20 flex-wrap">
+                <div className="px-4 py-3 bg-slate-900 border-t border-slate-800 flex items-center justify-between gap-2 sm:gap-3 z-20 flex-wrap">
                     
                     {step === 'camera' && (
                         <>
                             <button
                                 type="button"
                                 onClick={() => fileFallbackInputRef.current?.click()}
-                                className="px-3 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-medium flex items-center gap-1.5 transition-colors"
+                                className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                                 title="Abrir Câmera Nativa ou Galeria"
                             >
                                 <Upload className="w-4 h-4 text-slate-300" />
@@ -1052,7 +1052,7 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                                 <button
                                     type="button"
                                     onClick={handleCaptureFromVideo}
-                                    className="px-6 py-2.5 rounded-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 active:scale-95 text-white font-semibold text-xs flex items-center gap-2.5 shadow-lg shadow-cyan-600/30 transition-all cursor-pointer ring-2 ring-cyan-400/40"
+                                    className="px-5 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 active:scale-95 text-white font-semibold text-xs flex items-center gap-2 shadow-xs transition-all cursor-pointer"
                                 >
                                     <Camera className="w-4 h-4 text-white" />
                                     <span>Capturar em Alta Definição</span>
@@ -1063,9 +1063,9 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                                 <button
                                     type="button"
                                     onClick={() => setStep('review')}
-                                    className="px-3 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-medium flex items-center gap-1.5 transition-colors"
+                                    className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer tabular-nums"
                                 >
-                                    <Layers className="w-4 h-4 text-blue-400" />
+                                    <Layers className="w-4 h-4 text-orange-400" />
                                     Ver Páginas ({pages.length})
                                 </button>
                             )}
@@ -1078,16 +1078,16 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                                 <button
                                     type="button"
                                     onClick={handleAutoDetect}
-                                    className="px-2.5 py-1.5 rounded-xl bg-blue-600/30 border border-blue-500/40 text-blue-300 hover:bg-blue-600/50 text-xs font-medium flex items-center gap-1 transition-colors"
+                                    className="px-2.5 py-1.5 rounded-lg bg-orange-500/15 border border-orange-500/35 text-orange-300 hover:bg-orange-500/25 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
                                     title="Detectar Bordas do Documento Automaticamente"
                                 >
-                                    <Scan className="w-3.5 h-3.5 text-blue-400" />
+                                    <Scan className="w-3.5 h-3.5 text-orange-400" />
                                     <span>Auto Enquadrar</span>
                                 </button>
                                 <button
                                     type="button"
                                     onClick={handleFullImageCorners}
-                                    className="p-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs font-medium flex items-center gap-1 transition-colors"
+                                    className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
                                     title="Enquadrar Foto Inteira"
                                 >
                                     <Maximize2 className="w-3.5 h-3.5" />
@@ -1096,7 +1096,7 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                                 <button
                                     type="button"
                                     onClick={handleRotateRawImage}
-                                    className="p-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs font-medium flex items-center gap-1 transition-colors"
+                                    className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
                                     title="Girar 90°"
                                 >
                                     <RotateCw className="w-3.5 h-3.5" />
@@ -1108,14 +1108,14 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                                 <button
                                     type="button"
                                     onClick={() => setStep('camera')}
-                                    className="px-3 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs font-medium transition-colors"
+                                    className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
                                 >
                                     Recapturar
                                 </button>
                                 <button
                                     type="button"
                                     onClick={handleApplyWarp}
-                                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs flex items-center gap-1.5 shadow-md shadow-blue-600/30 transition-all"
+                                    className="px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-semibold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
                                 >
                                     <Check className="w-4 h-4" />
                                     Confirmar Enquadramento
@@ -1129,17 +1129,17 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                             <button
                                 type="button"
                                 onClick={() => setStep('crop')}
-                                className="px-3 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                                className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                                 title="Ajustar os 4 cantos do documento manualmente"
                             >
-                                <Scan className="w-3.5 h-3.5 text-blue-400" />
+                                <Scan className="w-3.5 h-3.5 text-orange-400" />
                                 Reajustar Bordas
                             </button>
 
                             <button
                                 type="button"
                                 onClick={handleSaveCurrentPage}
-                                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs flex items-center gap-1.5 shadow-md shadow-emerald-600/30 transition-all cursor-pointer"
+                                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
                             >
                                 <Check className="w-4 h-4" />
                                 Confirmar Página
@@ -1153,16 +1153,16 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                                 type="button"
                                 onClick={handleAddMorePages}
                                 disabled={pages.length >= maxPages}
-                                className="px-3 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-slate-200 text-xs font-medium flex items-center gap-1.5 transition-colors"
+                                className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 disabled:opacity-40 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                             >
-                                <Plus className="w-4 h-4 text-blue-400" />
+                                <Plus className="w-4 h-4 text-orange-400" />
                                 + Outra Página
                             </button>
 
                             <button
                                 type="button"
                                 onClick={handleCompileAndComplete}
-                                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs flex items-center gap-2 shadow-lg shadow-blue-600/30 transition-all"
+                                className="px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-semibold text-xs flex items-center gap-2 shadow-xs transition-colors cursor-pointer tabular-nums"
                             >
                                 <FileText className="w-4 h-4" />
                                 Gerar PDF ({pages.length} {pages.length === 1 ? 'página' : 'páginas'})

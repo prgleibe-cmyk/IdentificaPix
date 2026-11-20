@@ -1,11 +1,27 @@
 
 import React, { createContext, useState, useEffect, useContext, useCallback, useMemo, useRef } from 'react';
 import { authService } from '../services/authService';
+import { getAuthToken } from '../services/auth/authAdapter';
 import { AuthContextType } from './auth/AuthContracts';
 import { useSystemSettings } from './auth/useSystemSettings';
 import { useSubscriptionState } from './auth/useSubscriptionState';
 import { useAuthActions } from './auth/useAuthActions';
 import { ResetPasswordModal } from '../components/auth/ResetPasswordModal';
+
+const isLocalJwtExpired = (token: string | null): boolean => {
+  if (!token) return true;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return true;
+    let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4) base64 += '=';
+    const payload = JSON.parse(atob(base64));
+    if (!payload.exp) return false;
+    return Date.now() >= (payload.exp * 1000 - 30000);
+  } catch {
+    return true;
+  }
+};
 
 const AuthContext = createContext<AuthContextType>(null!);
 
@@ -58,7 +74,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const u = authService.getUser();
       const token = authService.getAccessToken();
-      if (token && u) return { access_token: token, user: u };
+      if (token && u && !isLocalJwtExpired(token)) return { access_token: token, user: u };
       return null;
     } catch {
       return null;
@@ -66,7 +82,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
   const [user, setUser] = useState<any | null>(() => {
     try {
-      return authService.getUser();
+      const u = authService.getUser();
+      const token = authService.getAccessToken();
+      if (token && u && !isLocalJwtExpired(token)) return u;
+      return null;
     } catch {
       return null;
     }
@@ -75,9 +94,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const token = authService.getAccessToken();
       const u = authService.getUser();
-      return !(token && u);
+      if (!token || !u) return false;
+      // If token is expired, hold loading while initAuth attempts refresh before mounting SessionProvider
+      return isLocalJwtExpired(token);
     } catch {
-      return true;
+      return false;
     }
   });
   const [isResettingPassword, setIsResettingPassword] = useState(false);
@@ -115,25 +136,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     let mounted = true;
 
+    const handleAuthExpired = () => {
+      if (!mounted || isSigningOut.current) return;
+      if (lastProcessedUserId) lastProcessedUserId.current = null;
+      setSession(null);
+      setUser(null);
+    };
+
+    window.addEventListener('iggestor:auth-expired', handleAuthExpired);
+
     async function initAuth() {
       try {
         const u = authService.getUser();
-        const token = authService.getAccessToken();
+        const rawToken = authService.getAccessToken();
 
-        if (token && u) {
-          const s = { access_token: token, user: u };
+        if (rawToken && u) {
+          const validToken = await getAuthToken();
+          if (!validToken) {
+            authService.clearAuthData();
+            if (mounted) {
+              setSession(null);
+              setUser(null);
+            }
+            return;
+          }
+
+          const s = { access_token: validToken, user: u };
           if (mounted && !isSigningOut.current) {
             setSession(s);
             setUser(u);
             calculateSubscription(u.id);
           }
+
           // Validate with /me in background
           authService.me().then(res => {
-            if (res.success && res.data?.user && mounted) {
+            if (!mounted || isSigningOut.current) return;
+            if (res.success && res.data?.user) {
               const updatedUser = res.data.user;
               setUser(updatedUser);
               setSession({ access_token: authService.getAccessToken(), user: updatedUser });
               calculateSubscription(updatedUser.id, true);
+            } else if (res.status === 401 || res.status === 403) {
+              authService.clearAuthData();
+              if (lastProcessedUserId) lastProcessedUserId.current = null;
+              setSession(null);
+              setUser(null);
             }
           }).catch(() => {});
         } else {
@@ -154,8 +201,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => {
       mounted = false;
+      window.removeEventListener('iggestor:auth-expired', handleAuthExpired);
     };
-  }, [calculateSubscription]);
+  }, [calculateSubscription, lastProcessedUserId]);
 
   const value = useMemo(() => ({
     session, user, loading, isSecondaryUser, signOut, subscription, isSubscriptionReady, isAuthReady, refreshSubscription,

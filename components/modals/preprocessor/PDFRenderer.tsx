@@ -63,15 +63,15 @@ export const PDFRenderer: React.FC<{ file?: File }> = ({ file }) => {
     }, [pdfInstance]);
 
     return (
-        <div className="absolute inset-0 bg-slate-200 dark:bg-slate-950 flex flex-col">
+        <div className="absolute inset-0 bg-slate-100 dark:bg-[#0B0F17] flex flex-col">
             {/* Header de Status */}
             {!isLoading && !error && pages.length > 0 && (
-                <div className="flex-shrink-0 px-4 py-2 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center z-20 shadow-sm">
-                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                <div className="flex-shrink-0 px-4 py-2.5 bg-white dark:bg-slate-900 border-b border-slate-200/90 dark:border-slate-800 flex justify-between items-center z-20">
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 tabular-nums">
                         Amostra: {pages.length} {pages.length === 1 ? 'Página' : 'Páginas'} (Visualização Limitada)
                     </span>
-                    <div className="px-3 py-1 bg-brand-blue/10 rounded-full">
-                         <span className="text-[9px] font-bold text-brand-blue uppercase">Foco Estrutural</span>
+                    <div className="px-2.5 py-0.5 bg-orange-50 dark:bg-orange-950/30 border border-orange-200/80 dark:border-orange-900/50 rounded-md">
+                         <span className="text-[11px] font-semibold text-orange-700 dark:text-orange-300">Foco Estrutural</span>
                     </div>
                 </div>
             )}
@@ -79,19 +79,20 @@ export const PDFRenderer: React.FC<{ file?: File }> = ({ file }) => {
             {/* Área de Scroll Real */}
             <div 
                 ref={containerRef} 
-                className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar bg-slate-200 dark:bg-slate-950 p-4 md:p-8 flex flex-col items-center gap-6"
+                style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}
+                className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar bg-slate-100 dark:bg-[#0B0F17] p-4 md:p-8 flex flex-col items-center gap-6"
             >
                 {isLoading && (
                     <div className="flex flex-col items-center justify-center py-20">
-                        <div className="animate-spin rounded-full h-10 w-10 border-4 border-indigo-500 border-t-transparent mb-4"></div>
-                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest animate-pulse">Lendo Documento...</p>
+                        <div className="animate-spin rounded-full h-9 w-9 border-[3px] border-orange-600 border-t-transparent mb-3"></div>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Lendo Documento...</p>
                     </div>
                 )}
 
                 {error ? (
                     <div className="flex flex-col items-center justify-center py-20 text-center max-w-xs animate-fade-in">
-                        <div className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl mb-4">
-                            <p className="text-xs font-bold text-slate-600 dark:text-slate-300 leading-relaxed">{error}</p>
+                        <div className="p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-elevated mb-4">
+                            <p className="text-xs font-medium text-slate-600 dark:text-slate-300 leading-relaxed">{error}</p>
                         </div>
                     </div>
                 ) : (
@@ -107,7 +108,7 @@ export const PDFRenderer: React.FC<{ file?: File }> = ({ file }) => {
                 
                 {!isLoading && !error && pages.length > 0 && (
                     <div className="pb-10 pt-4">
-                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.3em]">Fim da Amostra Visual</span>
+                        <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500">Fim da Amostra Visual</span>
                     </div>
                 )}
             </div>
@@ -187,7 +188,7 @@ const PDFPage: React.FC<{ pdf: any, pageNum: number, containerWidth: number }> =
 
     return (
         <div className={`
-            bg-white shadow-[0_10px_30px_rgba(0,0,0,0.15)] rounded-sm border border-slate-300 dark:border-slate-800 transition-opacity duration-500
+            bg-white shadow-elevated rounded-lg border border-slate-200/90 dark:border-slate-800 transition-opacity duration-500 overflow-hidden
             ${isRendered ? 'opacity-100' : 'opacity-0'}
         `}>
             <canvas ref={canvasRef} className="block" />

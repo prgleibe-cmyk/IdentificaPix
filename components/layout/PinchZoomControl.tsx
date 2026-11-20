@@ -76,7 +76,7 @@ export const PinchZoomControl: React.FC<PinchZoomControlProps> = ({ pinchState }
             <button
                 type="button"
                 onClick={() => setShowControl(true)}
-                className="fixed bottom-4 right-4 z-30 p-2 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 text-slate-600 dark:text-slate-300 rounded-full shadow-md hover:bg-orange-500 hover:text-white transition-all cursor-pointer opacity-40 hover:opacity-100 hidden sm:flex items-center justify-center"
+                className="fixed bottom-4 right-4 z-30 p-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl shadow-card hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 dark:hover:bg-orange-950/40 dark:hover:text-orange-400 transition-all cursor-pointer opacity-60 hover:opacity-100 hidden sm:flex items-center justify-center"
                 title="Ajustar Zoom da Tela"
             >
                 <Search className="w-4 h-4" />
@@ -185,14 +185,14 @@ export const PinchZoomControl: React.FC<PinchZoomControlProps> = ({ pinchState }
                           touchAction: 'none'
                       }
             }
-            className={`fixed ${!position ? 'bottom-4 right-4' : ''} z-40 flex items-center gap-1 p-1.5 bg-slate-900/95 dark:bg-slate-950/95 text-white backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 text-xs animate-fade-in select-none cursor-grab active:cursor-grabbing transition-shadow ${
-                isDragging ? 'shadow-[0_10px_30px_rgba(0,0,0,0.5)] ring-2 ring-orange-500/50 scale-105' : ''
+            className={`fixed ${!position ? 'bottom-4 right-4' : ''} z-40 flex items-center gap-1 p-1.5 bg-white/95 dark:bg-slate-900/95 text-slate-800 dark:text-slate-100 backdrop-blur-md rounded-xl shadow-elevated border border-slate-200/90 dark:border-slate-700 text-xs animate-fade-in select-none cursor-grab active:cursor-grabbing transition-shadow ${
+                isDragging ? 'ring-2 ring-orange-500/40 scale-[1.02]' : ''
             }`}
             title="Arraste para mover para qualquer lugar da tela"
         >
             {/* Grip handle indicator */}
             <div 
-                className="pl-1 pr-0.5 text-white/40 hover:text-white/80 transition-colors flex items-center justify-center cursor-grab active:cursor-grabbing"
+                className="pl-1 pr-0.5 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors flex items-center justify-center cursor-grab active:cursor-grabbing"
                 title="Arraste para reposicionar"
             >
                 <GripVertical className="w-3.5 h-3.5" />
@@ -202,7 +202,7 @@ export const PinchZoomControl: React.FC<PinchZoomControlProps> = ({ pinchState }
                 type="button"
                 onClick={handleActionClick(zoomOut)}
                 disabled={zoom <= 0.75}
-                className="p-1.5 hover:bg-white/10 active:bg-white/20 rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 active:bg-slate-200 dark:active:bg-slate-700 rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer text-slate-600 dark:text-slate-300"
                 title="Diminuir Zoom"
             >
                 <ZoomOut className="w-4 h-4" />
@@ -211,12 +211,12 @@ export const PinchZoomControl: React.FC<PinchZoomControlProps> = ({ pinchState }
             <button
                 type="button"
                 onClick={handleActionClick(resetZoom)}
-                className="px-2 py-1 font-mono font-black text-[11px] hover:bg-white/10 rounded-xl transition-all cursor-pointer flex items-center gap-1"
+                className="px-2 py-1 tabular-nums font-semibold text-xs hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all cursor-pointer flex items-center gap-1 text-slate-900 dark:text-white"
                 title="Clique para restaurar 100%"
             >
                 <span>{percentage}%</span>
                 {!isDefaultZoom && (
-                    <RotateCcw className="w-3 h-3 text-orange-400" />
+                    <RotateCcw className="w-3 h-3 text-orange-600 dark:text-orange-400" />
                 )}
             </button>
 
@@ -224,7 +224,7 @@ export const PinchZoomControl: React.FC<PinchZoomControlProps> = ({ pinchState }
                 type="button"
                 onClick={handleActionClick(zoomIn)}
                 disabled={zoom >= 2.0}
-                className="p-1.5 hover:bg-white/10 active:bg-white/20 rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 active:bg-slate-200 dark:active:bg-slate-700 rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer text-slate-600 dark:text-slate-300"
                 title="Aumentar Zoom"
             >
                 <ZoomIn className="w-4 h-4" />

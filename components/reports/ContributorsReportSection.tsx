@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useContext, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useContext, useMemo, useRef, forwardRef, useImperativeHandle } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { useUI } from '../../contexts/UIContext';
 import { ExportService } from '../../services/ExportService';
 import { getCachedContributors, subscribeToContributorUpdates } from '../../services/contributorsCache';
+import { ExportPrintActions } from './ExportPrintActions';
 import { 
-    Users, Building2, UserCheck, Search, Download, 
-    FileSpreadsheet, FileText, Filter, Loader2, RefreshCw, FileCode, Printer,
+    Users, Building2, Loader2, RefreshCw, Search,
     CheckCircle2, AlertTriangle, Camera, Phone, Mail, MapPin, 
     ChevronDown, X, Eye, Check, ExternalLink, ShieldAlert,
-    Sparkles, User, Tag, ChevronLeft, ChevronRight
+    Sparkles, User, Tag, ChevronLeft, ChevronRight, FileText, Filter
 } from 'lucide-react';
 
 const formatDocument = (doc?: string) => {
@@ -25,7 +25,17 @@ const formatDocument = (doc?: string) => {
 // Types for data missing filters
 export type MissingDataType = 'ALL' | 'COMPLETE_ONLY' | 'INCOMPLETE_ONLY' | 'NO_PHOTO' | 'NO_PHONE' | 'NO_EMAIL' | 'NO_ADDRESS' | 'NO_DOC' | 'NO_ROLE';
 
-export const ContributorsReportSection: React.FC = () => {
+export interface ContributorsReportHandle {
+    downloadFormat: (format: 'pdf' | 'excel' | 'csv' | 'ofx') => void;
+    print: () => void;
+    refresh: () => void;
+}
+
+interface ContributorsReportSectionProps {
+    hideExportPrint?: boolean;
+}
+
+export const ContributorsReportSection = forwardRef<ContributorsReportHandle, ContributorsReportSectionProps>(({ hideExportPrint = false }, ref) => {
     const { churches, contributorFiles } = useContext(AppContext);
     const { showToast } = useUI();
 
@@ -43,14 +53,12 @@ export const ContributorsReportSection: React.FC = () => {
     const [selectedPersonType, setSelectedPersonType] = useState<'ALL' | 'PF' | 'PJ'>('ALL');
     const [selectedRole, setSelectedRole] = useState<string>('ALL');
     
-    // Export and Modal state
-    const [showDownloadMenu, setShowDownloadMenu] = useState<boolean>(false);
+    // Modal state
     const [selectedContributor, setSelectedContributor] = useState<any | null>(null);
     const [currentPage, setCurrentPage] = useState<number>(1);
     const ITEMS_PER_PAGE = 50;
 
     const churchDropdownRef = useRef<HTMLDivElement>(null);
-    const downloadMenuRef = useRef<HTMLDivElement>(null);
 
     // Debounce search input to maintain 60 FPS typing
     useEffect(() => {
@@ -65,9 +73,6 @@ export const ContributorsReportSection: React.FC = () => {
         const handleClickOutside = (event: MouseEvent) => {
             if (churchDropdownRef.current && !churchDropdownRef.current.contains(event.target as Node)) {
                 setIsChurchDropdownOpen(false);
-            }
-            if (downloadMenuRef.current && !downloadMenuRef.current.contains(event.target as Node)) {
-                setShowDownloadMenu(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -301,7 +306,6 @@ export const ContributorsReportSection: React.FC = () => {
 
     // Download format runner
     const handleDownloadFormat = (format: 'pdf' | 'excel' | 'csv' | 'ofx') => {
-        setShowDownloadMenu(false);
         const dateStr = new Date().toISOString().slice(0, 10);
 
         let churchLabel = 'Todas as Igrejas';
@@ -327,7 +331,6 @@ export const ContributorsReportSection: React.FC = () => {
     };
 
     const handlePrint = () => {
-        setShowDownloadMenu(false);
         let churchLabel = 'Todas as Igrejas';
         if (selectedChurchIds.length === 1) {
             const ch = churches.find(c => c.id === selectedChurchIds[0]);
@@ -345,6 +348,12 @@ export const ContributorsReportSection: React.FC = () => {
         );
     };
 
+    useImperativeHandle(ref, () => ({
+        downloadFormat: handleDownloadFormat,
+        print: handlePrint,
+        refresh: () => loadContributorsData(true)
+    }));
+
     // Clean all filters
     const resetFilters = () => {
         setSearchQuery('');
@@ -360,49 +369,49 @@ export const ContributorsReportSection: React.FC = () => {
         <div className="space-y-4 flex flex-col h-full animate-fade-in pb-2">
             {/* Top Quality Overview & Stat Strip */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-100 dark:border-white/5 shadow-sm flex items-center justify-between">
+                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex items-center justify-between">
                     <div>
-                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total no Relatório</p>
-                        <h4 className="text-lg font-black text-slate-800 dark:text-white mt-0.5">{stats.total}</h4>
-                        <span className="text-[10px] text-slate-400">{stats.pf} PF · {stats.pj} PJ</span>
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Total no Relatório</p>
+                        <h4 className="text-lg font-bold text-slate-900 dark:text-white mt-0.5 tabular-nums">{stats.total}</h4>
+                        <span className="text-[11px] text-slate-400 tabular-nums">{stats.pf} PF · {stats.pj} PJ</span>
                     </div>
-                    <div className="p-2.5 rounded-xl bg-orange-50 dark:bg-orange-950/40 text-orange-500">
+                    <div className="p-2.5 rounded-lg bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 border border-orange-200/60 dark:border-orange-900/40">
                         <Users className="w-5 h-5" />
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-100 dark:border-white/5 shadow-sm flex items-center justify-between">
+                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex items-center justify-between">
                     <div>
-                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Integridade Cadastral</p>
-                        <h4 className="text-lg font-black text-emerald-600 dark:text-emerald-400 mt-0.5">{stats.integrityScore}%</h4>
-                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">{stats.completeCount} cadastros 100% completos</span>
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Integridade Cadastral</p>
+                        <h4 className="text-lg font-bold text-emerald-600 dark:text-emerald-400 mt-0.5 tabular-nums">{stats.integrityScore}%</h4>
+                        <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium tabular-nums">{stats.completeCount} cadastros 100% completos</span>
                     </div>
-                    <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-500">
+                    <div className="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-900/40">
                         <CheckCircle2 className="w-5 h-5" />
                     </div>
                 </div>
 
                 <div 
                     onClick={() => setMissingFilter(missingFilter === 'INCOMPLETE_ONLY' ? 'ALL' : 'INCOMPLETE_ONLY')}
-                    className={`bg-white dark:bg-slate-900 p-3.5 rounded-2xl border ${missingFilter === 'INCOMPLETE_ONLY' ? 'border-amber-500 ring-1 ring-amber-500' : 'border-slate-100 dark:border-white/5'} shadow-sm flex items-center justify-between cursor-pointer hover:border-amber-400 transition-all`}
+                    className={`bg-white dark:bg-slate-900 p-3.5 rounded-xl border ${missingFilter === 'INCOMPLETE_ONLY' ? 'border-amber-500 ring-1 ring-amber-500' : 'border-slate-200/90 dark:border-slate-800'} shadow-xs flex items-center justify-between cursor-pointer hover:border-amber-400 transition-all`}
                 >
                     <div>
-                        <p className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">Com Dados Faltando</p>
-                        <h4 className="text-lg font-black text-amber-700 dark:text-amber-300 mt-0.5">{stats.incompleteCount}</h4>
-                        <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">Clique para filtrar pendentes</span>
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">Com Dados Faltando</p>
+                        <h4 className="text-lg font-bold text-amber-700 dark:text-amber-300 mt-0.5 tabular-nums">{stats.incompleteCount}</h4>
+                        <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">Clique para filtrar pendentes</span>
                     </div>
-                    <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-500">
+                    <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200/60 dark:border-amber-900/40">
                         <AlertTriangle className="w-5 h-5" />
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-100 dark:border-white/5 shadow-sm flex flex-col justify-between">
-                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Igrejas no Filtro</p>
+                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Igrejas no Filtro</p>
                     <div className="flex items-center justify-between mt-1">
-                        <span className="text-sm font-black text-slate-800 dark:text-white truncate">
+                        <span className="text-sm font-bold text-slate-900 dark:text-white truncate">
                             {selectedChurchIds.length === 0 ? 'Todas as Igrejas' : `${selectedChurchIds.length} selecionada(s)`}
                         </span>
-                        <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-500">
+                        <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700">
                             <Building2 className="w-4 h-4" />
                         </div>
                     </div>
@@ -410,7 +419,7 @@ export const ContributorsReportSection: React.FC = () => {
             </div>
 
             {/* Main Filter Toolbar */}
-            <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-white/5 shadow-sm flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+            <div className="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
                 <div className="flex flex-wrap items-center gap-2 flex-1">
                     {/* Search Field */}
                     <div className="relative flex-1 min-w-[200px]">
@@ -420,7 +429,7 @@ export const ContributorsReportSection: React.FC = () => {
                             placeholder="Buscar por Nome, CPF/CNPJ, E-mail, Cidade..."
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
-                            className="w-full pl-9 pr-8 py-2 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-white/5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-orange-500 transition-colors"
+                            className="w-full pl-9 pr-8 py-2 bg-slate-50 dark:bg-slate-800/60 border border-slate-200/90 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:border-orange-500 transition-colors"
                         />
                         {searchQuery && (
                             <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs">
@@ -434,7 +443,7 @@ export const ContributorsReportSection: React.FC = () => {
                         <select
                             value={selectedRole}
                             onChange={e => setSelectedRole(e.target.value)}
-                            className="px-3 py-2 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-white/5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-orange-500"
+                            className="px-3 py-2 bg-slate-50 dark:bg-slate-800/60 border border-slate-200/90 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-orange-500"
                         >
                             <option value="ALL">Todos os Cargos/Vínculos</option>
                             {availableRoles.map(r => (
@@ -444,83 +453,37 @@ export const ContributorsReportSection: React.FC = () => {
                     )}
                 </div>
 
-                {/* Export Button & Refresh */}
-                <div className="relative flex items-center gap-2" ref={downloadMenuRef}>
+                {/* Refresh (+ Export/Print discreto quando standalone) */}
+                <div className="flex items-center gap-2 shrink-0">
                     <button
+                        type="button"
                         onClick={() => loadContributorsData(true)}
                         title="Recarregar Cadastros"
-                        className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
+                        className="w-8 h-8 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200/90 dark:border-slate-700 shadow-2xs transition-colors flex items-center justify-center cursor-pointer"
                     >
-                        <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                        <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-orange-600' : ''}`} />
                     </button>
 
-                    <button
-                        onClick={handlePrint}
-                        title="Imprimir Relatório de Cadastros"
-                        className="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-2 cursor-pointer border border-slate-200/60 dark:border-white/5"
-                    >
-                        <Printer className="w-4 h-4 text-orange-600 dark:text-orange-400" />
-                        <span>Imprimir</span>
-                    </button>
-
-                    <div className="relative">
-                        <button
-                            onClick={() => setShowDownloadMenu(!showDownloadMenu)}
-                            className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-2 cursor-pointer"
-                        >
-                            <Download className="w-4 h-4" />
-                            <span>Exportar Cadastros</span>
-                        </button>
-
-                        {showDownloadMenu && (
-                            <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-100 dark:border-white/10 py-2 z-50 text-xs text-slate-700 dark:text-slate-200 animate-scale-in">
-                                <div className="px-3 py-1.5 text-[10px] font-black uppercase text-slate-400 tracking-wider">Formatos e Impressão</div>
-                                <button
-                                    onClick={handlePrint}
-                                    className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors text-orange-600 dark:text-orange-400 border-b border-slate-100 dark:border-white/5"
-                                >
-                                    <Printer className="w-4 h-4" />
-                                    <span>Imprimir Relatório</span>
-                                </button>
-                                <button
-                                    onClick={() => handleDownloadFormat('pdf')}
-                                    className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors"
-                                >
-                                    <FileText className="w-4 h-4 text-red-500" />
-                                    <span>Baixar como PDF</span>
-                                </button>
-                                <button
-                                    onClick={() => handleDownloadFormat('excel')}
-                                    className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors"
-                                >
-                                    <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
-                                    <span>Baixar como Excel (.xlsx)</span>
-                                </button>
-                                <button
-                                    onClick={() => handleDownloadFormat('csv')}
-                                    className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors"
-                                >
-                                    <FileSpreadsheet className="w-4 h-4 text-blue-500" />
-                                    <span>Baixar como CSV</span>
-                                </button>
-                                <button
-                                    onClick={() => handleDownloadFormat('ofx')}
-                                    className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors"
-                                >
-                                    <FileCode className="w-4 h-4 text-purple-500" />
-                                    <span>Baixar como OFX (ERP/Contábil)</span>
-                                </button>
-                            </div>
-                        )}
-                    </div>
+                    {!hideExportPrint && (
+                        <ExportPrintActions
+                            onDownloadCsv={() => handleDownloadFormat('csv')}
+                            onDownloadExcel={() => handleDownloadFormat('excel')}
+                            onDownloadPdf={() => handleDownloadFormat('pdf')}
+                            onDownloadOfx={() => handleDownloadFormat('ofx')}
+                            onPrint={handlePrint}
+                            downloadTitle="Exportar Cadastros"
+                            printTitle="Imprimir Relatório de Cadastros"
+                            menuTitle="Formatos de Cadastros"
+                        />
+                    )}
                 </div>
             </div>
 
             {/* Main Table View */}
-            <div className="flex-1 min-h-[400px] bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl shadow-sm overflow-hidden flex flex-col">
+            <div className="flex-1 min-h-[400px] bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl shadow-xs overflow-hidden flex flex-col">
                 {isLoading ? (
                     <div className="flex-1 flex flex-col items-center justify-center p-8 gap-3 text-slate-400">
-                        <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+                        <Loader2 className="w-8 h-8 animate-spin text-orange-600" />
                         <p className="text-xs font-semibold">Carregando relatório de cadastros...</p>
                     </div>
                 ) : filteredContributors.length === 0 ? (
@@ -529,17 +492,17 @@ export const ContributorsReportSection: React.FC = () => {
                         <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200">Nenhum cadastro encontrado</h4>
                         <p className="text-xs text-slate-400">Ajuste os filtros de busca ou integridade para visualizar os registros.</p>
                         {hasActiveFilters && (
-                            <button onClick={resetFilters} className="mt-2 text-xs font-bold text-orange-600 hover:underline">
+                            <button onClick={resetFilters} className="mt-2 text-xs font-semibold text-orange-600 hover:underline">
                                 Limpar todos os filtros
                             </button>
                         )}
                     </div>
                 ) : (
                     <>
-                        <div className="flex-1 overflow-auto custom-scrollbar">
+                        <div className="flex-1 overflow-auto custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}>
                             <table className="w-full text-left border-collapse">
                             <thead>
-                                <tr className="border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-slate-800/40 text-[11px] font-black uppercase text-slate-400 tracking-wider">
+                                <tr className="border-b border-slate-200/90 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-800/80 text-[11px] font-semibold uppercase text-slate-500 dark:text-slate-400 tracking-wide">
                                     <th className="py-3 px-4">Nome / Razão Social</th>
                                     <th className="py-3 px-4">Tipo</th>
                                     <th className="py-3 px-4">CPF / CNPJ</th>
@@ -550,7 +513,7 @@ export const ContributorsReportSection: React.FC = () => {
                                     <th className="py-3 px-4 text-center">Ações</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-white/5 text-xs text-slate-700 dark:text-slate-200 font-medium">
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs text-slate-700 dark:text-slate-200 font-medium">
                                 {paginatedContributors.map((item, idx) => {
                                     const isPj = item.personType === 'PJ';
                                     const name = item.name || item.fullName || 'NÃO INFORMADO';
@@ -570,31 +533,31 @@ export const ContributorsReportSection: React.FC = () => {
                                                         <img 
                                                             src={photoUrl} 
                                                             alt={name} 
-                                                            className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-700 shadow-xs" 
+                                                            className="w-8 h-8 rounded-lg object-cover border border-slate-200/90 dark:border-slate-700 shadow-2xs" 
                                                         />
                                                     ) : (
-                                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-xs ${isPj ? 'bg-purple-500' : 'bg-orange-500'}`}>
+                                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-white shadow-2xs ${isPj ? 'bg-slate-700' : 'bg-orange-600'}`}>
                                                             {initial}
                                                         </div>
                                                     )}
                                                     <div>
-                                                        <span className="font-bold text-slate-800 dark:text-white block">{name}</span>
+                                                        <span className="font-semibold text-slate-900 dark:text-white block">{name}</span>
                                                         {item.email ? (
-                                                            <span className="text-[10px] text-slate-400 block truncate max-w-[180px]">{item.email}</span>
+                                                            <span className="text-[11px] text-slate-400 block truncate max-w-[180px]">{item.email}</span>
                                                         ) : (
-                                                            <span className="text-[10px] text-amber-500 block italic font-semibold">Sem E-mail</span>
+                                                            <span className="text-[11px] text-amber-500 block italic font-medium">Sem E-mail</span>
                                                         )}
                                                     </div>
                                                 </div>
                                             </td>
 
                                             <td className="py-3 px-4">
-                                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${isPj ? 'bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400' : 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400'}`}>
+                                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border ${isPj ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700' : 'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border-orange-200/70 dark:border-orange-900/40'}`}>
                                                     {isPj ? 'PJ (Empresa)' : 'PF (Pessoa)'}
                                                 </span>
                                             </td>
 
-                                            <td className="py-3 px-4 font-mono text-[11px] text-slate-600 dark:text-slate-400">
+                                            <td className="py-3 px-4 tabular-nums text-[11px] text-slate-600 dark:text-slate-400">
                                                 {formatDocument(item.cpfCnpj || item.cpf || item.document)}
                                             </td>
 
@@ -603,14 +566,14 @@ export const ContributorsReportSection: React.FC = () => {
                                             </td>
 
                                             <td className="py-3 px-4">
-                                                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-bold">
+                                                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/70 dark:border-slate-700 text-[10px] font-semibold">
                                                     {item.role || item.churchRole || 'Membro'}
                                                 </span>
                                             </td>
 
                                             <td className="py-3 px-4 text-slate-600 dark:text-slate-400">
                                                 <div className="flex flex-col">
-                                                    <span>{item.phone || item.mobile || '---'}</span>
+                                                    <span className="tabular-nums">{item.phone || item.mobile || '---'}</span>
                                                     {(item.city || item.cidade) && (
                                                         <span className="text-[10px] text-slate-400">{item.city || item.cidade} - {item.state || item.uf || 'UF'}</span>
                                                     )}
@@ -619,18 +582,18 @@ export const ContributorsReportSection: React.FC = () => {
 
                                             <td className="py-3 px-4">
                                                 {quality.isComplete ? (
-                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 inline-flex items-center gap-1">
+                                                    <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/70 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-900/40 inline-flex items-center gap-1">
                                                         <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                                                         Completo
                                                     </span>
                                                 ) : (
                                                     <div className="flex flex-wrap gap-1">
-                                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 inline-flex items-center gap-1">
+                                                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/70 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-900/40 inline-flex items-center gap-1">
                                                             <AlertTriangle className="w-3 h-3 text-amber-600" />
                                                             Falta {quality.missingList[0]}
                                                         </span>
                                                         {quality.missingList.length > 1 && (
-                                                            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                                                            <span className="px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200/70 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700 tabular-nums">
                                                                 +{quality.missingList.length - 1}
                                                             </span>
                                                         )}
@@ -706,22 +669,22 @@ export const ContributorsReportSection: React.FC = () => {
 
             {/* Contributor Profile Inspection Modal */}
             {selectedContributor && (
-                <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/10 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 relative">
+                <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-elevated space-y-4 relative">
                         <button
                             onClick={() => setSelectedContributor(null)}
-                            className="absolute right-4 top-4 p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-xl bg-slate-100 dark:bg-slate-800 transition-colors"
+                            className="absolute right-4 top-4 p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg bg-slate-100 dark:bg-slate-800 transition-colors cursor-pointer"
                         >
                             <X className="w-4 h-4" />
                         </button>
 
-                        <div className="flex items-center gap-3 border-b border-slate-100 dark:border-white/5 pb-4">
-                            <div className="w-12 h-12 rounded-2xl bg-orange-500/10 text-orange-600 flex items-center justify-center font-bold text-lg">
+                        <div className="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+                            <div className="w-11 h-11 rounded-xl bg-orange-50 dark:bg-orange-950/40 border border-orange-200/60 dark:border-orange-900/40 text-orange-600 dark:text-orange-400 flex items-center justify-center font-bold text-lg">
                                 {(selectedContributor.name || selectedContributor.fullName || 'C')[0].toUpperCase()}
                             </div>
                             <div>
-                                <h3 className="font-black text-slate-800 dark:text-white text-base">{selectedContributor.name || selectedContributor.fullName}</h3>
-                                <p className="text-xs text-slate-400">
+                                <h3 className="font-bold text-slate-900 dark:text-white text-base">{selectedContributor.name || selectedContributor.fullName}</h3>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
                                     {selectedContributor.role || selectedContributor.churchRole || 'Membro'} · {getChurchName(selectedContributor.churchId || selectedContributor.church_id, selectedContributor)}
                                 </p>
                             </div>
@@ -729,38 +692,38 @@ export const ContributorsReportSection: React.FC = () => {
 
                         {/* Details Grid */}
                         <div className="grid grid-cols-2 gap-3 text-xs">
-                            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 space-y-1">
-                                <span className="text-[10px] font-bold text-slate-400 uppercase block">Tipo de Pessoa</span>
+                            <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-800 space-y-1">
+                                <span className="text-[10px] font-semibold text-slate-400 uppercase block">Tipo de Pessoa</span>
                                 <span className="font-semibold text-slate-800 dark:text-white">{selectedContributor.personType === 'PJ' ? 'Pessoa Jurídica (PJ)' : 'Pessoa Física (PF)'}</span>
                             </div>
 
-                            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 space-y-1">
-                                <span className="text-[10px] font-bold text-slate-400 uppercase block">CPF / CNPJ</span>
-                                <span className="font-mono font-bold text-slate-800 dark:text-white">{formatDocument(selectedContributor.cpfCnpj || selectedContributor.cpf || selectedContributor.document)}</span>
+                            <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-800 space-y-1">
+                                <span className="text-[10px] font-semibold text-slate-400 uppercase block">CPF / CNPJ</span>
+                                <span className="tabular-nums font-bold text-slate-800 dark:text-white">{formatDocument(selectedContributor.cpfCnpj || selectedContributor.cpf || selectedContributor.document)}</span>
                             </div>
 
-                            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 space-y-1">
-                                <span className="text-[10px] font-bold text-slate-400 uppercase block">Telefone / WhatsApp</span>
-                                <span className="font-semibold text-slate-800 dark:text-white">{selectedContributor.phone || selectedContributor.mobile || 'Não informado'}</span>
+                            <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-800 space-y-1">
+                                <span className="text-[10px] font-semibold text-slate-400 uppercase block">Telefone / WhatsApp</span>
+                                <span className="font-semibold text-slate-800 dark:text-white tabular-nums">{selectedContributor.phone || selectedContributor.mobile || 'Não informado'}</span>
                             </div>
 
-                            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 space-y-1">
-                                <span className="text-[10px] font-bold text-slate-400 uppercase block">E-mail</span>
+                            <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-800 space-y-1">
+                                <span className="text-[10px] font-semibold text-slate-400 uppercase block">E-mail</span>
                                 <span className="font-semibold text-slate-800 dark:text-white truncate block">{selectedContributor.email || 'Não informado'}</span>
                             </div>
                         </div>
 
                         {/* Check list missing items */}
-                        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 space-y-2">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Diagnóstico do Cadastro</span>
+                        <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-800 space-y-2">
+                            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block">Diagnóstico do Cadastro</span>
                             <div className="flex flex-wrap gap-2 text-xs">
                                 {getContributorMissingData(selectedContributor).missingList.length === 0 ? (
-                                    <span className="text-emerald-600 font-bold flex items-center gap-1">
+                                    <span className="text-emerald-600 font-semibold flex items-center gap-1">
                                         <CheckCircle2 className="w-4 h-4" /> Cadastro 100% Completo
                                     </span>
                                 ) : (
                                     getContributorMissingData(selectedContributor).missingList.map((m, i) => (
-                                        <span key={i} className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 font-bold text-[10px] flex items-center gap-1">
+                                        <span key={i} className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200/70 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-900/40 font-semibold text-[10px] flex items-center gap-1">
                                             <AlertTriangle className="w-3 h-3" /> Falta {m}
                                         </span>
                                     ))
@@ -774,7 +737,7 @@ export const ContributorsReportSection: React.FC = () => {
                                     href={`https://wa.me/55${selectedContributor.phone.replace(/\D/g, '')}`}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+                                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 shadow-xs"
                                 >
                                     <Phone className="w-3.5 h-3.5" />
                                     <span>Enviar WhatsApp</span>
@@ -782,7 +745,7 @@ export const ContributorsReportSection: React.FC = () => {
                             )}
                             <button
                                 onClick={() => setSelectedContributor(null)}
-                                className="px-4 py-2 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-300 transition-all"
+                                className="px-4 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200/90 dark:border-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition-all cursor-pointer"
                             >
                                 Fechar
                             </button>
@@ -792,4 +755,4 @@ export const ContributorsReportSection: React.FC = () => {
             )}
         </div>
     );
-};
+});

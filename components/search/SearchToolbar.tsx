@@ -30,33 +30,34 @@ const UnifiedButton = ({
     variant?: 'default' | 'primary' | 'success' | 'danger' | 'warning' | 'info' | 'violet'
 }) => {
     const colorMap = {
-        default: { base: 'text-slate-300 hover:text-white', active: 'text-white' },
-        primary: { base: 'text-blue-400 hover:text-blue-300', active: 'text-blue-300 drop-shadow-[0_0_8px_rgba(59,130,246,0.6)]' }, 
-        success: { base: 'text-emerald-400 hover:text-emerald-300', active: 'text-emerald-300 drop-shadow-[0_0_8px_rgba(16,185,129,0.6)]' }, 
-        danger: { base: 'text-rose-400 hover:text-rose-300', active: 'text-rose-300 drop-shadow-[0_0_8px_rgba(244,63,94,0.6)]' }, 
-        warning: { base: 'text-amber-400 hover:text-amber-300', active: 'text-amber-300 drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]' }, 
-        info: { base: 'text-cyan-400 hover:text-cyan-300', active: 'text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.6)]' }, 
-        violet: { base: 'text-violet-400 hover:text-violet-300', active: 'text-violet-300 drop-shadow-[0_0_8px_rgba(139,92,246,0.6)]' }, 
+        default: { base: 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800', active: 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' },
+        primary: { base: 'text-slate-700 dark:text-slate-200 hover:bg-orange-50 dark:hover:bg-orange-950/30 hover:text-orange-600 dark:hover:text-orange-400', active: 'bg-orange-600 text-white' }, 
+        success: { base: 'text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30', active: 'bg-emerald-600 text-white' }, 
+        danger: { base: 'text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/30', active: 'bg-rose-600 text-white' }, 
+        warning: { base: 'text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/30', active: 'bg-amber-600 text-white' }, 
+        info: { base: 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800', active: 'bg-slate-900 text-white' }, 
+        violet: { base: 'text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950/30', active: 'bg-violet-600 text-white' }, 
     };
 
     const colors = colorMap[variant] || colorMap.default;
-    const currentClass = isActive ? `${colors.active} font-black scale-105` : `${colors.base} font-bold hover:scale-105`;
+    const currentClass = isActive ? `${colors.active} font-semibold` : `${colors.base} font-semibold`;
 
     return (
         <>
             <button 
+                type="button"
                 onClick={onClick}
-                className={`relative flex-1 flex items-center justify-center gap-2 px-4 h-full text-[10px] uppercase transition-all duration-300 outline-none group ${currentClass}`}
+                className={`relative flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors outline-none cursor-pointer ${currentClass}`}
             >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? 'stroke-[2.5]' : 'stroke-[1.5]'}`} />
+                <Icon className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">{label}</span>
                 {badgeCount !== undefined && badgeCount > 0 && (
-                    <span className="ml-1 bg-red-500 px-1.5 py-0.5 rounded-full text-[9px] leading-none text-white font-bold">
+                    <span className="ml-0.5 bg-orange-600 text-white px-1.5 py-0.5 rounded-md text-[10px] leading-none font-bold tabular-nums">
                         {badgeCount}
                     </span>
                 )}
             </button>
-            {!isLast && <div className="w-px h-3 bg-white/10 self-center"></div>}
+            {!isLast && <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 self-center"></div>}
         </>
     );
 };
@@ -74,9 +75,9 @@ export const SearchToolbar: React.FC<SearchToolbarProps> = ({
 
     return (
         <div className="flex-shrink-0 flex items-center justify-between gap-4 px-1 mt-1 min-h-[40px]">
-            <h2 className="text-xl font-black text-brand-deep dark:text-white tracking-tight leading-none whitespace-nowrap">{title}</h2>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-none whitespace-nowrap">{title}</h2>
             
-            <div className="flex items-center h-9 bg-gradient-to-r from-brand-blue via-brand-deep to-brand-blue rounded-full shadow-lg border border-white/10 overflow-hidden p-0.5">
+            <div className="flex items-center gap-1 bg-white dark:bg-slate-900 rounded-xl shadow-xs border border-slate-200/90 dark:border-slate-800 p-1">
                  <UnifiedButton 
                     onClick={onOpenFilters}
                     icon={AdjustmentsHorizontalIcon}

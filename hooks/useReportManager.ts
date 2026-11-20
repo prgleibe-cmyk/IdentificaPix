@@ -131,13 +131,26 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             
             try {
                 const token = await getAuthToken();
-                const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
+                if (!token) {
+                    if (typeof window !== 'undefined') {
+                        window.dispatchEvent(new CustomEvent('iggestor:auth-expired'));
+                    }
+                    return;
+                }
+                const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` };
 
                 const response = await safeFetch(`/api/v1/saved_reports?user_id=${apiOwnerId}&exclude_data=true`, {
                     method: 'GET',
                     cache: 'no-store',
                     headers
                 });
+
+                if (response.status === 401) {
+                    if (typeof window !== 'undefined') {
+                        window.dispatchEvent(new CustomEvent('iggestor:auth-expired'));
+                    }
+                    return;
+                }
 
                 if (response.ok) {
                     const resData = await safeParseJson<any[]>(response, 'useReportManager.fetchReports');

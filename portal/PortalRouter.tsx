@@ -139,7 +139,7 @@ export const PortalRouter: React.FC = () => {
 
     if (isLoading && !church) {
         return (
-            <PortalLayout church={null} onNavigate={handleNavigate}>
+            <PortalLayout church={null} currentRoute={currentRoute} onNavigate={handleNavigate}>
                 <div className="flex-1 flex items-center justify-center p-8 min-h-[50vh]">
                     <PortalLoading message="Carregando portal da congregação..." />
                 </div>
@@ -148,7 +148,7 @@ export const PortalRouter: React.FC = () => {
     }
 
     return (
-        <PortalLayout church={church} onNavigate={handleNavigate}>
+        <PortalLayout church={church} currentRoute={currentRoute} onNavigate={handleNavigate}>
             {renderPage()}
         </PortalLayout>
     );

@@ -4,6 +4,7 @@ import { PortalButton } from '../components/PortalButton';
 import { PortalRequestStatusCard } from '../components/PortalRequestStatusCard';
 import { ContributorMockProfile, ContributionItemMock } from '../types/portal';
 import { formatCurrencyBrl } from '../utils/portalFormatters';
+import { Check, Info } from 'lucide-react';
 
 interface PortalSuccessStepProps {
     churchId?: string;
@@ -30,18 +31,18 @@ export const PortalSuccessStep: React.FC<PortalSuccessStepProps> = ({
         <PortalCard className="text-center py-4">
             <div className="space-y-6">
                 {/* Success Icon Badge */}
-                <div className="w-20 h-20 mx-auto rounded-full bg-emerald-500/10 text-emerald-500 border-2 border-emerald-500/30 flex items-center justify-center font-black text-3xl animate-bounce">
-                    ✓
+                <div className="w-16 h-16 mx-auto rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center">
+                    <Check className="w-8 h-8 stroke-[2.5]" />
                 </div>
 
-                <div>
-                    <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 inline-block mb-2">
+                <div className="space-y-1.5">
+                    <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
                         Intenção Registrada com Sucesso
-                    </span>
-                    <h2 className="text-2xl sm:text-3xl font-black text-slate-800 dark:text-white tracking-tight">
+                    </p>
+                    <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
                         Obrigado por sua contribuição!
                     </h2>
-                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-2">
+                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
                         Sua intenção de oferta foi gerada e vinculada ao seu perfil.
                     </p>
                 </div>
@@ -103,11 +104,12 @@ export const PortalSuccessStep: React.FC<PortalSuccessStepProps> = ({
                 </div>
 
                 {/* Status Notice */}
-                <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-brand-blue dark:text-blue-300 text-xs font-medium max-w-md mx-auto text-left">
-                    <p className="font-bold">
-                        ℹ️ Registro de Intenção de Contribuição:
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 text-slate-700 dark:text-slate-300 text-xs max-w-md mx-auto text-left">
+                    <p className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <Info className="w-4 h-4 text-orange-600 dark:text-orange-400 shrink-0" />
+                        <span>Registro de Intenção de Contribuição</span>
                     </p>
-                    <p className="mt-1">
+                    <p className="mt-1 text-slate-600 dark:text-slate-400 leading-relaxed">
                         Sua solicitação foi gravada com sucesso no sistema oficial da igreja. O Motor de Conciliação irá vincular seu pagamento Pix à sua intenção automaticamente.
                     </p>
                 </div>

@@ -85,7 +85,7 @@ export const AuthView: React.FC = () => {
                                 onClick={() => setIsTermsOpen(true)}
                                 className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-600 dark:text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors cursor-pointer"
                             >
-                                <DocumentTextIcon className="w-3.5 h-3.5 text-brand-blue" />
+                                <DocumentTextIcon className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
                                 <span>Termos de Licença e Uso do Sistema</span>
                             </button>
                             <p className="md:hidden text-slate-400 text-[11px] font-medium mt-3">

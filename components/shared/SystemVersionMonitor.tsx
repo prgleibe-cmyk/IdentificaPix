@@ -99,14 +99,14 @@ export const SystemVersionMonitor: React.FC = () => {
         <>
             {/* BANNER SUPERIOR DE NOVA VERSÃO DISPONÍVEL */}
             {hasUpdate && !isDismissed && (
-                <div className="fixed top-0 left-0 right-0 z-[9999] bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 text-white px-4 py-2.5 shadow-xl border-b border-white/20 flex items-center justify-between animate-slide-down">
+                <div className="fixed top-0 left-0 right-0 z-[9999] bg-slate-900 dark:bg-slate-950 text-white px-4 py-2.5 shadow-elevated border-b border-slate-800 flex items-center justify-between animate-slide-down">
                     <div className="flex items-center gap-3 max-w-7xl mx-auto w-full justify-between">
                         <div className="flex items-center gap-2.5 text-xs md:text-sm font-medium">
-                            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm shadow-inner shrink-0">
-                                <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+                            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-500/15 border border-orange-500/30 text-orange-400 shrink-0">
+                                <Sparkles className="w-4 h-4" />
                             </span>
                             <span>
-                                🚀 <strong className="font-bold">Nova atualização disponível!</strong> O sistema foi atualizado com novas melhorias.
+                                <strong className="font-semibold text-white">Nova atualização disponível.</strong> O sistema foi atualizado com novas melhorias.
                             </span>
                         </div>
 
@@ -114,7 +114,7 @@ export const SystemVersionMonitor: React.FC = () => {
                             <button
                                 onClick={handleReload}
                                 disabled={isReloading}
-                                className="px-3.5 py-1.5 bg-white text-emerald-800 rounded-xl font-bold text-xs hover:bg-emerald-50 active:scale-95 transition-all shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                                className="px-3.5 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-semibold text-xs active:scale-95 transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap"
                             >
                                 <RefreshCw className={`w-3.5 h-3.5 ${isReloading ? 'animate-spin' : ''}`} />
                                 <span>{isReloading ? 'Atualizando...' : 'Atualizar Agora'}</span>
@@ -122,7 +122,7 @@ export const SystemVersionMonitor: React.FC = () => {
                             <button
                                 onClick={() => setIsDismissed(true)}
                                 title="Lembrar mais tarde"
-                                className="p-1 hover:bg-white/20 rounded-lg transition-colors cursor-pointer text-white/80 hover:text-white"
+                                className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer text-slate-400 hover:text-white"
                             >
                                 <X className="w-4 h-4" />
                             </button>
@@ -135,17 +135,16 @@ export const SystemVersionMonitor: React.FC = () => {
             {(isReconnecting || reconnectedRecently) && (
                 <div className="fixed bottom-5 right-5 z-[9999] animate-bounce-in">
                     {isReconnecting && (
-                        <div className="flex items-center gap-2.5 px-4 py-2.5 bg-slate-900/90 dark:bg-black/90 text-amber-400 border border-amber-500/40 rounded-2xl shadow-2xl backdrop-blur-md text-xs font-semibold">
-                            <WifiOff className="w-4 h-4 animate-pulse text-amber-400 shrink-0" />
+                        <div className="flex items-center gap-2.5 px-3.5 py-2 bg-white/95 dark:bg-slate-900/95 text-amber-700 dark:text-amber-300 border border-amber-200/90 dark:border-amber-800/60 rounded-xl shadow-elevated backdrop-blur-md text-xs font-semibold">
+                            <WifiOff className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
                             <span>Sincronizando com o servidor...</span>
-                            <div className="w-2 h-2 rounded-full bg-amber-400 animate-ping ml-1"></div>
                         </div>
                     )}
 
                     {!isReconnecting && reconnectedRecently && (
-                        <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-950/90 text-emerald-400 border border-emerald-500/40 rounded-2xl shadow-2xl backdrop-blur-md text-xs font-semibold animate-fade-in">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                            <span>Servidor reconectado com sucesso!</span>
+                        <div className="flex items-center gap-2 px-3.5 py-2 bg-white/95 dark:bg-slate-900/95 text-emerald-700 dark:text-emerald-300 border border-emerald-200/90 dark:border-emerald-800/60 rounded-xl shadow-elevated backdrop-blur-md text-xs font-semibold animate-fade-in">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                            <span>Servidor reconectado com sucesso.</span>
                         </div>
                     )}
                 </div>

@@ -35,7 +35,10 @@ export const BanksList: React.FC = () => {
                 />
             </div>
             
-            <ul className="space-y-1.5 overflow-y-auto pr-1 custom-scrollbar flex-1 min-h-0">
+            <ul
+                style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}
+                className="space-y-2 overflow-y-auto pr-1 custom-scrollbar flex-1 min-h-0"
+            >
                 {filteredBanks.map((bank: any) => {
                     const key = resolveBankKey(bank);
                     const colors = resolveBankColors(bank);
@@ -53,16 +56,16 @@ export const BanksList: React.FC = () => {
                                     <button
                                         onClick={() => openEditBank(bank)}
                                         title="Editar Banco"
-                                        className="p-1.5 rounded-lg text-brand-blue bg-blue-50 hover:bg-blue-100 active:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 transition-colors shadow-sm cursor-pointer"
+                                        className="w-7 h-7 rounded-lg flex items-center justify-center border border-slate-200/90 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-orange-600 hover:border-orange-300 dark:hover:text-orange-400 transition-colors shadow-xs cursor-pointer"
                                     >
-                                        <PencilIcon className="w-3 h-3" />
+                                        <PencilIcon className="w-3.5 h-3.5" />
                                     </button>
                                     <button
                                          onClick={() => openDeleteConfirmation({ type: 'bank', id: bank.id, name: bank.account_name || bank.name })}
                                          title="Excluir Banco"
-                                         className="p-1.5 rounded-lg text-red-600 bg-red-50 hover:bg-red-100 active:bg-red-200 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 transition-colors shadow-sm cursor-pointer"
+                                         className="w-7 h-7 rounded-lg flex items-center justify-center border border-slate-200/90 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-red-600 hover:border-red-300 dark:hover:text-red-400 transition-colors shadow-xs cursor-pointer"
                                     >
-                                        <TrashIcon className="w-3 h-3" />
+                                        <TrashIcon className="w-3.5 h-3.5" />
                                     </button>
                                 </div>
                             }
@@ -77,7 +80,7 @@ export const BanksList: React.FC = () => {
                                     }}
                                 >
                                     {isGeneric ? (
-                                        <div className="w-full h-full bg-slate-100 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 font-black">
+                                        <div className="w-full h-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 font-bold">
                                             {(bank.name || 'B').charAt(0).toUpperCase()}
                                         </div>
                                     ) : (
@@ -85,11 +88,11 @@ export const BanksList: React.FC = () => {
                                     )}
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                    <span className="font-bold text-slate-800 dark:text-slate-200 text-xs tracking-tight truncate block">
+                                    <span className="font-semibold text-slate-900 dark:text-white text-xs tracking-tight truncate block">
                                         {bank.account_name ?? bank.name}
                                     </span>
                                     {catalogName && (
-                                        <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 truncate block">
+                                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate block">
                                             Instituição: {catalogName}
                                         </span>
                                     )}

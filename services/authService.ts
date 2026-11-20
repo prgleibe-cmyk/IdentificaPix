@@ -3,6 +3,7 @@ import { invalidateClientCache } from './clientDataCache';
 
 export interface AuthResponse {
   success: boolean;
+  status?: number;
   message?: string;
   error?: string;
   data?: {
@@ -21,17 +22,19 @@ async function safeParseJson(res: Response): Promise<AuthResponse & { data?: any
   const contentType = res.headers.get('content-type') || '';
   const text = await res.text();
   if (!text) {
-    return { success: false, error: `Erro de comunicação com o servidor (HTTP ${res.status}).` };
+    return { success: false, status: res.status, error: `Erro de comunicação com o servidor (HTTP ${res.status}).` };
   }
   if (contentType.includes('application/json') || text.trim().startsWith('{') || text.trim().startsWith('[')) {
     try {
-      return JSON.parse(text);
+      const parsed = JSON.parse(text);
+      return { ...parsed, status: res.status };
     } catch {
-      return { success: false, error: 'Resposta JSON inválida do servidor.' };
+      return { success: false, status: res.status, error: 'Resposta JSON inválida do servidor.' };
     }
   }
   return {
     success: false,
+    status: res.status,
     error: res.status === 404
       ? 'Serviço de autenticação indisponível ou desatualizado no servidor.'
       : `Servidor retornou resposta inesperada (HTTP ${res.status}).`

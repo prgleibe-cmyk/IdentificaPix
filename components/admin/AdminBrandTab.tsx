@@ -116,22 +116,22 @@ export const AdminBrandTab: React.FC = () => {
         <div className="w-full max-w-6xl mx-auto animate-fade-in pb-12 pt-4 space-y-6">
             
             {/* Header Lab */}
-            <div className="bg-brand-deep rounded-[3rem] p-10 md:p-14 border border-white/10 relative overflow-hidden group shadow-2xl">
-                <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-brand-blue/10 rounded-full blur-[140px] pointer-events-none -mr-48 -mt-48"></div>
+            <div className="bg-slate-900 dark:bg-slate-950 rounded-2xl p-8 md:p-10 border border-slate-800 relative overflow-hidden group shadow-elevated">
+                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-orange-600/10 rounded-full blur-[120px] pointer-events-none -mr-40 -mt-40"></div>
                 
-                <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-12">
+                <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-10">
                     <div className="flex-1 text-center lg:text-left">
-                        <div className="flex items-center justify-center lg:justify-start gap-5 mb-8">
-                            <div className="p-5 bg-brand-blue/20 text-brand-blue rounded-3xl border border-brand-blue/30 shadow-[0_0_30px_rgba(234,88,12,0.2)]">
-                                <PaintBrushIcon className="w-10 h-10" />
+                        <div className="flex items-center justify-center lg:justify-start gap-4 mb-6">
+                            <div className="w-12 h-12 bg-orange-500/15 text-orange-400 rounded-xl border border-orange-500/30 flex items-center justify-center shrink-0">
+                                <PaintBrushIcon className="w-6 h-6" />
                             </div>
                             <div>
-                                <h2 className="text-4xl font-black text-white tracking-tighter leading-none">Studio de Marca v5.0</h2>
-                                <span className="text-[11px] uppercase tracking-[0.5em] text-brand-blue font-black block mt-2 opacity-70">Identidade Visual Premium</span>
+                                <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight leading-none">Studio de Marca v5.0</h2>
+                                <span className="text-[11px] uppercase tracking-widest text-orange-400 font-semibold block mt-1.5">Identidade Visual Premium</span>
                             </div>
                         </div>
                         
-                        <div className="flex items-center justify-center lg:justify-start gap-3 mb-8">
+                        <div className="flex items-center justify-center lg:justify-start gap-3 mb-6">
                             {[
                                 { id: 'full', label: 'Composição Logos', desc: 'IdentificaPix Full' },
                                 { id: 'symbol', label: 'App Icon', desc: 'Símbolo 3D Puro' }
@@ -140,22 +140,22 @@ export const AdminBrandTab: React.FC = () => {
                                     key={mode.id}
                                     onClick={() => setRenderMode(mode.id as RenderMode)}
                                     className={`
-                                        px-6 py-3 rounded-2xl transition-all border text-left
+                                        px-4 py-2.5 rounded-lg transition-colors border text-left cursor-pointer
                                         ${renderMode === mode.id 
-                                            ? 'bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-600/20 scale-105' 
-                                            : 'bg-[#0F172A] border-white/5 text-slate-400 hover:bg-slate-800'
+                                            ? 'bg-orange-600 border-orange-500 text-white shadow-xs' 
+                                            : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800'
                                         }
                                     `}
                                 >
-                                    <span className="block text-xs font-black uppercase tracking-widest">{mode.label}</span>
-                                    <span className="text-[9px] font-bold opacity-60 uppercase">{mode.desc}</span>
+                                    <span className="block text-xs font-semibold">{mode.label}</span>
+                                    <span className="text-[10px] font-medium opacity-75">{mode.desc}</span>
                                 </button>
                             ))}
                         </div>
 
-                        <p className="text-slate-400 text-lg leading-relaxed max-w-2xl font-medium">
+                        <p className="text-slate-400 text-sm leading-relaxed max-w-2xl font-normal">
                             Gere assets de marketing e ícones em alta resolução. A inteligência preserva o padrão de camadas 
-                            vibrantes e a tipografia futurista da IdentificaPix.
+                            vibrantes e a tipografia moderna da marca.
                         </p>
                     </div>
 
@@ -163,30 +163,24 @@ export const AdminBrandTab: React.FC = () => {
                         {!hasKey ? (
                             <button 
                                 onClick={handleSelectKey}
-                                className="group flex items-center gap-4 px-10 py-6 bg-white text-brand-deep rounded-2xl font-black uppercase text-xs tracking-widest shadow-2xl hover:-translate-y-1 transition-all active:scale-95 ring-8 ring-white/5"
+                                className="group flex items-center gap-3 px-6 py-3.5 bg-white text-slate-900 hover:bg-slate-100 rounded-xl font-semibold text-xs shadow-elevated transition-colors cursor-pointer"
                             >
-                                <LockClosedIcon className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+                                <LockClosedIcon className="w-4 h-4 text-orange-600" />
                                 Liberar Motor Gemini 3 Pro
                             </button>
                         ) : (
                             <button 
                                 onClick={generateLogo} 
                                 disabled={isGenerating}
-                                className={`
-                                    flex flex-col items-center gap-2 px-12 py-8 text-white rounded-[2.5rem] font-black uppercase transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed group border border-white/20
-                                    ${renderMode === 'full' 
-                                        ? 'bg-gradient-to-br from-blue-600 to-indigo-700 shadow-[0_20px_50px_rgba(37,99,235,0.4)]' 
-                                        : 'bg-gradient-to-br from-indigo-600 to-purple-700 shadow-[0_20px_50px_rgba(79,70,229,0.4)]'
-                                    }
-                                `}
+                                className="flex flex-col items-center gap-2 px-8 py-5 text-white rounded-xl font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed group border border-orange-500/40 bg-orange-600 hover:bg-orange-700 shadow-elevated cursor-pointer"
                             >
                                 {isGenerating ? (
-                                    <ArrowPathIcon className="w-8 h-8 animate-spin" />
+                                    <ArrowPathIcon className="w-6 h-6 animate-spin" />
                                 ) : (
-                                    <SparklesIcon className="w-8 h-8 group-hover:scale-110 transition-transform" />
+                                    <SparklesIcon className="w-6 h-6 group-hover:scale-110 transition-transform" />
                                 )}
-                                <span className="text-xs tracking-[0.2em] mt-2">
-                                    {isGenerating ? 'Materializando...' : `Gerar Asset 4K`}
+                                <span className="text-xs tracking-wide mt-1">
+                                    {isGenerating ? 'Materializando...' : 'Gerar Asset 4K'}
                                 </span>
                             </button>
                         )}
@@ -195,12 +189,12 @@ export const AdminBrandTab: React.FC = () => {
             </div>
 
             {/* Output */}
-            <div className="relative min-h-[500px] bg-[#020610] rounded-[3rem] border border-white/5 shadow-2xl flex flex-col items-center justify-center overflow-hidden cinematic-spotlight">
+            <div className="relative min-h-[460px] bg-slate-950 rounded-2xl border border-slate-800 shadow-elevated flex flex-col items-center justify-center overflow-hidden">
                 {generatedLogo ? (
-                    <div className="h-full w-full p-8 flex flex-col items-center animate-scale-in">
-                        <div className="max-w-4xl w-full rounded-[2.5rem] overflow-hidden shadow-[0_0_80px_rgba(37,99,235,0.25)] border border-white/10 group relative">
+                    <div className="h-full w-full p-6 sm:p-8 flex flex-col items-center animate-scale-in">
+                        <div className="max-w-4xl w-full rounded-xl overflow-hidden shadow-elevated border border-slate-800 group relative">
                             <img src={generatedLogo} alt="Logo Render" className="w-full h-auto" />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex items-end p-8">
+                            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-6">
                                 <button 
                                     onClick={() => {
                                         const link = document.createElement('a');
@@ -208,20 +202,20 @@ export const AdminBrandTab: React.FC = () => {
                                         link.download = `IdentificaPix-Branding-4K.png`;
                                         link.click();
                                     }}
-                                    className="px-8 py-3 bg-white text-slate-900 rounded-full font-black text-xs uppercase tracking-widest flex items-center gap-2 hover:scale-105 transition-transform"
+                                    className="px-5 py-2.5 bg-white text-slate-900 hover:bg-slate-100 rounded-lg font-semibold text-xs flex items-center gap-2 transition-colors cursor-pointer shadow-xs"
                                 >
-                                    <DocumentArrowDownIcon className="w-4 h-4" /> Baixar em Alta Resolução
+                                    <DocumentArrowDownIcon className="w-4 h-4 text-orange-600" /> Baixar em Alta Resolução
                                 </button>
                             </div>
                         </div>
-                        <p className="mt-6 text-[10px] font-black uppercase tracking-[0.5em] text-white/20">© IdentificaPix Enterprise Brand Management</p>
+                        <p className="mt-5 text-[11px] font-medium uppercase tracking-widest text-slate-500">© IdentificaPix Enterprise Brand Management</p>
                     </div>
                 ) : (
-                    <div className="text-center space-y-6 opacity-30">
-                        <div className="w-24 h-24 bg-white/5 rounded-3xl flex items-center justify-center mx-auto mb-4 border border-white/10">
-                            <PhotoIcon className="w-10 h-10 text-white" />
+                    <div className="text-center space-y-4 opacity-50">
+                        <div className="w-16 h-16 bg-slate-900 rounded-xl flex items-center justify-center mx-auto border border-slate-800">
+                            <PhotoIcon className="w-8 h-8 text-slate-400" />
                         </div>
-                        <h4 className="text-white font-black text-lg uppercase tracking-[0.3em]">Studio Pronto</h4>
+                        <h4 className="text-slate-300 font-semibold text-sm uppercase tracking-widest">Studio Pronto</h4>
                     </div>
                 )}
             </div>

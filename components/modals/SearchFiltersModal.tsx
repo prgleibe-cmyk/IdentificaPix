@@ -48,13 +48,13 @@ export const SearchFiltersModal: React.FC = () => {
     };
 
     // Estilos Otimizados e Compactos
-    const inputClass = "w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-white focus:ring-2 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all placeholder:text-slate-400 placeholder:font-medium";
-    const labelClass = "block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1";
-    const sectionClass = "p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50 bg-white/50 dark:bg-slate-800/30";
+    const inputClass = "w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs font-medium text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-orange-500/15 focus:border-orange-500 outline-none transition-colors placeholder:text-slate-400";
+    const labelClass = "block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5";
+    const sectionClass = "p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs";
 
-    // Componente de Toggle Segmentado (Pílula)
+    // Componente de Toggle Segmentado
     const FilterTypeToggle = () => (
-        <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-full border border-slate-200 dark:border-slate-700 w-full">
+        <div className="flex bg-slate-100 dark:bg-slate-800/80 p-1 rounded-lg border border-slate-200 dark:border-slate-700 w-full gap-1">
             {[
                 { id: 'none', label: t('search.filterBy.none') },
                 { id: 'church', label: t('search.filterBy.church') },
@@ -65,10 +65,10 @@ export const SearchFiltersModal: React.FC = () => {
                     <button
                         key={option.id}
                         onClick={() => handleFilterTypeChange(option.id as any)}
-                        className={`flex-1 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wide transition-all ${
+                        className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
                             isActive 
-                            ? 'bg-white dark:bg-slate-700 text-brand-blue dark:text-white shadow-sm border border-slate-200 dark:border-slate-600' 
-                            : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                            ? 'bg-white dark:bg-slate-900 text-orange-600 dark:text-orange-400 shadow-xs border border-slate-200/80 dark:border-slate-700' 
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                         }`}
                     >
                         {option.label}
@@ -83,25 +83,28 @@ export const SearchFiltersModal: React.FC = () => {
             <div className="glass-modal animate-fade-in">
                 
                 {/* Header Compacto */}
-                <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md flex items-center justify-between flex-shrink-0">
-                    <div className="flex items-center gap-2.5">
-                        <div className="p-2 bg-brand-blue/10 dark:bg-brand-blue/20 rounded-xl text-brand-blue dark:text-blue-400">
+                <div className="px-6 py-4 border-b border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between flex-shrink-0">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 bg-orange-50 dark:bg-orange-950/40 border border-orange-200/60 dark:border-orange-900/40 rounded-lg text-orange-600 dark:text-orange-400 flex items-center justify-center">
                             <AdjustmentsHorizontalIcon className="w-4 h-4" />
                         </div>
                         <div>
-                            <h3 className="text-sm font-black text-slate-800 dark:text-white tracking-tight leading-none">{t('search.filtersTitle')}</h3>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">Refine sua busca no histórico</p>
+                            <h3 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight leading-none">{t('search.filtersTitle')}</h3>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-1">Refine sua busca no histórico</p>
                         </div>
                     </div>
-                    <button type="button" onClick={closeSearchFilters} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+                    <button type="button" onClick={closeSearchFilters} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer">
                         <XMarkIcon className="w-4 h-4" />
                     </button>
                 </div>
                 
                 {/* Scrollable Content */}
-                <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1 bg-slate-50/30 dark:bg-[#0F172A]/50">
+                <div
+                    className="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1 bg-slate-50/40 dark:bg-slate-950/40"
+                    style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+                >
                     
-                    {/* 1. Origem do Filtro (Pílula) */}
+                    {/* 1. Origem do Filtro */}
                     <div>
                         <label className={labelClass}>{t('search.filterBy')}</label>
                         <FilterTypeToggle />
@@ -109,10 +112,13 @@ export const SearchFiltersModal: React.FC = () => {
                         {/* Conteúdo Condicional Compacto */}
                         <div className="mt-3 animate-fade-in">
                             {localFilters.filterBy === 'church' && (
-                                <div className="max-h-32 overflow-y-auto border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl p-2 custom-scrollbar shadow-inner">
+                                <div
+                                    className="max-h-36 overflow-y-auto border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl p-2 custom-scrollbar shadow-xs"
+                                    style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+                                >
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
                                         {churches.map(church => (
-                                            <label key={church.id} className={`flex items-center p-2 rounded-lg cursor-pointer transition-colors border ${localFilters.churchIds.includes(church.id) ? 'bg-blue-50 border-blue-100 dark:bg-blue-900/20 dark:border-blue-800' : 'border-transparent hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+                                            <label key={church.id} className={`flex items-center p-2 rounded-lg cursor-pointer transition-colors border ${localFilters.churchIds.includes(church.id) ? 'bg-orange-50/80 border-orange-200 dark:bg-orange-950/30 dark:border-orange-800' : 'border-transparent hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
                                                 <input
                                                     type="checkbox"
                                                     checked={localFilters.churchIds.includes(church.id)}
@@ -122,9 +128,9 @@ export const SearchFiltersModal: React.FC = () => {
                                                             : [...prev.churchIds, church.id];
                                                         return { ...prev, churchIds: newChurchIds };
                                                     })}
-                                                    className="w-3.5 h-3.5 rounded border-slate-300 text-brand-blue focus:ring-brand-blue"
+                                                    className="w-3.5 h-3.5 rounded border-slate-300 text-orange-600 focus:ring-orange-500"
                                                 />
-                                                <span className={`ml-2 text-xs font-bold truncate ${localFilters.churchIds.includes(church.id) ? 'text-brand-blue dark:text-blue-400' : 'text-slate-600 dark:text-slate-400'}`}>{church.name}</span>
+                                                <span className={`ml-2 text-xs font-medium truncate ${localFilters.churchIds.includes(church.id) ? 'text-orange-700 dark:text-orange-300' : 'text-slate-700 dark:text-slate-300'}`}>{church.name}</span>
                                             </label>
                                         ))}
                                     </div>
@@ -179,11 +185,11 @@ export const SearchFiltersModal: React.FC = () => {
                                     <label className={labelClass}>{t('search.filterByDate')}</label>
                                     <div className="flex items-center gap-2">
                                         <div className="relative flex-1">
-                                            <input type="date" value={localFilters.dateRange.start || ''} onChange={e => setLocalFilters(p => ({...p, dateRange: {...p.dateRange, start: e.target.value || null}}))} className={`${inputClass} text-[10px] px-2`}/>
+                                            <input type="date" value={localFilters.dateRange.start || ''} onChange={e => setLocalFilters(p => ({...p, dateRange: {...p.dateRange, start: e.target.value || null}}))} className={`${inputClass} text-[11px] px-2 tabular-nums`}/>
                                         </div>
-                                        <span className="text-slate-400 font-bold text-[10px]">até</span>
+                                        <span className="text-slate-400 font-medium text-[11px]">até</span>
                                         <div className="relative flex-1">
-                                            <input type="date" value={localFilters.dateRange.end || ''} onChange={e => setLocalFilters(p => ({...p, dateRange: {...p.dateRange, end: e.target.value || null}}))} className={`${inputClass} text-[10px] px-2`}/>
+                                            <input type="date" value={localFilters.dateRange.end || ''} onChange={e => setLocalFilters(p => ({...p, dateRange: {...p.dateRange, end: e.target.value || null}}))} className={`${inputClass} text-[11px] px-2 tabular-nums`}/>
                                         </div>
                                     </div>
                                 </div>
@@ -200,10 +206,10 @@ export const SearchFiltersModal: React.FC = () => {
                                         </select>
                                         
                                         {(localFilters.valueFilter.operator !== 'any') && (
-                                            <input type="number" placeholder="Valor" value={localFilters.valueFilter.value1 ?? ''} onChange={e => setLocalFilters(p => ({...p, valueFilter: {...p.valueFilter, value1: e.target.value ? parseFloat(e.target.value) : null}}))} className={inputClass} />
+                                            <input type="number" placeholder="Valor" value={localFilters.valueFilter.value1 ?? ''} onChange={e => setLocalFilters(p => ({...p, valueFilter: {...p.valueFilter, value1: e.target.value ? parseFloat(e.target.value) : null}}))} className={`${inputClass} tabular-nums`} />
                                         )}
                                         {localFilters.valueFilter.operator === 'between' && (
-                                             <input type="number" placeholder="Max" value={localFilters.valueFilter.value2 ?? ''} onChange={e => setLocalFilters(p => ({...p, valueFilter: {...p.valueFilter, value2: e.target.value ? parseFloat(e.target.value) : null}}))} className={inputClass} />
+                                             <input type="number" placeholder="Max" value={localFilters.valueFilter.value2 ?? ''} onChange={e => setLocalFilters(p => ({...p, valueFilter: {...p.valueFilter, value2: e.target.value ? parseFloat(e.target.value) : null}}))} className={`${inputClass} tabular-nums`} />
                                         )}
                                     </div>
                                 </div>
@@ -213,16 +219,16 @@ export const SearchFiltersModal: React.FC = () => {
                 </div>
 
                 {/* Footer Compacto */}
-                <div className="bg-white dark:bg-brand-deep px-6 py-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-800 flex-shrink-0">
-                    <button type="button" onClick={handleClear} className="px-5 py-2.5 text-[10px] font-bold rounded-2xl border border-slate-200 text-slate-500 hover:text-red-500 hover:border-red-200 hover:bg-red-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors uppercase tracking-wide cursor-pointer">
+                <div className="bg-slate-50/70 dark:bg-slate-900 px-6 py-4 flex justify-between items-center border-t border-slate-200/80 dark:border-slate-800 flex-shrink-0">
+                    <button type="button" onClick={handleClear} className="px-3.5 py-2 text-xs font-semibold rounded-lg border border-slate-200 text-slate-600 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 transition-colors cursor-pointer">
                         {t('search.clearFilters')}
                     </button>
-                    <div className="flex gap-2">
-                        <button type="button" onClick={closeSearchFilters} className="px-6 py-2.5 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-2xl shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer">
+                    <div className="flex gap-2.5">
+                        <button type="button" onClick={closeSearchFilters} className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 rounded-lg shadow-xs transition-colors cursor-pointer">
                             {t('common.cancel')}
                         </button>
-                        <button type="button" onClick={handleApply} className="flex items-center gap-1.5 px-8 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-2xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer">
-                            <CheckCircleIcon className="w-3.5 h-3.5" />
+                        <button type="button" onClick={handleApply} className="flex items-center gap-1.5 px-5 py-2 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-xs transition-colors cursor-pointer">
+                            <CheckCircleIcon className="w-4 h-4" />
                             {t('search.applyFilters')}
                         </button>
                     </div>

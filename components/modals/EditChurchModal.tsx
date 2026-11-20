@@ -334,19 +334,19 @@ export const EditChurchModal: React.FC = () => {
             <form
                 onSubmit={handleSubmit}
                 onClick={(e) => e.stopPropagation()}
-                className="relative bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[calc(100dvh-5rem)] md:max-h-[min(88vh,calc(100dvh-3rem))] flex flex-col overflow-hidden animate-scale-in"
+                className="relative bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-elevated w-full max-w-4xl max-h-[calc(100dvh-5rem)] md:max-h-[min(88vh,calc(100dvh-3rem))] flex flex-col overflow-hidden animate-scale-in"
             >
                 {/* Header */}
-                <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 flex-shrink-0 bg-white dark:bg-slate-900">
+                <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 flex-shrink-0 bg-white dark:bg-slate-900">
                     <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-9 h-9 rounded-xl bg-orange-50 dark:bg-orange-950/50 border border-orange-200/70 dark:border-orange-900/50 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
-                            <Building2 className="w-5 h-5" />
+                        <div className="w-8 h-8 rounded-lg bg-orange-50 dark:bg-orange-950/50 border border-orange-200/70 dark:border-orange-900/50 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
+                            <Building2 className="w-4 h-4" />
                         </div>
                         <div className="min-w-0">
-                            <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight truncate">
+                            <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight truncate">
                                 {t('modal.editChurch')}
                             </h3>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
                                 Ficha financeira e institucional da congregação.
                             </p>
                         </div>
@@ -363,7 +363,10 @@ export const EditChurchModal: React.FC = () => {
                 </div>
 
                 {/* Body */}
-                <div className="p-4 sm:p-5 flex-1 min-h-0 overflow-y-auto custom-scrollbar w-full">
+                <div
+                    className="p-4 sm:p-5 flex-1 min-h-0 overflow-y-auto custom-scrollbar w-full"
+                    style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}
+                >
                     <div className="space-y-4 w-full max-w-full">
 
                         {/* Section: PORTAL DO CONTRIBUINTE */}
@@ -488,7 +491,7 @@ export const EditChurchModal: React.FC = () => {
                                     <button
                                         type="button"
                                         onClick={handleAddPastor}
-                                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer"
+                                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100/80 dark:bg-amber-950/40 dark:hover:bg-amber-950/70 text-amber-700 dark:text-amber-300 border border-amber-200/90 dark:border-amber-800/70 text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer"
                                     >
                                         + Adicionar Pastor
                                     </button>
@@ -555,7 +558,7 @@ export const EditChurchModal: React.FC = () => {
                                     <button
                                         type="button"
                                         onClick={handleAddTreasurer}
-                                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer"
+                                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100/80 dark:bg-emerald-950/40 dark:hover:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border border-emerald-200/90 dark:border-emerald-800/70 text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer"
                                     >
                                         + Adicionar Tesoureiro
                                     </button>
@@ -682,11 +685,18 @@ export const EditChurchModal: React.FC = () => {
                             </h4>
 
                             <div className="flex items-center gap-4 p-3.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-700">
-                                <img
-                                    src={formData.logoUrl || 'https://placehold.co/100x100/e2e8f0/64748b?text=?'}
-                                    alt="Pré-visualização"
-                                    className="w-14 h-14 rounded-xl object-cover bg-slate-50 shadow-xs border border-slate-200/70 dark:border-slate-800 shrink-0"
-                                />
+                                {formData.logoUrl ? (
+                                    <img
+                                        src={formData.logoUrl}
+                                        alt="Pré-visualização do logo"
+                                        referrerPolicy="no-referrer"
+                                        className="w-14 h-14 rounded-xl object-cover bg-slate-50 shadow-xs border border-slate-200/70 dark:border-slate-800 shrink-0"
+                                    />
+                                ) : (
+                                    <div className="w-14 h-14 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 text-slate-400 flex items-center justify-center shrink-0">
+                                        <Building2 className="w-6 h-6" />
+                                    </div>
+                                )}
                                 <div className="space-y-1">
                                     <label className="cursor-pointer bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-lg px-3.5 py-2 text-xs font-semibold inline-block shadow-xs transition-colors">
                                         <span>Alterar Logo</span>

@@ -16,17 +16,17 @@ export const PortalCard: React.FC<PortalCardProps> = ({
     headerAction
 }) => {
     return (
-        <div className={`bg-white dark:bg-slate-800/90 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 shadow-sm p-6 sm:p-8 transition-all ${className}`}>
+        <div className={`bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs p-5 sm:p-6 transition-colors ${className}`}>
             {(title || subtitle || headerAction) && (
-                <div className="flex items-start justify-between mb-6 pb-4 border-b border-slate-100 dark:border-slate-700/50">
+                <div className="flex items-start justify-between gap-3 mb-5 pb-4 border-b border-slate-100 dark:border-slate-800">
                     <div>
                         {title && (
-                            <h2 className="text-xl font-black text-slate-800 dark:text-white tracking-tight">
+                            <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">
                                 {title}
                             </h2>
                         )}
                         {subtitle && (
-                            <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1">
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                                 {subtitle}
                             </p>
                         )}

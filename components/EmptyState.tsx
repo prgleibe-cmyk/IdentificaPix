@@ -15,38 +15,20 @@ interface EmptyStateProps {
 export const EmptyState: React.FC<EmptyStateProps> = ({ icon, title, message, action, flat }) => {
   return (
     <div className={flat 
-      ? "relative text-center py-4 w-full flex flex-col items-center group transition-all duration-500"
-      : "relative overflow-hidden text-center p-8 md:p-12 rounded-2xl shadow-sm border border-slate-100 dark:border-white/5 max-w-xl mx-auto group transition-all duration-500 bg-white dark:bg-slate-900/80 backdrop-blur-md"
+      ? "relative text-center py-6 w-full flex flex-col items-center transition-colors"
+      : "relative overflow-hidden text-center p-8 md:p-10 rounded-xl shadow-card border border-slate-200/90 dark:border-slate-800 max-w-lg mx-auto transition-colors bg-white dark:bg-slate-900"
     }>
-      
-      {/* Decorative Gradients */}
-      {!flat && (
-        <>
-          <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-orange-500/10 to-transparent opacity-50"></div>
-          <div className="absolute bottom-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-orange-500/10 to-transparent opacity-50"></div>
-          
-          <div className="absolute -top-24 -right-24 w-48 h-48 bg-orange-500/5 dark:bg-orange-500/10 rounded-full blur-[60px] pointer-events-none group-hover:bg-orange-500/10 transition-colors duration-700"></div>
-          <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-amber-500/5 dark:bg-amber-500/10 rounded-full blur-[60px] pointer-events-none group-hover:bg-amber-500/10 transition-colors duration-700"></div>
-        </>
-      )}
-
       <div className="relative z-10 flex flex-col items-center">
         {/* Highlighted Icon Container */}
-        <div className="relative flex items-center justify-center h-20 w-20 rounded-2xl bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 border border-slate-200 dark:border-white/5 mb-6 group-hover:scale-105 transition-transform duration-500 shadow-sm">
-          <div className="absolute inset-0 rounded-2xl bg-orange-500/5 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-          {/* Inner Glow */}
-          <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-white/40 to-transparent opacity-30"></div>
-          
-          <div className="text-orange-500 dark:text-orange-400 relative z-10 drop-shadow-sm transform group-hover:-translate-y-0.5 transition-transform duration-500">
-             {React.cloneElement(icon as React.ReactElement<any>, { className: "w-8 h-8 stroke-[1.5]" })}
-          </div>
+        <div className="flex items-center justify-center h-14 w-14 rounded-xl bg-orange-50 dark:bg-orange-950/40 border border-orange-200/70 dark:border-orange-900/40 text-orange-600 dark:text-orange-400 mb-4">
+          {React.cloneElement(icon as React.ReactElement<any>, { className: "w-6 h-6 stroke-[1.75]" })}
         </div>
         
-        <h3 className="text-xl font-black text-slate-800 dark:text-white mb-2 tracking-tight leading-tight">
+        <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1.5 tracking-tight leading-snug">
             {title}
         </h3>
         
-        <p className="text-xs text-slate-400 dark:text-slate-500 mb-6 max-w-sm mx-auto leading-relaxed font-semibold">
+        <p className="text-xs text-slate-500 dark:text-slate-400 mb-5 max-w-sm mx-auto leading-relaxed">
             {message}
         </p>
         
@@ -54,11 +36,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ icon, title, message, ac
           <button
             type="button"
             onClick={action.onClick}
-            className="relative inline-flex items-center justify-center px-8 py-2.5 text-xs font-bold uppercase tracking-wider text-white transition-all duration-300 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-xl shadow-md shadow-orange-500/10 hover:-translate-y-0.5 active:scale-95 border border-white/10 cursor-pointer"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-xs font-semibold text-white transition-all bg-orange-600 hover:bg-orange-700 active:bg-orange-800 rounded-lg shadow-xs active:scale-95 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40"
           >
-            <span className="relative z-10 flex items-center gap-2">
-                {action.text}
-            </span>
+            <span>{action.text}</span>
           </button>
         )}
       </div>

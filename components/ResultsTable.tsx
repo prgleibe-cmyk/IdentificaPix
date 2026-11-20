@@ -76,7 +76,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
     const getStatusBadge = (status: MatchResult['status'], method?: MatchResult['matchMethod'], confirmed?: boolean) => {
         if (confirmed) {
             return (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 uppercase tracking-wide">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/80 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800/60">
                     <LockClosedIcon className="w-2.5 h-2.5" /> Fechado
                 </span>
             );
@@ -84,7 +84,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
 
         if (status === 'NÃO IDENTIFICADO') {
             return (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-100 uppercase tracking-wide">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/80 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800/60">
                     Pendente
                 </span>
             );
@@ -92,7 +92,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
 
         if (status === 'PENDENTE') {
             return (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-500 border border-slate-200 uppercase tracking-wide">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700">
                     Fantasma
                 </span>
             );
@@ -104,43 +104,46 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
         else if (method === 'LEARNED') label = 'Aprendido';
 
         return (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100 uppercase tracking-wide">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800/60">
                 {label}
             </span>
         );
     };
 
     return (
-        <div className="bg-white dark:bg-slate-800 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 overflow-hidden mt-6 flex flex-col relative">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xs border border-slate-200/90 dark:border-slate-800 overflow-clip mt-4 flex flex-col relative">
             <BulkActionToolbar 
     selectedIds={selectedIds} 
     results={results}
     onClear={() => setSelectedIds([])} 
 />
 
-            <div className="overflow-x-auto custom-scrollbar relative">
+            <div
+                className="overflow-x-auto custom-scrollbar relative"
+                style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}
+            >
                 <table className="w-full text-left border-collapse">
-                    <thead className="bg-slate-50/95 dark:bg-slate-800/95 border-b border-slate-200/60 dark:border-slate-700 backdrop-blur-md sticky top-0 z-20">
+                    <thead className="bg-slate-50/90 dark:bg-slate-800/80 border-b border-slate-200/80 dark:border-slate-800 backdrop-blur-sm sticky top-0 z-20">
                         <tr>
                             <th className="px-4 py-2.5 w-10 text-center">
-                                <input type="checkbox" className="w-4 h-4 rounded-full border-slate-300 text-brand-blue" onChange={toggleAll} checked={selectedIds.length > 0 && selectedIds.length === results.length} />
+                                <input type="checkbox" className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-orange-600 focus:ring-orange-500/30 accent-orange-600 cursor-pointer" onChange={toggleAll} checked={selectedIds.length > 0 && selectedIds.length === results.length} />
                             </th>
-                            <th className="px-4 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest w-[10%]">{t('table.date')}</th>
+                            <th className="px-4 py-2.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 w-[10%]">{t('table.date')}</th>
                             <th className="px-1.5 py-2.5 text-center w-[36px]" title="Status do WhatsApp">
                                 <div className="flex items-center justify-center text-emerald-600 dark:text-emerald-400">
                                     <MessageCircle className="w-3.5 h-3.5" />
                                 </div>
                             </th>
-                            <th className="px-4 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest w-[25%]">Nome / Descrição</th>
-                            <th className="px-4 py-2.5 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest w-[10%]">Origem</th>
-                            <th className="px-4 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest w-[13%]">Igreja</th>
-                            <th className="px-4 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest w-[10%]">Forma</th>
-                            <th className="px-4 py-2.5 text-right text-[10px] font-bold text-slate-400 uppercase tracking-widest w-[12%]">{t('table.amount')}</th>
-                            <th className="px-4 py-2.5 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest w-[10%]">{t('table.status')}</th>
-                            <th className="px-4 py-2.5 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest w-[10%]">{t('table.actions')}</th>
+                            <th className="px-4 py-2.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 w-[25%]">Nome / Descrição</th>
+                            <th className="px-4 py-2.5 text-center text-[11px] font-semibold text-slate-500 dark:text-slate-400 w-[10%]">Origem</th>
+                            <th className="px-4 py-2.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 w-[13%]">Igreja</th>
+                            <th className="px-4 py-2.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 w-[10%]">Forma</th>
+                            <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-slate-500 dark:text-slate-400 w-[12%]">{t('table.amount')}</th>
+                            <th className="px-4 py-2.5 text-center text-[11px] font-semibold text-slate-500 dark:text-slate-400 w-[10%]">{t('table.status')}</th>
+                            <th className="px-4 py-2.5 text-center text-[11px] font-semibold text-slate-500 dark:text-slate-400 w-[10%]">{t('table.actions')}</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
                         {results.map(({ transaction, contributor, status, matchMethod, contributorAmount, paymentMethod, church, isConfirmed, contributionType }) => {
                             const isSelected = selectedIds.includes(transaction.id);
 
@@ -181,22 +184,22 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                             return (
                                 <tr
                                     key={transaction.id}
-                                    className={`group hover:bg-slate-50/80 transition-all 
-                                        ${isSelected ? 'bg-blue-50/30' : ''} 
-                                        ${confirmed ? 'bg-indigo-50/10 grayscale-[0.3]' : isManualTx ? 'bg-amber-50/40 dark:bg-amber-950/20 border-l-4 border-l-amber-500' : ''}`
+                                    className={`group hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors 
+                                        ${isSelected ? 'bg-orange-50/50 dark:bg-orange-950/20' : ''} 
+                                        ${confirmed ? 'bg-slate-50/40 dark:bg-slate-800/20' : isManualTx ? 'bg-amber-50/30 dark:bg-amber-950/15 border-l-4 border-l-amber-500' : ''}`
                                     }
                                 >
                                     <td className="px-4 py-2.5 text-center">
-                                        <input type="checkbox" className="w-4 h-4 rounded-full" checked={isSelected} onChange={() => toggleSelection(transaction.id)} />
+                                        <input type="checkbox" className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-orange-600 focus:ring-orange-500/30 accent-orange-600 cursor-pointer" checked={isSelected} onChange={() => toggleSelection(transaction.id)} />
                                     </td>
-                                    <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
+                                    <td className="px-4 py-2.5 text-xs text-slate-600 dark:text-slate-300 tabular-nums whitespace-nowrap">
                                         {hasRefDate ? (
                                             <div className="flex flex-col leading-tight">
-                                                <span className="font-bold text-slate-800 dark:text-white" title={`Data de Referência (Competência): ${displayDate}`}>
+                                                <span className="font-semibold text-slate-800 dark:text-white" title={`Data de Referência (Competência): ${displayDate}`}>
                                                     {displayDate}
                                                 </span>
-                                                <span className="text-[9.5px] text-slate-400 dark:text-slate-500 font-normal mt-0.5" title={`Data no Banco: ${originalBankDate}`}>
-                                                    <span className="text-[8.5px] uppercase font-semibold text-slate-400 mr-0.5">Banco:</span>
+                                                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5" title={`Data no Banco: ${originalBankDate}`}>
+                                                    <span className="font-medium text-slate-400 mr-0.5">Banco:</span>
                                                     {originalBankDate}
                                                 </span>
                                             </div>
@@ -220,7 +223,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                                                         transactionId: transaction.id
                                                     }, { contributors, churches, showToast });
                                                 }}
-                                                className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-700 hover:scale-115 transition-all cursor-pointer shadow-2xs mx-auto"
+                                                className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-50 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700/80 hover:scale-110 transition-all cursor-pointer shadow-xs mx-auto"
                                                 title="WhatsApp ENVIADO (Clique para reenviar direto)"
                                             >
                                                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -240,53 +243,53 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                                                         transactionId: transaction.id
                                                     }, { contributors, churches, showToast });
                                                 }}
-                                                className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400 border border-amber-300 dark:border-amber-800/80 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-400 hover:scale-115 transition-all cursor-pointer shadow-2xs mx-auto"
+                                                className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400 border border-amber-200/90 dark:border-amber-800/80 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-300 hover:scale-110 transition-all cursor-pointer shadow-xs mx-auto"
                                                 title="WhatsApp PENDENTE (Clique para disparar direto)"
                                             >
-                                                <MessageCircle className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
+                                                <MessageCircle className="w-3.5 h-3.5" />
                                             </button>
                                         ) : (
-                                            <span className="text-slate-300 dark:text-slate-700 text-[10px] font-bold block text-center">-</span>
+                                            <span className="text-slate-300 dark:text-slate-700 text-xs block text-center">-</span>
                                         )}
                                     </td>
                                     <td className="px-4 py-2.5">
                                         <div className="flex flex-col">
                                             <div className="flex items-center gap-2">
-                                                {identifiedName ? <UserIcon className="w-3.5 h-3.5 text-indigo-500 shrink-0" /> : <BanknotesIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
-                                                <span className={`text-xs font-bold uppercase truncate max-w-[200px] ${confirmed ? 'text-indigo-900/60 dark:text-white/60' : 'text-slate-800 dark:text-white'}`}>
+                                                {identifiedName ? <UserIcon className="w-3.5 h-3.5 text-orange-500 shrink-0" /> : <BanknotesIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
+                                                <span className={`text-xs font-semibold uppercase truncate max-w-[200px] ${confirmed ? 'text-slate-500 dark:text-slate-400' : 'text-slate-900 dark:text-white'}`}>
                                                     {identifiedName || bankDescription}
                                                 </span>
                                                 {isManualTx && (
-                                                    <span className="text-[8px] font-bold px-1.5 py-0.2 bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 rounded border border-amber-200 dark:border-amber-800 uppercase tracking-wider">
+                                                    <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 rounded border border-amber-200/80 dark:border-amber-800">
                                                         Manual
                                                     </span>
                                                 )}
                                             </div>
                                             {!isManualTx && identifiedName && bankDescription && identifiedName !== bankDescription && (
-                                                <span className="text-[9px] text-slate-400 font-medium uppercase tracking-tight truncate max-w-[200px] mt-0.5">{bankDescription}</span>
+                                                <span className="text-[11px] text-slate-400 dark:text-slate-500 font-normal truncate max-w-[210px] mt-0.5">{bankDescription}</span>
                                             )}
                                         </div>
                                     </td>
                                     <td className="px-4 py-2.5 text-center">
-                                        <span className={`inline-block text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wide border ${
+                                        <span className={`inline-block text-[11px] font-semibold px-2 py-0.5 rounded-md border ${
                                             sourceInfo.isManual
-                                                ? 'bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border-amber-300/80 dark:border-amber-700/60 shadow-2xs'
+                                                ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 border-amber-200/80 dark:border-amber-700/60'
                                                 : sourceInfo.isSms 
-                                                    ? 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border-sky-200 dark:border-sky-800' 
-                                                    : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                                                    ? 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border-sky-200/80 dark:border-sky-800' 
+                                                    : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border-slate-200/90 dark:border-slate-700'
                                         }`}>
                                             {sourceInfo.label}
                                         </span>
                                     </td>
                                     <td className="px-4 py-2.5">
-                                        <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase">{church?.name || '---'}</span>
+                                        <span className="text-xs font-medium text-slate-700 dark:text-slate-300 uppercase">{church?.name || '---'}</span>
                                     </td>
                                     <td className="px-4 py-2.5">
-                                        <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase italic">
+                                        <span className="text-xs font-medium text-slate-600 dark:text-slate-400 uppercase">
                                             {resolvePaymentMethod(paymentMethod || transaction.paymentMethod, transaction.description)}
                                         </span>
                                     </td>
-                                    <td className={`px-4 py-2.5 text-right font-mono text-xs font-bold ${isExpense ? 'text-red-600' : 'text-slate-900 dark:text-white'}`}>
+                                    <td className={`px-4 py-2.5 text-right text-xs font-bold tabular-nums whitespace-nowrap ${isExpense ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>
                                         {formatCurrency(displayAmount, language)}
                                     </td>
                                     <td className="px-4 py-2.5 text-center">
@@ -301,7 +304,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                                                 canConfirmFinal ? (
                                                     <button 
                                                         onClick={() => toggleConfirmation([transaction.id], false)}
-                                                        className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all cursor-pointer"
+                                                        className="w-7 h-7 inline-flex items-center justify-center rounded-lg border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 hover:border-indigo-300 dark:hover:bg-indigo-950/40 transition-colors cursor-pointer"
                                                         title="Remover Bloqueio"
                                                     >
                                                         <LockOpenIcon className="w-3.5 h-3.5" />
@@ -313,10 +316,10 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                                                 canIdentify ? (
                                                     <button 
                                                         onClick={() => setBulkIdentificationTxs([transaction])}
-                                                        className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                                                        className={`w-7 h-7 inline-flex items-center justify-center rounded-lg border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 transition-colors cursor-pointer ${
                                                             status === 'IDENTIFICADO'
-                                                                ? 'bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white'
-                                                                : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white'
+                                                                ? 'text-slate-500 hover:text-orange-600 hover:border-orange-300 dark:text-slate-400 dark:hover:text-orange-400'
+                                                                : 'text-emerald-600 hover:bg-emerald-50 hover:border-emerald-300 dark:text-emerald-400 dark:hover:bg-emerald-950/40'
                                                         }`}
                                                         title={status === 'IDENTIFICADO' ? "Corrigir Identificação" : "Identificar Lançamento"}
                                                     >

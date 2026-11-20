@@ -17,7 +17,7 @@ export const DonutChart: React.FC<DonutChartProps> = ({ data }) => {
     return (
         <div className="flex flex-col items-center justify-center py-4 px-2 w-full">
             <div className="relative w-36 h-36 flex-shrink-0 group my-2">
-                <div className="absolute inset-0 bg-brand-blue/5 rounded-full blur-2xl transform scale-90"></div>
+                <div className="absolute inset-0 bg-orange-500/5 rounded-full blur-2xl transform scale-90"></div>
                 
                 <svg className="w-full h-full transform -rotate-90 relative z-10" viewBox="0 0 160 160">
                      <circle
@@ -27,7 +27,7 @@ export const DonutChart: React.FC<DonutChartProps> = ({ data }) => {
                         fill="transparent"
                         stroke="currentColor"
                         strokeWidth={strokeWidth}
-                        className="text-slate-100 dark:text-slate-700/30"
+                        className="text-slate-100 dark:text-slate-800/60"
                     />
                     {data.map((item, index) => {
                         const percentage = item.value / total;
@@ -54,21 +54,24 @@ export const DonutChart: React.FC<DonutChartProps> = ({ data }) => {
                 </svg>
                  <div className="absolute inset-0 flex items-center justify-center flex-col pointer-events-none z-20">
                     <span className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight tabular-nums transition-transform duration-500 group-hover:scale-110">{total}</span>
-                    <span className="text-[10px] text-slate-400 font-medium mt-0.5">Registros</span>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">Registros</span>
                 </div>
             </div>
             
-            <div className="w-full px-4 mb-2 overflow-y-auto custom-scrollbar max-h-[140px]">
+            <div
+                className="w-full px-4 mb-2 overflow-y-auto custom-scrollbar max-h-[140px]"
+                style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+            >
                 <div className="grid grid-cols-1 gap-1.5">
                     {data.map((item, index) => (
-                        <div key={index} className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-700/50 hover:border-slate-200 dark:hover:border-slate-600 transition-all group/item">
+                        <div key={index} className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900/40 border border-slate-200/70 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-colors group/item">
                             <div className="flex items-center gap-2 min-w-0">
                                 <span className="w-1.5 h-5 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }}></span>
                                 <span className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate group-hover/item:text-slate-900 dark:group-hover/item:text-white transition-colors">
                                     {item.name}
                                 </span>
                             </div>
-                            <span className="text-xs font-semibold text-slate-900 dark:text-white tabular-nums bg-white dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200/80 dark:border-slate-700 shadow-xs">
+                            <span className="text-xs font-semibold text-slate-900 dark:text-white tabular-nums bg-white dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200/80 dark:border-slate-700 shadow-2xs">
                                 {((item.value / total) * 100).toFixed(1)}%
                             </span>
                         </div>

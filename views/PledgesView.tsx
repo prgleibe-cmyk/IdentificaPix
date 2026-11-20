@@ -632,26 +632,27 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
     return (
         <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full pb-12 relative min-h-[600px]">
             {/* Header Section */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
-                <div>
-                    <div className="flex items-center gap-2 text-xs font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider mb-1">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-white dark:bg-slate-900 px-4 py-2.5 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs">
+                <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 bg-orange-50 dark:bg-orange-950/40 border border-orange-200/60 dark:border-orange-900/40 rounded-lg flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
                         <BookmarkPlus className="w-4 h-4" />
-                        <span>Módulo de Gestão Financeira Pastoral</span>
                     </div>
-                    <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-                        Carnês, Propósitos e Campanhas de Fé
-                    </h1>
-                    <p className="text-slate-600 dark:text-slate-400 text-sm mt-1 max-w-2xl">
-                        Acompanhe os carnês e compromissos dos contribuintes, crie novas campanhas oficiais para o portal e envie lembretes via WhatsApp.
-                    </p>
+                    <div>
+                        <h1 className="text-base font-bold text-slate-900 dark:text-white tracking-tight leading-tight">
+                            Carnês, Propósitos e Campanhas de Fé
+                        </h1>
+                        <p className="text-slate-500 dark:text-slate-400 text-[11px] leading-tight max-w-2xl">
+                            Acompanhe os carnês e compromissos dos contribuintes, crie novas campanhas oficiais para o portal e envie lembretes via WhatsApp.
+                        </p>
+                    </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
                     <button
                         onClick={() => handleOpenCampaignModal()}
-                        className="flex items-center gap-1.5 px-5 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-full shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 transition-all tracking-wider uppercase cursor-pointer"
+                        className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-xs transition-colors cursor-pointer"
                     >
-                        <PlusCircle className="w-3.5 h-3.5" />
+                        <PlusCircle className="w-4 h-4" />
                         Nova Campanha
                     </button>
                     <button
@@ -663,7 +664,7 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                             }
                             handleOpenWhatsAppModal(overdueList[0]);
                         }}
-                        className="flex items-center gap-1.5 px-5 py-2 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-full shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                        className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 rounded-lg shadow-2xs transition-colors cursor-pointer"
                     >
                         <Send className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                         Avisos no WhatsApp
@@ -673,57 +674,57 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
 
             {/* KPI Metrics */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
-                        <DollarSign className="w-6 h-6" />
+                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex items-center gap-3.5">
+                    <div className="w-10 h-10 rounded-lg bg-orange-50 dark:bg-orange-950/40 border border-orange-200/60 dark:border-orange-900/40 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
+                        <DollarSign className="w-5 h-5" />
                     </div>
                     <div>
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                        <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block">
                             Compromisso Mensal
                         </span>
-                        <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+                        <div className="text-xl font-bold text-slate-900 dark:text-white tracking-tight mt-0.5 tabular-nums">
                             {formatCurrency(kpis.totalMonthlyCommitment)}
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-brand-blue dark:text-blue-400 flex items-center justify-center shrink-0">
-                        <Users className="w-6 h-6" />
+                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex items-center gap-3.5">
+                    <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200/60 dark:border-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                        <Users className="w-5 h-5" />
                     </div>
                     <div>
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                        <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block">
                             Carnês / Propósitos Ativos
                         </span>
-                        <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+                        <div className="text-xl font-bold text-slate-900 dark:text-white tracking-tight mt-0.5 tabular-nums">
                             {kpis.activeCount} carnês
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-                        <Target className="w-6 h-6" />
+                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex items-center gap-3.5">
+                    <div className="w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200/60 dark:border-amber-900/40 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                        <Target className="w-5 h-5" />
                     </div>
                     <div>
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                        <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block">
                             Metas de Campanhas
                         </span>
-                        <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+                        <div className="text-xl font-bold text-slate-900 dark:text-white tracking-tight mt-0.5 tabular-nums">
                             {formatCurrency(kpis.totalPledgedGoal)}
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
-                        <AlertTriangle className="w-6 h-6" />
+                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex items-center gap-3.5">
+                    <div className="w-10 h-10 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200/60 dark:border-rose-900/40 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                        <AlertTriangle className="w-5 h-5" />
                     </div>
                     <div>
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                        <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block">
                             Parcelas Pendentes / Atraso
                         </span>
-                        <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+                        <div className="text-xl font-bold text-slate-900 dark:text-white tracking-tight mt-0.5 tabular-nums">
                             {kpis.overdueCount} parcelas
                         </div>
                     </div>
@@ -731,34 +732,34 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
             </div>
 
             {/* Navigation Sub-Tabs */}
-            <div className="flex border-b border-slate-200 dark:border-slate-800 gap-2">
+            <div className="inline-flex flex-wrap p-1 bg-slate-100/90 dark:bg-slate-800/80 rounded-xl border border-slate-200/70 dark:border-slate-700/60 gap-0.5">
                 <button
                     onClick={() => setActiveTab('contributor_pledges')}
-                    className={`pb-3 px-4 text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer tabular-nums ${
                         activeTab === 'contributor_pledges'
-                            ? 'border-purple-600 text-purple-600 dark:text-purple-400 font-black'
-                            : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                            ? 'bg-orange-600 text-white shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
                     }`}
                 >
-                    <Users className="w-4 h-4" />
+                    <Users className="w-3.5 h-3.5" />
                     Carnês dos Contribuintes ({filteredPledges.length})
                 </button>
 
                 <button
                     onClick={() => setActiveTab('campaigns')}
-                    className={`pb-3 px-4 text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer tabular-nums ${
                         activeTab === 'campaigns'
-                            ? 'border-purple-600 text-purple-600 dark:text-purple-400 font-black'
-                            : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                            ? 'bg-orange-600 text-white shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
                     }`}
                 >
-                    <Megaphone className="w-4 h-4" />
+                    <Megaphone className="w-3.5 h-3.5" />
                     Campanhas do Portal ({filteredCampaigns.length})
                 </button>
             </div>
 
             {/* Filter and Search Bar */}
-            <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-3 sm:space-y-0 sm:flex sm:items-center sm:justify-between sm:gap-4">
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-3 sm:space-y-0 sm:flex sm:items-center sm:justify-between sm:gap-3">
                 <div className="relative flex-1">
                     <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
@@ -766,7 +767,7 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         placeholder="Buscar por contribuinte, campanha ou telefone..."
-                        className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                        className="w-full pl-9 pr-3.5 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15"
                     />
                 </div>
 
@@ -776,7 +777,7 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                         <select
                             value={selectedChurch}
                             onChange={(e) => setSelectedChurch(e.target.value)}
-                            className="py-2 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
+                            className="py-2 px-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:border-orange-500 cursor-pointer"
                         >
                             <option value="all">Todas as Congregações</option>
                             {churches.map((ch: any) => (
@@ -789,7 +790,7 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                     <select
                         value={selectedCategory}
                         onChange={(e) => setSelectedCategory(e.target.value)}
-                        className="py-2 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
+                        className="py-2 px-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:border-orange-500 cursor-pointer"
                     >
                         <option value="all">Todas as Categorias</option>
                         <option value="Construção & Reforma">Construção & Reforma</option>
@@ -804,7 +805,7 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                         <select
                             value={selectedStatus}
                             onChange={(e) => setSelectedStatus(e.target.value)}
-                            className="py-2 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
+                            className="py-2 px-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:border-orange-500 cursor-pointer"
                         >
                             <option value="all">Todos os Status</option>
                             <option value="active">Ativos / Em dia</option>
@@ -817,17 +818,17 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
 
             {/* Content Tab 1: Contributor Pledges Table */}
             {activeTab === 'contributor_pledges' && (
-                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-xs">
+                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 overflow-hidden shadow-xs">
                     {filteredPledges.length === 0 ? (
                         <div className="p-12 text-center text-slate-500 space-y-2">
                             <BookmarkPlus className="w-8 h-8 text-slate-400 mx-auto" />
-                            <p className="font-bold text-sm text-slate-700 dark:text-slate-300">Nenhum carnê ou propósito encontrado</p>
-                            <p className="text-xs">Tente ajustar os termos de busca ou filtros selecionados.</p>
+                            <p className="font-bold text-sm text-slate-800 dark:text-slate-200">Nenhum carnê ou propósito encontrado</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Tente ajustar os termos de busca ou filtros selecionados.</p>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-xs">
-                                <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 uppercase font-extrabold tracking-wider border-b border-slate-200 dark:border-slate-700">
+                        <div className="overflow-x-auto custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}>
+                            <table className="w-full text-left text-xs border-collapse">
+                                <thead className="bg-slate-50/90 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 uppercase font-semibold tracking-wide text-[11px] border-b border-slate-200/90 dark:border-slate-800">
                                     <tr>
                                         <th className="py-3 px-4">Contribuinte / Congregação</th>
                                         <th className="py-3 px-4">Campanha / Categoria</th>
@@ -844,19 +845,19 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                                         const percent = isRecorrente ? 100 : Math.min(100, Math.round((item.paidInstallments / item.totalInstallments) * 100));
 
                                         return (
-                                            <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
+                                            <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
                                                 {/* Contributor info */}
                                                 <td className="py-3 px-4">
-                                                    <div className="font-extrabold text-slate-900 dark:text-white text-sm">
+                                                    <div className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm">
                                                         {item.contributorName}
                                                     </div>
-                                                    <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-                                                        <Building2 className="w-3 h-3 text-slate-400" />
+                                                    <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
+                                                        <Building2 className="w-3 h-3 text-slate-400 shrink-0" />
                                                         <span>{item.churchName}</span>
                                                         {item.contributorPhone && (
                                                             <>
                                                                 <span>•</span>
-                                                                <span>{item.contributorPhone}</span>
+                                                                <span className="tabular-nums">{item.contributorPhone}</span>
                                                             </>
                                                         )}
                                                     </div>
@@ -864,33 +865,33 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
 
                                                 {/* Campaign Title & Badge */}
                                                 <td className="py-3 px-4">
-                                                    <div className="font-bold text-slate-800 dark:text-slate-200">
+                                                    <div className="font-semibold text-slate-900 dark:text-slate-200">
                                                         {item.campaignTitle}
                                                     </div>
-                                                    <span className="inline-block mt-0.5 text-[10px] font-black uppercase tracking-wider px-2 py-0.2 rounded-md bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                                    <span className="inline-block mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300 border border-orange-200/60 dark:border-orange-900/40">
                                                         {item.category}
                                                     </span>
                                                 </td>
 
                                                 {/* Amount */}
-                                                <td className="py-3 px-4 text-right">
-                                                    <div className="font-black text-slate-900 dark:text-white text-sm">
+                                                <td className="py-3 px-4 text-right tabular-nums">
+                                                    <div className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm">
                                                         {formatCurrency(item.amountPerInstallment)}
                                                     </div>
-                                                    <div className="text-[10px] text-slate-400 capitalize">
+                                                    <div className="text-[11px] text-slate-500 dark:text-slate-400 capitalize">
                                                         {item.frequency}
                                                     </div>
                                                 </td>
 
                                                 {/* Progress */}
-                                                <td className="py-3 px-4 text-center">
-                                                    <div className="font-bold text-slate-700 dark:text-slate-300">
+                                                <td className="py-3 px-4 text-center tabular-nums">
+                                                    <div className="font-semibold text-slate-700 dark:text-slate-300">
                                                         {isRecorrente ? `${item.paidInstallments} pagas` : `${item.paidInstallments} / ${item.totalInstallments} (${percent}%)`}
                                                     </div>
                                                     {!isRecorrente && (
-                                                        <div className="w-24 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full mx-auto mt-1 overflow-hidden">
+                                                        <div className="w-24 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full mx-auto mt-1.5 overflow-hidden">
                                                             <div 
-                                                                className="h-full bg-purple-600 rounded-full" 
+                                                                className="h-full bg-orange-600 rounded-full" 
                                                                 style={{ width: `${percent}%` }}
                                                             />
                                                         </div>
@@ -898,8 +899,8 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                                                 </td>
 
                                                 {/* Due Day */}
-                                                <td className="py-3 px-4 text-center font-bold">
-                                                    <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2.5 py-1 rounded-lg">
+                                                <td className="py-3 px-4 text-center font-semibold tabular-nums">
+                                                    <span className="bg-slate-100 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700 text-slate-700 dark:text-slate-300 px-2.5 py-0.5 rounded-md">
                                                         Dia {item.dueDay}
                                                     </span>
                                                 </td>
@@ -907,17 +908,17 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                                                 {/* Status badge */}
                                                 <td className="py-3 px-4 text-center">
                                                     {item.status === 'completed' && (
-                                                        <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                                        <span className="px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/70 dark:border-emerald-800/50">
                                                             Concluído
                                                         </span>
                                                     )}
                                                     {item.status === 'active' && (
-                                                        <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300">
+                                                        <span className="px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200/70 dark:border-blue-800/50">
                                                             Em Dia
                                                         </span>
                                                     )}
                                                     {item.status === 'overdue' && (
-                                                        <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300">
+                                                        <span className="px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200/70 dark:border-rose-800/50">
                                                             Pendente
                                                         </span>
                                                     )}
@@ -931,7 +932,7 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                                                                 setSelectedPledgeForPayment(item);
                                                                 setIsPaymentModalOpen(true);
                                                             }}
-                                                            className="p-1.5 text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 rounded-lg font-bold transition-colors cursor-pointer"
+                                                            className="p-1.5 text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-950/60 rounded-lg transition-colors cursor-pointer"
                                                             title="Dar Baixa em Parcela"
                                                         >
                                                             <CheckCircle2 className="w-4 h-4" />
@@ -940,7 +941,7 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                                                         {item.contributorPhone && (
                                                             <button
                                                                 onClick={() => handleOpenWhatsAppModal(item)}
-                                                                className="p-1.5 text-emerald-700 hover:text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 rounded-lg font-bold transition-colors cursor-pointer"
+                                                                className="p-1.5 text-emerald-700 hover:text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-950/60 rounded-lg transition-colors cursor-pointer"
                                                                 title="Enviar Lembrete via WhatsApp"
                                                             >
                                                                 <MessageSquare className="w-4 h-4" />
@@ -949,7 +950,7 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
 
                                                         <button
                                                             onClick={() => handleDeletePledge(item.id)}
-                                                            className="p-1.5 text-rose-500 hover:text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer"
+                                                            className="p-1.5 text-rose-600 hover:text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-950/60 rounded-lg transition-colors cursor-pointer"
                                                             title="Remover Carnê"
                                                         >
                                                             <Trash2 className="w-4 h-4" />
@@ -968,7 +969,7 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
 
             {/* Content Tab 2: Church Official Campaigns List */}
             {activeTab === 'campaigns' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filteredCampaigns.map((camp) => {
                         const progressGoalPercent = camp.targetGoal > 0 
                             ? Math.min(100, Math.round(((camp.totalPledgedAmount || 0) / camp.targetGoal) * 100))
@@ -977,20 +978,20 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                         return (
                             <div 
                                 key={camp.id}
-                                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 flex flex-col justify-between shadow-2xs space-y-4"
+                                className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 p-5 flex flex-col justify-between shadow-xs space-y-4 hover:border-orange-300 dark:hover:border-orange-800 transition-colors"
                             >
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between gap-2">
-                                        <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                        <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-md bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300 border border-orange-200/60 dark:border-orange-900/40">
                                             {camp.category}
                                         </span>
 
                                         <button
                                             onClick={() => handleTogglePublication(camp.id)}
-                                            className={`text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border cursor-pointer transition-colors ${
+                                            className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-md border cursor-pointer transition-colors ${
                                                 camp.isPublishedInPortal 
-                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300'
-                                                    : 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400'
+                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800/50'
+                                                    : 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
                                             }`}
                                         >
                                             {camp.isPublishedInPortal ? 'No Portal' : 'Oculta'}
@@ -998,7 +999,7 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                                     </div>
 
                                     <div>
-                                        <h3 className="font-extrabold text-slate-900 dark:text-white text-base">
+                                        <h3 className="font-bold text-slate-900 dark:text-white text-sm sm:text-base">
                                             {camp.title}
                                         </h3>
                                         <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-1">
@@ -1006,29 +1007,29 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                                         </p>
                                     </div>
 
-                                    <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-100 dark:border-slate-800 space-y-2 text-xs">
+                                    <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200/70 dark:border-slate-800 space-y-2 text-xs">
                                         <div className="flex items-center justify-between">
-                                            <span className="text-slate-500 font-bold">Meta da Campanha:</span>
-                                            <span className="font-black text-slate-900 dark:text-white">
+                                            <span className="text-slate-500 dark:text-slate-400 font-medium">Meta da Campanha:</span>
+                                            <span className="font-bold text-slate-900 dark:text-white tabular-nums">
                                                 {formatCurrency(camp.targetGoal)}
                                             </span>
                                         </div>
 
                                         <div className="flex items-center justify-between">
-                                            <span className="text-slate-500 font-bold">Valor Sugerido / Parcela:</span>
-                                            <span className="font-black text-purple-600 dark:text-purple-400">
+                                            <span className="text-slate-500 dark:text-slate-400 font-medium">Valor Sugerido / Parcela:</span>
+                                            <span className="font-bold text-orange-600 dark:text-orange-400 tabular-nums">
                                                 {formatCurrency(camp.amountPerInstallment)} ({camp.totalInstallments}x)
                                             </span>
                                         </div>
 
                                         <div>
-                                            <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                                            <div className="flex items-center justify-between text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1.5 tabular-nums">
                                                 <span>Arrecadado / Mapeado:</span>
                                                 <span>{formatCurrency(camp.totalPledgedAmount || 0)} ({progressGoalPercent}%)</span>
                                             </div>
-                                            <div className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                            <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                                                 <div 
-                                                    className="h-full bg-gradient-to-r from-purple-600 to-indigo-600 rounded-full"
+                                                    className="h-full bg-orange-600 rounded-full"
                                                     style={{ width: `${progressGoalPercent}%` }}
                                                 />
                                             </div>
@@ -1036,10 +1037,10 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                                <div className="flex items-center gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
                                     <button
                                         onClick={() => handleOpenCampaignModal(camp)}
-                                        className="flex-1 py-2 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                                        className="flex-1 py-2 px-3 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                                     >
                                         <Edit3 className="w-3.5 h-3.5" />
                                         Editar
@@ -1047,7 +1048,7 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
 
                                     <button
                                         onClick={() => handleTogglePublication(camp.id)}
-                                        className="flex-1 py-2 px-3 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/50 dark:hover:bg-purple-900 text-purple-700 dark:text-purple-300 text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                                        className="flex-1 py-2 px-3 bg-orange-50 hover:bg-orange-100 dark:bg-orange-950/40 dark:hover:bg-orange-950/60 border border-orange-200/70 dark:border-orange-900/40 text-orange-700 dark:text-orange-300 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                                     >
                                         <Eye className="w-3.5 h-3.5" />
                                         {camp.isPublishedInPortal ? 'Ocultar Portal' : 'Publicar'}
@@ -1061,16 +1062,21 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
 
             {/* Modal: Create/Edit Campaign */}
             {isCampaignModalOpen && (
+                <div
+                    className="fixed inset-0 z-[56] flex items-center justify-center pt-16 md:pt-5 pb-3 md:pb-5 px-2 sm:px-6 bg-slate-900/55 backdrop-blur-[2px] animate-fade-in"
+                    onClick={(e) => { if (e.target === e.currentTarget) setIsCampaignModalOpen(false); }}
+                >
                 <div 
                     style={{
                         transform: `translateY(${campaignSwipeY}px)`,
                         opacity: isCampaignSwiping ? Math.max(0.3, 1 - campaignSwipeY / 400) : 1,
                         transition: isCampaignSwiping ? 'none' : 'transform 0.25s ease-out, opacity 0.25s ease-out'
                     }}
-                    className="absolute inset-0 z-40 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full overflow-hidden rounded-3xl shadow-2xl"
+                    onClick={(e) => e.stopPropagation()}
+                    className="bg-white dark:bg-slate-900 flex flex-col animate-scale-in w-full max-w-3xl max-h-[calc(100dvh-5rem)] md:max-h-[min(88vh,calc(100dvh-3rem))] overflow-hidden rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-elevated"
                 >
                     <form onSubmit={handleSaveCampaign} className="flex flex-col h-full w-full overflow-hidden">
-                        {/* Swipe Handle Bar */}
+                        {/* Swipe Handle Bar (mobile/touch only) */}
                         <div 
                             onMouseDown={(e) => {
                                 campaignSwipeStartRef.current = e.clientY;
@@ -1080,54 +1086,53 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                                 campaignSwipeStartRef.current = e.touches[0].clientY;
                                 setIsCampaignSwiping(true);
                             }}
-                            className="w-full flex flex-col items-center pt-3 pb-1 cursor-grab active:cursor-grabbing select-none group hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors border-b border-slate-100 dark:border-white/5 shrink-0"
+                            className="md:hidden w-full flex flex-col items-center pt-2.5 pb-1.5 cursor-grab active:cursor-grabbing select-none group hover:bg-slate-50 dark:hover:bg-slate-900/60 transition-colors border-b border-slate-200/80 dark:border-slate-800 shrink-0"
                             title="Deslize para baixo para fechar"
                         >
-                            <div className="w-16 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full transition-all group-hover:bg-orange-500 group-hover:w-20" />
-                            <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1 opacity-80 group-hover:opacity-100">
+                            <div className="w-12 h-1 bg-slate-300 dark:bg-slate-700 rounded-full transition-all group-hover:bg-orange-500 group-hover:w-16" />
+                            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 tracking-wide mt-1">
                                 Deslize para baixo para fechar
                             </span>
                         </div>
 
                         {/* Header */}
-                        <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
-                            <div className="flex flex-row flex-wrap items-center gap-4 md:gap-8 w-full md:w-auto">
-                                <div className="flex items-center gap-4">
-                                    <div className="p-3 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/20">
-                                        <Megaphone className="w-6 h-6" />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight uppercase">
-                                            {editingCampaign ? 'Editar Campanha Oficial' : 'Nova Campanha da Igreja'}
-                                        </h3>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">
-                                            Cadastre ou edite campanhas para engajar os dizimistas e contribuintes no Portal
-                                        </p>
-                                    </div>
+                        <div className="px-5 py-3.5 border-b border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 flex justify-between items-center gap-3 shrink-0">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-8 h-8 rounded-lg bg-orange-50 dark:bg-orange-950/40 border border-orange-200/60 dark:border-orange-900/40 flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
+                                    <Megaphone className="w-4 h-4" />
+                                </div>
+                                <div className="min-w-0">
+                                    <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
+                                        {editingCampaign ? 'Editar Campanha Oficial' : 'Nova Campanha da Igreja'}
+                                    </h3>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight truncate">
+                                        Cadastre ou edite campanhas para engajar os dizimistas e contribuintes no Portal
+                                    </p>
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-2 self-end md:self-auto">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsCampaignModalOpen(false)}
-                                    className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors cursor-pointer"
-                                >
-                                    <X className="w-6 h-6" />
-                                </button>
-                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsCampaignModalOpen(false)}
+                                className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer shrink-0"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
                         </div>
 
                         {/* Form Body - Scrollable */}
-                        <div className="p-8 flex-1 overflow-y-auto space-y-8 custom-scrollbar text-xs">
+                        <div
+                            className="p-6 flex-1 overflow-y-auto space-y-6 custom-scrollbar text-xs"
+                            style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+                        >
                             {/* Section 1: Informações Principais */}
                             <div className="space-y-4">
-                                <h3 className="text-xs font-black uppercase tracking-wider text-orange-600 dark:text-orange-400 border-b border-slate-100 dark:border-slate-800 pb-2">
+                                <h3 className="text-xs font-bold uppercase tracking-wide text-orange-600 dark:text-orange-400 border-b border-slate-200/80 dark:border-slate-800 pb-2">
                                     1. Identificação da Campanha
                                 </h3>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <div className="md:col-span-2 space-y-2">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                                    <div className="md:col-span-2 space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Título da Campanha *
                                         </label>
                                         <input
@@ -1136,18 +1141,18 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                                             value={campTitle}
                                             onChange={(e) => setCampTitle(e.target.value)}
                                             placeholder="Ex: Carnê Reforma do Templo 2026, Voto de Fé Missionário..."
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-3.5 px-5 transition-all outline-none text-sm font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-medium"
                                         />
                                     </div>
 
-                                    <div className="space-y-2">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Categoria *
                                         </label>
                                         <select
                                             value={campCategory}
                                             onChange={(e) => setCampCategory(e.target.value)}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-3.5 px-5 transition-all outline-none text-sm font-bold cursor-pointer"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-medium cursor-pointer"
                                         >
                                             <option value="Construção & Reforma">Construção & Reforma</option>
                                             <option value="Dízimo">Dízimo</option>
@@ -1158,8 +1163,8 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                                     </div>
                                 </div>
 
-                                <div className="space-y-2">
-                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                <div className="space-y-1.5">
+                                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                         Descrição e Causa
                                     </label>
                                     <textarea
@@ -1167,19 +1172,19 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                                         value={campDesc}
                                         onChange={(e) => setCampDesc(e.target.value)}
                                         placeholder="Explique detalhadamente o objetivo, motivo e impacto comunitário desta campanha..."
-                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-3.5 px-5 transition-all outline-none text-sm font-medium"
+                                        className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-medium"
                                     />
                                 </div>
                             </div>
 
                             {/* Section 2: Valores & Metas */}
                             <div className="space-y-4">
-                                <h3 className="text-xs font-black uppercase tracking-wider text-orange-600 dark:text-orange-400 border-b border-slate-100 dark:border-slate-800 pb-2">
+                                <h3 className="text-xs font-bold uppercase tracking-wide text-orange-600 dark:text-orange-400 border-b border-slate-200/80 dark:border-slate-800 pb-2">
                                     2. Metas Financeiras & Parcelamento
                                 </h3>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <div className="space-y-2">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Meta Global da Igreja (R$)
                                         </label>
                                         <input
@@ -1188,12 +1193,12 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                                             value={campGoal}
                                             onChange={(e) => setCampGoal(e.target.value)}
                                             placeholder="50000.00"
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-3.5 px-5 transition-all outline-none text-sm font-black"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-semibold tabular-nums"
                                         />
                                     </div>
 
-                                    <div className="space-y-2">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Valor Sugerido por Parcela (R$)
                                         </label>
                                         <input
@@ -1202,12 +1207,12 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                                             value={campInstallmentAmount}
                                             onChange={(e) => setCampInstallmentAmount(e.target.value)}
                                             placeholder="100.00"
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-3.5 px-5 transition-all outline-none text-sm font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-semibold tabular-nums"
                                         />
                                     </div>
 
-                                    <div className="space-y-2">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Nº de Parcelas Padronizadas
                                         </label>
                                         <input
@@ -1215,7 +1220,7 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                                             value={campInstallments}
                                             onChange={(e) => setCampInstallments(e.target.value)}
                                             placeholder="12"
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-3.5 px-5 transition-all outline-none text-sm font-bold"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-semibold tabular-nums"
                                         />
                                     </div>
                                 </div>
@@ -1223,12 +1228,12 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
 
                             {/* Section 3: Divulgação no Portal */}
                             <div className="space-y-4">
-                                <h3 className="text-xs font-black uppercase tracking-wider text-orange-600 dark:text-orange-400 border-b border-slate-100 dark:border-slate-800 pb-2">
+                                <h3 className="text-xs font-bold uppercase tracking-wide text-orange-600 dark:text-orange-400 border-b border-slate-200/80 dark:border-slate-800 pb-2">
                                     3. Visibilidade & Publicação
                                 </h3>
-                                <div className="flex items-center justify-between bg-orange-50/50 dark:bg-slate-800/60 p-5 rounded-2xl border border-orange-100 dark:border-slate-700">
+                                <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800">
                                     <div className="space-y-0.5">
-                                        <span className="font-extrabold text-slate-900 dark:text-white text-sm block">
+                                        <span className="font-semibold text-slate-900 dark:text-white text-sm block">
                                             Disponibilizar no Portal do Contribuinte
                                         </span>
                                         <span className="text-xs text-slate-500 dark:text-slate-400 block max-w-2xl">
@@ -1242,67 +1247,71 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                                             onChange={(e) => setCampIsPublished(e.target.checked)}
                                             className="sr-only peer"
                                         />
-                                        <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:after:border-slate-600 peer-checked:bg-orange-500"></div>
+                                        <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:after:border-slate-600 peer-checked:bg-orange-600"></div>
                                     </label>
                                 </div>
                             </div>
                         </div>
 
                         {/* Footer Actions */}
-                        <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 border-t border-slate-100 dark:border-slate-800/50 mt-auto">
+                        <div className="bg-slate-50 dark:bg-slate-900/80 px-6 py-4 flex justify-end space-x-3 border-t border-slate-200/80 dark:border-slate-800 mt-auto shrink-0">
                             <button
                                 type="button"
                                 onClick={() => setIsCampaignModalOpen(false)}
-                                className="px-6 py-2.5 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-full shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 rounded-lg shadow-2xs transition-colors cursor-pointer"
                             >
                                 Cancelar
                             </button>
                             <button
                                 type="submit"
-                                className="px-8 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-full shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                                className="px-5 py-2 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-xs transition-colors cursor-pointer"
                             >
                                 {editingCampaign ? 'Salvar Alterações' : 'Criar Campanha'}
                             </button>
                         </div>
                     </form>
                 </div>
+                </div>
             )}
 
             {/* Modal: Register Installment Payment */}
             {isPaymentModalOpen && selectedPledgeForPayment && (
-                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 relative space-y-4">
+                <div
+                    className="fixed inset-0 z-[56] flex items-center justify-center pt-16 md:pt-5 pb-3 md:pb-5 px-2 sm:px-6 bg-slate-900/55 backdrop-blur-[2px] animate-fade-in"
+                    onClick={(e) => { if (e.target === e.currentTarget) setIsPaymentModalOpen(false); }}
+                >
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-6 shadow-elevated border border-slate-200/90 dark:border-slate-800 relative space-y-4 animate-scale-in">
                         <button
                             onClick={() => setIsPaymentModalOpen(false)}
-                            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+                            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                         >
-                            <X className="w-5 h-5" />
+                            <X className="w-4 h-4" />
                         </button>
 
                         <div className="text-center">
-                            <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-2">
-                                <CheckCircle2 className="w-6 h-6" />
+                            <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded-lg flex items-center justify-center mx-auto mb-2.5">
+                                <CheckCircle2 className="w-5 h-5" />
                             </div>
-                            <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                            <h3 className="text-base font-bold text-slate-900 dark:text-white">
                                 Registrar Baixa de Parcela
                             </h3>
-                            <p className="text-xs text-slate-500 mt-0.5">
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                                 {selectedPledgeForPayment.contributorName}
                             </p>
                         </div>
 
-                        <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-1 text-xs">
+                        <div className="bg-slate-50 dark:bg-slate-950/60 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-1.5 text-xs">
                             <div className="flex justify-between text-slate-600 dark:text-slate-300">
                                 <span>Campanha:</span>
                                 <strong className="text-slate-900 dark:text-white">{selectedPledgeForPayment.campaignTitle}</strong>
                             </div>
                             <div className="flex justify-between text-slate-600 dark:text-slate-300">
                                 <span>Parcela Atual:</span>
-                                <strong>#{selectedPledgeForPayment.paidInstallments + 1} de {selectedPledgeForPayment.totalInstallments || '∞'}</strong>
+                                <strong className="tabular-nums">#{selectedPledgeForPayment.paidInstallments + 1} de {selectedPledgeForPayment.totalInstallments || '∞'}</strong>
                             </div>
-                            <div className="flex justify-between text-slate-600 dark:text-slate-300 pt-1 border-t border-slate-200 dark:border-slate-700">
+                            <div className="flex justify-between text-slate-600 dark:text-slate-300 pt-1.5 border-t border-slate-200/80 dark:border-slate-800">
                                 <span>Valor da Parcela:</span>
-                                <strong className="text-emerald-600 dark:text-emerald-400 font-black text-sm">
+                                <strong className="text-emerald-600 dark:text-emerald-400 font-bold text-sm tabular-nums">
                                     {formatCurrency(selectedPledgeForPayment.amountPerInstallment)}
                                 </strong>
                             </div>
@@ -1310,13 +1319,13 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
 
                         <div className="space-y-3 text-xs">
                             <div>
-                                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                                     Forma de Recebimento
                                 </label>
                                 <select
                                     value={paymentMethod}
                                     onChange={(e) => setPaymentMethod(e.target.value)}
-                                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-slate-200 focus:outline-none"
+                                    className="w-full py-2.5 px-3.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg font-medium text-slate-800 dark:text-slate-200 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 focus:outline-none transition-all"
                                 >
                                     <option value="pix">Pix (Confirmado)</option>
                                     <option value="dinheiro">Espécie / Dinheiro em Mãos</option>
@@ -1326,7 +1335,7 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                             </div>
 
                             <div>
-                                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                                     Observação / Recibo
                                 </label>
                                 <input
@@ -1334,21 +1343,21 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                                     value={paymentNotes}
                                     onChange={(e) => setPaymentNotes(e.target.value)}
                                     placeholder="Ex: Recebido no culto de domingo..."
-                                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-medium text-slate-800 dark:text-slate-200 focus:outline-none"
+                                    className="w-full py-2.5 px-3.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg font-medium text-slate-800 dark:text-slate-200 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 focus:outline-none transition-all"
                                 />
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-2 pt-2">
+                        <div className="flex items-center gap-2.5 pt-2">
                             <button
                                 onClick={() => setIsPaymentModalOpen(false)}
-                                className="flex-1 px-5 py-2.5 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-2xl shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                                className="flex-1 px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 rounded-lg shadow-2xs transition-colors cursor-pointer"
                             >
                                 Cancelar
                             </button>
                             <button
                                 onClick={handleConfirmPayment}
-                                className="flex-1 px-5 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-2xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer flex items-center justify-center gap-1.5"
+                                className="flex-1 px-4 py-2 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                             >
                                 <CheckCircle2 className="w-3.5 h-3.5" />
                                 Confirmar Recebimento
@@ -1360,16 +1369,21 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
 
             {/* Panel View: WhatsApp Avisos & Message Content Editor */}
             {isWhatsAppModalOpen && whatsAppPledge && (
+                <div
+                    className="fixed inset-0 z-[56] flex items-center justify-center pt-16 md:pt-5 pb-3 md:pb-5 px-2 sm:px-6 bg-slate-900/55 backdrop-blur-[2px] animate-fade-in"
+                    onClick={(e) => { if (e.target === e.currentTarget) setIsWhatsAppModalOpen(false); }}
+                >
                 <div 
                     style={{
                         transform: `translateY(${whatsappSwipeY}px)`,
                         opacity: isWhatsappSwiping ? Math.max(0.3, 1 - whatsappSwipeY / 400) : 1,
                         transition: isWhatsappSwiping ? 'none' : 'transform 0.25s ease-out, opacity 0.25s ease-out'
                     }}
-                    className="absolute inset-0 z-40 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full overflow-hidden rounded-3xl shadow-2xl"
+                    onClick={(e) => e.stopPropagation()}
+                    className="bg-white dark:bg-slate-900 flex flex-col animate-scale-in w-full max-w-3xl max-h-[calc(100dvh-5rem)] md:max-h-[min(88vh,calc(100dvh-3rem))] overflow-hidden rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-elevated"
                 >
                     <div className="flex flex-col h-full w-full overflow-hidden">
-                        {/* Swipe Handle Bar */}
+                        {/* Swipe Handle Bar (mobile/touch only) */}
                         <div 
                             onMouseDown={(e) => {
                                 whatsappSwipeStartRef.current = e.clientY;
@@ -1379,56 +1393,55 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                                 whatsappSwipeStartRef.current = e.touches[0].clientY;
                                 setIsWhatsappSwiping(true);
                             }}
-                            className="w-full flex flex-col items-center pt-3 pb-1 cursor-grab active:cursor-grabbing select-none group hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors border-b border-slate-100 dark:border-white/5 shrink-0"
+                            className="md:hidden w-full flex flex-col items-center pt-2.5 pb-1.5 cursor-grab active:cursor-grabbing select-none group hover:bg-slate-50 dark:hover:bg-slate-900/60 transition-colors border-b border-slate-200/80 dark:border-slate-800 shrink-0"
                             title="Deslize para baixo para fechar"
                         >
-                            <div className="w-16 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full transition-all group-hover:bg-emerald-500 group-hover:w-20" />
-                            <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1 opacity-80 group-hover:opacity-100">
+                            <div className="w-12 h-1 bg-slate-300 dark:bg-slate-700 rounded-full transition-all group-hover:bg-emerald-500 group-hover:w-16" />
+                            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 tracking-wide mt-1">
                                 Deslize para baixo para fechar
                             </span>
                         </div>
 
                         {/* Header */}
-                        <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
-                            <div className="flex flex-row flex-wrap items-center gap-4 md:gap-8 w-full md:w-auto">
-                                <div className="flex items-center gap-4">
-                                    <div className="p-3 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/20">
-                                        <MessageSquare className="w-6 h-6" />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight uppercase">
-                                            Avisos no WhatsApp & Lembretes Pastorais
-                                        </h3>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">
-                                            Edite a mensagem personalizada, escolha o destinatário e envie o aviso direto pelo WhatsApp
-                                        </p>
-                                    </div>
+                        <div className="px-5 py-3.5 border-b border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 flex justify-between items-center gap-3 shrink-0">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-900/40 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+                                    <MessageSquare className="w-4 h-4" />
+                                </div>
+                                <div className="min-w-0">
+                                    <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
+                                        Avisos no WhatsApp & Lembretes Pastorais
+                                    </h3>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight truncate">
+                                        Edite a mensagem personalizada, escolha o destinatário e envie o aviso direto pelo WhatsApp
+                                    </p>
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-2 self-end md:self-auto">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsWhatsAppModalOpen(false)}
-                                    className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors cursor-pointer"
-                                >
-                                    <X className="w-6 h-6" />
-                                </button>
-                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsWhatsAppModalOpen(false)}
+                                className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer shrink-0"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
                         </div>
 
                         {/* Scrollable Body */}
-                        <div className="p-8 flex-1 overflow-y-auto space-y-8 custom-scrollbar text-xs">
+                        <div
+                            className="p-6 flex-1 overflow-y-auto space-y-6 custom-scrollbar text-xs"
+                            style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+                        >
                             
                             {/* Section 1: Seleção de Destinatário */}
                             <div className="space-y-4">
-                                <h3 className="text-xs font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 border-b border-slate-100 dark:border-slate-800 pb-2">
+                                <h3 className="text-xs font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400 border-b border-slate-200/80 dark:border-slate-800 pb-2">
                                     1. Destinatário Selecionado
                                 </h3>
 
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
-                                    <div className="md:col-span-2 space-y-2">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-end">
+                                    <div className="md:col-span-2 space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Selecionar Contribuinte / Carnê Pendente
                                         </label>
                                         <select
@@ -1439,7 +1452,7 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                                                     handleOpenWhatsAppModal(selected);
                                                 }
                                             }}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-emerald-500/10 py-3.5 px-5 transition-all outline-none text-sm font-bold cursor-pointer"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15 py-2.5 px-3.5 transition-all outline-none text-sm font-medium cursor-pointer"
                                         >
                                             {pledges
                                                 .filter(p => p.contributorPhone)
@@ -1451,14 +1464,14 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                                         </select>
                                     </div>
 
-                                    <div className="bg-emerald-50/60 dark:bg-emerald-950/40 p-4 rounded-2xl border border-emerald-100 dark:border-emerald-800/60 flex items-center justify-between">
+                                    <div className="bg-emerald-50/70 dark:bg-emerald-950/30 p-3.5 rounded-xl border border-emerald-200/70 dark:border-emerald-900/40 flex items-center justify-between gap-2">
                                         <div>
-                                            <span className="text-[10px] font-extrabold text-emerald-700 dark:text-emerald-400 block uppercase tracking-wider">Telefone / WhatsApp</span>
-                                            <span className="font-black text-slate-900 dark:text-white text-sm">
+                                            <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 block">Telefone / WhatsApp</span>
+                                            <span className="font-bold text-slate-900 dark:text-white text-sm tabular-nums">
                                                 {whatsAppPledge.contributorPhone || 'Sem telefone'}
                                             </span>
                                         </div>
-                                        <span className="px-2.5 py-1 text-[10px] font-black rounded-full uppercase bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200">
+                                        <span className="px-2 py-0.5 text-[11px] font-semibold rounded-md bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200">
                                             {whatsAppPledge.status === 'overdue' ? 'Atrasado' : 'Em Dia'}
                                         </span>
                                     </div>
@@ -1467,14 +1480,14 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
 
                             {/* Section 2: Editor de Mensagem */}
                             <div className="space-y-4">
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
-                                    <h3 className="text-xs font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 dark:border-slate-800 pb-2">
+                                    <h3 className="text-xs font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
                                         2. Editar Conteúdo da Mensagem
                                     </h3>
                                     
                                     {/* Tags / Variáveis */}
                                     <div className="flex flex-wrap items-center gap-1.5">
-                                        <span className="text-[10px] font-bold text-slate-400 mr-1">Tags Dinâmicas:</span>
+                                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mr-1">Tags Dinâmicas:</span>
                                         {[
                                             { tag: '{NOME}', label: 'Nome' },
                                             { tag: '{CAMPANHA}', label: 'Campanha' },
@@ -1486,7 +1499,7 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                                                 key={item.tag}
                                                 type="button"
                                                 onClick={() => insertTag(item.tag)}
-                                                className="px-2.5 py-1 text-[10px] font-mono font-bold bg-slate-100 hover:bg-emerald-100 dark:bg-slate-800 dark:hover:bg-emerald-950/60 text-slate-700 dark:text-slate-300 hover:text-emerald-700 dark:hover:text-emerald-300 rounded-lg transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                                                className="px-2 py-1 text-[11px] font-mono font-semibold bg-slate-100 hover:bg-emerald-50 dark:bg-slate-800 dark:hover:bg-emerald-950/60 text-slate-700 dark:text-slate-300 hover:text-emerald-700 dark:hover:text-emerald-300 rounded-md transition-colors cursor-pointer border border-slate-200 dark:border-slate-700 tabular-nums"
                                                 title={`Inserir ${item.label}`}
                                             >
                                                 + {item.tag}
@@ -1495,10 +1508,10 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                                     {/* Area de Edição */}
-                                    <div className="space-y-2">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Texto Personalizável da Mensagem
                                         </label>
                                         <textarea
@@ -1506,23 +1519,23 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                                             value={whatsappCustomMessage}
                                             onChange={(e) => setWhatsappCustomMessage(e.target.value)}
                                             placeholder="Escreva a mensagem personalizada aqui..."
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-emerald-500/10 py-3.5 px-5 transition-all outline-none text-xs font-mono leading-relaxed"
+                                            className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15 py-3 px-4 transition-all outline-none text-xs font-mono leading-relaxed"
                                         />
-                                        <div className="flex items-center justify-between text-[10px] text-slate-400 px-1 pt-1">
+                                        <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 px-0.5 pt-1 tabular-nums">
                                             <span>Suporta formatação do WhatsApp (*negrito*, _itálico_)</span>
                                             <span>{whatsappCustomMessage.length} caracteres</span>
                                         </div>
                                     </div>
 
                                     {/* Visualizador / Prévia no balão do WhatsApp */}
-                                    <div className="space-y-2">
-                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                                             Prévia Visual no WhatsApp
                                         </label>
-                                        <div className="bg-[#E5DDD5] dark:bg-[#0B141A] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 min-h-[220px] flex flex-col justify-end">
-                                            <div className="bg-white dark:bg-[#202C33] text-slate-900 dark:text-slate-100 p-4 rounded-2xl shadow-sm border border-slate-200/50 dark:border-white/5 space-y-2 whitespace-pre-line text-xs font-sans leading-relaxed max-w-md self-end relative">
+                                        <div className="bg-[#E5DDD5] dark:bg-[#0B141A] p-5 rounded-xl border border-slate-200 dark:border-slate-800 min-h-[220px] flex flex-col justify-end">
+                                            <div className="bg-white dark:bg-[#202C33] text-slate-900 dark:text-slate-100 p-4 rounded-xl shadow-xs border border-slate-200/50 dark:border-white/5 space-y-2 whitespace-pre-line text-xs font-sans leading-relaxed max-w-md self-end relative">
                                                 {whatsappCustomMessage}
-                                                <div className="text-[9px] text-slate-400 text-right mt-2 font-mono">
+                                                <div className="text-[10px] text-slate-400 text-right mt-2 tabular-nums">
                                                     12:00 ✓✓
                                                 </div>
                                             </div>
@@ -1533,21 +1546,21 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                         </div>
 
                         {/* Footer Actions */}
-                        <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-100 dark:border-slate-800/50 mt-auto shrink-0">
+                        <div className="bg-slate-50 dark:bg-slate-900/80 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-200/80 dark:border-slate-800 mt-auto shrink-0">
                             <button
                                 type="button"
                                 onClick={handleRestoreDefaultTemplate}
-                                className="flex items-center gap-1.5 px-4 py-2 text-[10px] font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-all tracking-wider uppercase cursor-pointer"
+                                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
                             >
                                 <RotateCcw className="w-3.5 h-3.5" />
                                 Restaurar Padrão
                             </button>
 
-                            <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                            <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
                                 <button
                                     type="button"
                                     onClick={() => setIsWhatsAppModalOpen(false)}
-                                    className="px-6 py-2.5 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-full shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                                    className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 rounded-lg shadow-2xs transition-colors cursor-pointer"
                                 >
                                     Cancelar
                                 </button>
@@ -1555,7 +1568,7 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                                 <button
                                     type="button"
                                     onClick={handleSaveWhatsAppTemplate}
-                                    className="flex items-center gap-2 px-6 py-2.5 text-[10px] font-black text-slate-800 dark:text-white bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-full shadow-xs hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                                    className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-slate-800 dark:text-white bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-lg shadow-2xs transition-colors cursor-pointer"
                                 >
                                     <Save className="w-3.5 h-3.5" />
                                     Salvar Modelo
@@ -1564,7 +1577,7 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                                 <button
                                     type="button"
                                     onClick={handleSendWhatsApp}
-                                    className="flex items-center gap-2 px-8 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-emerald-500 to-teal-600 rounded-full shadow-md shadow-emerald-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                                    className="flex items-center gap-1.5 px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-xs transition-colors cursor-pointer"
                                 >
                                     <Send className="w-3.5 h-3.5" />
                                     Abrir WhatsApp
@@ -1572,6 +1585,7 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                             </div>
                         </div>
                     </div>
+                </div>
                 </div>
             )}
         </div>

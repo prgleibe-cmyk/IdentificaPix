@@ -5,6 +5,7 @@ import { PortalRequestStatusCard } from '../components/PortalRequestStatusCard';
 import { formatCurrencyBrl } from '../utils/portalFormatters';
 import { usePortalPix } from '../hooks/usePortalPix';
 import { ContributionItemMock, ChurchPixKeyPublic } from '../types/portal';
+import { AlertCircle, Building2, Info, Copy, Check } from 'lucide-react';
 
 interface PortalPaymentStepProps {
     churchId?: string;
@@ -101,14 +102,14 @@ export const PortalPaymentStep: React.FC<PortalPaymentStepProps> = ({
         >
             <div className="space-y-6">
                 {/* Total & Reference Header */}
-                <div className="text-center p-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-brand-blue dark:text-blue-400 block">
+                <div className="text-center p-4 rounded-xl bg-orange-50/60 dark:bg-orange-950/20 border border-orange-200/80 dark:border-orange-900/50">
+                    <span className="text-xs font-semibold text-orange-600 dark:text-orange-400 block">
                         Valor Total da Intenção de Contribuição
                     </span>
-                    <span className="text-3xl font-black text-slate-800 dark:text-white block mt-1">
+                    <span className="text-3xl font-bold tabular-nums text-slate-900 dark:text-white block mt-1">
                         {formatCurrencyBrl(totalAmount)}
                     </span>
-                    <span className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400 mt-1 block">
+                    <span className="text-xs font-mono font-medium text-slate-500 dark:text-slate-400 mt-1 block">
                         Protocolo: {referenceNumber}
                     </span>
                 </div>
@@ -126,9 +127,9 @@ export const PortalPaymentStep: React.FC<PortalPaymentStepProps> = ({
 
                 {/* Loading State */}
                 {loading && (
-                    <div className="p-8 text-center bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
-                        <div className="w-8 h-8 border-3 border-brand-blue border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-                        <p className="text-xs font-bold text-slate-600 dark:text-slate-400">
+                    <div className="p-8 text-center bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+                        <div className="w-8 h-8 border-2 border-orange-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+                        <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">
                             Carregando formas de contribuição Pix da igreja...
                         </p>
                     </div>
@@ -136,11 +137,15 @@ export const PortalPaymentStep: React.FC<PortalPaymentStepProps> = ({
 
                 {/* Error State */}
                 {!loading && error && (
-                    <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs font-semibold flex items-center justify-between">
-                        <span>⚠️ {error}</span>
+                    <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-1.5">
+                            <AlertCircle className="w-4 h-4 shrink-0" />
+                            <span>{error}</span>
+                        </span>
                         <button 
+                            type="button"
                             onClick={refetch}
-                            className="underline text-xs font-bold ml-2 hover:opacity-80"
+                            className="underline text-xs font-semibold ml-2 hover:opacity-80 cursor-pointer shrink-0"
                         >
                             Tentar novamente
                         </button>
@@ -149,12 +154,14 @@ export const PortalPaymentStep: React.FC<PortalPaymentStepProps> = ({
 
                 {/* Empty State: No Pix Keys */}
                 {!loading && !error && pixKeys.length === 0 && (
-                    <div className="p-6 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-center space-y-2">
-                        <span className="text-2xl block">🏛️</span>
-                        <h4 className="text-sm font-bold text-amber-800 dark:text-amber-300">
+                    <div className="p-6 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/50 text-center space-y-2">
+                        <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 flex items-center justify-center mx-auto">
+                            <Building2 className="w-5 h-5" />
+                        </div>
+                        <h4 className="text-sm font-bold text-amber-900 dark:text-amber-300">
                             Nenhuma Chave Pix Cadastrada
                         </h4>
-                        <p className="text-xs text-amber-700 dark:text-amber-400 max-w-sm mx-auto">
+                        <p className="text-xs text-amber-800 dark:text-amber-400 max-w-sm mx-auto">
                             Esta igreja ainda não possui uma chave Pix cadastrada no sistema. Entre em contato com a administração da igreja para concluir sua contribuição.
                         </p>
                     </div>
@@ -162,11 +169,11 @@ export const PortalPaymentStep: React.FC<PortalPaymentStepProps> = ({
 
                 {/* Split Banner if multiple accounts are required */}
                 {!loading && !error && paymentGroups.length > 1 && (
-                    <div className="p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-900 dark:text-indigo-200 text-xs space-y-1">
-                        <span className="font-black uppercase tracking-wider block text-[11px] text-indigo-600 dark:text-indigo-400">
-                            ⚡ Contribuição Direcionada por Conta Bancária
+                    <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/90 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs space-y-1">
+                        <span className="font-bold block text-xs text-orange-600 dark:text-orange-400">
+                            Contribuição Direcionada por Conta Bancária
                         </span>
-                        <p className="text-xs">
+                        <p className="text-xs text-slate-600 dark:text-slate-400">
                             Sua seleção abrange categorias vinculadas a contas bancárias distintas. Por favor, realize as transferências abaixo para cada conta correspondente:
                         </p>
                     </div>
@@ -295,13 +302,14 @@ export const PortalPaymentStep: React.FC<PortalPaymentStepProps> = ({
                                             <button
                                                 type="button"
                                                 onClick={() => handleCopyPix(group.key.id, group.key.pix_key)}
-                                                className={`px-4 py-2 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5 ${
+                                                className={`px-3.5 py-2 rounded-lg font-semibold text-xs whitespace-nowrap transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs ${
                                                     isCopied
-                                                        ? 'bg-emerald-600 text-white shadow-md'
-                                                        : 'bg-brand-blue hover:bg-blue-600 text-white shadow'
+                                                        ? 'bg-emerald-600 text-white'
+                                                        : 'bg-orange-600 hover:bg-orange-700 text-white'
                                                 }`}
                                             >
-                                                {isCopied ? '✓ Copiado!' : 'Copiar Chave'}
+                                                {isCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                                                <span>{isCopied ? 'Copiado!' : 'Copiar Chave'}</span>
                                             </button>
                                         </div>
                                     </div>
@@ -318,9 +326,10 @@ export const PortalPaymentStep: React.FC<PortalPaymentStepProps> = ({
                 )}
 
                 {/* Instructions */}
-                <div className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/15 text-slate-600 dark:text-slate-300 text-xs space-y-1.5">
-                    <p className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                        💡 Instruções de Pagamento:
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 text-slate-600 dark:text-slate-300 text-xs space-y-1.5">
+                    <p className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                        <Info className="w-4 h-4 text-orange-600 dark:text-orange-400 shrink-0" />
+                        <span>Instruções de Pagamento</span>
                     </p>
                     <ol className="list-decimal list-inside space-y-1 pl-1 text-slate-600 dark:text-slate-400">
                         <li>Abra o aplicativo do seu banco de preferência.</li>

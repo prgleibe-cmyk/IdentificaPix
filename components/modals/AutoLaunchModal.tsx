@@ -30,7 +30,7 @@ export const AutoLaunchModal: React.FC = () => {
                     transform: ctrl.position ? 'none' : undefined,
                     pointerEvents: 'auto'
                 }}
-                className="bg-white/95 dark:bg-slate-900/95 w-[320px] flex flex-col rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 backdrop-blur-2xl animate-scale-in overflow-hidden"
+                className="bg-white/95 dark:bg-slate-900/95 w-[320px] flex flex-col rounded-2xl shadow-elevated border border-slate-200/90 dark:border-slate-800 backdrop-blur-xl animate-scale-in overflow-hidden"
             >
                 <AutoLaunchHeader 
                     onMouseDown={ctrl.handleMouseDown} 
@@ -44,7 +44,10 @@ export const AutoLaunchModal: React.FC = () => {
                     />
                 )}
 
-                <div className="p-3 flex-1 overflow-y-auto custom-scrollbar bg-white dark:bg-slate-900 space-y-3">
+                <div
+                    style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+                    className="p-3.5 flex-1 overflow-y-auto custom-scrollbar bg-white dark:bg-slate-900 space-y-3"
+                >
                     {ctrl.step === 'choice' && (
                         <ChoiceStep 
                             onManual={ctrl.handleManualLaunchAll}

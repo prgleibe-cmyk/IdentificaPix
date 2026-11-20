@@ -46,14 +46,14 @@ export const ComparisonSettingsForm: React.FC = () => {
         return (
             <label 
                 className={`
-                    cursor-pointer relative flex items-center justify-center gap-1.5 px-3 py-1.5 text-[10px] font-bold rounded-full transition-all duration-200 border
+                    cursor-pointer relative flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors border
                     ${isSelected 
-                        ? `${style.active} shadow-sm` 
-                        : `bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 ${style.inactive}`
+                        ? `${style.active} shadow-2xs` 
+                        : `bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 ${style.inactive}`
                     }
                 `}
             >
-                <Icon className={`w-3 h-3 ${isSelected ? '' : 'opacity-70'}`} />
+                <Icon className={`w-3.5 h-3.5 ${isSelected ? '' : 'opacity-70'}`} />
                 <input 
                     type="radio" 
                     name="comparisonType" 
@@ -62,7 +62,7 @@ export const ComparisonSettingsForm: React.FC = () => {
                     onChange={(e) => setComparisonType(e.target.value as ComparisonType)} 
                     className="sr-only" 
                 />
-                <span className="uppercase tracking-wide">{label}</span>
+                <span>{label}</span>
             </label>
         );
     }
@@ -94,32 +94,32 @@ export const ComparisonSettingsForm: React.FC = () => {
             { (comparisonType === 'income' || comparisonType === 'both') && (
                 <div className="flex flex-1 items-center justify-center gap-6 lg:gap-10 w-full lg:w-auto px-2">
                     <div className="flex items-center gap-3 w-full max-w-[200px] group">
-                        <span className="text-[9px] font-bold text-slate-400 uppercase w-10 text-right">Rigor</span>
-                        <div className="flex-1 relative h-2 bg-slate-100 dark:bg-slate-700/50 rounded-full overflow-hidden border border-slate-200 dark:border-slate-600">
-                            <div className="absolute top-0 left-0 h-full bg-brand-blue rounded-full transition-all duration-300" style={{ width: `${similarityLevel}%` }}></div>
+                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 w-10 text-right">Rigor</span>
+                        <div className="flex-1 relative h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700">
+                            <div className="absolute top-0 left-0 h-full bg-orange-600 rounded-full transition-all duration-300" style={{ width: `${similarityLevel}%` }}></div>
                             <input 
                                 type="range" min="10" max="100" value={similarityLevel} 
                                 onChange={e => setSimilarityLevel(parseInt(e.target.value, 10))} 
                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
                             />
                         </div>
-                        <div className="flex items-center justify-center min-w-[3.5rem] px-2 py-1 bg-blue-100 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg shadow-sm">
-                            <span className="text-xs font-black text-brand-blue dark:text-blue-400">{similarityLevel}%</span>
+                        <div className="flex items-center justify-center min-w-[3.25rem] px-2 py-1 bg-orange-50 dark:bg-orange-950/40 border border-orange-200/70 dark:border-orange-900/40 rounded-md shadow-2xs">
+                            <span className="text-xs font-bold text-orange-700 dark:text-orange-300 tabular-nums">{similarityLevel}%</span>
                         </div>
                     </div>
 
                     <div className="flex items-center gap-3 w-full max-w-[200px] group">
-                        <span className="text-[9px] font-bold text-slate-400 uppercase w-10 text-right">Tol.</span>
-                        <div className="flex-1 relative h-2 bg-slate-100 dark:bg-slate-700/50 rounded-full overflow-hidden border border-slate-200 dark:border-slate-600">
-                            <div className="absolute top-0 left-0 h-full bg-brand-teal rounded-full transition-all duration-300" style={{ width: `${(dayTolerance / 30) * 100}%` }}></div>
+                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 w-10 text-right">Tol.</span>
+                        <div className="flex-1 relative h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700">
+                            <div className="absolute top-0 left-0 h-full bg-emerald-600 rounded-full transition-all duration-300" style={{ width: `${(dayTolerance / 30) * 100}%` }}></div>
                             <input 
                                 type="range" min="0" max="30" value={dayTolerance} 
                                 onChange={e => setDayTolerance(parseInt(e.target.value, 10))} 
                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
                             />
                         </div>
-                        <div className="flex items-center justify-center min-w-[3.5rem] px-2 py-1 bg-teal-100 dark:bg-teal-900/30 border border-teal-200 dark:border-teal-800 rounded-lg shadow-sm">
-                            <span className="text-xs font-black text-teal-800 dark:text-teal-300">{dayTolerance}d</span>
+                        <div className="flex items-center justify-center min-w-[3.25rem] px-2 py-1 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/70 dark:border-emerald-900/40 rounded-md shadow-2xs">
+                            <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 tabular-nums">{dayTolerance}d</span>
                         </div>
                     </div>
                 </div>
@@ -127,17 +127,17 @@ export const ComparisonSettingsForm: React.FC = () => {
 
             <div className="flex items-center gap-2">
                 {finalIsCompareDisabled && (
-                    <span className="hidden lg:inline text-[9px] font-bold text-red-500 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded-full animate-pulse">
+                    <span className="hidden lg:inline text-[11px] font-medium text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200/70 dark:border-rose-900/40 px-2.5 py-1 rounded-md">
                         Selecione um extrato
                     </span>
                 )}
                 <button 
                     onClick={handleCompare} 
                     disabled={finalIsCompareDisabled} 
-                    className="px-5 py-2 rounded-full font-bold text-xs text-white bg-gradient-to-l from-brand-deep to-brand-blue hover:opacity-95 active:bg-orange-700 shadow-md shadow-brand-blue/20 transform hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none flex items-center justify-center gap-2 group"
+                    className="px-4 py-2 rounded-lg font-semibold text-xs text-white bg-orange-600 hover:bg-orange-700 active:bg-orange-800 shadow-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 group cursor-pointer"
                 >
                     <BoltIcon className="w-3.5 h-3.5 group-hover:rotate-180 transition-transform duration-500"/>
-                    <span className="tracking-wide uppercase">
+                    <span>
                         {activeReportId ? 'Atualizar Resultados' : 'Processar Inteligente'}
                     </span>
                 </button>

@@ -671,15 +671,12 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                         Data do Lançamento
                     </label>
-                    <div className="relative group">
-                        <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
-                        <input 
-                            type="date"
-                            value={date ? (String(date).includes('T') ? String(date).split('T')[0] : String(date)) : ''}
-                            onChange={(e) => setDate(e.target.value)}
-                            className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 pl-9 pr-3 transition-all outline-none text-xs font-semibold"
-                        />
-                    </div>
+                    <input 
+                        type="date"
+                        value={date ? (String(date).includes('T') ? String(date).split('T')[0] : String(date)) : ''}
+                        onChange={(e) => setDate(e.target.value)}
+                        className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 px-3 transition-all outline-none text-xs font-semibold tabular-nums"
+                    />
                 </div>
 
                 <div className="space-y-1">
@@ -1122,11 +1119,11 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
     return (
         <>
             <div
-                className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/50 backdrop-blur-[2px] animate-fade-in"
+                className="fixed inset-0 z-[90] flex items-center justify-center p-2 sm:p-4 bg-slate-900/55 backdrop-blur-[2px] animate-fade-in"
                 onClick={onClose}
             >
                 <div 
-                    className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[92vh] animate-scale-in"
+                    className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-elevated w-full max-w-2xl overflow-hidden flex flex-col max-h-[92vh] animate-scale-in"
                     onClick={(e) => e.stopPropagation()}
                 >
                     {/* Cabeçalho */}
@@ -1154,7 +1151,10 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
                     </div>
 
                     {/* Corpo do Formulário */}
-                    <div className="p-4 sm:p-5 overflow-y-auto custom-scrollbar flex-1">
+                    <div
+                        className="p-4 sm:p-5 overflow-y-auto custom-scrollbar flex-1"
+                        style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+                    >
                         {renderFormContent()}
                     </div>
                 </div>

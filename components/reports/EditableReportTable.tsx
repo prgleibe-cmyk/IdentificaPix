@@ -188,15 +188,14 @@ const MobileCard = memo(({
     const hasChurch = Boolean(rawChurchName && rawChurchName !== '---' && rawChurchName !== '--');
 
     return (
-        <div className={`px-4 py-3.5 transition-colors flex flex-col justify-between ${
+        <div className={`px-3.5 py-3 transition-colors flex flex-col gap-2 ${
             isSelected 
                 ? 'bg-blue-50/75 dark:bg-blue-900/25' 
                 : isManualRow 
                     ? 'bg-white dark:bg-slate-900 border-l-3 border-l-amber-400' 
                     : 'bg-white dark:bg-slate-900'
         }`}>
-            <div>
-            <div className="flex items-start justify-between gap-2.5 mb-2.5">
+            <div className="flex items-start justify-between gap-2.5">
                 <div className="flex items-start gap-2.5 min-w-0">
                     <input 
                         type="checkbox" 
@@ -218,31 +217,30 @@ const MobileCard = memo(({
                             ) : (
                                 <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 tabular-nums">{displayDate}</span>
                             )}
-                            <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-semibold border ${
-                                sourceInfo.isManual
-                                    ? 'bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border-amber-300/80 dark:border-amber-700/60'
-                                    : sourceInfo.isSms 
-                                        ? 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border-sky-200 dark:border-sky-800' 
-                                        : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                            }`}>
-                                {sourceInfo.label}
-                            </span>
+                            {sourceInfo.isManual ? (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200/80 dark:border-amber-700/60">
+                                    {sourceInfo.label}
+                                </span>
+                            ) : sourceInfo.isSms ? (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
+                                    {sourceInfo.label}
+                                </span>
+                            ) : (
+                                <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
+                                    • {sourceInfo.label}
+                                </span>
+                            )}
                             {docBadge && (
-                                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700 tabular-nums">
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 tabular-nums">
                                     {docBadge}
                                 </span>
                             )}
                         </div>
-                        <div className="flex items-center gap-1.5 mt-1.5 min-w-0">
+                        <div className="flex items-center gap-1.5 mt-1 min-w-0">
                             {(row.contributor || isGhost) ? <UserIcon className="w-3.5 h-3.5 text-orange-500 shrink-0" /> : <BanknotesIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
                             <span className={`min-w-0 text-[13px] font-semibold tracking-tight leading-snug break-words [overflow-wrap:anywhere] ${confirmed ? 'text-slate-500/80' : 'text-slate-900 dark:text-white'}`}>
                                 {visualName}
                             </span>
-                            {isManualRow && (
-                                <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 rounded-md border border-amber-200 dark:border-amber-800 shrink-0">
-                                    Manual
-                                </span>
-                            )}
                         </div>
                         {!isManualRow && rawBankDesc && rawBankDesc !== displayName && (
                             <div className="text-[11px] text-slate-400 dark:text-slate-500 font-normal pl-5 mt-0.5 leading-snug break-words [overflow-wrap:anywhere]" title={`Extrato Original: ${rawBankDesc}`}>
@@ -404,67 +402,67 @@ const MobileCard = memo(({
                     </div>
                 </div>
             </div>
-            </div>
 
-            <div>
-            <div className="flex items-center justify-between gap-3 text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/70">
-                <div className="flex items-center gap-1.5 truncate">
-                    <BuildingOfficeIcon className={`w-3.5 h-3.5 shrink-0 ${hasChurch ? 'text-orange-500' : 'text-slate-300 dark:text-slate-600'}`} />
-                    <span className={`truncate ${hasChurch ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400 italic'}`}>
-                        {hasChurch ? rawChurchName : 'Sem congregação'}
-                    </span>
+            <div className="flex items-center justify-between gap-2 text-[11px] font-medium text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800/70">
+                <div className="flex flex-col min-w-0 flex-1 gap-0.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                        <BuildingOfficeIcon className={`w-3.5 h-3.5 shrink-0 ${hasChurch ? 'text-orange-500' : 'text-slate-300 dark:text-slate-600'}`} />
+                        <span className={`truncate ${hasChurch ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400'}`}>
+                            {hasChurch ? rawChurchName : 'Sem congregação'}
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400 pl-5 truncate">
+                        {row.splits && row.splits.length > 0 ? (
+                            <span className="text-indigo-700 dark:text-indigo-300 font-semibold">Rateado</span>
+                        ) : (
+                            <span className="truncate font-medium text-slate-600 dark:text-slate-300">{displayType}</span>
+                        )}
+                        <span>•</span>
+                        <span className="font-semibold text-slate-600 dark:text-slate-300 shrink-0">{displayForm}</span>
+                    </div>
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                    {row.splits && row.splits.length > 0 ? (
-                        <span className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 px-2 py-0.5 rounded-md border border-indigo-100 dark:border-indigo-900/30 font-semibold text-[10px]">Rateado</span>
-                    ) : (
-                        <span className="bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 px-2 py-0.5 rounded-md text-[10px] font-semibold">{displayType}</span>
-                    )}
-                    <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">{displayForm}</span>
-                </div>
-            </div>
 
-            <div className="flex items-center justify-end gap-1.5 w-full pt-2 border-t border-slate-100 dark:border-slate-800/70">
-                <button
-                    type="button"
-                    onClick={() => {
-                        if (openWhatsAppReceiptModal) {
-                            openWhatsAppReceiptModal({
-                                contributorName: displayName,
-                                phone: row.contributor?.phone || row.contributor?.mobile || row.contributor?.whatsapp || '',
-                                amount: displayAmount,
-                                contributionType: displayType,
-                                churchName: row.church?.name,
-                                date: refDate || row.transaction.date,
-                                transactionId: row.transaction.id
-                            });
-                        }
-                    }}
-                    className={`relative w-8 h-8 rounded-lg inline-flex items-center justify-center transition-all border cursor-pointer ${
-                        waSent
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800'
-                            : 'bg-white hover:bg-emerald-50 text-emerald-600 dark:bg-slate-800 dark:text-emerald-400 border-slate-200/90 dark:border-slate-700 hover:border-emerald-300'
-                    }`}
-                    title={waSent ? "WhatsApp Enviado (Clique para reenviar)" : "Enviar WhatsApp"}
-                    aria-label={waSent ? "WhatsApp Enviado (Clique para reenviar)" : "Enviar WhatsApp"}
-                >
-                    {waSent ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    ) : (
-                        <MessageCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    )}
-                </button>
+                <div className="flex items-center justify-end gap-1 shrink-0">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            if (openWhatsAppReceiptModal) {
+                                openWhatsAppReceiptModal({
+                                    contributorName: displayName,
+                                    phone: row.contributor?.phone || row.contributor?.mobile || row.contributor?.whatsapp || '',
+                                    amount: displayAmount,
+                                    contributionType: displayType,
+                                    churchName: row.church?.name,
+                                    date: refDate || row.transaction.date,
+                                    transactionId: row.transaction.id
+                                });
+                            }
+                        }}
+                        className={`relative w-7 h-7 rounded-lg inline-flex items-center justify-center transition-all border cursor-pointer ${
+                            waSent
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800'
+                                : 'bg-white hover:bg-emerald-50 text-emerald-600 dark:bg-slate-800 dark:text-emerald-400 border-slate-200/90 dark:border-slate-700 hover:border-emerald-300'
+                        }`}
+                        title={waSent ? "WhatsApp Enviado (Clique para reenviar)" : "Enviar WhatsApp"}
+                        aria-label={waSent ? "WhatsApp Enviado (Clique para reenviar)" : "Enviar WhatsApp"}
+                    >
+                        {waSent ? (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                        ) : (
+                            <MessageCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                        )}
+                    </button>
 
-                <span className="h-4 w-px bg-slate-200 dark:bg-slate-700 mx-0.5" aria-hidden="true" />
+                    <span className="h-3.5 w-px bg-slate-200 dark:bg-slate-700 mx-0.5" aria-hidden="true" />
 
-                <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                    <div className="flex items-center justify-end gap-1">
                     {canPrintReceipt && (() => {
                         const hasSignedReceipt = Boolean((row as any).receiptSignatures && Object.keys((row as any).receiptSignatures).length > 0) || Boolean(serviceReceiptAtt);
                         return (
                             <button
                                 type="button"
                                 onClick={() => onGenerateReceipt(row)}
-                                className={`relative w-8 h-8 rounded-lg inline-flex items-center justify-center transition-colors cursor-pointer border ${
+                                className={`relative w-7 h-7 rounded-lg inline-flex items-center justify-center transition-colors cursor-pointer border ${
                                     hasSignedReceipt
                                         ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
                                         : 'text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border-slate-200/90 dark:border-slate-700 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/40'
@@ -472,7 +470,7 @@ const MobileCard = memo(({
                                 title={hasSignedReceipt ? "Recibo com Assinatura Digital na Tela (Clique para visualizar/assinar)" : "Gerar e Assinar Digitalmente o Recibo"}
                                 aria-label={hasSignedReceipt ? "Visualizar recibo assinado" : "Gerar recibo"}
                             >
-                                <Printer className="w-4 h-4" />
+                                <Printer className="w-3.5 h-3.5" />
                                 {hasSignedReceipt && (
                                     <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" title="Assinado Digitalmente na Tela" />
                                 )}
@@ -484,11 +482,11 @@ const MobileCard = memo(({
                             <button
                                 type="button"
                                 onClick={() => onToggleLock(row.transaction.id, false)}
-                                className="w-8 h-8 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-300 border border-indigo-200/70 dark:border-indigo-800 inline-flex items-center justify-center transition-colors cursor-pointer"
+                                className="w-7 h-7 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-300 border border-indigo-200/70 dark:border-indigo-800 inline-flex items-center justify-center transition-colors cursor-pointer"
                                 title="Remover Bloqueio"
                                 aria-label="Remover Bloqueio"
                             >
-                                <LockOpenIcon className="w-4 h-4" />
+                                <LockOpenIcon className="w-3.5 h-3.5" />
                             </button>
                         )
                     ) : (
@@ -498,51 +496,51 @@ const MobileCard = memo(({
                                     <button
                                         type="button"
                                         onClick={() => onEdit(row)}
-                                        className="w-8 h-8 rounded-lg text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-900/30 border border-amber-200/70 dark:border-amber-800/40 inline-flex items-center justify-center transition-colors cursor-pointer"
+                                        className="w-7 h-7 rounded-lg text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-900/30 border border-amber-200/70 dark:border-amber-800/40 inline-flex items-center justify-center transition-colors cursor-pointer"
                                         title="Editar Lançamento Manual"
                                         aria-label="Editar Lançamento Manual"
                                     >
-                                        <Pencil className="w-4 h-4" />
+                                        <Pencil className="w-3.5 h-3.5" />
                                     </button>
                                 )}
                                 {onSplit && (
                                     <button
                                         type="button"
                                         onClick={() => onSplit(row)}
-                                        className="w-8 h-8 rounded-lg text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-950/40 border border-slate-200/90 dark:border-slate-700 inline-flex items-center justify-center transition-colors cursor-pointer"
+                                        className="w-7 h-7 rounded-lg text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-950/40 border border-slate-200/90 dark:border-slate-700 inline-flex items-center justify-center transition-colors cursor-pointer"
                                         title="Desmembrar / Ratear Lançamento"
                                         aria-label="Ratear Lançamento"
                                     >
-                                        <GitFork className="w-4 h-4 text-indigo-500" />
+                                        <GitFork className="w-3.5 h-3.5 text-indigo-500" />
                                     </button>
                                 )}
                                 {isIdentified && canUndoIdentification && (
                                     <button
                                         type="button"
                                         onClick={() => onUndo(row.transaction.id)}
-                                        className="w-8 h-8 rounded-lg text-amber-600 bg-white hover:bg-amber-50 dark:bg-slate-800 dark:text-amber-400 border border-slate-200/90 dark:border-slate-700 inline-flex items-center justify-center transition-colors cursor-pointer"
+                                        className="w-7 h-7 rounded-lg text-amber-600 bg-white hover:bg-amber-50 dark:bg-slate-800 dark:text-amber-400 border border-slate-200/90 dark:border-slate-700 inline-flex items-center justify-center transition-colors cursor-pointer"
                                         title="Desfazer auto-identificação"
                                         aria-label="Desfazer auto-identificação"
                                     >
-                                        <ArrowUturnLeftIcon className="w-4 h-4" />
+                                        <ArrowUturnLeftIcon className="w-3.5 h-3.5" />
                                     </button>
                                 )}
                                 {canDeleteRow && (
                                     <button
                                         type="button"
                                         onClick={() => onDelete(row)}
-                                        className="w-8 h-8 rounded-lg text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-slate-200/90 dark:border-slate-700 inline-flex items-center justify-center transition-colors cursor-pointer"
+                                        className="w-7 h-7 rounded-lg text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-slate-200/90 dark:border-slate-700 inline-flex items-center justify-center transition-colors cursor-pointer"
                                         title="Excluir"
                                         aria-label="Excluir"
                                     >
-                                        <TrashIcon className="w-4 h-4" />
+                                        <TrashIcon className="w-3.5 h-3.5" />
                                     </button>
                                 )}
                             </>
                         )
                     )}
+                    </div>
                 </div>
-            </div>
             </div>
         </div>
     );
@@ -826,15 +824,19 @@ const IncomeRow = memo(({
                     </div>
                 </td>
                 <td className="hidden lg:table-cell px-3.5 py-3 text-center">
-                    <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-md border ${
-                        sourceInfo.isManual
-                            ? 'bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border-amber-300/80 dark:border-amber-700/60'
-                            : sourceInfo.isSms 
-                                ? 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border-sky-200 dark:border-sky-800' 
-                                : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                    }`}>
-                        {sourceInfo.label}
-                    </span>
+                    {sourceInfo.isManual ? (
+                        <span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200/80 dark:border-amber-700/60">
+                            {sourceInfo.label}
+                        </span>
+                    ) : sourceInfo.isSms ? (
+                        <span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
+                            {sourceInfo.label}
+                        </span>
+                    ) : (
+                        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                            {sourceInfo.label}
+                        </span>
+                    )}
                 </td>
                 <td className="px-2.5 lg:px-3.5 py-3">
                     {(() => {
@@ -846,7 +848,7 @@ const IncomeRow = memo(({
                                 <span className={`text-xs font-medium break-words ${isIdentified && hasCh ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400'}`}>
                                     {hasSplits && new Set(row.splits!.map(s => s.churchName || s.churchId)).size > 1 
                                         ? `Múltiplas Igrejas (${new Set(row.splits!.map(s => s.churchName || s.churchId)).size})`
-                                        : (hasCh ? rawCh : '---')}
+                                        : (hasCh ? rawCh : '—')}
                                 </span>
                             </div>
                         );
@@ -873,7 +875,7 @@ const IncomeRow = memo(({
                             Rateado ({row.splits!.length})
                         </span>
                     ) : (
-                        <span className="inline-block max-w-[210px] leading-snug text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-2 py-0.5 rounded-md border border-slate-200/70 dark:border-slate-700">{displayType}</span>
+                        <span className="inline-block max-w-[210px] leading-snug text-xs font-medium text-slate-700 dark:text-slate-200">{displayType}</span>
                     )}
                 </td>
                 <td className="hidden lg:table-cell px-3.5 py-3"><span className="text-xs font-medium text-slate-600 dark:text-slate-300">{displayForm}</span></td>
@@ -1458,7 +1460,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
             <BulkActionToolbar selectedIds={selectedIds} results={data} onClear={() => setSelectedIds([])} />
             
             {/* Desktop & Tablet Table View (Formato Lista Padrão em md+) */}
-            <div className="hidden md:block flex-1 w-full overflow-auto custom-scrollbar relative">
+            <div className="hidden md:block flex-1 w-full overflow-auto custom-scrollbar relative" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}>
                 <table className="w-full text-left border-collapse">
                     <thead className="bg-slate-50/95 dark:bg-slate-800/80 backdrop-blur-sm sticky top-0 z-20 border-b border-slate-200/90 dark:border-slate-800">
                         <tr>
@@ -1531,7 +1533,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
             {/* Mobile Vertical List View (< 768px) */}
             <div className="block md:hidden flex-1 w-full flex flex-col bg-white dark:bg-slate-900">
                 <div className="sticky top-0 z-20 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-xs px-4 py-2.5 border-b border-slate-200/90 dark:border-slate-800 flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
+                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
                         <input 
                             type="checkbox" 
                             onChange={toggleAll}
@@ -1539,12 +1541,10 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                             className="w-4 h-4 rounded border-slate-300 text-orange-600 cursor-pointer accent-orange-600"
                         />
                         <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Selecionar todos</span>
-                    </div>
-                    {selectedIds.length > 0 ? (
-                        <span className="text-xs font-semibold text-orange-600 dark:text-orange-400 tabular-nums">{selectedIds.length} selecionado(s)</span>
-                    ) : totalPages > 1 ? (
+                    </label>
+                    {totalPages > 1 && (
                         <span className="text-xs font-medium text-slate-500 dark:text-slate-400 tabular-nums">Pág. {currentPage}/{totalPages}</span>
-                    ) : null}
+                    )}
                 </div>
                 <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800">
                     {paginatedData.map(result => {
@@ -1591,15 +1591,15 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
 
             {/* Receipt Preview & Printing Modal */}
             {selectedReceipt && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in text-slate-950">
-                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-[2.5rem] w-full max-w-2xl shadow-2xl p-8 space-y-6 max-h-[90vh] overflow-y-auto">
-                        <div className="flex justify-between items-center pb-4 border-b border-slate-100 dark:border-white/5">
-                            <h3 className="text-sm font-black text-slate-800 dark:text-white tracking-tight uppercase">
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in text-slate-950">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl w-full max-w-2xl shadow-elevated p-6 sm:p-8 space-y-5 max-h-[90vh] overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
+                        <div className="flex justify-between items-center pb-4 border-b border-slate-100 dark:border-slate-800">
+                            <h3 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight uppercase">
                                 Comprovante de Lançamento / Recibo
                             </h3>
                             <button
                                 onClick={() => setSelectedReceipt(null)}
-                                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-white/5 rounded-full transition-all cursor-pointer"
+                                className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all cursor-pointer"
                             >
                                 <X className="w-4 h-4" />
                             </button>
@@ -1814,12 +1814,12 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                         </div>
 
                         {/* Modal Actions */}
-                        <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-100 dark:border-white/5">
+                        <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
                             <div className="flex items-center gap-2">
                                 <button
                                     type="button"
                                     onClick={() => handleOpenPad(receiptSignatures.treasurer ? 'recipient' : 'treasurer')}
-                                    className="px-4 py-2.5 bg-gradient-to-r from-orange-500 via-amber-600 to-amber-700 hover:from-orange-600 hover:to-amber-800 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-orange-500/20 flex items-center gap-2 cursor-pointer active:scale-95 border border-orange-400/30"
+                                    className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-xs font-semibold transition-all shadow-xs flex items-center gap-2 cursor-pointer active:scale-95"
                                     title="Assinar digitalmente com dedo ou mouse diretamente na tela"
                                 >
                                     <PenTool className="w-4 h-4" />
@@ -1834,7 +1834,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => setSelectedReceipt(null)}
-                                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                                    className="px-4 py-2 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/90 dark:border-slate-700 rounded-lg text-xs font-semibold transition-all cursor-pointer shadow-xs"
                                 >
                                     Fechar
                                 </button>
@@ -1981,7 +1981,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                                         iframeDoc.close();
                                     }
                                 }}
-                                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-500/10 hover:shadow-blue-500/20 flex items-center gap-2 cursor-pointer"
+                                className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-xs font-semibold transition-all shadow-xs flex items-center gap-2 cursor-pointer active:scale-95"
                             >
                                 <Printer className="w-4 h-4" />
                                 Imprimir Recibo

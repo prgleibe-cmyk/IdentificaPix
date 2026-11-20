@@ -6,7 +6,7 @@ const router = express.Router();
 
 export default () => {
     const getVpsApiUrl = () => {
-        const defaultPort = process.env.PORT || '3000';
+        const defaultPort = process.env.PORT || (process.env.NODE_ENV === 'production' ? '3000' : '3001');
         const rawUrl = process.env.CONTRIBUTORS_API_URL;
         const vpsUrl = (rawUrl && !rawUrl.includes('contributors-api:3010'))
             ? rawUrl
@@ -63,16 +63,17 @@ export default () => {
         const { reportId, name, data, recordCount, churchId } = req.body;
         const effectiveOwnerId = req.user.owner_id || req.user.id;
 
-        // 🔥 CORREÇÃO AQUI
         validateOwnerAccess(req, effectiveOwnerId);
 
         try {
             const cleanVpsUrl = getVpsApiUrl();
+            const authHeader = req.headers.authorization ? { 'Authorization': req.headers.authorization } : {};
 
             const response = await fetch(`${cleanVpsUrl}/api/v1/saved_reports`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    ...authHeader
                 },
                 body: JSON.stringify({
                     id: reportId,
@@ -100,17 +101,15 @@ export default () => {
         const { reportId } = req.params;
         const effectiveOwnerId = req.user.owner_id || req.user.id;
 
-        // 🔥 CORREÇÃO AQUI
         validateOwnerAccess(req, effectiveOwnerId);
 
         try {
             const cleanVpsUrl = getVpsApiUrl();
+            const authHeader = req.headers.authorization ? { 'Authorization': req.headers.authorization } : {};
 
-            // Wait, we want to fetch a single saved report, but we don't have GET /api/v1/saved_reports/:id.
-            // Oh, but we can query GET /api/v1/saved_reports?user_id=... and filter in memory, or add GET /api/v1/saved_reports/:id to VPS!
-            // Wait, let's see if we can query GET /api/v1/saved_reports?user_id=... and filter, which is very simple. Or better yet, we can check if VPS supports getting saved_reports. Let's see: yes, filtering by ID on client/proxy side is extremely robust and avoids needing to edit too many routes.
-            // Wait, let's check if the list query can return it. Yes:
-            const response = await fetch(`${cleanVpsUrl}/api/v1/saved_reports?user_id=${effectiveOwnerId}`);
+            const response = await fetch(`${cleanVpsUrl}/api/v1/saved_reports?user_id=${effectiveOwnerId}`, {
+                headers: authHeader
+            });
             if (!response.ok) {
                 throw new Error(`Failed to get reports from VPS: ${response.statusText}`);
             }
@@ -120,10 +119,16 @@ export default () => {
                 return res.status(404).json({ error: 'NOT_FOUND' });
             }
 
-            // Return { data: found.data, name: found.name }
+            let parsedData = found.data;
+            if (typeof parsedData === 'string') {
+                try {
+                    parsedData = JSON.parse(parsedData);
+                } catch (_) {}
+            }
+
             res.json({
                 name: found.name,
-                data: typeof found.data === 'string' ? JSON.parse(found.data) : found.data
+                data: parsedData
             });
         } catch (error) {
             console.error("[Reference API] Erro ao buscar relatório:", error);

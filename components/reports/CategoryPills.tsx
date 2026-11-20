@@ -106,7 +106,7 @@ export const CategoryPills: React.FC<CategoryPillsProps> = ({
     }, [isDropdownOpen]);
 
     return (
-        <div className="inline-flex max-w-full items-center gap-1 bg-slate-100/80 dark:bg-slate-800/80 p-1 rounded-lg border border-slate-200/80 dark:border-slate-700 overflow-x-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+        <div className={`${categories.length > 1 ? 'grid grid-cols-2 w-full sm:w-auto sm:inline-flex' : 'inline-flex'} max-w-full items-center gap-1 bg-slate-100/80 dark:bg-slate-800/80 p-1 rounded-lg border border-slate-200/80 dark:border-slate-700`}>
             {categories.map(cat => {
                 const isActive = activeCategory === cat.id;
                 const isChurch = cat.id === 'churches';
@@ -128,11 +128,11 @@ export const CategoryPills: React.FC<CategoryPillsProps> = ({
                         key={cat.id}
                         ref={isChurch ? churchButtonRef : undefined}
                         onClick={(e) => handleCategoryClick(cat.id, e)}
-                        className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-md transition-all duration-150 text-xs font-semibold whitespace-nowrap shrink-0 border cursor-pointer ${activeClass}`}
+                        className={`relative flex items-center justify-center sm:justify-start gap-1.5 px-2.5 py-1.5 rounded-md transition-all duration-150 text-xs font-semibold whitespace-nowrap shrink-0 border cursor-pointer ${activeClass}`}
                         title={isChurch ? 'Clique para selecionar uma congregação' : undefined}
                     >
                         <cat.icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400 dark:text-slate-400'}`} />
-                        <span className={isChurch ? 'max-w-[150px] sm:max-w-[210px] truncate' : ''}>{displayLabel}</span>
+                        <span className={isChurch ? 'max-w-[130px] sm:max-w-[210px] truncate' : ''}>{displayLabel}</span>
                         {isChurch && (
                             <ChevronDown className={`w-3 h-3 shrink-0 transition-transform duration-200 ${isActive ? 'text-white/90' : 'text-slate-400'} ${isDropdownOpen ? 'rotate-180' : ''}`} />
                         )}

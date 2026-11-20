@@ -41,7 +41,7 @@ test('PB-001: Visualização Imediata de Documentos no Lançamento Manual', asyn
     );
 
     const startIndex = manualIdContent.indexOf('if (isManualLaunch) {');
-    const endIndex = manualIdContent.indexOf('className="fixed inset-0 z-50', startIndex);
+    const endIndex = manualIdContent.indexOf('className="fixed inset-0', startIndex);
     assert.ok(startIndex !== -1 && endIndex !== -1, 'Delimitadores do bloco isManualLaunch não encontrados');
     const manualLaunchBlock = manualIdContent.slice(startIndex, endIndex);
 

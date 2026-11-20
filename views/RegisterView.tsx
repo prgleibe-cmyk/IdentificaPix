@@ -52,17 +52,17 @@ export const RegisterView: React.FC = memo(() => {
     return (
         <div className="px-2 py-3 md:px-4 w-full max-w-7xl mx-auto space-y-4 flex flex-col min-h-full animate-fade-in pb-8 md:pb-6">
             {/* Header Card */}
-            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex-shrink-0">
+            <div className="bg-white dark:bg-slate-900 px-4 py-2.5 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex-shrink-0">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-orange-50 dark:bg-orange-950/50 border border-orange-200/70 dark:border-orange-900/50 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
-                            <PlusCircle className="w-5 h-5" />
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-orange-50 dark:bg-orange-950/50 border border-orange-200/70 dark:border-orange-900/50 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
+                            <PlusCircle className="w-4 h-4" />
                         </div>
                         <div>
-                            <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+                            <h1 className="text-base font-bold text-slate-900 dark:text-white tracking-tight leading-tight">
                                 {t('register.title')}
                             </h1>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
                                 Gerencie contas, igrejas, descrições, formas de pagamento e empresas/pessoas.
                             </p>
                         </div>

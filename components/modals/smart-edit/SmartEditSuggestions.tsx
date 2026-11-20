@@ -81,17 +81,17 @@ export const SmartEditSuggestions: React.FC<SmartEditSuggestionsProps> = ({
     return (
         <div className="space-y-4">
             <div className="relative">
-                <SearchIcon className="w-3 h-3 text-slate-400 absolute top-1/2 left-2.5 -translate-y-1/2" />
-                <input type="text" placeholder={isReverseMode ? "Buscar no extrato..." : "Trocar contribuinte..."} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-medium shadow-sm focus:ring-1 focus:ring-brand-blue outline-none transition-all placeholder:text-slate-400" />
+                <SearchIcon className="w-3.5 h-3.5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2" />
+                <input type="text" placeholder={isReverseMode ? "Buscar no extrato..." : "Trocar contribuinte..."} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-medium text-slate-800 dark:text-slate-100 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 outline-none transition-colors placeholder:text-slate-400" />
             </div>
             <div>
                 <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1"><SearchIcon className="w-2.5 h-2.5 text-indigo-500" /> {searchQuery ? 'Resultados' : 'Melhores Matches'}</h4>
-                    {loadingAiId && <span className="flex items-center gap-1 text-[8px] text-purple-500 animate-pulse font-bold bg-purple-50 px-1.5 py-0.5 rounded-full"><SparklesIcon className="w-2 h-2" /> Analisando...</span>}
+                    <h4 className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5"><SearchIcon className="w-3 h-3 text-orange-600 dark:text-orange-400" /> {searchQuery ? 'Resultados' : 'Melhores Matches'}</h4>
+                    {loadingAiId && <span className="flex items-center gap-1 text-[10px] text-orange-600 dark:text-orange-400 font-semibold bg-orange-50 dark:bg-orange-950/40 px-2 py-0.5 rounded-md"><SparklesIcon className="w-3 h-3" /> Analisando...</span>}
                 </div>
                 {suggestions.length > 0 ? suggestions.map((item, idx) => (
                     <SmartEditListItem key={item.id} item={item} isSuggestion={!searchQuery} index={idx} language={language} onSelect={onSelect} manualChurchId={manualChurchId} />
-                )) : !loadingAiId && <div className="text-center py-4 text-slate-400 text-[10px] italic">Nada encontrado.</div>}
+                )) : !loadingAiId && <div className="text-center py-4 text-slate-400 text-xs italic">Nada encontrado.</div>}
             </div>
         </div>
     );

@@ -13,38 +13,45 @@ interface PaymentConfigPanelProps {
 }
 
 export const PaymentConfigPanel: React.FC<PaymentConfigPanelProps> = ({
-    subscription, usageStats, numSlots, setNumSlots, step, pricePerExtra
+    usageStats, numSlots, setNumSlots, step, pricePerExtra
 }) => (
-    <div className="p-6 sm:p-8 flex flex-col h-full overflow-y-auto custom-scrollbar relative z-10 bg-white/50 dark:bg-slate-900/30">
-        <div className="mb-6">
-            <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-sm relative group">
-                <div className="flex justify-between items-end mb-3 relative z-10">
-                    <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500">
-                        <ClockIcon className="w-4 h-4" />
-                        <span className="text-[10px] font-bold uppercase tracking-wider">Tempo Restante de Acesso</span>
+    <div
+        style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+        className="p-4 sm:p-5 flex flex-col justify-between gap-4 overflow-y-auto custom-scrollbar bg-white dark:bg-slate-900"
+    >
+        <div className="space-y-4">
+            <div className="bg-slate-50/70 dark:bg-slate-800/40 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+                <div className="flex justify-between items-end mb-2.5">
+                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                        <ClockIcon className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                        <span className="text-xs font-semibold">Tempo Restante de Acesso</span>
                     </div>
-                    <span className={`text-2xl font-black tabular-nums tracking-tight ${usageStats.days.left < 5 ? 'text-red-500' : 'text-slate-900 dark:text-white'}`}>
+                    <span className={`text-xl font-bold tabular-nums tracking-tight ${usageStats.days.left < 5 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>
                         {usageStats.days.left} <span className="text-xs font-medium text-slate-400 ml-0.5">dias</span>
                     </span>
                 </div>
-                <ProgressBar percent={usageStats.days.percent} colorClass={usageStats.days.left < 5 ? "bg-red-500" : "bg-emerald-500"} glowColor={usageStats.days.left < 5 ? "bg-red-400" : "bg-emerald-400"} />
+                <ProgressBar percent={usageStats.days.percent} colorClass={usageStats.days.left < 5 ? "bg-rose-500" : "bg-emerald-500"} glowColor={usageStats.days.left < 5 ? "bg-rose-400" : "bg-emerald-400"} />
+            </div>
+
+            <div className="space-y-2.5">
+                <div className="flex items-center gap-1.5">
+                    <BoltIcon className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
+                    <h4 className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Personalizar Limites</h4>
+                </div>
+                
+                <Counter 
+                    value={numSlots} 
+                    setValue={setNumSlots} 
+                    label="Capacidade de Cadastros" 
+                    icon={CircleStackIcon} 
+                    subLabel={numSlots > 1 ? `+${formatCurrency(pricePerExtra * (numSlots - 1))}/mês` : "Plano Base (Igreja + Banco)"} 
+                    disabled={step !== 'config'} 
+                />
             </div>
         </div>
 
-        <div className="space-y-4 mb-4">
-            <div className="flex items-center gap-2 mb-2">
-                <BoltIcon className="w-4 h-4 text-amber-500" />
-                <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Personalizar</h3>
-            </div>
-            
-            <Counter 
-                value={numSlots} 
-                setValue={setNumSlots} 
-                label="Capacidade de Cadastros" 
-                icon={CircleStackIcon} 
-                subLabel={numSlots > 1 ? `+${formatCurrency(pricePerExtra * (numSlots - 1))}` : "Plano Base (Igreja + Banco)"} 
-                disabled={step !== 'config'} 
-            />
-        </div>
+        <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-relaxed pt-2 border-t border-slate-100 dark:border-slate-800/80">
+            Cada capacidade adicional amplia o limite de igrejas e contas bancárias sincronizadas na mesma assinatura.
+        </p>
     </div>
 );

@@ -1,4 +1,4 @@
-import React, { useContext, useState, useMemo } from 'react';
+import React, { useContext, useState, useMemo, useRef } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useUI } from '../contexts/UIContext';
 import { useTranslation } from '../contexts/I18nContext';
@@ -17,7 +17,9 @@ import { CategoryPills } from '../components/reports/CategoryPills';
 import { ReportToolbar } from '../components/reports/ReportToolbar';
 import { BankChipsList } from '../components/reports/BankChipsList';
 import { StatsStrip } from '../components/reports/StatsStrip';
-import { ContributorsReportSection } from '../components/reports/ContributorsReportSection';
+import { ContributorsReportSection, ContributorsReportHandle } from '../components/reports/ContributorsReportSection';
+import { PeriodSelector, PeriodSelectionMode, DEFAULT_MONTHS_LIST } from '../components/reports/PeriodSelector';
+import { ExportPrintActions } from '../components/reports/ExportPrintActions';
 
 const formatDateBRL = (dateStr: string) => {
     if (!dateStr) return '';
@@ -72,31 +74,18 @@ export const ReportsView: React.FC = () => {
     };
 
     // Estados locais para controle do período
-    const [selectionMode, setSelectionMode] = useState<'month' | 'dates'>('month');
+    const [selectionMode, setSelectionMode] = useState<PeriodSelectionMode>('month');
     const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
     const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
     const [customStart, setCustomStart] = useState<string>('');
     const [customEnd, setCustomEnd] = useState<string>('');
     const [splitRow, setSplitRow] = useState<MatchResult | null>(null);
     const [editingManualRow, setEditingManualRow] = useState<MatchResult | null>(null);
+    const hasInitializedPeriodRef = useRef(false);
+    const contributorsReportRef = useRef<ContributorsReportHandle>(null);
 
     const startSelected = ctrl.searchFilters?.dateRange?.start;
     const endSelected = ctrl.searchFilters?.dateRange?.end;
-
-    const monthsList = [
-        { val: 1, name: 'Janeiro' },
-        { val: 2, name: 'Fevereiro' },
-        { val: 3, name: 'Março' },
-        { val: 4, name: 'Abril' },
-        { val: 5, name: 'Maio' },
-        { val: 6, name: 'Junho' },
-        { val: 7, name: 'Julho' },
-        { val: 8, name: 'Agosto' },
-        { val: 9, name: 'Setembro' },
-        { val: 10, name: 'Outubro' },
-        { val: 11, name: 'Novembro' },
-        { val: 12, name: 'Dezembro' }
-    ];
 
     const currentYear = new Date().getFullYear();
     const yearsList = useMemo(() => {
@@ -108,19 +97,23 @@ export const ReportsView: React.FC = () => {
     // Auto-inicializar e sincronizar com o período definido nos filtros globais
     React.useEffect(() => {
         if (!startSelected || !endSelected) {
-            const now = new Date();
-            const m = now.getMonth() + 1;
-            const y = now.getFullYear();
-            setSelectedMonth(prev => prev !== m ? m : prev);
-            setSelectedYear(prev => prev !== y ? y : prev);
-            const { start, end } = getDatesFromMonthYear(m, y);
-            if (ctrl.setSearchFilters) {
-                ctrl.setSearchFilters((prev: any) => ({
-                    ...prev,
-                    dateRange: { start, end }
-                }));
+            if (!hasInitializedPeriodRef.current) {
+                hasInitializedPeriodRef.current = true;
+                const now = new Date();
+                const m = now.getMonth() + 1;
+                const y = now.getFullYear();
+                setSelectedMonth(prev => prev !== m ? m : prev);
+                setSelectedYear(prev => prev !== y ? y : prev);
+                const { start, end } = getDatesFromMonthYear(m, y);
+                if (ctrl.setSearchFilters) {
+                    ctrl.setSearchFilters((prev: any) => ({
+                        ...prev,
+                        dateRange: { start, end }
+                    }));
+                }
             }
         } else {
+            hasInitializedPeriodRef.current = true;
             const startParts = startSelected.split('-');
             const endParts = endSelected.split('-');
             if (startParts.length === 3 && endParts.length === 3) {
@@ -156,16 +149,41 @@ export const ReportsView: React.FC = () => {
         }
     };
 
-    const handleApplyCustomDates = () => {
-        if (!customStart || !customEnd) {
-            alert('Por favor, escolha as datas de início e fim.');
-            return;
-        }
-        if (ctrl.setSearchFilters) {
+    const handleCustomDatesChange = (start: string, end: string) => {
+        setCustomStart(start);
+        setCustomEnd(end);
+        if (start && end && ctrl.setSearchFilters) {
             ctrl.setSearchFilters((prev: any) => ({
                 ...prev,
-                dateRange: { start: customStart, end: customEnd }
+                dateRange: { start, end }
             }));
+        }
+    };
+
+    const handlePeriodModeChange = (mode: PeriodSelectionMode) => {
+        setSelectionMode(mode);
+        if (mode === 'month') {
+            handleMonthYearSelect(selectedMonth, selectedYear);
+        } else if (mode === 'all') {
+            hasInitializedPeriodRef.current = true;
+            if (ctrl.setSearchFilters) {
+                ctrl.setSearchFilters((prev: any) => ({
+                    ...prev,
+                    dateRange: { start: null, end: null }
+                }));
+            }
+        } else if (mode === 'dates') {
+            const { start, end } = getDatesFromMonthYear(selectedMonth, selectedYear);
+            const nextStart = customStart || start;
+            const nextEnd = customEnd || end;
+            setCustomStart(nextStart);
+            setCustomEnd(nextEnd);
+            if (nextStart && nextEnd && ctrl.setSearchFilters) {
+                ctrl.setSearchFilters((prev: any) => ({
+                    ...prev,
+                    dateRange: { start: nextStart, end: nextEnd }
+                }));
+            }
         }
     };
 
@@ -245,7 +263,18 @@ export const ReportsView: React.FC = () => {
                         </div>
                     </div>
 
-                    {ctrl.activeCategory !== 'contributors' && (
+                    {ctrl.activeCategory === 'contributors' ? (
+                        <ExportPrintActions
+                            onDownloadCsv={() => contributorsReportRef.current?.downloadFormat('csv')}
+                            onDownloadExcel={() => contributorsReportRef.current?.downloadFormat('excel')}
+                            onDownloadPdf={() => contributorsReportRef.current?.downloadFormat('pdf')}
+                            onDownloadOfx={() => contributorsReportRef.current?.downloadFormat('ofx')}
+                            onPrint={() => contributorsReportRef.current?.print()}
+                            downloadTitle="Exportar Cadastros"
+                            printTitle="Imprimir Relatório de Cadastros"
+                            menuTitle="Formatos de Cadastros"
+                        />
+                    ) : (
                         <ReportToolbar 
                             onDownload={ctrl.handleDownload} 
                             onDownloadExcel={ctrl.handleDownloadExcel}
@@ -262,7 +291,7 @@ export const ReportsView: React.FC = () => {
 
             {ctrl.activeCategory === 'contributors' ? (
                 <div className="flex-1 min-h-0 min-w-0">
-                    <ContributorsReportSection />
+                    <ContributorsReportSection ref={contributorsReportRef} hideExportPrint={true} />
                 </div>
             ) : (
                 <>
@@ -283,11 +312,11 @@ export const ReportsView: React.FC = () => {
                                 />
                             </div>
 
-                            <div className="flex items-center gap-2 shrink-0 ml-auto">
+                            <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto shrink-0 sm:ml-auto">
                                 <button
                                     type="button"
                                     onClick={() => handleManualLaunch('entrada')}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 shadow-xs transition-all cursor-pointer active:scale-95"
+                                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-lg text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 shadow-xs transition-all cursor-pointer active:scale-95"
                                     title="Criar Novo Lançamento Manual"
                                 >
                                     <PlusCircleIcon className="w-3.5 h-3.5" />
@@ -297,7 +326,7 @@ export const ReportsView: React.FC = () => {
                                 <button
                                     type="button"
                                     onClick={() => setActiveView('livro_caixa')}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700/60 shadow-xs transition-all cursor-pointer active:scale-95"
+                                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700/60 shadow-xs transition-all cursor-pointer active:scale-95"
                                     title="Abrir Visão do Livro Caixa"
                                 >
                                     <BookOpen className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -308,78 +337,18 @@ export const ReportsView: React.FC = () => {
 
                         {/* Linha 2: Seletor de Mês/Período + Filtro de Banco inline */}
                         <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
-                            <div className="flex flex-wrap items-center gap-1.5 text-xs shrink-0">
-                                <div className="flex items-center gap-0.5 bg-slate-100/90 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200/80 dark:border-slate-700">
-                                    <button
-                                        type="button"
-                                        onClick={() => setSelectionMode('month')}
-                                        className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
-                                            selectionMode === 'month'
-                                                ? 'bg-orange-600 text-white shadow-xs'
-                                                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                                        }`}
-                                    >
-                                        Mês
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setSelectionMode('dates')}
-                                        className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
-                                            selectionMode === 'dates'
-                                                ? 'bg-orange-600 text-white shadow-xs'
-                                                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                                        }`}
-                                    >
-                                        Período
-                                    </button>
-                                </div>
-
-                                {selectionMode === 'month' ? (
-                                    <div className="flex items-center gap-1.5">
-                                        <select
-                                            value={selectedMonth}
-                                            onChange={(e) => handleMonthYearSelect(Number(e.target.value), selectedYear)}
-                                            className="bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 font-semibold text-slate-800 dark:text-white px-2.5 py-1 rounded-lg text-xs focus:outline-none focus:border-orange-500 cursor-pointer"
-                                        >
-                                            {monthsList.map(m => (
-                                                <option key={m.val} value={m.val}>{m.name}</option>
-                                            ))}
-                                        </select>
-                                        <select
-                                            value={selectedYear}
-                                            onChange={(e) => handleMonthYearSelect(selectedMonth, Number(e.target.value))}
-                                            className="bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 font-semibold text-slate-800 dark:text-white px-2.5 py-1 rounded-lg text-xs focus:outline-none focus:border-orange-500 cursor-pointer tabular-nums"
-                                        >
-                                            {yearsList.map(y => (
-                                                <option key={y} value={y}>{y}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                ) : (
-                                    <div className="flex flex-wrap items-center gap-1.5">
-                                        <input
-                                            type="date"
-                                            value={customStart}
-                                            onChange={(e) => setCustomStart(e.target.value)}
-                                            className="bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 font-medium text-slate-800 dark:text-white px-2 py-1 rounded-lg text-xs focus:outline-none focus:border-orange-500"
-                                        />
-                                        <span className="text-slate-400 font-medium text-xs">até</span>
-                                        <input
-                                            type="date"
-                                            value={customEnd}
-                                            onChange={(e) => setCustomEnd(e.target.value)}
-                                            className="bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 font-medium text-slate-800 dark:text-white px-2 py-1 rounded-lg text-xs focus:outline-none focus:border-orange-500"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={handleApplyCustomDates}
-                                            className="px-3 py-1 bg-orange-600 hover:bg-orange-700 text-white font-semibold text-xs rounded-lg shadow-xs transition-all cursor-pointer active:scale-95"
-                                        >
-                                            Aplicar
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
+                            <PeriodSelector
+                                mode={selectionMode}
+                                onModeChange={handlePeriodModeChange}
+                                selectedMonth={selectedMonth}
+                                selectedYear={selectedYear}
+                                onMonthYearChange={handleMonthYearSelect}
+                                customStart={customStart}
+                                customEnd={customEnd}
+                                onCustomDatesChange={handleCustomDatesChange}
+                                monthsList={DEFAULT_MONTHS_LIST}
+                                yearsList={yearsList}
+                            />
 
                             {ctrl.bankList.length > 0 && (
                                 <div className="flex items-center gap-2 min-w-0 lg:justify-end flex-1">
@@ -392,7 +361,7 @@ export const ReportsView: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="flex-1 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs overflow-hidden flex flex-col p-0 relative min-h-[500px]">
+                    <div className="flex-1 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs overflow-clip flex flex-col p-0 relative min-h-[500px]">
                         <StatsStrip 
                             category={ctrl.activeCategory} 
                             reportName={reportDisplayName} 

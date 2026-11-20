@@ -982,7 +982,7 @@ export const ContributorsList: React.FC<{ embedded?: boolean }> = ({ embedded = 
                     <form
                         onSubmit={handleSave}
                         onClick={(e) => e.stopPropagation()}
-                        className="relative bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[calc(100dvh-5rem)] md:max-h-[min(88vh,calc(100dvh-3rem))] flex flex-col overflow-hidden animate-scale-in"
+                        className="relative bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-elevated w-full max-w-4xl max-h-[calc(100dvh-5rem)] md:max-h-[min(88vh,calc(100dvh-3rem))] flex flex-col overflow-hidden animate-scale-in"
                         id="contributor-form-panel"
                     >
                         {/* Form Header */}
@@ -1634,18 +1634,18 @@ export const ContributorsList: React.FC<{ embedded?: boolean }> = ({ embedded = 
 
             {/* INLINE BATCH IMPORT PANEL */}
             {isImportModalOpen && (
-                <div className="flex-shrink-0 bg-slate-50 dark:bg-slate-900/80 p-4 md:p-6 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-4 animate-fade-in mb-6 w-full" id="import-form-panel">
+                <div className="flex-shrink-0 bg-slate-50/80 dark:bg-slate-900/70 p-4 md:p-5 rounded-xl border border-slate-200/90 dark:border-slate-800 space-y-4 animate-fade-in mb-5 w-full" id="import-form-panel">
                     {/* Header */}
-                    <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 flex-wrap gap-2">
+                    <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 pb-3 flex-wrap gap-2">
                         <div className="flex items-center gap-3">
-                            <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 rounded-xl shadow-md shadow-emerald-500/10">
-                                <Sparkles className="w-4 h-4 animate-pulse" />
+                            <div className="w-9 h-9 bg-orange-50 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 border border-orange-200/80 dark:border-orange-900/50 rounded-xl flex items-center justify-center shrink-0">
+                                <Sparkles className="w-4 h-4" />
                             </div>
                             <div>
-                                <h4 className="text-xs md:text-sm font-black uppercase text-slate-800 dark:text-white tracking-wider">
+                                <h4 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">
                                     Importar Empresas / Pessoas em Lote
                                 </h4>
-                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mt-0.5">
+                                <span className="text-xs text-slate-500 dark:text-slate-400 block">
                                     Extraia dados de arquivos OFX, CSV, TXT ou Planilhas Excel
                                 </span>
                             </div>
@@ -1657,7 +1657,7 @@ export const ContributorsList: React.FC<{ embedded?: boolean }> = ({ embedded = 
                                 setImportFile(null);
                                 setParsedContributors([]);
                             }} 
-                            className="p-1.5 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-lg hover:bg-slate-200/70 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors cursor-pointer"
                             title="Fechar importação"
                         >
                             <XMarkIcon className="w-5 h-5" />
@@ -1671,34 +1671,34 @@ export const ContributorsList: React.FC<{ embedded?: boolean }> = ({ embedded = 
                             <div className="flex flex-col items-center justify-center">
                                 <div 
                                     onClick={() => importFileInputRef.current?.click()}
-                                    className="w-full border-2 border-dashed border-slate-200 dark:border-slate-700 hover:border-brand-blue dark:hover:border-brand-blue/60 bg-white dark:bg-slate-900/40 rounded-2xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:scale-[1.005] group shadow-xs"
+                                    className="w-full border-2 border-dashed border-slate-200 dark:border-slate-700 hover:border-orange-500 dark:hover:border-orange-500/70 bg-white dark:bg-slate-900/50 rounded-xl p-7 flex flex-col items-center justify-center text-center cursor-pointer transition-colors group shadow-xs"
                                 >
-                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl shadow-xs text-slate-400 dark:text-slate-500 group-hover:text-brand-blue transition-colors mb-3">
+                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700 text-slate-400 dark:text-slate-500 group-hover:text-orange-600 transition-colors mb-3">
                                         <FileUp className="w-6 h-6" />
                                     </div>
-                                    <h4 className="text-xs md:text-sm font-bold text-slate-700 dark:text-slate-200 mb-1">
+                                    <h4 className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200 mb-1">
                                         Carregar arquivo do extrato ou lista
                                     </h4>
                                     <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm leading-relaxed mb-3">
-                                        Selecione um extrato <span className="font-bold">OFX</span>, arquivo <span className="font-bold">CSV/TXT</span> ou planilha <span className="font-bold">Excel</span> contendo os nomes, razões sociais, CPFs ou CNPJs.
+                                        Selecione um extrato <span className="font-semibold text-slate-700 dark:text-slate-300">OFX</span>, arquivo <span className="font-semibold text-slate-700 dark:text-slate-300">CSV/TXT</span> ou planilha <span className="font-semibold text-slate-700 dark:text-slate-300">Excel</span> contendo os nomes, razões sociais, CPFs ou CNPJs.
                                     </p>
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-extrabold uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 tracking-wider">
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200/80 dark:border-slate-700">
                                         Processamento 100% Local e Seguro
                                     </span>
                                 </div>
                                 <input 
-                                    type="file"
-                                    ref={importFileInputRef}
-                                    onChange={handleImportFileChange}
-                                    accept=".ofx,.csv,.txt,.xlsx,.xls"
-                                    className="hidden"
+                                    type="file" 
+                                    ref={importFileInputRef} 
+                                    onChange={handleImportFileChange} 
+                                    accept=".ofx,.csv,.txt,.xlsx,.xls" 
+                                    className="hidden" 
                                 />
                             </div>
                         ) : isLoadingImport ? (
                             /* Loading Parse State */
                             <div className="flex flex-col items-center justify-center py-10 text-center">
-                                <Loader2 className="w-8 h-8 text-brand-blue animate-spin mb-3" />
-                                <h5 className="text-xs md:text-sm font-bold text-slate-700 dark:text-slate-200">
+                                <Loader2 className="w-8 h-8 text-orange-600 animate-spin mb-3" />
+                                <h5 className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200">
                                     Analisando documento localmente...
                                 </h5>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -1709,19 +1709,19 @@ export const ContributorsList: React.FC<{ embedded?: boolean }> = ({ embedded = 
                             /* Review & Edit State */
                             <div className="space-y-4">
                                 {/* Default Church selection */}
-                                <div className="bg-white dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-xs">
+                                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-xs">
                                     <div>
-                                        <label className="block text-[11px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider">
+                                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                                             Igreja de Destino
                                         </label>
-                                        <p className="text-[10px] font-medium text-slate-500 mt-0.5">
+                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                                             Selecione a igreja à qual estas empresas ou pessoas pertencem.
                                         </p>
                                     </div>
                                     <select
                                         value={defaultImportChurchId}
                                         onChange={(e) => setDefaultImportChurchId(e.target.value)}
-                                        className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-brand-graphite dark:text-slate-200 text-xs font-bold p-2.5 outline-none focus:border-brand-blue focus:ring-brand-blue cursor-pointer min-w-[200px]"
+                                        className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 text-xs font-semibold py-2 px-3 outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 cursor-pointer min-w-[200px] shadow-xs"
                                     >
                                         {tempChurches.filter(c => c.id !== 'church-1').map((church) => (
                                             <option key={church.id} value={church.id}>
@@ -1732,39 +1732,42 @@ export const ContributorsList: React.FC<{ embedded?: boolean }> = ({ embedded = 
                                 </div>
 
                                 {/* Summary Stats */}
-                                <div className="flex items-center justify-between text-xs font-bold text-slate-500 border-b border-slate-200/80 dark:border-slate-800 pb-2">
+                                <div className="flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-400 border-b border-slate-200/80 dark:border-slate-800 pb-2 tabular-nums">
                                     <span>Registros Encontrados: {parsedContributors.length}</span>
                                     <div className="flex space-x-3">
-                                        <span className="text-emerald-600">
+                                        <span className="text-emerald-600 dark:text-emerald-400">
                                             Novos: {parsedContributors.filter(c => !checkDuplicate(c.cpf, c.name, defaultImportChurchId)).length}
                                         </span>
-                                        <span className="text-amber-500">
+                                        <span className="text-amber-600 dark:text-amber-400">
                                             Duplicados (pulados): {parsedContributors.filter(c => checkDuplicate(c.cpf, c.name, defaultImportChurchId)).length}
                                         </span>
                                     </div>
                                 </div>
 
                                 {/* Contributors Editable Table */}
-                                <div className="overflow-x-auto max-h-[35vh] border border-slate-200 dark:border-slate-800 rounded-xl custom-scrollbar">
-                                    <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-xs font-bold uppercase">
-                                        <thead className="bg-slate-100/70 dark:bg-slate-900 sticky top-0 z-10">
+                                <div
+                                    style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}
+                                    className="overflow-x-auto max-h-[35vh] border border-slate-200/90 dark:border-slate-800 rounded-xl custom-scrollbar bg-white dark:bg-slate-900"
+                                >
+                                    <table className="min-w-full divide-y divide-slate-200/80 dark:divide-slate-800 text-xs">
+                                        <thead className="bg-slate-50/95 dark:bg-slate-800/90 sticky top-0 z-10 border-b border-slate-200/90 dark:border-slate-800">
                                             <tr>
-                                                <th className="px-4 py-2 text-left font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[9px]">
+                                                <th className="px-4 py-2.5 text-left font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[11px]">
                                                     Nome / Razão Social
                                                 </th>
-                                                <th className="px-4 py-2 text-left font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[9px]">
+                                                <th className="px-4 py-2.5 text-left font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[11px]">
                                                     CPF / CNPJ Identificado
                                                 </th>
-                                                <th className="px-4 py-2 text-right font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[9px] w-[110px]">
+                                                <th className="px-4 py-2.5 text-right font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[11px] w-[115px]">
                                                     Situação
                                                 </th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50 bg-white dark:bg-slate-900/30">
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800/70 bg-white dark:bg-slate-900">
                                             {parsedContributors.map((c, idx) => {
                                                 const isDup = checkDuplicate(c.cpf, c.name, defaultImportChurchId);
                                                 return (
-                                                    <tr key={c.id} className="hover:bg-slate-50/50">
+                                                    <tr key={c.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
                                                         <td className="px-4 py-2">
                                                             <input
                                                                 type="text"
@@ -1775,10 +1778,10 @@ export const ContributorsList: React.FC<{ embedded?: boolean }> = ({ embedded = 
                                                                     setParsedContributors(updated);
                                                                 }}
                                                                 disabled={isDup}
-                                                                className={`w-full bg-transparent p-1 border-b rounded transition-colors text-xs font-bold uppercase ${
+                                                                className={`w-full bg-transparent p-1 border-b rounded-sm transition-colors text-xs font-semibold uppercase ${
                                                                     isDup 
                                                                         ? 'text-slate-400 border-transparent cursor-not-allowed' 
-                                                                        : 'text-slate-700 dark:text-slate-200 border-slate-100 dark:border-slate-800 focus:border-brand-blue outline-none'
+                                                                        : 'text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700 focus:border-orange-500 outline-none'
                                                                 }`}
                                                             />
                                                         </td>
@@ -1793,22 +1796,22 @@ export const ContributorsList: React.FC<{ embedded?: boolean }> = ({ embedded = 
                                                                 }}
                                                                 disabled={isDup}
                                                                 placeholder="Sem CPF/CNPJ"
-                                                                className={`w-full bg-transparent p-1 border-b rounded transition-colors text-xs font-mono font-bold ${
+                                                                className={`w-full bg-transparent p-1 border-b rounded-sm transition-colors text-xs tabular-nums font-medium ${
                                                                     isDup 
                                                                         ? 'text-slate-400 border-transparent cursor-not-allowed' 
-                                                                        : 'text-slate-700 dark:text-slate-200 border-slate-100 dark:border-slate-800 focus:border-brand-blue outline-none'
+                                                                        : 'text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 focus:border-orange-500 outline-none'
                                                                 }`}
                                                             />
                                                         </td>
                                                         <td className="px-4 py-2 text-right">
                                                             {isDup ? (
-                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black bg-amber-50 text-amber-600 border border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/40 uppercase">
-                                                                    <AlertTriangle className="w-2.5 h-2.5" />
+                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-900/50">
+                                                                    <AlertTriangle className="w-3 h-3" />
                                                                     Duplicado
                                                                 </span>
                                                             ) : (
-                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/40 uppercase">
-                                                                    <Check className="w-2.5 h-2.5" />
+                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900/50">
+                                                                    <Check className="w-3 h-3" />
                                                                     Novo
                                                                 </span>
                                                             )}
@@ -1819,7 +1822,7 @@ export const ContributorsList: React.FC<{ embedded?: boolean }> = ({ embedded = 
                                         </tbody>
                                     </table>
                                 </div>
-                                <p className="text-[10px] text-slate-500 leading-relaxed italic">
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
                                     * Linhas marcadas como "Duplicado" possuem CPF/CNPJ ou Nome idênticos a cadastros já ativos nesta igreja e serão pulados automaticamente para evitar duplicidade.
                                 </p>
                             </div>
@@ -1827,16 +1830,16 @@ export const ContributorsList: React.FC<{ embedded?: boolean }> = ({ embedded = 
                     </div>
 
                     {/* Footer */}
-                    <div className="flex justify-between items-center pt-3 border-t border-slate-200 dark:border-slate-800">
+                    <div className="flex justify-between items-center pt-3 border-t border-slate-200/80 dark:border-slate-800">
                         <div>
                             {isImporting && (
                                 <div className="text-left">
-                                    <p className="text-[10px] font-black uppercase text-brand-blue tracking-wider">
+                                    <p className="text-xs font-semibold text-orange-600 dark:text-orange-400 tabular-nums">
                                         Importando {importProgress.current} de {importProgress.total}...
                                     </p>
-                                    <div className="w-32 bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden mt-1">
+                                    <div className="w-36 bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden mt-1">
                                         <div 
-                                            className="bg-brand-blue h-full rounded-full transition-all duration-300" 
+                                            className="bg-orange-600 h-full rounded-full transition-all duration-300" 
                                             style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
                                         />
                                     </div>
@@ -1927,39 +1930,43 @@ export const ContributorsList: React.FC<{ embedded?: boolean }> = ({ embedded = 
                     </p>
                 </div>
             ) : (
-                <div className="flex-1 overflow-x-auto overflow-y-auto pr-1 custom-scrollbar" id="contributors-list-flow">
-                    <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800">
-                        <thead className="bg-slate-50/50 dark:bg-slate-900/40">
+                <div
+                    style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}
+                    className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar border border-slate-200/90 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900"
+                    id="contributors-list-flow"
+                >
+                    <table className="min-w-full divide-y divide-slate-200/80 dark:divide-slate-800">
+                        <thead className="bg-slate-50/90 dark:bg-slate-800/80 sticky top-0 z-10 border-b border-slate-200/90 dark:border-slate-800">
                             <tr>
-                                <th scope="col" className="px-4 py-3 text-left text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                <th scope="col" className="px-4 py-2.5 text-left text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                                     Empresa / Pessoa
                                 </th>
-                                <th scope="col" className="px-4 py-3 text-left text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                <th scope="col" className="px-4 py-2.5 text-left text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                                     Igreja Vinculada
                                 </th>
-                                <th scope="col" className="px-4 py-3 text-left text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                <th scope="col" className="px-4 py-2.5 text-left text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                                     Documento / Contato
                                 </th>
-                                <th scope="col" className="px-4 py-3 text-left text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                <th scope="col" className="px-4 py-2.5 text-left text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                                     Status
                                 </th>
-                                <th scope="col" className="px-4 py-3 text-right text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                <th scope="col" className="px-4 py-2.5 text-right text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                                     Ações
                                 </th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50 bg-white dark:bg-slate-900/30 font-sans">
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800/70 bg-white dark:bg-slate-900 font-sans">
                             {displayedContributors.map((c) => {
                                 const church = churches.find((ch: any) => ch.id === c.church_id || (c.congregation && ch.name && ch.name.trim().toLowerCase() === c.congregation.trim().toLowerCase()));
                                 const isPJ = c.person_type === 'PJ' || (c.cpf && c.cpf.replace(/\D/g, '').length === 14);
                                 return (
-                                    <tr key={c.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors animate-fade-in">
-                                        <td className="px-4 py-3.5 whitespace-nowrap">
+                                    <tr key={c.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors animate-fade-in">
+                                        <td className="px-4 py-3 whitespace-nowrap">
                                             <div className="flex items-center space-x-3">
-                                                <div className={`w-9 h-9 rounded-2xl flex items-center justify-center font-black text-xs uppercase shrink-0 select-none shadow-sm overflow-hidden ${
+                                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs uppercase shrink-0 select-none shadow-xs overflow-hidden ${
                                                     isPJ 
-                                                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200 dark:border-amber-800/40' 
-                                                        : 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-200 dark:border-blue-800/40'
+                                                        ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200/80 dark:border-amber-800/40' 
+                                                        : 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-200/80 dark:border-blue-800/40'
                                                 }`}>
                                                     {(c.photo_url || c.photo || c.photoUrl || c.avatarUrl) ? (
                                                         <img 
@@ -1978,22 +1985,22 @@ export const ContributorsList: React.FC<{ embedded?: boolean }> = ({ embedded = 
                                                 </div>
                                                 <div className="truncate max-w-[220px]">
                                                     <div className="flex items-center space-x-1.5 mb-0.5">
-                                                        <span className={`inline-block px-1.5 py-0.2 rounded text-[8px] font-black uppercase tracking-wider ${
-                                                            isPJ ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400' : 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400'
+                                                        <span className={`inline-block px-1.5 py-0.5 rounded-md text-[10px] font-semibold uppercase ${
+                                                            isPJ ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/70 dark:border-amber-900/40' : 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200/70 dark:border-blue-900/40'
                                                         }`}>
-                                                            {isPJ ? 'PJ / EMPRESA' : 'PF'}
+                                                            {isPJ ? 'PJ / Empresa' : 'PF'}
                                                         </span>
                                                         {c.category && (
-                                                            <span className="inline-block px-1.5 py-0.2 rounded text-[8px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 truncate max-w-[100px]">
+                                                            <span className="inline-block px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 truncate max-w-[100px]">
                                                                 {c.category}
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <h5 className="text-xs font-extrabold text-slate-800 dark:text-white uppercase tracking-tight truncate">
+                                                    <h5 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-tight truncate">
                                                         {c.canonical_name}
                                                     </h5>
                                                     {c.trade_name && (
-                                                        <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 block truncate">
+                                                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block truncate">
                                                             Fantasia: {c.trade_name}
                                                         </span>
                                                     )}
@@ -2001,13 +2008,13 @@ export const ContributorsList: React.FC<{ embedded?: boolean }> = ({ embedded = 
                                             </div>
                                         </td>
                                         
-                                        <td className="px-4 py-3.5 whitespace-nowrap">
+                                        <td className="px-4 py-3 whitespace-nowrap">
                                             <div className="flex flex-col gap-1">
-                                                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                                                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
                                                     {church ? church.name : (c.congregation || 'Igreja não identificada')}
                                                 </span>
                                                 {c.is_global && (
-                                                    <span className="inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                                                    <span className="inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-md text-[11px] font-semibold bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border border-orange-200/80 dark:border-orange-900/50">
                                                         <Globe className="w-3 h-3" />
                                                         Todas as Igrejas (Global)
                                                     </span>
@@ -2015,68 +2022,68 @@ export const ContributorsList: React.FC<{ embedded?: boolean }> = ({ embedded = 
                                             </div>
                                         </td>
 
-                                        <td className="px-4 py-3.5">
+                                        <td className="px-4 py-3">
                                             <div className="space-y-0.5 max-w-[220px] truncate">
                                                 {c.cpf && (
-                                                    <div className="text-[10px] font-mono font-medium text-slate-600 dark:text-slate-300 flex items-center">
-                                                        <span className="text-[9px] font-black text-slate-400 mr-1 uppercase">
+                                                    <div className="text-[11px] tabular-nums font-medium text-slate-700 dark:text-slate-300 flex items-center">
+                                                        <span className="text-[10px] font-semibold text-slate-400 mr-1 uppercase">
                                                             {c.cpf.replace(/\D/g, '').length === 14 ? 'CNPJ:' : 'CPF:'}
                                                         </span>
                                                         {formatCpfCnpj(c.cpf)}
                                                     </div>
                                                 )}
                                                 {c.contact_person && (
-                                                    <div className="text-[10px] font-semibold text-slate-600 dark:text-slate-300 flex items-center truncate">
-                                                        <span className="text-[9px] font-black text-slate-400 mr-1 uppercase">CONTATO:</span>
+                                                    <div className="text-[11px] font-medium text-slate-600 dark:text-slate-300 flex items-center truncate">
+                                                        <span className="text-[10px] font-semibold text-slate-400 mr-1 uppercase">Contato:</span>
                                                         <span className="truncate">{c.contact_person}</span>
                                                     </div>
                                                 )}
                                                 {c.phone && (
-                                                    <div className="text-[10px] font-medium text-slate-500 dark:text-slate-400 flex items-center">
-                                                        <span className="text-[9px] font-black text-slate-400 mr-1 uppercase">TEL:</span>
+                                                    <div className="text-[11px] tabular-nums font-medium text-slate-500 dark:text-slate-400 flex items-center">
+                                                        <span className="text-[10px] font-semibold text-slate-400 mr-1 uppercase">Tel:</span>
                                                         {c.phone}
                                                     </div>
                                                 )}
                                                 {c.email && (
-                                                    <div className="text-[10px] font-medium text-slate-500 dark:text-slate-400 flex items-center truncate">
-                                                        <span className="text-[9px] font-black text-slate-400 mr-1 uppercase">EMAIL:</span>
+                                                    <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center truncate">
+                                                        <span className="text-[10px] font-semibold text-slate-400 mr-1 uppercase">Email:</span>
                                                         <span className="truncate">{c.email}</span>
                                                     </div>
                                                 )}
                                                 {!c.cpf && !c.phone && !c.email && !c.contact_person && (
-                                                    <span className="text-[10px] italic text-slate-400">-</span>
+                                                    <span className="text-xs text-slate-400">-</span>
                                                 )}
                                             </div>
                                         </td>
 
-                                        <td className="px-4 py-3.5 whitespace-nowrap">
-                                            <span className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider ${
+                                        <td className="px-4 py-3 whitespace-nowrap">
+                                            <span className={`inline-flex px-2 py-0.5 rounded-md text-[11px] font-semibold border ${
                                                 c.status === 'active' 
-                                                    ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400' 
-                                                    : 'bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400'
+                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900/40' 
+                                                    : 'bg-rose-50 text-rose-700 border-rose-200/80 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-900/40'
                                             }`}>
                                                 {c.status === 'active' ? 'Ativo' : 'Inativo'}
                                             </span>
                                         </td>
 
-                                        <td className="px-4 py-3.5 whitespace-nowrap text-right">
+                                        <td className="px-4 py-3 whitespace-nowrap text-right">
                                             <div className="flex items-center justify-end space-x-1.5">
                                                 <button 
                                                     onClick={() => handleEditClick(c)}
-                                                    className="p-1 px-2.5 rounded-lg border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 text-[10px] font-bold transition-all flex items-center space-x-1 cursor-pointer"
+                                                    className="px-2.5 py-1 rounded-lg border border-slate-200/90 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 hover:text-orange-600 dark:text-slate-300 dark:hover:text-orange-400 text-[11px] font-semibold transition-colors flex items-center space-x-1 cursor-pointer shadow-xs"
                                                     title="Editar dados"
                                                 >
-                                                    <Edit2 className="w-2.5 h-2.5" />
+                                                    <Edit2 className="w-3 h-3" />
                                                     <span>Editar</span>
                                                 </button>
 
                                                 {c.status === 'active' ? (
                                                     <button 
                                                         onClick={() => handleDeleteContributor(c.id, c.canonical_name)}
-                                                        className="p-1 px-2.5 rounded-lg border border-slate-100 dark:border-slate-800 hover:bg-rose-50/50 hover:text-rose-600 dark:hover:bg-rose-950/20 dark:text-rose-400 text-slate-500 text-[10px] font-bold transition-all flex items-center space-x-1 cursor-pointer"
+                                                        className="px-2.5 py-1 rounded-lg border border-slate-200/90 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 dark:hover:bg-rose-950/30 dark:text-slate-300 dark:hover:text-rose-400 text-slate-600 text-[11px] font-semibold transition-colors flex items-center space-x-1 cursor-pointer shadow-xs"
                                                         title="Inativar contribuinte"
                                                     >
-                                                        <Trash2 className="w-2.5 h-2.5" />
+                                                        <Trash2 className="w-3 h-3" />
                                                         <span>Inativar</span>
                                                     </button>
                                                 ) : (
@@ -2093,20 +2100,20 @@ export const ContributorsList: React.FC<{ embedded?: boolean }> = ({ embedded = 
                                                                 }
                                                             });
                                                         }}
-                                                        className="p-1 px-2.5 rounded-lg border border-slate-100 dark:border-slate-800 hover:bg-emerald-50/50 hover:text-emerald-600 dark:hover:bg-emerald-950/20 dark:text-emerald-400 text-slate-500 text-[10px] font-bold transition-all flex items-center space-x-1 cursor-pointer"
+                                                        className="px-2.5 py-1 rounded-lg border border-slate-200/90 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 dark:hover:bg-emerald-950/30 dark:text-slate-300 dark:hover:text-emerald-400 text-slate-600 text-[11px] font-semibold transition-colors flex items-center space-x-1 cursor-pointer shadow-xs"
                                                         title="Ativar contribuinte"
                                                     >
-                                                        <Loader2 className="w-2.5 h-2.5" />
+                                                        <Loader2 className="w-3 h-3" />
                                                         <span>Ativar</span>
                                                     </button>
                                                 )}
 
                                                 <button 
                                                     onClick={() => handleDeletePermanent(c.id, c.canonical_name)}
-                                                    className="p-1 px-2.5 rounded-lg border border-red-100/50 hover:bg-red-500 hover:text-white dark:border-red-900/40 dark:hover:bg-red-600 dark:text-red-400 hover:border-red-500 text-red-500 hover:text-white text-[10px] font-bold transition-all flex items-center space-x-1 cursor-pointer"
+                                                    className="px-2.5 py-1 rounded-lg border border-rose-200/80 dark:border-rose-900/40 bg-white dark:bg-slate-800 hover:bg-rose-600 hover:text-white hover:border-rose-600 dark:hover:bg-rose-600 dark:text-rose-400 text-rose-600 text-[11px] font-semibold transition-colors flex items-center space-x-1 cursor-pointer shadow-xs"
                                                     title="Excluir cadastro permanentemente"
                                                 >
-                                                    <Trash2 className="w-2.5 h-2.5" />
+                                                    <Trash2 className="w-3 h-3" />
                                                     <span>Excluir</span>
                                                 </button>
                                             </div>
@@ -2118,13 +2125,13 @@ export const ContributorsList: React.FC<{ embedded?: boolean }> = ({ embedded = 
                     </table>
 
                     {filteredContributors.length > displayLimit && (
-                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 bg-slate-50/60 dark:bg-slate-900/40 border-t border-slate-100 dark:border-slate-800 rounded-b-2xl mt-1">
-                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                                Exibindo <strong className="text-slate-800 dark:text-slate-200">{displayedContributors.length}</strong> de <strong className="text-slate-800 dark:text-slate-200">{filteredContributors.length}</strong> cadastros
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-slate-50/70 dark:bg-slate-900/60 border-t border-slate-200/80 dark:border-slate-800">
+                            <span className="text-xs font-medium text-slate-500 dark:text-slate-400 tabular-nums">
+                                Exibindo <strong className="font-semibold text-slate-800 dark:text-slate-200">{displayedContributors.length}</strong> de <strong className="font-semibold text-slate-800 dark:text-slate-200">{filteredContributors.length}</strong> cadastros
                             </span>
                             <button
                                 onClick={() => setDisplayLimit(prev => prev + 60)}
-                                className="px-5 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm transition-all cursor-pointer"
+                                className="px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200/90 dark:border-slate-700 rounded-lg shadow-xs transition-colors cursor-pointer"
                             >
                                 Carregar mais 60 registros...
                             </button>

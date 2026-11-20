@@ -1,7 +1,7 @@
 export class ReportService {
     static async listReports(req, effectiveOwnerId) {
         try {
-            const defaultPort = process.env.PORT || '3000';
+            const defaultPort = process.env.PORT || (process.env.NODE_ENV === 'production' ? '3000' : '3001');
             const rawUrl = process.env.CONTRIBUTORS_API_URL;
             const vpsUrl = (rawUrl && !rawUrl.includes('contributors-api:3010'))
                 ? rawUrl
@@ -10,7 +10,8 @@ export class ReportService {
 
             // Fetch saved reports from VPS
             let url = `${cleanVpsUrl}/api/v1/saved_reports?user_id=${effectiveOwnerId}&exclude_data=true`;
-            const response = await fetch(url);
+            const authHeader = req?.headers?.authorization ? { 'Authorization': req.headers.authorization } : {};
+            const response = await fetch(url, { headers: authHeader });
             if (!response.ok) {
                 throw new Error(`Failed to fetch from VPS saved_reports: ${response.statusText}`);
             }

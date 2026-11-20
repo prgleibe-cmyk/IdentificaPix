@@ -192,19 +192,19 @@ export const DigitalSignaturePadModal: React.FC<DigitalSignaturePadModalProps> =
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 bg-black/60 backdrop-blur-xs animate-fade-in">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 bg-slate-950/60 backdrop-blur-[2px] animate-fade-in">
             <div 
-                className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[95vh]"
+                className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl shadow-elevated border border-slate-200/90 dark:border-slate-800 overflow-hidden flex flex-col max-h-[95vh]"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/90 dark:bg-slate-850">
+                <div className="px-5 py-3.5 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 shrink-0">
                     <div className="flex items-center gap-2.5">
-                        <div className="p-2 rounded-xl bg-orange-600 text-white shadow-xs">
+                        <div className="w-8 h-8 rounded-lg bg-orange-50 dark:bg-orange-950/40 border border-orange-200/60 dark:border-orange-900/40 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
                             <PenTool className="w-4 h-4" />
                         </div>
                         <div>
-                            <h3 className="text-sm font-black text-slate-900 dark:text-white tracking-tight">
+                            <h3 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">
                                 Assinatura Digital do Responsável
                             </h3>
                             <p className="text-[11px] text-slate-500 dark:text-slate-400">
@@ -222,7 +222,10 @@ export const DigitalSignaturePadModal: React.FC<DigitalSignaturePadModalProps> =
                 </div>
 
                 {/* Form Inputs */}
-                <div className="p-5 space-y-4 overflow-y-auto">
+                <div
+                    className="p-5 space-y-4 overflow-y-auto custom-scrollbar"
+                    style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+                >
                     {validationError && (
                         <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 flex items-center gap-2 text-rose-700 dark:text-rose-300 text-xs font-semibold">
                             <AlertCircle className="w-4 h-4 shrink-0" />
@@ -232,7 +235,7 @@ export const DigitalSignaturePadModal: React.FC<DigitalSignaturePadModalProps> =
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                                 Cargo / Função
                             </label>
                             <select
@@ -246,7 +249,7 @@ export const DigitalSignaturePadModal: React.FC<DigitalSignaturePadModalProps> =
                                         setSignerRole(val);
                                     }
                                 }}
-                                className="w-full text-xs font-semibold px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:outline-hidden cursor-pointer"
+                                className="w-full text-xs font-medium px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 focus:outline-hidden cursor-pointer"
                             >
                                 {combinedRoles.map((role) => (
                                     <option key={role} value={role}>
@@ -260,14 +263,14 @@ export const DigitalSignaturePadModal: React.FC<DigitalSignaturePadModalProps> =
                                     placeholder="Digite o cargo (ex: 3º Tesoureiro / Conselho)"
                                     value={customRoleInput}
                                     onChange={(e) => setCustomRoleInput(e.target.value)}
-                                    className="mt-1.5 w-full text-xs font-medium px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:outline-hidden"
+                                    className="mt-1.5 w-full text-xs font-medium px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 focus:outline-hidden"
                                     autoFocus
                                 />
                             )}
                         </div>
 
                         <div>
-                            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                                 CPF / Documento (Opcional)
                             </label>
                             <input
@@ -275,7 +278,7 @@ export const DigitalSignaturePadModal: React.FC<DigitalSignaturePadModalProps> =
                                 placeholder="000.000.000-00"
                                 value={signerDocument}
                                 onChange={(e) => setSignerDocument(e.target.value)}
-                                className="w-full text-xs font-medium px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:outline-hidden"
+                                className="w-full text-xs font-medium px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 focus:outline-hidden tabular-nums"
                             />
                         </div>
                     </div>
@@ -314,7 +317,7 @@ export const DigitalSignaturePadModal: React.FC<DigitalSignaturePadModalProps> =
                     )}
 
                     <div>
-                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                             Nome Completo do Signatário *
                         </label>
                         <input
@@ -322,7 +325,7 @@ export const DigitalSignaturePadModal: React.FC<DigitalSignaturePadModalProps> =
                             placeholder="Ex: Pr. João da Silva / Carlos Eduardo"
                             value={signerName}
                             onChange={(e) => setSignerName(e.target.value)}
-                            className="w-full text-xs font-medium px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:outline-hidden"
+                            className="w-full text-xs font-medium px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 focus:outline-hidden"
                         />
                     </div>
 
@@ -395,18 +398,18 @@ export const DigitalSignaturePadModal: React.FC<DigitalSignaturePadModalProps> =
                 </div>
 
                 {/* Footer */}
-                <div className="px-5 py-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2 bg-slate-50/80 dark:bg-slate-850">
+                <div className="px-5 py-3.5 border-t border-slate-200/80 dark:border-slate-800 flex items-center justify-end gap-2.5 bg-slate-50/70 dark:bg-slate-900 shrink-0">
                     <button
                         type="button"
                         onClick={onClose}
-                        className="px-3.5 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                        className="px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg shadow-xs transition-colors cursor-pointer"
                     >
                         Cancelar
                     </button>
                     <button
                         type="button"
                         onClick={handleConfirm}
-                        className="flex items-center gap-1.5 px-4 py-2 text-xs font-black text-white bg-gradient-to-r from-orange-500 to-amber-600 hover:opacity-95 rounded-xl shadow-xs transition-all cursor-pointer"
+                        className="flex items-center gap-1.5 px-5 py-2 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-xs transition-colors cursor-pointer"
                     >
                         <Check className="w-4 h-4" />
                         <span>Confirmar Assinatura</span>

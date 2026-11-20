@@ -125,12 +125,12 @@ export const InlineRoleSelector: React.FC<InlineRoleSelectorProps> = ({
         <div ref={containerRef} className="relative w-full">
             {/* Inline Editing State for Selected Item */}
             {editingRole && editingRole === value ? (
-                <div className={`p-1.5 bg-white dark:bg-slate-900 rounded-xl border border-amber-400 dark:border-amber-600 flex items-center gap-1.5 shadow-sm`}>
+                <div className="p-1.5 bg-white dark:bg-slate-900 rounded-lg border border-orange-400 dark:border-orange-600 flex items-center gap-1.5 shadow-xs">
                     <input
                         type="text"
                         value={editRoleInput}
                         onChange={(e) => setEditRoleInput(e.target.value)}
-                        className="flex-1 bg-transparent text-slate-900 dark:text-white text-xs font-bold px-2 py-1 outline-none"
+                        className="flex-1 bg-transparent text-slate-900 dark:text-white text-xs font-semibold px-2 py-1 outline-none"
                         autoFocus
                         onKeyDown={(e) => {
                             if (e.key === 'Enter') handleConfirmEdit(e);
@@ -140,7 +140,7 @@ export const InlineRoleSelector: React.FC<InlineRoleSelectorProps> = ({
                     <button
                         type="button"
                         onClick={(e) => handleConfirmEdit(e)}
-                        className="p-1 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors cursor-pointer"
+                        className="p-1 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors cursor-pointer"
                         title="Salvar"
                     >
                         <Check className="w-3 h-3" />
@@ -158,13 +158,13 @@ export const InlineRoleSelector: React.FC<InlineRoleSelectorProps> = ({
                 /* Main Selector Button */
                 <div
                     onClick={() => !disabled && setIsOpen(!isOpen)}
-                    className={`w-full flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2 px-3 text-xs font-bold transition-all cursor-pointer select-none ${
-                        isOpen ? colorClasses.borderFocus : 'hover:border-slate-300 dark:hover:border-slate-600'
+                    className={`w-full flex items-center justify-between rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2 px-3 text-xs font-medium shadow-xs transition-all cursor-pointer select-none ${
+                        isOpen ? colorClasses.borderFocus : 'hover:border-slate-400 dark:hover:border-slate-600'
                     } ${disabled ? 'opacity-60 cursor-not-allowed' : ''}`}
                 >
                     <div className="flex items-center gap-2 overflow-hidden flex-1 min-w-0 pr-2">
                         {value ? (
-                            <span className="truncate text-slate-900 dark:text-white font-extrabold text-xs">
+                            <span className="truncate text-slate-900 dark:text-white font-semibold text-xs">
                                 {value}
                             </span>
                         ) : (
@@ -204,11 +204,11 @@ export const InlineRoleSelector: React.FC<InlineRoleSelectorProps> = ({
 
             {/* Dropdown Menu */}
             {isOpen && (
-                <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl overflow-hidden animate-fadeIn max-h-60 flex flex-col">
+                <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 rounded-xl shadow-elevated overflow-hidden animate-fade-in max-h-60 flex flex-col">
                     {/* List Options */}
-                    <div className="overflow-y-auto py-1 divide-y divide-slate-100 dark:divide-slate-800/60 max-h-48">
+                    <div className="overflow-y-auto py-1 divide-y divide-slate-100 dark:divide-slate-800/60 max-h-48 custom-scrollbar">
                         {roles.length === 0 && !isCreating && (
-                            <div className="px-3 py-2 text-xs text-slate-400 text-center italic">
+                            <div className="px-3 py-2 text-xs text-slate-400 text-center">
                                 Nenhum(a) {itemLabel.toLowerCase()} cadastrado(a).
                             </div>
                         )}
@@ -224,7 +224,7 @@ export const InlineRoleSelector: React.FC<InlineRoleSelectorProps> = ({
                                             type="text"
                                             value={editRoleInput}
                                             onChange={(e) => setEditRoleInput(e.target.value)}
-                                            className="flex-1 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-bold px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-600 outline-none"
+                                            className="flex-1 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-semibold px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-600 outline-none"
                                             autoFocus
                                             onKeyDown={(e) => {
                                                 if (e.key === 'Enter') handleConfirmEdit(e);
@@ -258,7 +258,7 @@ export const InlineRoleSelector: React.FC<InlineRoleSelectorProps> = ({
                                         onChange(role);
                                         setIsOpen(false);
                                     }}
-                                    className={`group flex items-center justify-between px-3 py-2 text-xs font-bold transition-colors cursor-pointer select-none ${
+                                    className={`group flex items-center justify-between px-3 py-2 text-xs font-semibold transition-colors cursor-pointer select-none ${
                                         isSelected ? colorClasses.activeBg : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
                                     }`}
                                 >
@@ -300,7 +300,7 @@ export const InlineRoleSelector: React.FC<InlineRoleSelectorProps> = ({
                                     value={newRoleInput}
                                     onChange={(e) => setNewRoleInput(e.target.value)}
                                     placeholder={`Nome do(a) novo(a) ${itemLabel.toLowerCase()}...`}
-                                    className={`flex-1 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs px-2 py-1.5 rounded-lg border outline-none font-bold ${colorClasses.editInput}`}
+                                    className={`flex-1 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs px-2.5 py-1.5 rounded-lg border outline-none font-medium ${colorClasses.editInput}`}
                                     autoFocus
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') {
@@ -314,7 +314,7 @@ export const InlineRoleSelector: React.FC<InlineRoleSelectorProps> = ({
                                 <button
                                     type="button"
                                     onClick={handleConfirmAdd}
-                                    className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer transition-colors flex items-center gap-1 ${colorClasses.submitAddBtn}`}
+                                    className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold cursor-pointer transition-colors flex items-center gap-1 ${colorClasses.submitAddBtn}`}
                                 >
                                     <Check className="w-3 h-3" />
                                     Salvar
@@ -331,7 +331,7 @@ export const InlineRoleSelector: React.FC<InlineRoleSelectorProps> = ({
                             <button
                                 type="button"
                                 onClick={() => { setIsCreating(true); setNewRoleInput(''); }}
-                                className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer ${colorClasses.addBtn}`}
+                                className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${colorClasses.addBtn}`}
                             >
                                 <Plus className="w-3.5 h-3.5" />
                                 <span>+ Criar Novo(a) {itemLabel}</span>

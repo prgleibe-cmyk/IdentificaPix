@@ -218,7 +218,13 @@ export const useCloudSync = ({
                 const pageSize = 5000;
 
                 const token = await getAuthToken();
-                const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
+                if (!token) {
+                    if (typeof window !== 'undefined') {
+                        window.dispatchEvent(new CustomEvent('iggestor:auth-expired'));
+                    }
+                    return [];
+                }
+                const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` };
                 let queryParams = `user_id=${encodeURIComponent(effectiveUserId)}&limit=${pageSize}`;
 
                 while (true) {
@@ -226,6 +232,12 @@ export const useCloudSync = ({
                         headers,
                         cache: 'no-store'
                     });
+                    if (res.status === 401) {
+                        if (typeof window !== 'undefined') {
+                            window.dispatchEvent(new CustomEvent('iggestor:auth-expired'));
+                        }
+                        return [];
+                    }
                     if (!res.ok) {
                         throw new Error(`Erro ao buscar transações consolidadas do VPS: ${res.status} ${res.statusText}`);
                     }
@@ -249,11 +261,18 @@ export const useCloudSync = ({
                 let data: any[] = [];
                 try {
                     const token = await getAuthToken();
-                    const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
+                    if (!token) return [];
+                    const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` };
                     const resp = await safeFetch(`/api/v1/contributors`, {
                         headers,
                         cache: 'no-store'
                     });
+                    if (resp.status === 401) {
+                        if (typeof window !== 'undefined') {
+                            window.dispatchEvent(new CustomEvent('iggestor:auth-expired'));
+                        }
+                        return [];
+                    }
                     if (resp.ok) {
                         const list = await safeParseJson<any[]>(resp, 'useCloudSync.contributors');
                         data = Array.isArray(list) ? list : [];

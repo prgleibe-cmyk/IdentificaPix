@@ -17,16 +17,12 @@ import {
     Building2, 
     Landmark,
     Search, 
-    Download, 
-    Printer, 
     RefreshCw, 
     ChevronDown, 
     ArrowUpRight, 
     ArrowDownRight, 
     DollarSign, 
     FileText, 
-    FileSpreadsheet, 
-    FileCode,
     Filter,
     Calendar,
     Sparkles,
@@ -44,6 +40,9 @@ import {
     Pencil,
     ShieldCheck
 } from 'lucide-react';
+import { BuildingOfficeIcon } from '../components/Icons';
+import { PeriodSelector, PeriodSelectionMode } from '../components/reports/PeriodSelector';
+import { ExportPrintActions } from '../components/reports/ExportPrintActions';
 
 export const LivroCaixaView: React.FC = memo(() => {
     const { showToast, setActiveView } = useUI();
@@ -91,8 +90,6 @@ export const LivroCaixaView: React.FC = memo(() => {
     const [selectedBankIds, setSelectedBankIds] = useState<string[]>([]);
     const [isBankDropdownOpen, setIsBankDropdownOpen] = useState<boolean>(false);
 
-    // Export dropdown state
-    const [showExportLivroCaixa, setShowExportLivroCaixa] = useState<boolean>(false);
     const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
     const [isClosingModalOpen, setIsClosingModalOpen] = useState<boolean>(false);
     const [editingManualTx, setEditingManualTx] = useState<any | null>(null);
@@ -146,7 +143,6 @@ export const LivroCaixaView: React.FC = memo(() => {
 
     const churchDropdownRef = useRef<HTMLDivElement>(null);
     const bankDropdownRef = useRef<HTMLDivElement>(null);
-    const exportLivroCaixaRef = useRef<HTMLDivElement>(null);
 
     const perms = (subscription?.permissions || {}) as Record<string, any>;
     const canDownload = !isSecondaryUser || (perms.baixar_arquivo !== false && perms.downloadFile !== false);
@@ -348,9 +344,6 @@ export const LivroCaixaView: React.FC = memo(() => {
             if (bankDropdownRef.current && !bankDropdownRef.current.contains(event.target as Node)) {
                 setIsBankDropdownOpen(false);
             }
-            if (exportLivroCaixaRef.current && !exportLivroCaixaRef.current.contains(event.target as Node)) {
-                setShowExportLivroCaixa(false);
-            }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -489,6 +482,13 @@ export const LivroCaixaView: React.FC = memo(() => {
                 ...prev,
                 dateRange: { start, end }
             }));
+        }
+    };
+
+    const handlePeriodModeChange = (mode: PeriodSelectionMode) => {
+        setSelectionMode(mode);
+        if (mode === 'month') {
+            handleMonthYearSelect(selectedMonth, selectedYear);
         }
     };
 
@@ -1365,7 +1365,6 @@ export const LivroCaixaView: React.FC = memo(() => {
     }, [reportData, selectedChurchIds, selectedBankIds, isSecondaryUser, allowedChurchIds, churches, banks]);
 
     const handleExportLivroCaixa = (format: 'pdf' | 'excel' | 'csv' | 'ofx') => {
-        setShowExportLivroCaixa(false);
         if (!canDownload) {
             showToast('Você não tem permissão para baixar arquivos ou relatórios.', 'error');
             return;
@@ -1506,31 +1505,42 @@ export const LivroCaixaView: React.FC = memo(() => {
     return (
         <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full min-h-full flex flex-col animate-fade-in pb-8 md:pb-4">
             {/* Header Card */}
-            <div className="bg-white dark:bg-slate-900 px-6 py-4 rounded-2xl border border-slate-100 dark:border-white/5 shadow-xs flex-shrink-0">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl flex items-center justify-center text-white shadow-md shadow-orange-500/20 shrink-0">
-                            <BookOpen className="w-5 h-5 stroke-[2.2]" />
+            <div className="bg-white dark:bg-slate-900 px-4 py-2.5 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs flex-shrink-0">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 bg-orange-50 dark:bg-orange-950/40 border border-orange-200/60 dark:border-orange-900/40 rounded-lg flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
+                            <BookOpen className="w-4 h-4 stroke-[2]" />
                         </div>
-                        <div>
-                            <h1 className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-tight">
+                        <div className="min-w-0">
+                            <h1 className="text-base font-bold text-slate-900 dark:text-white tracking-tight leading-tight">
                                 Livro Caixa
                             </h1>
-                            <p className="text-xs text-slate-400">
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
                                 Detalhamento individualizado de todas as entradas e saídas financeiras da igreja.
                             </p>
                         </div>
                     </div>
 
-                    {!isSecondaryUser && (
-                        <div>
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                        <ExportPrintActions
+                            onDownloadCsv={() => handleExportLivroCaixa('csv')}
+                            onDownloadExcel={() => handleExportLivroCaixa('excel')}
+                            onDownloadPdf={() => handleExportLivroCaixa('pdf')}
+                            onDownloadOfx={() => handleExportLivroCaixa('ofx')}
+                            onPrint={handlePrint}
+                            downloadTitle="Exportar Livro Caixa"
+                            printTitle="Imprimir Livro Caixa"
+                            menuTitle="Formatos Livro Caixa"
+                        />
+
+                        {!isSecondaryUser && (
                             <button
                                 type="button"
                                 onClick={handleOpenClosing}
-                                className={`flex items-center gap-2 px-4 py-2 text-xs font-bold text-white rounded-xl shadow-xs hover:opacity-95 transition-all tracking-wider uppercase cursor-pointer border active:scale-95 shrink-0 ${
+                                className={`flex items-center gap-2 px-4 py-1.5 text-xs font-semibold text-white rounded-lg shadow-xs transition-colors tracking-wide uppercase cursor-pointer shrink-0 ${
                                     monthClosingRecord && monthClosingRecord.status !== 'reopened'
-                                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 border-emerald-400/30'
-                                        : 'bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 border-orange-400/30'
+                                        ? 'bg-emerald-600 hover:bg-emerald-700'
+                                        : 'bg-orange-600 hover:bg-orange-700'
                                 }`}
                                 title={monthClosingRecord && monthClosingRecord.status !== 'reopened' ? "Fechamento Homologado - Visualizar e Gerenciar" : "Realizar Fechamento & Assinaturas Digitais"}
                                 id="btn-fechamento-livro-caixa"
@@ -1542,24 +1552,24 @@ export const LivroCaixaView: React.FC = memo(() => {
                                 )}
                                 <span>{monthClosingRecord && monthClosingRecord.status !== 'reopened' ? 'FECHAMENTO HOMOLOGADO' : 'FECHAMENTO'}</span>
                             </button>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
             </div>
 
             {/* Main Content */}
-            <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl p-4 md:p-6 shadow-xs space-y-4">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl p-5 shadow-xs space-y-4">
                 {/* Control & Filter Header */}
                 <div className="space-y-3 pb-3">
                     <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
                         {/* Título com ícone */}
                         <div className="flex items-center gap-2.5 shrink-0">
-                            <BookOpen className="w-5 h-5 text-orange-500 shrink-0 stroke-[2.2]" />
+                            <BookOpen className="w-4 h-4 text-orange-600 dark:text-orange-400 shrink-0" />
                             <div className="flex flex-col">
-                                <span className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider leading-none">
+                                <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wide leading-none">
                                     LANÇAMENTOS DE
                                 </span>
-                                <span className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider leading-tight">
+                                <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wide leading-tight">
                                     CAIXA
                                 </span>
                             </div>
@@ -1568,163 +1578,76 @@ export const LivroCaixaView: React.FC = memo(() => {
                         {/* Linha 1 de Filtros */}
                         <div className="flex items-center gap-2 flex-wrap">
                             {/* Campo de Busca */}
-                            <div className="relative w-full sm:w-56 md:w-60">
+                            <div className="relative w-full sm:w-52 md:w-56">
                                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                                 <input
                                     type="text"
                                     placeholder="Buscar no Livro Caixa..."
                                     value={searchTerm}
                                     onChange={e => setSearchTerm(e.target.value)}
-                                    className="pl-8 pr-3 py-1.5 w-full bg-slate-50/70 dark:bg-black/20 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:border-orange-500 placeholder:text-slate-400 shadow-2xs"
+                                    className="h-8 pl-8 pr-3 w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-orange-500 placeholder:text-slate-400 shadow-2xs transition-colors"
                                 />
                             </div>
 
-                            {/* Toggle MÊS | PERÍODO | TODOS */}
-                            <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200/80 dark:border-slate-700 shadow-2xs shrink-0">
-                                <button
-                                    type="button"
-                                    onClick={() => setSelectionMode('month')}
-                                    className={`px-3 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                                        selectionMode === 'month'
-                                            ? 'bg-orange-500 text-white shadow-xs'
-                                            : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                                    }`}
-                                >
-                                    Mês
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setSelectionMode('dates')}
-                                    className={`px-3 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                                        selectionMode === 'dates'
-                                            ? 'bg-orange-500 text-white shadow-xs'
-                                            : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                                    }`}
-                                >
-                                    Período
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setSelectionMode('all')}
-                                    className={`px-3 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                                        selectionMode === 'all'
-                                            ? 'bg-orange-500 text-white shadow-xs'
-                                            : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                                    }`}
-                                    title="Exibir todos os lançamentos sem filtro de data"
-                                >
-                                    Todos
-                                </button>
-                            </div>
-
-                            {/* Mês e Ano ou Datas Customizadas */}
-                            {selectionMode === 'month' ? (
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                    <div className="relative">
-                                        <select
-                                            value={selectedMonth}
-                                            onChange={(e) => handleMonthYearSelect(Number(e.target.value), selectedYear)}
-                                            className="appearance-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200 pl-3 pr-7 py-1.5 rounded-xl text-xs focus:outline-none focus:border-orange-500 cursor-pointer shadow-2xs"
-                                        >
-                                            {monthsList.map(m => (
-                                                <option key={m.val} value={m.val}>{m.name}</option>
-                                            ))}
-                                        </select>
-                                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-                                    </div>
-
-                                    <div className="relative">
-                                        <select
-                                            value={selectedYear}
-                                            onChange={(e) => handleMonthYearSelect(selectedMonth, Number(e.target.value))}
-                                            className="appearance-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200 pl-3 pr-7 py-1.5 rounded-xl text-xs focus:outline-none focus:border-orange-500 cursor-pointer shadow-2xs"
-                                        >
-                                            {yearsList.map(y => (
-                                                <option key={y} value={y}>{y}</option>
-                                            ))}
-                                        </select>
-                                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-                                    </div>
-
-                                    {/* Botão rápido: Mês Anterior */}
-                                    <button
-                                        type="button"
-                                        onClick={() => handleMonthYearSelect(previousMonthStats.prevM, previousMonthStats.prevY)}
-                                        className={`px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border cursor-pointer flex items-center gap-1 ${
-                                            selectedMonth === previousMonthStats.prevM && selectedYear === previousMonthStats.prevY
-                                                ? 'bg-amber-500/10 border-amber-500/40 text-amber-600 dark:text-amber-400'
-                                                : 'bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 shadow-2xs'
-                                        }`}
-                                        title={`Ver lançamentos de ${monthsList.find(m => m.val === previousMonthStats.prevM)?.name}/${previousMonthStats.prevY}`}
-                                    >
-                                        <Calendar className="w-3 h-3 text-amber-500" />
-                                        <span>Mês Anterior</span>
-                                        {previousMonthStats.prevMonthCount > 0 && (
-                                            <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-amber-500 text-white text-[9px] font-mono">
-                                                {previousMonthStats.prevMonthCount}
-                                            </span>
-                                        )}
-                                    </button>
-                                </div>
-                            ) : selectionMode === 'dates' ? (
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                    <input
-                                        type="date"
-                                        value={customStartDate}
-                                        onChange={(e) => handleCustomDatesChange(e.target.value, customEndDate)}
-                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-semibold text-slate-800 dark:text-white px-2.5 py-1.5 rounded-xl text-xs focus:outline-none focus:border-orange-500 shadow-2xs"
-                                    />
-                                    <span className="text-slate-400 font-bold text-[10px] uppercase">até</span>
-                                    <input
-                                        type="date"
-                                        value={customEndDate}
-                                        onChange={(e) => handleCustomDatesChange(customStartDate, e.target.value)}
-                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-semibold text-slate-800 dark:text-white px-2.5 py-1.5 rounded-xl text-xs focus:outline-none focus:border-orange-500 shadow-2xs"
-                                    />
-                                </div>
-                            ) : null}
+                            {/* Seletor de Período Padrão */}
+                            <PeriodSelector
+                                mode={selectionMode}
+                                onModeChange={handlePeriodModeChange}
+                                selectedMonth={selectedMonth}
+                                selectedYear={selectedYear}
+                                onMonthYearChange={handleMonthYearSelect}
+                                customStart={customStartDate}
+                                customEnd={customEndDate}
+                                onCustomDatesChange={handleCustomDatesChange}
+                                monthsList={monthsList}
+                                yearsList={yearsList}
+                            />
 
                             {/* Filtro Igrejas */}
                             <div className="relative" ref={churchDropdownRef}>
                                 <button
                                     type="button"
                                     onClick={() => setIsChurchDropdownOpen(!isChurchDropdownOpen)}
-                                    className="px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0"
+                                    className={`h-8 px-2.5 border rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0 ${
+                                        selectedChurchIds.length > 0
+                                            ? 'bg-orange-50/70 dark:bg-orange-950/30 border-orange-300 dark:border-orange-800 text-orange-700 dark:text-orange-300'
+                                            : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                    }`}
                                 >
-                                    <Building2 className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                                    <BuildingOfficeIcon className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400 shrink-0" />
                                     <span className="truncate max-w-[130px]">
                                         {selectedChurchIds.length === 0 
                                             ? 'Todas as Igrejas' 
                                             : selectedChurchIds.length === 1 
                                             ? getChurchName(selectedChurchIds[0]) 
-                                            : `${selectedChurchIds.length} Igrejas Selecionadas`}
+                                            : `${selectedChurchIds.length} Igrejas`}
                                     </span>
                                     <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                                 </button>
 
                                 {isChurchDropdownOpen && (
-                                    <div className="absolute right-0 xl:left-0 mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-white/10 p-3 z-50 text-xs space-y-2 animate-scale-in">
-                                        <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-white/5">
-                                            <span className="font-bold text-slate-800 dark:text-white uppercase text-[10px] tracking-wider">FILTRAR POR IGREJAS</span>
+                                    <div className="absolute right-0 xl:left-0 mt-2 w-72 bg-white dark:bg-slate-900 rounded-xl shadow-elevated border border-slate-200/90 dark:border-slate-700 p-3 z-50 text-xs space-y-2 animate-scale-in">
+                                        <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                                            <span className="font-semibold text-slate-700 dark:text-slate-200 uppercase text-[10px] tracking-wide">FILTRAR POR IGREJAS</span>
                                             {selectedChurchIds.length > 0 && (
                                                 <button 
                                                     onClick={() => setSelectedChurchIds([])}
-                                                    className="text-[10px] text-orange-600 dark:text-orange-400 font-bold hover:underline cursor-pointer"
+                                                    className="text-[11px] text-orange-600 dark:text-orange-400 font-semibold hover:underline cursor-pointer"
                                                 >
                                                     Selecionar Todas
                                                 </button>
                                             )}
                                         </div>
 
-                                        <div className="max-h-56 overflow-y-auto custom-scrollbar space-y-1 pt-1">
+                                        <div className="max-h-56 overflow-y-auto custom-scrollbar space-y-1 pt-1" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
                                             <label className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
                                                 <input
                                                     type="checkbox"
                                                     checked={selectedChurchIds.length === 0}
                                                     onChange={() => setSelectedChurchIds([])}
-                                                    className="accent-orange-500 rounded cursor-pointer w-4 h-4 text-orange-500"
+                                                    className="accent-orange-600 rounded cursor-pointer w-4 h-4 text-orange-600"
                                                 />
-                                                <span className="font-bold text-slate-800 dark:text-white text-xs">Todas as Igrejas</span>
+                                                <span className="font-semibold text-slate-800 dark:text-white text-xs">Todas as Igrejas</span>
                                             </label>
 
                                             {churches.map((c: any) => {
@@ -1735,9 +1658,9 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                             type="checkbox"
                                                             checked={isChecked}
                                                             onChange={() => toggleChurchSelection(c.id)}
-                                                            className="accent-orange-500 rounded cursor-pointer w-4 h-4 text-orange-500"
+                                                            className="accent-orange-600 rounded cursor-pointer w-4 h-4 text-orange-600"
                                                         />
-                                                        <span className="text-slate-700 dark:text-slate-300 font-semibold text-xs uppercase truncate">
+                                                        <span className="text-slate-700 dark:text-slate-300 font-medium text-xs uppercase truncate">
                                                             {c.name}
                                                         </span>
                                                     </label>
@@ -1753,42 +1676,46 @@ export const LivroCaixaView: React.FC = memo(() => {
                                 <button
                                     type="button"
                                     onClick={() => setIsBankDropdownOpen(!isBankDropdownOpen)}
-                                    className="px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0"
+                                    className={`h-8 px-2.5 border rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0 ${
+                                        selectedBankIds.length > 0
+                                            ? 'bg-orange-50/70 dark:bg-orange-950/30 border-orange-300 dark:border-orange-800 text-orange-700 dark:text-orange-300'
+                                            : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                    }`}
                                 >
-                                    <Landmark className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                                    <Landmark className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400 shrink-0" />
                                     <span className="truncate max-w-[130px]">
                                         {selectedBankIds.length === 0 
                                             ? 'Todos os Bancos' 
                                             : selectedBankIds.length === 1 
                                             ? getBankName(selectedBankIds[0]) 
-                                            : `${selectedBankIds.length} Bancos Selecionados`}
+                                            : `${selectedBankIds.length} Bancos`}
                                     </span>
                                     <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                                 </button>
 
                                 {isBankDropdownOpen && (
-                                    <div className="absolute right-0 xl:left-0 mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-white/10 p-3 z-50 text-xs space-y-2 animate-scale-in">
-                                        <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-white/5">
-                                            <span className="font-bold text-slate-800 dark:text-white uppercase text-[10px] tracking-wider">FILTRAR POR BANCO</span>
+                                    <div className="absolute right-0 xl:left-0 mt-2 w-72 bg-white dark:bg-slate-900 rounded-xl shadow-elevated border border-slate-200/90 dark:border-slate-700 p-3 z-50 text-xs space-y-2 animate-scale-in">
+                                        <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                                            <span className="font-semibold text-slate-700 dark:text-slate-200 uppercase text-[10px] tracking-wide">FILTRAR POR BANCO</span>
                                             {selectedBankIds.length > 0 && (
                                                 <button 
                                                     onClick={() => setSelectedBankIds([])}
-                                                    className="text-[10px] text-blue-600 dark:text-blue-400 font-bold hover:underline cursor-pointer"
+                                                    className="text-[11px] text-orange-600 dark:text-orange-400 font-semibold hover:underline cursor-pointer"
                                                 >
                                                     Selecionar Todos
                                                 </button>
                                             )}
                                         </div>
 
-                                        <div className="max-h-56 overflow-y-auto custom-scrollbar space-y-1 pt-1">
+                                        <div className="max-h-56 overflow-y-auto custom-scrollbar space-y-1 pt-1" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
                                             <label className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
                                                 <input
                                                     type="checkbox"
                                                     checked={selectedBankIds.length === 0}
                                                     onChange={() => setSelectedBankIds([])}
-                                                    className="accent-blue-500 rounded cursor-pointer w-4 h-4 text-blue-500"
+                                                    className="accent-orange-600 rounded cursor-pointer w-4 h-4 text-orange-600"
                                                 />
-                                                <span className="font-bold text-slate-800 dark:text-white text-xs">Todos os Bancos</span>
+                                                <span className="font-semibold text-slate-800 dark:text-white text-xs">Todos os Bancos</span>
                                             </label>
 
                                             {banks.length === 0 ? (
@@ -1805,9 +1732,9 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                                 type="checkbox"
                                                                 checked={isChecked}
                                                                 onChange={() => toggleBankSelection(b.id)}
-                                                                className="accent-blue-500 rounded cursor-pointer w-4 h-4 text-blue-500"
+                                                                className="accent-orange-600 rounded cursor-pointer w-4 h-4 text-orange-600"
                                                             />
-                                                            <span className="text-slate-700 dark:text-slate-300 font-semibold text-xs uppercase truncate">
+                                                            <span className="text-slate-700 dark:text-slate-300 font-medium text-xs uppercase truncate">
                                                                 {bName}
                                                             </span>
                                                         </label>
@@ -1823,75 +1750,12 @@ export const LivroCaixaView: React.FC = memo(() => {
                             <button
                                 onClick={handleRefresh}
                                 disabled={isRefreshing || isHydratingFromCloud}
-                                className="p-2 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl border border-slate-200 dark:border-slate-800 transition-all flex items-center justify-center cursor-pointer disabled:opacity-50 shadow-2xs shrink-0"
+                                className="w-8 h-8 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg border border-slate-200/90 dark:border-slate-700 transition-colors flex items-center justify-center cursor-pointer disabled:opacity-50 shadow-2xs shrink-0"
                                 title="Recarregar dados do Livro Caixa"
                                 aria-label="Recarregar dados do Livro Caixa"
                                 id="btn-refresh-livro-caixa"
                             >
-                                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing || isHydratingFromCloud ? 'animate-spin text-orange-500' : 'text-slate-500'}`} />
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Linha 2: Subtítulo à esquerda + Botões de Ação */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
-                        <p className="text-xs text-slate-400">Histórico de entradas e saídas registradas.</p>
-
-                        <div className="flex items-center gap-2 self-start sm:self-auto">
-                            {/* Botão Exportar Livro Caixa */}
-                            <div className="relative" ref={exportLivroCaixaRef}>
-                                <button
-                                    onClick={() => setShowExportLivroCaixa(!showExportLivroCaixa)}
-                                    className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
-                                >
-                                    <Download className="w-3.5 h-3.5 text-white" />
-                                    <span>Exportar Livro Caixa</span>
-                                    <ChevronDown className="w-3.5 h-3.5 text-white/90 ml-0.5" />
-                                </button>
-
-                                {showExportLivroCaixa && (
-                                    <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-100 dark:border-white/10 py-2 z-50 text-xs text-slate-700 dark:text-slate-200 animate-scale-in">
-                                        <div className="px-3 py-1.5 text-[10px] font-black uppercase text-slate-400 tracking-wider">Formatos Livro Caixa</div>
-                                        <button
-                                            onClick={() => handleExportLivroCaixa('pdf')}
-                                            className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors"
-                                        >
-                                            <FileText className="w-4 h-4 text-red-500" />
-                                            <span>Baixar como PDF</span>
-                                        </button>
-                                        <button
-                                            onClick={() => handleExportLivroCaixa('excel')}
-                                            className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors"
-                                        >
-                                            <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
-                                            <span>Baixar como Excel (.xlsx)</span>
-                                        </button>
-                                        <button
-                                            onClick={() => handleExportLivroCaixa('csv')}
-                                            className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors"
-                                        >
-                                            <FileSpreadsheet className="w-4 h-4 text-blue-500" />
-                                            <span>Baixar como CSV</span>
-                                        </button>
-                                        <button
-                                            onClick={() => handleExportLivroCaixa('ofx')}
-                                            className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors"
-                                        >
-                                            <FileCode className="w-4 h-4 text-purple-500" />
-                                            <span>Baixar como OFX (ERP/Contábil)</span>
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Botão Imprimir */}
-                            <button
-                                onClick={handlePrint}
-                                className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
-                                title="Imprimir Relatório"
-                            >
-                                <Printer className="w-3.5 h-3.5 text-slate-500" />
-                                <span>Imprimir</span>
+                                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing || isHydratingFromCloud ? 'animate-spin text-orange-600' : 'text-slate-500'}`} />
                             </button>
                         </div>
                     </div>
@@ -1900,37 +1764,37 @@ export const LivroCaixaView: React.FC = memo(() => {
                 {/* Barra de Resumo Horizontal Fiel à Referência */}
                 <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4 text-xs">
                     <div className="flex items-center gap-1.5">
-                        <span className="text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider text-xs">ENTRADAS:</span>
-                        <span className="font-bold text-emerald-600 dark:text-emerald-400 text-xs md:text-sm">{formatBRL(financialTotals.income)}</span>
+                        <span className="text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide text-[11px]">ENTRADAS:</span>
+                        <span className="font-bold tabular-nums text-emerald-600 dark:text-emerald-400 text-xs md:text-sm">{formatBRL(financialTotals.income)}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                        <span className="text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider text-xs">SAÍDAS:</span>
-                        <span className="font-bold text-rose-600 dark:text-rose-400 text-xs md:text-sm">{formatBRL(financialTotals.expenses)}</span>
+                        <span className="text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide text-[11px]">SAÍDAS:</span>
+                        <span className="font-bold tabular-nums text-rose-600 dark:text-rose-400 text-xs md:text-sm">{formatBRL(financialTotals.expenses)}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                        <span className="text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider text-xs">SALDO OPERACIONAL:</span>
-                        <span className="font-bold text-slate-700 dark:text-slate-200 text-xs md:text-sm">{formatBRL(financialTotals.balance)}</span>
+                        <span className="text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide text-[11px]">SALDO OPERACIONAL:</span>
+                        <span className="font-bold tabular-nums text-slate-800 dark:text-slate-200 text-xs md:text-sm">{formatBRL(financialTotals.balance)}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                        <span className="text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider text-xs">REGISTROS:</span>
-                        <span className="font-bold text-slate-700 dark:text-slate-200 text-xs md:text-sm">{financialTotals.totalTransactions}</span>
+                        <span className="text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide text-[11px]">REGISTROS:</span>
+                        <span className="font-bold tabular-nums text-slate-800 dark:text-slate-200 text-xs md:text-sm">{financialTotals.totalTransactions}</span>
                     </div>
                 </div>
 
                 {/* Demonstrativo Oficial de Fechamento e Transporte de Saldo */}
                 {monthClosingRecord && monthClosingRecord.status !== 'reopened' && (
-                    <div className="p-4 md:p-5 rounded-2xl bg-gradient-to-r from-emerald-50/90 via-teal-50/50 to-slate-50 dark:from-emerald-950/40 dark:via-teal-950/20 dark:to-slate-900 border border-emerald-200/80 dark:border-emerald-800/60 shadow-xs space-y-3.5">
+                    <div className="p-4 md:p-5 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-800/60 shadow-xs space-y-3.5">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200/60 dark:border-emerald-800/40 pb-3">
                             <div className="flex items-center gap-2.5">
-                                <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs shrink-0">
-                                    <ShieldCheck className="w-5 h-5 stroke-[2.2]" />
+                                <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                                    <ShieldCheck className="w-4 h-4" />
                                 </div>
                                 <div>
                                     <div className="flex items-center gap-2 flex-wrap">
-                                        <h4 className="text-xs md:text-sm font-black uppercase tracking-wider text-emerald-950 dark:text-emerald-200">
+                                        <h4 className="text-xs md:text-sm font-bold uppercase tracking-wide text-emerald-950 dark:text-emerald-200">
                                             Fechamento do Livro Caixa Homologado
                                         </h4>
-                                        <span className="text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 px-2 py-0.5 rounded-md">
+                                        <span className="text-[10px] font-semibold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 px-2 py-0.5 rounded-md">
                                             Status: Fechado
                                         </span>
                                     </div>
@@ -1944,7 +1808,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                             <button
                                 type="button"
                                 onClick={handleOpenClosing}
-                                className="self-start sm:self-auto px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-750 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                                className="self-start sm:self-auto px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-700 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
                             >
                                 <span>Ver Fechamento</span>
                                 <ArrowRight className="w-3.5 h-3.5" />
@@ -1955,11 +1819,11 @@ export const LivroCaixaView: React.FC = memo(() => {
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             {/* SALDO ANTES DO FECHAMENTO */}
                             <div className="p-3.5 bg-white dark:bg-slate-900/90 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-2xs flex flex-col justify-between">
-                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 block mb-1">
                                     SALDO ANTES DO FECHAMENTO:
                                 </span>
-                                <span className={`text-base md:text-lg font-black font-mono block ${
-                                    monthClosingRecord.finalBalance >= 0 ? 'text-slate-800 dark:text-slate-100' : 'text-rose-600 dark:text-rose-400'
+                                <span className={`text-base md:text-lg font-bold tabular-nums block ${
+                                    monthClosingRecord.finalBalance >= 0 ? 'text-slate-900 dark:text-slate-100' : 'text-rose-600 dark:text-rose-400'
                                 }`}>
                                     {formatBRL(monthClosingRecord.finalBalance)}
                                 </span>
@@ -1970,10 +1834,10 @@ export const LivroCaixaView: React.FC = memo(() => {
 
                             {/* VALOR TRANSPORTADO */}
                             <div className="p-3.5 bg-white dark:bg-slate-900/90 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-2xs flex flex-col justify-between">
-                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 block mb-1">
                                     VALOR TRANSPORTADO:
                                 </span>
-                                <span className={`text-base md:text-lg font-black font-mono block ${
+                                <span className={`text-base md:text-lg font-bold tabular-nums block ${
                                     (monthClosingRecord.transferredBalance || 0) < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
                                 }`}>
                                     {formatBRL(Math.abs(monthClosingRecord.transferredBalance || 0))}
@@ -1987,17 +1851,17 @@ export const LivroCaixaView: React.FC = memo(() => {
 
                             {/* SALDO ATUAL */}
                             <div className="p-3.5 bg-emerald-50/70 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800/80 shadow-2xs flex flex-col justify-between">
-                                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 block mb-1">
+                                <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-300 block mb-1">
                                     SALDO ATUAL:
                                 </span>
-                                <span className={`text-base md:text-lg font-black font-mono block ${
+                                <span className={`text-base md:text-lg font-bold tabular-nums block ${
                                     (monthClosingRecord.finalBalance - (monthClosingRecord.transferredBalance || 0)) >= 0
                                         ? 'text-emerald-700 dark:text-emerald-300'
                                         : 'text-rose-600 dark:text-rose-400'
                                 }`}>
                                     {formatBRL(monthClosingRecord.finalBalance - (monthClosingRecord.transferredBalance || 0))}
                                 </span>
-                                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold mt-1">
+                                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
                                     Valor resultante após o transporte
                                 </span>
                             </div>
@@ -2006,20 +1870,20 @@ export const LivroCaixaView: React.FC = memo(() => {
                 )}
 
                 {/* Livro Caixa Table (Extrato Analítico) */}
-                <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
-                    <div className="px-4 py-2.5 bg-slate-50 dark:bg-black/20 border-b border-slate-200 dark:border-slate-800 flex flex-wrap justify-between items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400">
+                <div className="border border-slate-200/90 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
+                    <div className="px-4 py-2.5 bg-slate-50/80 dark:bg-slate-800/40 border-b border-slate-200/90 dark:border-slate-800 flex flex-wrap justify-between items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
                         <div className="flex items-center gap-2">
-                            <span>Extrato Analítico ({financialTotals.totalTransactions} registros)</span>
+                            <span className="tabular-nums">Extrato Analítico ({financialTotals.totalTransactions} registros)</span>
                         </div>
 
                         {/* Filtro de Comprovantes / Documentos das Saídas */}
-                        <div className="flex items-center gap-1 bg-white dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs">
+                        <div className="flex flex-wrap sm:flex-nowrap items-center gap-1 bg-white dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs w-full sm:w-auto">
                             <button
                                 type="button"
                                 onClick={() => { setAttachmentFilter('all'); setCurrentPage(1); }}
-                                className={`px-2 py-1 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                                className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                                     attachmentFilter === 'all'
-                                        ? 'bg-orange-500 text-white shadow-xs'
+                                        ? 'bg-orange-600 text-white shadow-xs'
                                         : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                                 }`}
                             >
@@ -2028,20 +1892,20 @@ export const LivroCaixaView: React.FC = memo(() => {
                             <button
                                 type="button"
                                 onClick={() => { setAttachmentFilter('with_attachments'); setCurrentPage(1); }}
-                                className={`px-2 py-1 rounded text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                                className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors cursor-pointer flex items-center gap-1 tabular-nums whitespace-nowrap ${
                                     attachmentFilter === 'with_attachments'
                                         ? 'bg-emerald-600 text-white shadow-xs'
                                         : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                                 }`}
                                 title="Filtrar saídas com fatura ou comprovante anexado"
                             >
-                                <CheckCircle2 className="w-3 h-3" />
+                                <CheckCircle2 className="w-3 h-3 shrink-0" />
                                 <span>Com Comprovante ({expenseAttachmentStats.withAttachments})</span>
                             </button>
                             <button
                                 type="button"
                                 onClick={() => { setAttachmentFilter('without_attachments'); setCurrentPage(1); }}
-                                className={`px-2 py-1 rounded text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                                className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors cursor-pointer flex items-center gap-1 tabular-nums whitespace-nowrap ${
                                     attachmentFilter === 'without_attachments'
                                         ? 'bg-rose-600 text-white shadow-xs'
                                         : expenseAttachmentStats.pendingAttachments > 0
@@ -2050,7 +1914,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                                 }`}
                                 title="Filtrar saídas pendentes de comprovante"
                             >
-                                <Paperclip className="w-3 h-3" />
+                                <Paperclip className="w-3 h-3 shrink-0" />
                                 <span>Sem Comprovante ({expenseAttachmentStats.pendingAttachments})</span>
                             </button>
                         </div>
@@ -2058,7 +1922,7 @@ export const LivroCaixaView: React.FC = memo(() => {
 
                     <div className="overflow-x-auto custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}>
                         <table className="w-full text-left text-xs border-collapse min-w-[850px]">
-                            <thead className="bg-slate-100/70 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 uppercase font-black text-[10px] tracking-wider sticky top-0 z-10">
+                            <thead className="bg-slate-50/90 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 uppercase font-semibold text-[11px] tracking-wide border-b border-slate-200/90 dark:border-slate-800 sticky top-0 z-10">
                                 <tr>
                                     <th className="px-4 py-3">Data</th>
                                     <th className="px-4 py-3">Contribuinte / Favorecido</th>
@@ -2073,22 +1937,22 @@ export const LivroCaixaView: React.FC = memo(() => {
                                     <tr>
                                         <td colSpan={6} className="text-center py-12">
                                             <div className="flex flex-col items-center justify-center gap-3 max-w-lg mx-auto px-4">
-                                                <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl text-slate-400">
-                                                    <Calendar className="w-6 h-6 text-orange-500" />
+                                                <div className="w-10 h-10 bg-orange-50 dark:bg-orange-950/40 border border-orange-200/60 dark:border-orange-900/40 rounded-xl flex items-center justify-center text-orange-600 dark:text-orange-400">
+                                                    <Calendar className="w-5 h-5" />
                                                 </div>
-                                                <p className="text-slate-600 dark:text-slate-300 font-bold text-sm">
+                                                <p className="text-slate-700 dark:text-slate-200 font-semibold text-sm">
                                                     Nenhum lançamento encontrado em {selectionMode === 'month' ? `${monthsList.find(m => m.val === selectedMonth)?.name}/${selectedYear}` : 'este período'}.
                                                 </p>
                                                 {previousMonthStats.prevMonthCount > 0 && selectionMode === 'month' && (
-                                                    <div className="w-full bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 p-3.5 rounded-2xl text-amber-800 dark:text-amber-200 text-xs flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs">
+                                                    <div className="w-full bg-amber-50 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/60 p-3.5 rounded-xl text-amber-800 dark:text-amber-200 text-xs flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs">
                                                         <div className="flex items-center gap-2 text-left">
                                                             <Calendar className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                                                            <span>Existem <strong>{previousMonthStats.prevMonthCount} lançamentos</strong> no mês anterior ({monthsList.find(m => m.val === previousMonthStats.prevM)?.name}/{previousMonthStats.prevY}).</span>
+                                                            <span>Existem <strong className="tabular-nums">{previousMonthStats.prevMonthCount} lançamentos</strong> no mês anterior ({monthsList.find(m => m.val === previousMonthStats.prevM)?.name}/{previousMonthStats.prevY}).</span>
                                                         </div>
                                                         <button
                                                             type="button"
                                                             onClick={() => handleMonthYearSelect(previousMonthStats.prevM, previousMonthStats.prevY)}
-                                                            className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-black uppercase text-[10px] tracking-wider rounded-xl transition-all cursor-pointer shrink-0 shadow-xs active:scale-95"
+                                                            className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-semibold uppercase text-[10px] tracking-wide rounded-lg transition-colors cursor-pointer shrink-0 shadow-xs"
                                                         >
                                                             Ver Mês Anterior
                                                         </button>
@@ -2098,9 +1962,9 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                     <button
                                                         type="button"
                                                         onClick={() => setSelectionMode('all')}
-                                                        className="text-xs font-bold text-orange-600 dark:text-orange-400 hover:underline cursor-pointer flex items-center gap-1"
+                                                        className="text-xs font-semibold text-orange-600 dark:text-orange-400 hover:underline cursor-pointer flex items-center gap-1"
                                                     >
-                                                        <span>Exibir todos os {previousMonthStats.totalCount} lançamentos sem filtro de data</span>
+                                                        <span>Exibir todos os <span className="tabular-nums">{previousMonthStats.totalCount}</span> lançamentos sem filtro de data</span>
                                                         <span>→</span>
                                                     </button>
                                                 )}
@@ -2158,14 +2022,14 @@ export const LivroCaixaView: React.FC = memo(() => {
 
                                         return (
                                             <tr key={tx.id || idx} className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors ${isClosingTx ? 'bg-amber-50/30 dark:bg-amber-950/10' : ''}`}>
-                                                <td className="px-4 py-2.5 whitespace-nowrap font-mono text-slate-600 dark:text-slate-400">
+                                                <td className="px-4 py-2.5 whitespace-nowrap tabular-nums text-slate-600 dark:text-slate-400">
                                                     {!isManualRow && tx.reference_date && tx.bank_date && tx.reference_date !== tx.bank_date ? (
                                                         <div className="flex flex-col leading-tight">
-                                                            <span className="font-bold text-slate-800 dark:text-slate-100" title={`Data de Referência (Competência): ${formatDateBRL(tx.date)}`}>
+                                                            <span className="font-semibold text-slate-800 dark:text-slate-100" title={`Data de Referência (Competência): ${formatDateBRL(tx.date)}`}>
                                                                 {formatDateBRL(tx.date)}
                                                             </span>
-                                                            <span className="text-[9.5px] text-slate-400 dark:text-slate-500 font-normal mt-0.5" title={`Data no Banco: ${formatDateBRL(tx.bank_date)}`}>
-                                                                <span className="text-[8.5px] uppercase font-semibold text-slate-400 mr-0.5">Banco:</span>
+                                                            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5" title={`Data no Banco: ${formatDateBRL(tx.bank_date)}`}>
+                                                                <span className="text-[9px] uppercase font-semibold text-slate-400 mr-0.5">Banco:</span>
                                                                 {formatDateBRL(tx.bank_date)}
                                                             </span>
                                                         </div>
@@ -2174,13 +2038,13 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                     )}
                                                 </td>
                                                 <td className="px-4 py-2.5">
-                                                    <div className="font-bold text-slate-800 dark:text-slate-100 uppercase flex items-center gap-1.5 flex-wrap">
+                                                    <div className="font-semibold text-slate-800 dark:text-slate-100 uppercase flex items-center gap-1.5 flex-wrap">
                                                         <span>{payerName}</span>
                                                         {isClosingTx && (
-                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wide ${
+                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide ${
                                                                 isExpense
-                                                                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60'
-                                                                    : 'bg-teal-100 text-teal-800 dark:bg-teal-950/60 dark:text-teal-300 border border-teal-200 dark:border-teal-800/60'
+                                                                    ? 'bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/60'
+                                                                    : 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/60'
                                                             }`}>
                                                                 {isExpense ? 'Transporte p/ Outro Caixa (Débito)' : 'Transporte Recebido (Crédito)'}
                                                             </span>
@@ -2189,7 +2053,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setEditingManualTx(tx.raw || tx)}
-                                                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800/80 cursor-pointer shadow-2xs transition-all active:scale-95 ml-1"
+                                                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800/80 cursor-pointer shadow-2xs transition-colors ml-1"
                                                                 title="Editar Lançamento Manual"
                                                             >
                                                                 <Pencil className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
@@ -2198,17 +2062,17 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                         )}
                                                     </div>
                                                     {descText && (
-                                                        <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 line-clamp-1 max-w-sm">
+                                                        <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1 max-w-sm">
                                                             {descText}
                                                         </div>
                                                     )}
                                                     {txSplits && txSplits.length > 0 && (
-                                                        <div className="mt-1.5 text-[9.5px] bg-slate-50 dark:bg-slate-800/70 p-2 rounded-lg border border-slate-200/80 dark:border-slate-700/80 space-y-1 max-w-md">
+                                                        <div className="mt-1.5 text-[10px] bg-slate-50 dark:bg-slate-800/70 p-2 rounded-lg border border-slate-200/80 dark:border-slate-700/80 space-y-1 max-w-md">
                                                             <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-700/60 pb-0.5">
-                                                                <span className="font-extrabold text-orange-600 dark:text-orange-400 uppercase tracking-wider text-[8px]">
+                                                                <span className="font-semibold text-orange-600 dark:text-orange-400 uppercase tracking-wide text-[9px]">
                                                                     Divisões do Rateio ({txSplits.length} destinos):
                                                                 </span>
-                                                                <span className="text-[8px] font-semibold text-slate-400">Total: {formatBRL(amt)}</span>
+                                                                <span className="text-[9px] font-semibold text-slate-400 tabular-nums">Total: {formatBRL(amt)}</span>
                                                             </div>
                                                             <div className="space-y-1">
                                                                 {txSplits.map((s: any, sIdx: number) => {
@@ -2216,23 +2080,23 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                                     const sType = s.contributionType || s.category || s.destino || 'Rateio';
                                                                     const sChurch = s.churchName || (s.churchId ? getChurchName(s.churchId) : '');
                                                                     return (
-                                                                        <div key={s.id || sIdx} className="flex items-center justify-between gap-1.5 bg-white dark:bg-slate-900/80 px-2 py-0.5 rounded border border-slate-100 dark:border-slate-800">
+                                                                        <div key={s.id || sIdx} className="flex items-center justify-between gap-1.5 bg-white dark:bg-slate-900/80 px-2 py-0.5 rounded-md border border-slate-100 dark:border-slate-800">
                                                                             <div className="flex items-center gap-1.5 min-w-0">
-                                                                                <span className="bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.2 rounded text-[8px] font-bold uppercase">
+                                                                                <span className="bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase">
                                                                                     {sType}
                                                                                 </span>
                                                                                 {sChurch && (
-                                                                                    <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-1.5 py-0.2 rounded text-[8px] font-bold truncate">
+                                                                                    <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-1.5 py-0.5 rounded text-[9px] font-semibold truncate">
                                                                                         {sChurch}
                                                                                     </span>
                                                                                 )}
                                                                                 {s.paymentMethod && (
-                                                                                    <span className="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 px-1 py-0.2 rounded text-[8px] font-bold uppercase">
+                                                                                    <span className="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 px-1 py-0.5 rounded text-[9px] font-semibold uppercase">
                                                                                         {s.paymentMethod}
                                                                                     </span>
                                                                                 )}
                                                                             </div>
-                                                                            <span className="font-bold text-slate-800 dark:text-slate-200 tabular-nums">
+                                                                            <span className="font-semibold text-slate-800 dark:text-slate-200 tabular-nums">
                                                                                 {formatBRL(sAmt)}
                                                                             </span>
                                                                         </div>
@@ -2247,10 +2111,10 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => setPreviewAttachment({ ...nfAtt, txId: tx.id })}
-                                                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 hover:bg-indigo-200 transition-colors border border-indigo-300/80 dark:border-indigo-800/80 cursor-pointer shadow-2xs"
+                                                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors border border-slate-200/80 dark:border-slate-700 cursor-pointer shadow-2xs"
                                                                     title="Clique para visualizar a Nota Fiscal (NF-e/NFC-e)"
                                                                 >
-                                                                    <Receipt className="w-2.5 h-2.5" />
+                                                                    <Receipt className="w-2.5 h-2.5 text-orange-600 dark:text-orange-400" />
                                                                     <span>NF</span>
                                                                 </button>
                                                             )}
@@ -2258,7 +2122,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => setPreviewAttachment({ ...invoiceAtt, txId: tx.id })}
-                                                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 hover:bg-amber-200 transition-colors border border-amber-300/80 dark:border-amber-800/80 cursor-pointer shadow-2xs"
+                                                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 hover:bg-amber-100 transition-colors border border-amber-200/80 dark:border-amber-800/80 cursor-pointer shadow-2xs"
                                                                     title="Clique para visualizar o Boleto / Fatura"
                                                                 >
                                                                     <FileText className="w-2.5 h-2.5" />
@@ -2269,7 +2133,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => setPreviewAttachment({ ...receiptAtt, txId: tx.id })}
-                                                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 transition-colors border border-emerald-300/80 dark:border-emerald-800/80 cursor-pointer shadow-2xs"
+                                                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 transition-colors border border-emerald-200/80 dark:border-emerald-800/80 cursor-pointer shadow-2xs"
                                                                     title="Clique para visualizar o Comprovante de Pagamento"
                                                                 >
                                                                     <CheckCircle2 className="w-2.5 h-2.5" />
@@ -2280,7 +2144,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => setPreviewAttachment({ ...serviceReceiptAtt, txId: tx.id })}
-                                                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 hover:bg-amber-200 transition-colors border border-amber-300 dark:border-amber-800 cursor-pointer shadow-2xs"
+                                                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 hover:bg-amber-100 transition-colors border border-amber-200 dark:border-amber-800 cursor-pointer shadow-2xs"
                                                                     title="Clique para visualizar o Recibo de Prestação de Serviços Assinado"
                                                                 >
                                                                     <FileSignature className="w-2.5 h-2.5 text-amber-700 dark:text-amber-400" />
@@ -2290,10 +2154,10 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setServiceReceiptTx(tx)}
-                                                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold transition-all cursor-pointer shadow-2xs ${
+                                                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold transition-colors cursor-pointer shadow-2xs ${
                                                                     serviceReceiptAtt
                                                                         ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800/80'
-                                                                        : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/60'
+                                                                        : 'bg-amber-50/70 hover:bg-amber-100 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-700/60'
                                                                 }`}
                                                                 title="Emitir ou Assinar Digitalmente o Recibo de Pagamento para o Prestador de Serviço"
                                                             >
@@ -2301,14 +2165,14 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                                 <span>{serviceReceiptAtt ? 'Novo Recibo' : 'Emitir Recibo'}</span>
                                                             </button>
                                                             {txAttachments.length > identifiedCount && (
-                                                                <span className="text-[9px] text-slate-400 font-bold">
+                                                                <span className="text-[10px] text-slate-400 font-semibold tabular-nums">
                                                                     +{txAttachments.length - identifiedCount} anexo(s)
                                                                 </span>
                                                             )}
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setQuickAttachTx(tx)}
-                                                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold transition-all cursor-pointer ${
+                                                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold transition-colors cursor-pointer ${
                                                                     txAttachments.length === 0
                                                                         ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50'
                                                                         : 'bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
@@ -2328,40 +2192,40 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                     )}
                                                 </td>
                                                 <td className="px-4 py-2.5">
-                                                    <span className="text-[10px] font-extrabold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2.5 py-1 rounded-full uppercase whitespace-nowrap">
+                                                    <span className="text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200/70 dark:border-slate-700 px-2 py-0.5 rounded-md uppercase whitespace-nowrap">
                                                         {tx.church || getChurchName(tx.churchId)}
                                                     </span>
                                                 </td>
                                                 <td className="px-4 py-2.5">
                                                     {txSplits && txSplits.length > 0 ? (
-                                                        <span className="px-2.5 py-1 rounded-md text-[10px] font-black uppercase whitespace-nowrap bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-900/30">
+                                                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase whitespace-nowrap bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 border border-orange-200/70 dark:border-orange-900/40 tabular-nums">
                                                             Rateado ({txSplits.length})
                                                         </span>
                                                     ) : (
-                                                        <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase whitespace-nowrap ${
+                                                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase whitespace-nowrap ${
                                                             isExpense 
-                                                                ? 'bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border border-rose-200/50 dark:border-rose-900/30' 
-                                                                : 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-900/30'
+                                                                ? 'bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400 border border-rose-200/60 dark:border-rose-900/40' 
+                                                                : 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-900/40'
                                                         }`}>
                                                             {descCatLabel}
                                                         </span>
                                                     )}
                                                 </td>
                                                 <td className="px-4 py-2.5">
-                                                    <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200/60 dark:border-slate-700/50 uppercase whitespace-nowrap">
+                                                    <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200/70 dark:border-slate-700 uppercase whitespace-nowrap">
                                                         {formaLabel}
                                                     </span>
                                                 </td>
-                                                <td className={`px-4 py-2.5 text-right font-mono font-bold whitespace-nowrap ${isExpense ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                                <td className={`px-4 py-2.5 text-right tabular-nums font-bold whitespace-nowrap ${isExpense ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
                                                     {txSplits && txSplits.length > 0 ? (
                                                         <div className="flex flex-col items-end gap-0.5">
-                                                            <span className="text-xs font-black">
+                                                            <span className="text-xs font-bold">
                                                                 {isExpense ? `- ${formatBRL(amt)}` : `+ ${formatBRL(amt)}`}
                                                             </span>
-                                                            <div className="flex flex-col items-end text-[9px] font-mono text-slate-500 dark:text-slate-400 font-medium">
+                                                            <div className="flex flex-col items-end text-[10px] tabular-nums text-slate-500 dark:text-slate-400 font-medium">
                                                                 {txSplits.map((s: any, sIdx: number) => (
                                                                     <span key={s.id || sIdx} className="whitespace-nowrap flex items-center gap-1">
-                                                                        <span className="text-[8px] font-sans font-bold uppercase text-indigo-600 dark:text-indigo-400">{s.contributionType || 'Destino'}:</span>
+                                                                        <span className="text-[9px] font-semibold uppercase text-orange-600 dark:text-orange-400">{s.contributionType || 'Destino'}:</span>
                                                                         <span>{formatBRL(Math.abs(Number(s.amount) || 0))}</span>
                                                                     </span>
                                                                 ))}
@@ -2377,20 +2241,20 @@ export const LivroCaixaView: React.FC = memo(() => {
                                 )}
                             </tbody>
                             {filteredReportData.length > 0 && (
-                                <tfoot className="bg-slate-50 dark:bg-slate-800/60 font-bold text-xs border-t-2 border-slate-200 dark:border-slate-700">
+                                <tfoot className="bg-slate-50/90 dark:bg-slate-800/60 font-semibold text-xs border-t-2 border-slate-200/90 dark:border-slate-700">
                                     <tr>
-                                        <td colSpan={3} className="px-4 py-3 text-slate-500 uppercase text-[10px] tracking-wider">
+                                        <td colSpan={3} className="px-4 py-3 text-slate-500 uppercase text-[10px] tracking-wide tabular-nums">
                                             Totais ({filteredReportData.length} registros no período)
                                         </td>
-                                        <td className="px-4 py-3 text-[10px] uppercase text-slate-500 whitespace-nowrap">
-                                            <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">Entradas: {formatBRL(financialTotals.income)}</span>
+                                        <td className="px-4 py-3 text-[10px] uppercase text-slate-500 whitespace-nowrap tabular-nums">
+                                            <span className="text-emerald-600 dark:text-emerald-400 font-bold">Entradas: {formatBRL(financialTotals.income)}</span>
                                             <span className="mx-1.5 text-slate-300 dark:text-slate-600">|</span>
-                                            <span className="text-rose-600 dark:text-rose-400 font-extrabold">Saídas: {formatBRL(financialTotals.expenses)}</span>
+                                            <span className="text-rose-600 dark:text-rose-400 font-bold">Saídas: {formatBRL(financialTotals.expenses)}</span>
                                         </td>
-                                        <td className="px-4 py-3 text-slate-500 text-[10px] uppercase font-bold whitespace-nowrap">
+                                        <td className="px-4 py-3 text-slate-600 dark:text-slate-400 text-[10px] uppercase font-semibold whitespace-nowrap">
                                             Saldo Operacional:
                                         </td>
-                                        <td className={`px-4 py-3 text-right font-mono font-black text-sm whitespace-nowrap ${
+                                        <td className={`px-4 py-3 text-right tabular-nums font-bold text-sm whitespace-nowrap ${
                                             financialTotals.balance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
                                         }`}>
                                             {financialTotals.balance >= 0 ? `+ ${formatBRL(financialTotals.balance)}` : `- ${formatBRL(Math.abs(financialTotals.balance))}`}
@@ -2398,25 +2262,25 @@ export const LivroCaixaView: React.FC = memo(() => {
                                     </tr>
                                     {(financialTotals.closingOut > 0 || financialTotals.closingIn > 0) && (
                                         <tr className="bg-amber-50/70 dark:bg-amber-950/20 border-t border-amber-200/70 dark:border-amber-900/40">
-                                            <td colSpan={3} className="px-4 py-2.5 text-amber-800 dark:text-amber-300 uppercase text-[10px] tracking-wider font-extrabold">
+                                            <td colSpan={3} className="px-4 py-2.5 text-amber-800 dark:text-amber-300 uppercase text-[10px] tracking-wide font-bold">
                                                 Transporte de Saldo de Fechamento:
                                             </td>
-                                            <td className="px-4 py-2.5 text-[10px] uppercase whitespace-nowrap">
+                                            <td className="px-4 py-2.5 text-[10px] uppercase whitespace-nowrap tabular-nums">
                                                 {financialTotals.closingIn > 0 && (
-                                                    <span className="text-teal-700 dark:text-teal-300 font-extrabold mr-3">
+                                                    <span className="text-emerald-700 dark:text-emerald-300 font-bold mr-3">
                                                         Recebido: +{formatBRL(financialTotals.closingIn)}
                                                     </span>
                                                 )}
                                                 {financialTotals.closingOut > 0 && (
-                                                    <span className="text-amber-700 dark:text-amber-400 font-extrabold">
+                                                    <span className="text-amber-700 dark:text-amber-400 font-bold">
                                                         Enviado: -{formatBRL(financialTotals.closingOut)}
                                                     </span>
                                                 )}
                                             </td>
-                                            <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300 text-[10px] uppercase font-extrabold whitespace-nowrap">
+                                            <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300 text-[10px] uppercase font-bold whitespace-nowrap">
                                                 Saldo Final Resultante:
                                             </td>
-                                            <td className={`px-4 py-2.5 text-right font-mono font-black text-sm whitespace-nowrap ${
+                                            <td className={`px-4 py-2.5 text-right tabular-nums font-bold text-sm whitespace-nowrap ${
                                                 (financialTotals.balance + financialTotals.closingNet) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
                                             }`}>
                                                 {(financialTotals.balance + financialTotals.closingNet) >= 0
@@ -2431,34 +2295,34 @@ export const LivroCaixaView: React.FC = memo(() => {
                     </div>
 
                     {filteredReportData.length > ITEMS_PER_PAGE && (
-                        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400">
+                        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-slate-50/90 dark:bg-slate-900 border-t border-slate-200/90 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400">
                             <span className="text-[11px]">
-                                Exibindo <span className="font-mono text-slate-900 dark:text-white">{(currentPage - 1) * ITEMS_PER_PAGE + 1}</span> a <span className="font-mono text-slate-900 dark:text-white">{Math.min(filteredReportData.length, currentPage * ITEMS_PER_PAGE)}</span> de <span className="font-mono text-slate-900 dark:text-white">{filteredReportData.length}</span> lançamentos
+                                Exibindo <span className="tabular-nums text-slate-900 dark:text-white">{(currentPage - 1) * ITEMS_PER_PAGE + 1}</span> a <span className="tabular-nums text-slate-900 dark:text-white">{Math.min(filteredReportData.length, currentPage * ITEMS_PER_PAGE)}</span> de <span className="tabular-nums text-slate-900 dark:text-white">{filteredReportData.length}</span> lançamentos
                             </span>
 
                             <div className="flex items-center gap-1.5 ml-auto">
                                 <button
                                     onClick={() => setCurrentPage(1)}
                                     disabled={currentPage === 1}
-                                    className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[11px] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors"
+                                    className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[11px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer"
                                 >
                                     Primeira
                                 </button>
                                 <button
                                     onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                                     disabled={currentPage === 1}
-                                    className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors"
+                                    className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer"
                                     title="Página Anterior"
                                 >
                                     <ChevronLeft className="w-4 h-4" />
                                 </button>
-                                <span className="px-2 font-mono text-[11px] text-slate-800 dark:text-white">
+                                <span className="px-2 tabular-nums text-[11px] text-slate-800 dark:text-white">
                                     {currentPage} / {totalPages}
                                 </span>
                                 <button
                                     onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                                     disabled={currentPage === totalPages}
-                                    className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors"
+                                    className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer"
                                     title="Próxima Página"
                                 >
                                     <ChevronRight className="w-4 h-4" />
@@ -2466,7 +2330,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                                 <button
                                     onClick={() => setCurrentPage(totalPages)}
                                     disabled={currentPage === totalPages}
-                                    className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[11px] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors"
+                                    className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[11px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer"
                                 >
                                     Última
                                 </button>
@@ -2476,113 +2340,113 @@ export const LivroCaixaView: React.FC = memo(() => {
                 </div>
 
                 {/* RESUMO DE CAIXA DETALHADO (NO FINAL DO RELATÓRIO) */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl p-5 shadow-xs">
                     <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 dark:border-slate-800">
                         <div className="flex items-center gap-2">
-                            <div className="w-2 h-4 bg-brand-orange rounded-full"></div>
-                            <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">RESUMO</h3>
+                            <div className="w-1.5 h-4 bg-orange-600 rounded-sm"></div>
+                            <h3 className="text-xs font-bold uppercase tracking-wide text-slate-900 dark:text-slate-100">RESUMO</h3>
                         </div>
-                        <span className="text-[11px] font-bold text-slate-400">Demonstrativo Analítico do Caixa</span>
+                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Demonstrativo Analítico do Caixa</span>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
                         {/* Bloco Entradas & Créditos */}
-                        <div className="space-y-2 bg-emerald-50/30 dark:bg-emerald-950/10 p-4 rounded-xl border border-emerald-100 dark:border-emerald-900/30">
-                            <div className="font-black text-emerald-800 dark:text-emerald-400 uppercase text-[10px] tracking-wider mb-2 border-b border-emerald-200/60 dark:border-emerald-800/40 pb-1.5">Entradas e Créditos</div>
+                        <div className="space-y-2 bg-emerald-50/30 dark:bg-emerald-950/10 p-4 rounded-xl border border-emerald-200/60 dark:border-emerald-900/30">
+                            <div className="font-bold text-emerald-800 dark:text-emerald-400 uppercase text-[10px] tracking-wider mb-2 border-b border-emerald-200/60 dark:border-emerald-800/40 pb-1.5">Entradas e Créditos</div>
                             <div className="flex justify-between items-center text-slate-600 dark:text-slate-300">
                                 <span>Total de entradas em dinheiro:</span>
-                                <strong className="font-mono text-emerald-600 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.entradasDinheiro)}</strong>
+                                <strong className="tabular-nums font-semibold text-emerald-600 dark:text-emerald-400 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.entradasDinheiro)}</strong>
                             </div>
                             <div className="flex justify-between items-center text-slate-600 dark:text-slate-300">
                                 <span>Total de entradas em Pix:</span>
-                                <strong className="font-mono text-emerald-600 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.entradasPix)}</strong>
+                                <strong className="tabular-nums font-semibold text-emerald-600 dark:text-emerald-400 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.entradasPix)}</strong>
                             </div>
                             {summaryBreakdown.entradasOutras > 0 && (
                                 <div className="flex justify-between items-center text-slate-600 dark:text-slate-300">
                                     <span>Outras entradas:</span>
-                                    <strong className="font-mono text-emerald-600 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.entradasOutras)}</strong>
+                                    <strong className="tabular-nums font-semibold text-emerald-600 dark:text-emerald-400 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.entradasOutras)}</strong>
                                 </div>
                             )}
                             <div className="flex justify-between items-center font-bold text-slate-800 dark:text-slate-100 pt-1 border-t border-emerald-200/40">
                                 <span>Total de entradas:</span>
-                                <strong className="font-mono text-emerald-700 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.totalEntradas)}</strong>
+                                <strong className="tabular-nums text-emerald-700 dark:text-emerald-300 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.totalEntradas)}</strong>
                             </div>
                             <div className="flex justify-between items-center text-slate-600 dark:text-slate-300 pt-1">
                                 <span>Total de transf. recebidas:</span>
-                                <strong className="font-mono text-emerald-600 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.transfRecebidas)}</strong>
+                                <strong className="tabular-nums font-semibold text-emerald-600 dark:text-emerald-400 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.transfRecebidas)}</strong>
                             </div>
-                            <div className="flex justify-between items-center font-extrabold text-emerald-800 dark:text-emerald-300 pt-2 border-t border-emerald-200/80 dark:border-emerald-800/60 text-[11px]">
+                            <div className="flex justify-between items-center font-bold text-emerald-800 dark:text-emerald-300 pt-2 border-t border-emerald-200/80 dark:border-emerald-800/60 text-[11px]">
                                 <span>Total Entradas + Transf.:</span>
-                                <span className="font-mono ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.totalEntradasPlusTransf)}</span>
+                                <span className="tabular-nums ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.totalEntradasPlusTransf)}</span>
                             </div>
                         </div>
 
                         {/* Bloco Saídas & Débitos */}
-                        <div className="space-y-2 bg-rose-50/30 dark:bg-rose-950/10 p-4 rounded-xl border border-rose-100 dark:border-rose-900/30">
-                            <div className="font-black text-rose-800 dark:text-rose-400 uppercase text-[10px] tracking-wider mb-2 border-b border-rose-200/60 dark:border-rose-800/40 pb-1.5">Saídas e Débitos</div>
+                        <div className="space-y-2 bg-rose-50/30 dark:bg-rose-950/10 p-4 rounded-xl border border-rose-200/60 dark:border-rose-900/30">
+                            <div className="font-bold text-rose-800 dark:text-rose-400 uppercase text-[10px] tracking-wider mb-2 border-b border-rose-200/60 dark:border-rose-800/40 pb-1.5">Saídas e Débitos</div>
                             <div className="flex justify-between items-center text-slate-600 dark:text-slate-300">
                                 <span>Total de saídas em dinheiro:</span>
-                                <strong className="font-mono text-rose-600 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.saidasDinheiro)}</strong>
+                                <strong className="tabular-nums font-semibold text-rose-600 dark:text-rose-400 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.saidasDinheiro)}</strong>
                             </div>
                             <div className="flex justify-between items-center text-slate-600 dark:text-slate-300">
                                 <span>Total de saídas em Pix:</span>
-                                <strong className="font-mono text-rose-600 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.saidasPix)}</strong>
+                                <strong className="tabular-nums font-semibold text-rose-600 dark:text-rose-400 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.saidasPix)}</strong>
                             </div>
                             <div className="flex justify-between items-center text-slate-600 dark:text-slate-300">
                                 <span>Saídas boleto, faturas:</span>
-                                <strong className="font-mono text-rose-600 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.saidasBoletoFaturas)}</strong>
+                                <strong className="tabular-nums font-semibold text-rose-600 dark:text-rose-400 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.saidasBoletoFaturas)}</strong>
                             </div>
                             {summaryBreakdown.saidasOutras > 0 && (
                                 <div className="flex justify-between items-center text-slate-600 dark:text-slate-300">
                                     <span>Outras saídas / diversos:</span>
-                                    <strong className="font-mono text-rose-600 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.saidasOutras)}</strong>
+                                    <strong className="tabular-nums font-semibold text-rose-600 dark:text-rose-400 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.saidasOutras)}</strong>
                                 </div>
                             )}
                             <div className="flex justify-between items-center font-bold text-slate-800 dark:text-slate-100 pt-1 border-t border-rose-200/40">
                                 <span>Total de saídas:</span>
-                                <strong className="font-mono text-rose-700 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.totalSaidas)}</strong>
+                                <strong className="tabular-nums text-rose-700 dark:text-rose-300 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.totalSaidas)}</strong>
                             </div>
                             <div className="flex justify-between items-center text-slate-600 dark:text-slate-300 pt-1">
                                 <span>Total de transf. enviadas:</span>
-                                <strong className="font-mono text-rose-600 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.transfEnviadas)}</strong>
+                                <strong className="tabular-nums font-semibold text-rose-600 dark:text-rose-400 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.transfEnviadas)}</strong>
                             </div>
-                            <div className="flex justify-between items-center font-extrabold text-rose-800 dark:text-rose-300 pt-2 border-t border-rose-200/80 dark:border-rose-800/60 text-[11px]">
+                            <div className="flex justify-between items-center font-bold text-rose-800 dark:text-rose-300 pt-2 border-t border-rose-200/80 dark:border-rose-800/60 text-[11px]">
                                 <span>Total Saídas + Transf.:</span>
-                                <span className="font-mono ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.totalSaidasPlusTransf)}</span>
+                                <span className="tabular-nums ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.totalSaidasPlusTransf)}</span>
                             </div>
                         </div>
 
                         {/* Bloco Saldos */}
                         <div className="space-y-3 bg-amber-50/40 dark:bg-amber-950/10 p-4 rounded-xl border border-amber-200/60 dark:border-amber-900/30 flex flex-col justify-between">
                             <div className="space-y-2">
-                                <div className="font-black text-amber-800 dark:text-amber-400 uppercase text-[10px] tracking-wider mb-2 border-b border-amber-200/60 dark:border-amber-800/40 pb-1.5">Saldos do Período</div>
+                                <div className="font-bold text-amber-800 dark:text-amber-400 uppercase text-[10px] tracking-wider mb-2 border-b border-amber-200/60 dark:border-amber-800/40 pb-1.5">Saldos do Período</div>
                                 <div className="flex justify-between items-center text-slate-700 dark:text-slate-300 py-0.5">
-                                    <span className="font-bold">Saldo em Dinheiro:</span>
-                                    <strong className={`font-mono ml-2 whitespace-nowrap ${summaryBreakdown.saldoDinheiro >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                    <span className="font-semibold">Saldo em Dinheiro:</span>
+                                    <strong className={`tabular-nums font-bold ml-2 whitespace-nowrap ${summaryBreakdown.saldoDinheiro >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                                         {formatBRL(summaryBreakdown.saldoDinheiro)}
                                     </strong>
                                 </div>
                                 <div className="flex justify-between items-center text-slate-700 dark:text-slate-300 py-0.5">
-                                    <span className="font-bold">Saldo em Pix:</span>
-                                    <strong className={`font-mono ml-2 whitespace-nowrap ${summaryBreakdown.saldoPix >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                    <span className="font-semibold">Saldo em Pix:</span>
+                                    <strong className={`tabular-nums font-bold ml-2 whitespace-nowrap ${summaryBreakdown.saldoPix >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                                         {formatBRL(summaryBreakdown.saldoPix)}
                                     </strong>
                                 </div>
                                 <div className="flex justify-between items-center text-slate-700 dark:text-slate-300 py-0.5 border-t border-amber-200/40 pt-1">
-                                    <span className="font-bold">Saldo Anterior:</span>
-                                    <strong className="font-mono ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.saldoAnterior)}</strong>
+                                    <span className="font-semibold">Saldo Anterior:</span>
+                                    <strong className="tabular-nums font-bold ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.saldoAnterior)}</strong>
                                 </div>
                                 {monthClosingRecord && monthClosingRecord.status !== 'reopened' && monthClosingRecord.transferredBalance !== undefined && (
                                     <>
                                         <div className="flex justify-between items-center text-slate-700 dark:text-slate-300 py-0.5 border-t border-amber-200/40 pt-1 text-[11px]">
-                                            <span className="font-bold text-slate-600 dark:text-slate-400">Saldo antes do fechamento:</span>
-                                            <strong className="font-mono ml-2 whitespace-nowrap text-slate-800 dark:text-slate-200">
+                                            <span className="font-semibold text-slate-600 dark:text-slate-400">Saldo antes do fechamento:</span>
+                                            <strong className="tabular-nums font-semibold ml-2 whitespace-nowrap text-slate-800 dark:text-slate-200">
                                                 {formatBRL(monthClosingRecord.finalBalance)}
                                             </strong>
                                         </div>
                                         <div className="flex justify-between items-center text-slate-700 dark:text-slate-300 py-0.5 text-[11px]">
-                                            <span className="font-bold text-slate-600 dark:text-slate-400">Valor transportado:</span>
-                                            <strong className="font-mono ml-2 whitespace-nowrap text-rose-600 dark:text-rose-400">
+                                            <span className="font-semibold text-slate-600 dark:text-slate-400">Valor transportado:</span>
+                                            <strong className="tabular-nums font-semibold ml-2 whitespace-nowrap text-rose-600 dark:text-rose-400">
                                                 {formatBRL(Math.abs(monthClosingRecord.transferredBalance))}
                                             </strong>
                                         </div>
@@ -2590,10 +2454,10 @@ export const LivroCaixaView: React.FC = memo(() => {
                                 )}
                             </div>
                             <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-amber-300/80 dark:border-amber-800 shadow-xs flex justify-between items-center gap-2">
-                                <span className="font-black text-slate-900 dark:text-white uppercase text-[11px] tracking-tight">
+                                <span className="font-bold text-slate-900 dark:text-white uppercase text-[11px] tracking-tight">
                                     {monthClosingRecord && monthClosingRecord.status !== 'reopened' ? 'Saldo atual:' : 'Saldo final:'}
                                 </span>
-                                <span className={`text-base font-black font-mono whitespace-nowrap ${
+                                <span className={`text-base font-bold tabular-nums whitespace-nowrap ${
                                     (monthClosingRecord && monthClosingRecord.status !== 'reopened'
                                         ? (monthClosingRecord.finalBalance - (monthClosingRecord.transferredBalance || 0))
                                         : summaryBreakdown.saldoFinal) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
@@ -2613,26 +2477,26 @@ export const LivroCaixaView: React.FC = memo(() => {
                         {/* Resumo Dinheiro */}
                         <div className="bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-200/70 dark:border-emerald-900/40 rounded-xl p-3.5 space-y-2.5">
                             <div className="flex items-center justify-between pb-2 border-b border-emerald-200/60 dark:border-emerald-800/40">
-                                <span className="font-black uppercase tracking-wider text-[11px] text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                                <span className="font-bold uppercase tracking-wider text-[11px] text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
                                     <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
                                     Resumo em Dinheiro (Espécie)
                                 </span>
-                                <span className={`text-xs font-mono font-black ${summaryBreakdown.saldoDinheiro >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-400'}`}>
+                                <span className={`text-xs tabular-nums font-bold ${summaryBreakdown.saldoDinheiro >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-400'}`}>
                                     Saldo: {formatBRL(summaryBreakdown.saldoDinheiro)}
                                 </span>
                             </div>
                             <div className="grid grid-cols-3 gap-2 text-xs">
-                                <div className="bg-white/70 dark:bg-slate-900/70 p-2 rounded-lg border border-emerald-100 dark:border-emerald-900/30">
-                                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Total Entrada</span>
-                                    <strong className="font-mono text-emerald-600 block text-[11.5px] mt-0.5">{formatBRL(summaryBreakdown.entradasDinheiro)}</strong>
+                                <div className="bg-white/80 dark:bg-slate-900/80 p-2 rounded-lg border border-emerald-200/60 dark:border-emerald-900/30">
+                                    <span className="text-[10px] font-semibold text-slate-500 uppercase block">Total Entrada</span>
+                                    <strong className="tabular-nums text-emerald-600 dark:text-emerald-400 block text-[11.5px] mt-0.5">{formatBRL(summaryBreakdown.entradasDinheiro)}</strong>
                                 </div>
-                                <div className="bg-white/70 dark:bg-slate-900/70 p-2 rounded-lg border border-emerald-100 dark:border-emerald-900/30">
-                                    <span className="text-[10px] font-bold text-slate-500 uppercase block">(-) Total Pago</span>
-                                    <strong className="font-mono text-rose-600 block text-[11.5px] mt-0.5">{formatBRL(summaryBreakdown.saidasDinheiro)}</strong>
+                                <div className="bg-white/80 dark:bg-slate-900/80 p-2 rounded-lg border border-emerald-200/60 dark:border-emerald-900/30">
+                                    <span className="text-[10px] font-semibold text-slate-500 uppercase block">(-) Total Pago</span>
+                                    <strong className="tabular-nums text-rose-600 dark:text-rose-400 block text-[11.5px] mt-0.5">{formatBRL(summaryBreakdown.saidasDinheiro)}</strong>
                                 </div>
-                                <div className="bg-white/70 dark:bg-slate-900/70 p-2 rounded-lg border border-emerald-100 dark:border-emerald-900/30 text-right">
-                                    <span className="text-[10px] font-bold text-slate-500 uppercase block">(=) Saldo Dinheiro</span>
-                                    <strong className={`font-mono block text-[11.5px] mt-0.5 ${summaryBreakdown.saldoDinheiro >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                <div className="bg-white/80 dark:bg-slate-900/80 p-2 rounded-lg border border-emerald-200/60 dark:border-emerald-900/30 text-right">
+                                    <span className="text-[10px] font-semibold text-slate-500 uppercase block">(=) Saldo Dinheiro</span>
+                                    <strong className={`tabular-nums block text-[11.5px] mt-0.5 ${summaryBreakdown.saldoDinheiro >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                                         {formatBRL(summaryBreakdown.saldoDinheiro)}
                                     </strong>
                                 </div>
@@ -2640,28 +2504,28 @@ export const LivroCaixaView: React.FC = memo(() => {
                         </div>
 
                         {/* Resumo Pix */}
-                        <div className="bg-teal-50/40 dark:bg-teal-950/20 border border-teal-200/70 dark:border-teal-900/40 rounded-xl p-3.5 space-y-2.5">
-                            <div className="flex items-center justify-between pb-2 border-b border-teal-200/60 dark:border-teal-800/40">
-                                <span className="font-black uppercase tracking-wider text-[11px] text-teal-800 dark:text-teal-300 flex items-center gap-1.5">
-                                    <Sparkles className="w-3.5 h-3.5 text-teal-600" />
+                        <div className="bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 space-y-2.5">
+                            <div className="flex items-center justify-between pb-2 border-b border-slate-200/80 dark:border-slate-700/60">
+                                <span className="font-bold uppercase tracking-wider text-[11px] text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                                    <Sparkles className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
                                     Resumo em Pix
                                 </span>
-                                <span className={`text-xs font-mono font-black ${summaryBreakdown.saldoPix >= 0 ? 'text-teal-700 dark:text-teal-300' : 'text-rose-600 dark:text-rose-400'}`}>
+                                <span className={`text-xs tabular-nums font-bold ${summaryBreakdown.saldoPix >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                                     Saldo: {formatBRL(summaryBreakdown.saldoPix)}
                                 </span>
                             </div>
                             <div className="grid grid-cols-3 gap-2 text-xs">
-                                <div className="bg-white/70 dark:bg-slate-900/70 p-2 rounded-lg border border-teal-100 dark:border-teal-900/30">
-                                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Valor Entrada</span>
-                                    <strong className="font-mono text-teal-600 dark:text-teal-400 block text-[11.5px] mt-0.5">{formatBRL(summaryBreakdown.entradasPix)}</strong>
+                                <div className="bg-white dark:bg-slate-900/80 p-2 rounded-lg border border-slate-200/70 dark:border-slate-800">
+                                    <span className="text-[10px] font-semibold text-slate-500 uppercase block">Valor Entrada</span>
+                                    <strong className="tabular-nums text-emerald-600 dark:text-emerald-400 block text-[11.5px] mt-0.5">{formatBRL(summaryBreakdown.entradasPix)}</strong>
                                 </div>
-                                <div className="bg-white/70 dark:bg-slate-900/70 p-2 rounded-lg border border-teal-100 dark:border-teal-900/30">
-                                    <span className="text-[10px] font-bold text-slate-500 uppercase block">(-) Valor Saída</span>
-                                    <strong className="font-mono text-rose-600 block text-[11.5px] mt-0.5">{formatBRL(summaryBreakdown.saidasPix)}</strong>
+                                <div className="bg-white dark:bg-slate-900/80 p-2 rounded-lg border border-slate-200/70 dark:border-slate-800">
+                                    <span className="text-[10px] font-semibold text-slate-500 uppercase block">(-) Valor Saída</span>
+                                    <strong className="tabular-nums text-rose-600 dark:text-rose-400 block text-[11.5px] mt-0.5">{formatBRL(summaryBreakdown.saidasPix)}</strong>
                                 </div>
-                                <div className="bg-white/70 dark:bg-slate-900/70 p-2 rounded-lg border border-teal-100 dark:border-teal-900/30 text-right">
-                                    <span className="text-[10px] font-bold text-slate-500 uppercase block">(=) Saldo Pix</span>
-                                    <strong className={`font-mono block text-[11.5px] mt-0.5 ${summaryBreakdown.saldoPix >= 0 ? 'text-teal-700 dark:text-teal-300' : 'text-rose-600 dark:text-rose-400'}`}>
+                                <div className="bg-white dark:bg-slate-900/80 p-2 rounded-lg border border-slate-200/70 dark:border-slate-800 text-right">
+                                    <span className="text-[10px] font-semibold text-slate-500 uppercase block">(=) Saldo Pix</span>
+                                    <strong className={`tabular-nums block text-[11.5px] mt-0.5 ${summaryBreakdown.saldoPix >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                                         {formatBRL(summaryBreakdown.saldoPix)}
                                     </strong>
                                 </div>
@@ -2671,29 +2535,29 @@ export const LivroCaixaView: React.FC = memo(() => {
                 </div>
 
                 {/* RESUMO POR DESTINO / FINALIDADE (DESCRIÇÃO & RATEIOS) */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl p-5 shadow-xs">
                     <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-4 border-b border-slate-100 dark:border-slate-800">
                         <div className="flex items-center gap-2">
-                            <div className="w-2 h-4 bg-brand-blue rounded-full"></div>
-                            <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                            <div className="w-1.5 h-4 bg-orange-600 rounded-sm"></div>
+                            <h3 className="text-xs font-bold uppercase tracking-wide text-slate-900 dark:text-slate-100">
                                 RESUMO POR DESTINO / FINALIDADE (DESCRIÇÃO)
                             </h3>
                         </div>
-                        <span className="text-[11px] font-bold text-slate-400">
+                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
                             Totalização por Descrição e Rateios Específicos
                         </span>
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 text-xs">
                         {/* Coluna Entradas por Descrição */}
-                        <div className="bg-emerald-50/20 dark:bg-emerald-950/10 p-4 rounded-xl border border-emerald-100/80 dark:border-emerald-900/30 flex flex-col justify-between">
+                        <div className="bg-emerald-50/20 dark:bg-emerald-950/10 p-4 rounded-xl border border-emerald-200/60 dark:border-emerald-900/30 flex flex-col justify-between">
                             <div>
                                 <div className="flex items-center justify-between mb-3 pb-2 border-b border-emerald-200/60 dark:border-emerald-800/40">
-                                    <div className="flex items-center gap-1.5 font-black text-emerald-800 dark:text-emerald-400 uppercase text-[10px] tracking-wider">
+                                    <div className="flex items-center gap-1.5 font-bold text-emerald-800 dark:text-emerald-400 uppercase text-[10px] tracking-wider">
                                         <ArrowUpRight className="w-3.5 h-3.5 text-emerald-600" />
                                         <span>Entradas por Destino / Descrição</span>
                                     </div>
-                                    <span className="text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full">
+                                    <span className="text-[10px] tabular-nums font-semibold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-md">
                                         {descriptionBreakdown.incomes.length} {descriptionBreakdown.incomes.length === 1 ? 'item' : 'itens'}
                                     </span>
                                 </div>
@@ -2715,20 +2579,20 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                     className="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900/80 border border-emerald-100 dark:border-emerald-950/60 rounded-xl hover:border-emerald-300 transition-colors shadow-2xs"
                                                 >
                                                     <div className="flex items-center gap-2 min-w-0 pr-2">
-                                                        <span className="font-mono font-extrabold text-[11px] px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 shrink-0 border border-emerald-200/60 dark:border-emerald-800/40">
+                                                        <span className="tabular-nums font-bold text-[11px] px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 shrink-0 border border-emerald-200/60 dark:border-emerald-800/40">
                                                             {item.count}x
                                                         </span>
                                                         <div className="flex flex-col min-w-0">
-                                                            <span className="font-bold text-slate-800 dark:text-slate-100 uppercase text-[11.5px] truncate" title={item.label}>
+                                                            <span className="font-semibold text-slate-800 dark:text-slate-100 uppercase text-[11.5px] truncate" title={item.label}>
                                                                 {item.label}
                                                             </span>
-                                                            <span className="text-[9.5px] text-slate-400 font-medium mt-0.5">
+                                                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5 tabular-nums">
                                                                 {item.count} {item.count === 1 ? 'lançamento' : 'lançamentos'} ({pct}% do total)
                                                             </span>
                                                         </div>
                                                     </div>
                                                     <div className="text-right whitespace-nowrap pl-2">
-                                                        <span className="font-mono font-black text-emerald-600 dark:text-emerald-400 text-xs sm:text-sm">
+                                                        <span className="tabular-nums font-bold text-emerald-600 dark:text-emerald-400 text-xs sm:text-sm">
                                                             {formatBRL(item.total)}
                                                         </span>
                                                     </div>
@@ -2739,21 +2603,21 @@ export const LivroCaixaView: React.FC = memo(() => {
                                 )}
                             </div>
 
-                            <div className="flex justify-between items-center font-extrabold text-emerald-800 dark:text-emerald-300 pt-3 mt-3 border-t border-emerald-200/80 dark:border-emerald-800/60 text-xs">
+                            <div className="flex justify-between items-center font-bold text-emerald-800 dark:text-emerald-300 pt-3 mt-3 border-t border-emerald-200/80 dark:border-emerald-800/60 text-xs">
                                 <span>Total Entradas:</span>
-                                <span className="font-mono text-sm ml-2 whitespace-nowrap">{formatBRL(descriptionBreakdown.totalIncome)}</span>
+                                <span className="tabular-nums text-sm ml-2 whitespace-nowrap">{formatBRL(descriptionBreakdown.totalIncome)}</span>
                             </div>
                         </div>
 
                         {/* Coluna Saídas por Descrição */}
-                        <div className="bg-rose-50/20 dark:bg-rose-950/10 p-4 rounded-xl border border-rose-100/80 dark:border-rose-900/30 flex flex-col justify-between">
+                        <div className="bg-rose-50/20 dark:bg-rose-950/10 p-4 rounded-xl border border-rose-200/60 dark:border-rose-900/30 flex flex-col justify-between">
                             <div>
                                 <div className="flex items-center justify-between mb-3 pb-2 border-b border-rose-200/60 dark:border-rose-800/40">
-                                    <div className="flex items-center gap-1.5 font-black text-rose-800 dark:text-rose-400 uppercase text-[10px] tracking-wider">
+                                    <div className="flex items-center gap-1.5 font-bold text-rose-800 dark:text-rose-400 uppercase text-[10px] tracking-wider">
                                         <ArrowDownRight className="w-3.5 h-3.5 text-rose-600" />
                                         <span>Saídas por Destino / Descrição</span>
                                     </div>
-                                    <span className="text-[10px] font-mono font-bold bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 px-2 py-0.5 rounded-full">
+                                    <span className="text-[10px] tabular-nums font-semibold bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 px-2 py-0.5 rounded-md">
                                         {descriptionBreakdown.expenses.length} {descriptionBreakdown.expenses.length === 1 ? 'item' : 'itens'}
                                     </span>
                                 </div>
@@ -2775,20 +2639,20 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                     className="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900/80 border border-rose-100 dark:border-rose-950/60 rounded-xl hover:border-rose-300 transition-colors shadow-2xs"
                                                 >
                                                     <div className="flex items-center gap-2 min-w-0 pr-2">
-                                                        <span className="font-mono font-extrabold text-[11px] px-2 py-0.5 rounded-md bg-rose-100 dark:bg-rose-900/60 text-rose-800 dark:text-rose-200 shrink-0 border border-rose-200/60 dark:border-rose-800/40">
+                                                        <span className="tabular-nums font-bold text-[11px] px-2 py-0.5 rounded-md bg-rose-100 dark:bg-rose-900/60 text-rose-800 dark:text-rose-200 shrink-0 border border-rose-200/60 dark:border-rose-800/40">
                                                             {item.count}x
                                                         </span>
                                                         <div className="flex flex-col min-w-0">
-                                                            <span className="font-bold text-slate-800 dark:text-slate-100 uppercase text-[11.5px] truncate" title={item.label}>
+                                                            <span className="font-semibold text-slate-800 dark:text-slate-100 uppercase text-[11.5px] truncate" title={item.label}>
                                                                 {item.label}
                                                             </span>
-                                                            <span className="text-[9.5px] text-slate-400 font-medium mt-0.5">
+                                                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5 tabular-nums">
                                                                 {item.count} {item.count === 1 ? 'lançamento' : 'lançamentos'} ({pct}% do total)
                                                             </span>
                                                         </div>
                                                     </div>
                                                     <div className="text-right whitespace-nowrap pl-2">
-                                                        <span className="font-mono font-black text-rose-600 dark:text-rose-400 text-xs sm:text-sm">
+                                                        <span className="tabular-nums font-bold text-rose-600 dark:text-rose-400 text-xs sm:text-sm">
                                                             {formatBRL(item.total)}
                                                         </span>
                                                     </div>
@@ -2799,9 +2663,9 @@ export const LivroCaixaView: React.FC = memo(() => {
                                 )}
                             </div>
 
-                            <div className="flex justify-between items-center font-extrabold text-rose-800 dark:text-rose-300 pt-3 mt-3 border-t border-rose-200/80 dark:border-rose-800/60 text-xs">
+                            <div className="flex justify-between items-center font-bold text-rose-800 dark:text-rose-300 pt-3 mt-3 border-t border-rose-200/80 dark:border-rose-800/60 text-xs">
                                 <span>Total Saídas:</span>
-                                <span className="font-mono text-sm ml-2 whitespace-nowrap">{formatBRL(descriptionBreakdown.totalExpense)}</span>
+                                <span className="tabular-nums text-sm ml-2 whitespace-nowrap">{formatBRL(descriptionBreakdown.totalExpense)}</span>
                             </div>
                         </div>
                     </div>

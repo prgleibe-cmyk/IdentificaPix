@@ -161,7 +161,7 @@ export const Sidebar: React.FC = memo(() => {
     return (
         <>
             {/* Mobile Header */}
-            <header className="md:hidden fixed top-0 left-0 right-0 h-16 bg-[#F8FAFC] dark:bg-[#0B0F17] border-b border-slate-200/80 dark:border-white/5 flex items-center justify-between px-4 z-[60] shadow-sm">
+            <header className="md:hidden fixed top-0 left-0 right-0 h-16 bg-[#F8FAFC] dark:bg-[#0B0F17] border-b border-slate-200/80 dark:border-white/5 flex items-center justify-between px-4 z-40 shadow-sm">
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveView('dashboard')}>
                     <img src={logoImg} className="h-8 w-auto object-contain" alt="Logo" loading="eager" decoding="async" />
                     <span className="font-display font-black text-lg tracking-tight text-slate-900 dark:text-white">

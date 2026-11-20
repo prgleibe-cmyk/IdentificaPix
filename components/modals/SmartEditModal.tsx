@@ -35,7 +35,7 @@ export const SmartEditModal: React.FC = () => {
                     zIndex: 100, 
                     transform: ctrl.position ? 'none' : undefined 
                 }} 
-                className="glass-modal w-[95vw] md:w-[320px] flex flex-col max-h-[85vh] md:max-h-[550px] animate-scale-in rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95"
+                className="glass-modal w-[95vw] md:w-[320px] flex flex-col max-h-[85vh] md:max-h-[550px] animate-scale-in rounded-2xl shadow-elevated border border-slate-200/90 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95"
             >
                 <SmartEditHeader 
                     isReverseMode={ctrl.isReverseMode} 
@@ -49,7 +49,10 @@ export const SmartEditModal: React.FC = () => {
                     language={ctrl.language} 
                 />
 
-                <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-4 bg-white dark:bg-slate-900">
+                <div
+                    style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+                    className="flex-1 overflow-y-auto custom-scrollbar p-3.5 space-y-4 bg-white dark:bg-slate-900"
+                >
                     <SmartEditForm 
                         isReverseMode={ctrl.isReverseMode}
                         isAiProposed={ctrl.isAiProposed}

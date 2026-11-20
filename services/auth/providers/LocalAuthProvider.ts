@@ -149,10 +149,19 @@ export class LocalAuthProvider implements IAuthProvider {
     }
   }
 
+  private notifyAuthExpired(): void {
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('iggestor:auth-expired'));
+    }
+  }
+
   private isTokenExpired(token: string): boolean {
     try {
       const parts = token.split('.');
-      if (parts.length !== 3) return false;
+      if (parts.length !== 3) return true;
       let base64Url = parts[1];
       let base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
       while (base64.length % 4) {
@@ -163,14 +172,17 @@ export class LocalAuthProvider implements IAuthProvider {
       // Buffer of 30s
       return Date.now() >= (payload.exp * 1000 - 30000);
     } catch {
-      return false;
+      return true;
     }
   }
 
   private async tryRefreshToken(): Promise<string | null> {
     try {
       const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
-      if (!refreshToken) return null;
+      if (!refreshToken) {
+        this.notifyAuthExpired();
+        return null;
+      }
 
       const res = await fetch('/api/v1/auth/refresh', {
         method: 'POST',
@@ -182,9 +194,7 @@ export class LocalAuthProvider implements IAuthProvider {
         // Apenas limpa credenciais se a resposta do servidor for explicitamente 401 ou 403 (token inválido/revogado)
         // Erros transitórios de rede (500, 502, 504, timeout) não devem destruir a sessão ativa do usuário
         if (res.status === 401 || res.status === 403) {
-          localStorage.removeItem(ACCESS_TOKEN_KEY);
-          localStorage.removeItem(REFRESH_TOKEN_KEY);
-          localStorage.removeItem(USER_KEY);
+          this.notifyAuthExpired();
         }
         return null;
       }
