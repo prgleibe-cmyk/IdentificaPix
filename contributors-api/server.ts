@@ -123,10 +123,7 @@ class LocalSqliteEngine {
         } catch (_) {}
       }
 
-      this.db = new DatabaseSync(dbPath);
-      try {
-        this.db.exec('PRAGMA busy_timeout = 5000;');
-      } catch (_) {}
+      this.db = this.openAndVerifyDb(DatabaseSync, dbPath);
 
       // Register SQL custom functions
       this.db.function('now', () => new Date().toISOString());
@@ -203,7 +200,85 @@ class LocalSqliteEngine {
       this.isReady = true;
       console.log('[Contributors API] Local persistent SQLite database initialized successfully at data/contributors_local.sqlite');
     } catch (e: any) {
+      try { this.db?.close(); } catch (_) {}
+      this.db = null;
       console.error('[Contributors API] Error initializing local SQLite engine:', e?.message || e);
+    }
+  }
+
+  private openAndVerifyDb(DatabaseSyncCtor: any, dbPath: string): any {
+    const isCorruptionError = (err: any): boolean => {
+      const msg = String(err?.message || err?.errstr || '').toLowerCase();
+      const errcode = Number(err?.errcode || 0);
+      return (
+        errcode === 11 ||
+        errcode === 26 ||
+        msg.includes('file is not a database') ||
+        msg.includes('database disk image is malformed') ||
+        msg.includes('malformed')
+      );
+    };
+
+    const verifyIntegrity = (db: any) => {
+      db.exec('PRAGMA busy_timeout = 5000;');
+      const res = db.prepare('PRAGMA quick_check;').all() as any[];
+      const ok = Array.isArray(res) && res.length === 1 && String(res[0]?.quick_check || '').toLowerCase() === 'ok';
+      if (!ok) {
+        const detail = Array.isArray(res) ? res.map(r => r?.quick_check).join('; ') : 'unknown';
+        throw new Error(`database disk image is malformed (${detail})`);
+      }
+    };
+
+    const quarantineFiles = (paths: string[], tag: string) => {
+      for (const filePath of paths) {
+        if (!fs.existsSync(filePath)) continue;
+        try {
+          fs.renameSync(filePath, `${filePath}.corrupt.${tag}`);
+        } catch (_) {
+          try { fs.unlinkSync(filePath); } catch (__) {}
+        }
+      }
+    };
+
+    let db: any = null;
+    try {
+      db = new DatabaseSyncCtor(dbPath);
+      verifyIntegrity(db);
+      return db;
+    } catch (firstErr: any) {
+      try { db?.close(); } catch (_) {}
+      db = null;
+      if (!isCorruptionError(firstErr)) {
+        throw firstErr;
+      }
+
+      const tag = String(Date.now());
+      const walPath = `${dbPath}-wal`;
+      const shmPath = `${dbPath}-shm`;
+
+      // Etapa 1: tentar preservar o arquivo .sqlite principal removendo apenas sidecars WAL/SHM corrompidos
+      if (fs.existsSync(walPath) || fs.existsSync(shmPath)) {
+        quarantineFiles([walPath, shmPath], tag);
+        try {
+          db = new DatabaseSyncCtor(dbPath);
+          verifyIntegrity(db);
+          console.warn('[Contributors API] Local SQLite recuperado com sucesso após isolar arquivos WAL/SHM corrompidos.');
+          return db;
+        } catch (walRetryErr: any) {
+          try { db?.close(); } catch (_) {}
+          db = null;
+          if (!isCorruptionError(walRetryErr)) {
+            throw walRetryErr;
+          }
+        }
+      }
+
+      // Etapa 2: se o arquivo principal também estiver corrompido, colocar em quarentena e inicializar banco limpo
+      quarantineFiles([dbPath, walPath, shmPath], tag);
+      db = new DatabaseSyncCtor(dbPath);
+      verifyIntegrity(db);
+      console.warn('[Contributors API] Arquivo SQLite local corrompido colocado em quarentena; novo banco local inicializado.');
+      return db;
     }
   }
 
@@ -262,9 +337,27 @@ class LocalSqliteEngine {
         user_id TEXT,
         bank_key TEXT,
         account_name TEXT,
+        agency TEXT,
+        account_number TEXT,
         accepted_contribution_types TEXT,
+        version INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT DEFAULT (now()),
+        updated_at TEXT DEFAULT (now())
+      );
+
+      CREATE TABLE IF NOT EXISTS local_pending_bank_ops (
+        seq INTEGER PRIMARY KEY AUTOINCREMENT,
+        op_id TEXT UNIQUE NOT NULL,
+        bank_id TEXT NOT NULL,
+        op_type TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        op_timestamp TEXT NOT NULL,
+        base_version INTEGER,
+        attempts INTEGER DEFAULT 0,
+        last_error TEXT,
         created_at TEXT DEFAULT (now())
       );
+      CREATE INDEX IF NOT EXISTS idx_local_pending_bank_ops_bank_id ON local_pending_bank_ops(bank_id);
 
       CREATE TABLE IF NOT EXISTS learned_associations (
         id TEXT PRIMARY KEY,
@@ -717,6 +810,12 @@ class LocalSqliteEngine {
 
     safeAdd('saved_reports', 'updated_at TEXT DEFAULT (now())');
 
+    safeAdd('banks', 'agency TEXT');
+    safeAdd('banks', 'account_number TEXT');
+    safeAdd('banks', 'updated_at TEXT DEFAULT (now())');
+    safeAdd('banks', 'version INTEGER NOT NULL DEFAULT 1');
+    safeAdd('local_pending_bank_ops', 'base_version INTEGER');
+
     safeAdd('communication_logs', 'contributor_id TEXT');
     safeAdd('communication_logs', 'contributor_name TEXT');
     safeAdd('communication_logs', 'event_type TEXT');
@@ -1065,8 +1164,45 @@ class LocalSqliteEngine {
     } catch (_) {}
   }
 
+  private atomicSavepointSeq: number = 0;
+
+  public runInAtomicTransaction<T>(fn: () => T): T {
+    if (!this.db) {
+      throw new Error('SQLite local engine indisponível para transação atômica.');
+    }
+    const useSavepoint = this.activeSqlTxOwners.size > 0;
+    const spName = useSavepoint ? `sp_atomic_${++this.atomicSavepointSeq}` : '';
+    if (useSavepoint) {
+      this.db.exec(`SAVEPOINT ${spName}`);
+    } else {
+      this.db.exec('BEGIN IMMEDIATE');
+    }
+    try {
+      const result = fn();
+      if (useSavepoint) {
+        this.db.exec(`RELEASE SAVEPOINT ${spName}`);
+      } else {
+        this.db.exec('COMMIT');
+      }
+      return result;
+    } catch (err) {
+      try {
+        if (useSavepoint) {
+          this.db.exec(`ROLLBACK TO SAVEPOINT ${spName}`);
+          this.db.exec(`RELEASE SAVEPOINT ${spName}`);
+        } else {
+          this.db.exec('ROLLBACK');
+        }
+      } catch (_) {}
+      throw err;
+    }
+  }
+
   public query(sql: string, params: any[] = [], throwOnError: boolean = false, ownerId: string = '__direct__'): { rows: any[]; rowCount: number; command: string; oid: number; fields: any[] } {
     if (!this.db) {
+      if (throwOnError) {
+        throw new Error('SQLite local engine indisponível.');
+      }
       return { rows: [], rowCount: 0, command: 'SELECT', oid: 0, fields: [] };
     }
 
@@ -1296,6 +1432,13 @@ class SmartPool {
   private lastRecoveryCheckAt: string | null = null;
   private lastRecoverySuccessAt: string | null = null;
   private virtualClientSeq: number = 0;
+  private pgSchemaReady: boolean = false;
+  private pgSchemaError: string | null = null;
+  private pgMigrationRunner: (() => Promise<boolean>) | null = null;
+  private pgMigrationInFlight: Promise<boolean> | null = null;
+  private migrationRetryTimer: NodeJS.Timeout | null = null;
+  private migrationRetryAttempt: number = 0;
+  private bankDrainChain: Promise<void> = Promise.resolve();
 
   constructor(config: pg.PoolConfig) {
     this.localEngine = new LocalSqliteEngine();
@@ -1304,12 +1447,585 @@ class SmartPool {
       this.handlePoolError('Pool client error', err);
     });
 
-    // 🛡️ Auto-Cura e Reconexão Resiliente: Verifica periodicamente a volta do PostgreSQL quando em fallback offline
+    // 🛡️ Auto-Cura e Reconexão Resiliente: Verifica periodicamente a volta do PostgreSQL quando em fallback offline ou migração pendente
     this.checkOfflineRecoveryInterval = setInterval(() => {
-      if (this.isOffline) {
+      if (this.isOffline || !this.pgSchemaReady) {
         this.probeAndRecover();
       }
     }, 30000);
+  }
+
+  public registerPostgresMigrationRunner(runner: () => Promise<boolean>) {
+    this.pgMigrationRunner = runner;
+  }
+
+  public isPostgresSchemaReady(): boolean {
+    return this.pgSchemaReady;
+  }
+
+  public isUsingSqliteFallback(): boolean {
+    return this.isOffline;
+  }
+
+  private scheduleMigrationRetry() {
+    if (this.pgSchemaReady || this.migrationRetryTimer || !this.pgMigrationRunner) return;
+    const delays = [3000, 10000, 30000];
+    const delayMs = delays[Math.min(this.migrationRetryAttempt, delays.length - 1)];
+    this.migrationRetryAttempt++;
+    this.migrationRetryTimer = setTimeout(() => {
+      this.migrationRetryTimer = null;
+      if (!this.pgSchemaReady) {
+        this.probeAndRecover(true).catch(() => {});
+      }
+    }, delayMs);
+    if (typeof this.migrationRetryTimer.unref === 'function') {
+      this.migrationRetryTimer.unref();
+    }
+  }
+
+  public async connectPostgresDirect(): Promise<pg.PoolClient> {
+    try {
+      const client = await this.pgPool.connect();
+      return client;
+    } catch (err: any) {
+      if (this.isNetworkError(err)) {
+        this.isOffline = true;
+      }
+      this.handlePoolError('conexão PG direta', err);
+      throw err;
+    }
+  }
+
+  public async ensurePostgresSchemaReady(): Promise<boolean> {
+    if (this.pgSchemaReady) return true;
+    if (!this.pgMigrationRunner) return false;
+    if (this.pgMigrationInFlight) {
+      return this.pgMigrationInFlight;
+    }
+
+    this.pgMigrationInFlight = (async () => {
+      try {
+        const ok = await this.pgMigrationRunner!();
+        if (ok) {
+          this.pgSchemaReady = true;
+          this.pgSchemaError = null;
+          this.migrationRetryAttempt = 0;
+          if (this.migrationRetryTimer) {
+            clearTimeout(this.migrationRetryTimer);
+            this.migrationRetryTimer = null;
+          }
+          return true;
+        }
+        this.pgSchemaReady = false;
+        this.pgSchemaError = this.pgSchemaError || 'Etapa obrigatória de migração PostgreSQL não concluída.';
+        this.scheduleMigrationRetry();
+        return false;
+      } catch (err: any) {
+        this.pgSchemaReady = false;
+        this.pgSchemaError = err?.message || String(err);
+        if (this.isNetworkError(err)) {
+          this.isOffline = true;
+        }
+        this.scheduleMigrationRetry();
+        return false;
+      } finally {
+        this.pgMigrationInFlight = null;
+      }
+    })();
+
+    return this.pgMigrationInFlight;
+  }
+
+  public insertPendingBankOpStrict(
+    bankId: string,
+    opType: 'CREATE' | 'UPDATE' | 'DELETE',
+    payload: Record<string, any>,
+    opTimestamp: string,
+    baseVersion: number | null = null
+  ): string {
+    const opId = crypto.randomUUID();
+    this.localEngine.query(
+      `INSERT INTO local_pending_bank_ops (op_id, bank_id, op_type, payload_json, op_timestamp, base_version, attempts, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, 0, $7)`,
+      [opId, bankId, opType, JSON.stringify(payload), opTimestamp, baseVersion, opTimestamp],
+      true
+    );
+    return opId;
+  }
+
+  public enqueuePendingBankOp(
+    bankId: string,
+    opType: 'CREATE' | 'UPDATE' | 'DELETE',
+    payload: Record<string, any>,
+    opTimestamp: string,
+    baseVersion: number | null = null
+  ): void {
+    try {
+      this.insertPendingBankOpStrict(bankId, opType, payload, opTimestamp, baseVersion);
+    } catch (err: any) {
+      console.warn(`[Contributors API] Aviso ao enfileirar operação offline de banco (bank_id=${bankId}, op=${opType}):`, err?.message || err);
+    }
+  }
+
+  public clearPendingBankOpsForBank(bankId: string): void {
+    try {
+      this.localEngine.query('DELETE FROM local_pending_bank_ops WHERE bank_id = $1', [bankId]);
+    } catch (err: any) {
+      console.warn(`[Contributors API] Aviso ao limpar pendências locais de banco (bank_id=${bankId}):`, err?.message || err);
+    }
+  }
+
+  public upsertBankInLocalMirror(bankRow: any): void {
+    if (!bankRow || !bankRow.id) return;
+    try {
+      const acceptedStr = Array.isArray(bankRow.accepted_contribution_types)
+        ? JSON.stringify(bankRow.accepted_contribution_types)
+        : (typeof bankRow.accepted_contribution_types === 'string' ? bankRow.accepted_contribution_types : null);
+      const createdAtIso = bankRow.created_at instanceof Date
+        ? bankRow.created_at.toISOString()
+        : (bankRow.created_at ? String(bankRow.created_at) : new Date().toISOString());
+      const updatedAtIso = bankRow.updated_at instanceof Date
+        ? bankRow.updated_at.toISOString()
+        : (bankRow.updated_at ? String(bankRow.updated_at) : createdAtIso);
+      const rawVer = Number(bankRow.version);
+      const resolvedVersion = Number.isFinite(rawVer) && rawVer >= 1 ? Math.floor(rawVer) : 1;
+
+      this.localEngine.query(
+        `INSERT INTO banks (
+           id, name, user_id, bank_key, account_name, agency, account_number, accepted_contribution_types, version, created_at, updated_at
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         ON CONFLICT(id) DO UPDATE SET
+           name = excluded.name,
+           user_id = excluded.user_id,
+           bank_key = excluded.bank_key,
+           account_name = excluded.account_name,
+           agency = excluded.agency,
+           account_number = excluded.account_number,
+           accepted_contribution_types = excluded.accepted_contribution_types,
+           version = excluded.version,
+           updated_at = excluded.updated_at`,
+        [
+          String(bankRow.id),
+          bankRow.name || '',
+          bankRow.user_id ? String(bankRow.user_id) : null,
+          bankRow.bank_key ?? null,
+          bankRow.account_name ?? bankRow.name ?? '',
+          typeof bankRow.agency === 'string' && bankRow.agency.trim() ? bankRow.agency.trim() : null,
+          typeof bankRow.account_number === 'string' && bankRow.account_number.trim() ? bankRow.account_number.trim() : null,
+          acceptedStr,
+          resolvedVersion,
+          createdAtIso,
+          updatedAtIso
+        ],
+        true
+      );
+    } catch (err: any) {
+      console.warn(`[Contributors API] Aviso ao espelhar banco no SQLite local (bank_id=${bankRow.id}):`, err?.message || err);
+    }
+  }
+
+  public deleteBankFromLocalMirror(bankId: string): void {
+    if (!bankId) return;
+    try {
+      this.localEngine.query('DELETE FROM banks WHERE id = $1', [bankId]);
+    } catch (err: any) {
+      console.warn(`[Contributors API] Aviso ao remover banco do SQLite local (bank_id=${bankId}):`, err?.message || err);
+    }
+  }
+
+  public reconcileTenantBanksMirror(ownerIds: string[], pgBanks: any[]): void {
+    if (!Array.isArray(ownerIds) || ownerIds.length === 0) return;
+    try {
+      const pendingRows = this.localEngine.query('SELECT DISTINCT bank_id FROM local_pending_bank_ops').rows || [];
+      const pendingBankIds = new Set(pendingRows.map((r: any) => String(r.bank_id)));
+      const pgBankIds = new Set<string>();
+
+      for (const row of pgBanks) {
+        if (!row?.id) continue;
+        const idStr = String(row.id);
+        pgBankIds.add(idStr);
+        if (!pendingBankIds.has(idStr)) {
+          this.upsertBankInLocalMirror(row);
+        }
+      }
+
+      const localRows = this.localEngine.query(
+        'SELECT id FROM banks WHERE user_id = ANY($1)',
+        [ownerIds]
+      ).rows || [];
+      for (const localRow of localRows) {
+        const localId = String(localRow.id);
+        if (!pgBankIds.has(localId) && !pendingBankIds.has(localId)) {
+          this.localEngine.query('DELETE FROM banks WHERE id = $1', [localId]);
+        }
+      }
+    } catch (err: any) {
+      console.warn('[Contributors API] Aviso ao reconciliar espelho local de bancos:', err?.message || err);
+    }
+  }
+
+  public async executeBankMutationWithMode<T>(
+    pgExecutor: () => Promise<T>,
+    sqliteAtomicExecutor: () => T
+  ): Promise<{ result: T; engine: 'postgres' | 'sqlite' }> {
+    if (this.isOffline) {
+      await this.probeAndRecover();
+    }
+
+    if (!this.isOffline && !this.pgSchemaReady && this.pgMigrationRunner) {
+      const schemaOk = await this.ensurePostgresSchemaReady();
+      if (!schemaOk && !this.isOffline) {
+        const schemaErr: any = new Error(this.pgSchemaError || 'PostgreSQL schema migrations not ready');
+        schemaErr.code = 'SCHEMA_NOT_READY';
+        throw schemaErr;
+      }
+    }
+
+    if (!this.isOffline) {
+      try {
+        const res = await pgExecutor();
+        return { result: res, engine: 'postgres' };
+      } catch (err: any) {
+        if (this.isNetworkError(err)) {
+          this.isOffline = true;
+          this.handlePoolError('mutação de banco', err);
+          const localRes = this.localEngine.runInAtomicTransaction(sqliteAtomicExecutor);
+          return { result: localRes, engine: 'sqlite' };
+        }
+        throw err;
+      }
+    }
+
+    const localRes = this.localEngine.runInAtomicTransaction(sqliteAtomicExecutor);
+    return { result: localRes, engine: 'sqlite' };
+  }
+
+  public async deleteBankInPostgresWithTombstone(bankId: string): Promise<pg.QueryResult<any>> {
+    const client = await this.pgPool.connect();
+    try {
+      await client.query('BEGIN');
+      const delRes = await client.query('DELETE FROM banks WHERE id = $1 RETURNING id', [bankId]);
+      await client.query(
+        `INSERT INTO bank_tombstones (bank_id, deleted_at)
+         VALUES ($1, NOW())
+         ON CONFLICT (bank_id) DO NOTHING`,
+        [bankId]
+      );
+      await client.query('COMMIT');
+      return delRes;
+    } catch (err) {
+      try { await client.query('ROLLBACK'); } catch (_) {}
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  public async drainPendingBankOps(
+    targetBankId?: string,
+    existingClient?: pg.PoolClient
+  ): Promise<{ synced: number; failed: number; abortedByNetwork: boolean }> {
+    const run = async (): Promise<{ synced: number; failed: number; abortedByNetwork: boolean }> => {
+      if (!existingClient) {
+        if (this.isOffline) {
+          const recovered = await this.probeAndRecover();
+          if (!recovered) return { synced: 0, failed: 0, abortedByNetwork: true };
+        }
+        if (!this.pgSchemaReady && this.pgMigrationRunner) {
+          const schemaOk = await this.ensurePostgresSchemaReady();
+          if (!schemaOk) return { synced: 0, failed: 0, abortedByNetwork: this.isOffline };
+        }
+        if (this.isOffline) {
+          return { synced: 0, failed: 0, abortedByNetwork: true };
+        }
+      }
+
+      const checkSql = targetBankId
+        ? 'SELECT seq FROM local_pending_bank_ops WHERE bank_id = $1 LIMIT 1'
+        : 'SELECT seq FROM local_pending_bank_ops LIMIT 1';
+      const checkRows = this.localEngine.query(checkSql, targetBankId ? [targetBankId] : []).rows || [];
+      if (checkRows.length === 0) {
+        return { synced: 0, failed: 0, abortedByNetwork: false };
+      }
+
+      let client: pg.PoolClient;
+      let ownsClient = false;
+      if (existingClient) {
+        client = existingClient;
+      } else {
+        try {
+          client = await this.pgPool.connect();
+          ownsClient = true;
+        } catch (connErr: any) {
+          if (this.isNetworkError(connErr)) {
+            this.isOffline = true;
+            this.handlePoolError('drainPendingBankOps connect', connErr);
+            return { synced: 0, failed: 0, abortedByNetwork: true };
+          }
+          throw connErr;
+        }
+      }
+
+      try {
+        return await this.drainPendingBankOpsWithClient(client, targetBankId);
+      } finally {
+        if (ownsClient) {
+          client.release();
+        }
+      }
+    };
+
+    const prev = this.bankDrainChain;
+    let releaseLock!: () => void;
+    this.bankDrainChain = new Promise<void>(resolve => { releaseLock = resolve; });
+    await prev;
+    try {
+      return await run();
+    } finally {
+      releaseLock();
+    }
+  }
+
+  private async drainPendingBankOpsWithClient(
+    client: pg.PoolClient,
+    targetBankId?: string
+  ): Promise<{ synced: number; failed: number; abortedByNetwork: boolean }> {
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    const selectSql = targetBankId
+      ? 'SELECT seq, op_id, bank_id, op_type, payload_json, op_timestamp, attempts, base_version FROM local_pending_bank_ops WHERE bank_id = $1 ORDER BY seq ASC'
+      : 'SELECT seq, op_id, bank_id, op_type, payload_json, op_timestamp, attempts, base_version FROM local_pending_bank_ops ORDER BY seq ASC';
+    const pendingBankOps = this.localEngine.query(
+      selectSql,
+      targetBankId ? [targetBankId] : []
+    ).rows || [];
+
+    const maxSeqByBank = new Map<string, number>();
+    for (const op of pendingBankOps) {
+      const bId = op.bank_id ? String(op.bank_id) : '';
+      const seqNum = Number(op.seq);
+      if (bId && Number.isFinite(seqNum)) {
+        const cur = maxSeqByBank.get(bId) ?? -1;
+        if (seqNum > cur) maxSeqByBank.set(bId, seqNum);
+      }
+    }
+
+    const invalidatedBankIds = new Set<string>();
+    const discardInvalidatedBranch = (bId: string, fromSeq: number) => {
+      const maxSeq = maxSeqByBank.get(bId) ?? fromSeq;
+      this.localEngine.query(
+        'DELETE FROM local_pending_bank_ops WHERE bank_id = $1 AND seq >= $2 AND seq <= $3',
+        [bId, fromSeq, maxSeq]
+      );
+      invalidatedBankIds.add(bId);
+    };
+
+    let synced = 0;
+    let failed = 0;
+    let abortedByNetwork = false;
+
+    for (const op of pendingBankOps) {
+      if (abortedByNetwork) break;
+      const bankId = op.bank_id ? String(op.bank_id) : '';
+      if (!bankId || !uuidRegex.test(bankId)) {
+        this.localEngine.query('DELETE FROM local_pending_bank_ops WHERE op_id = $1', [op.op_id]);
+        continue;
+      }
+      if (invalidatedBankIds.has(bankId)) {
+        continue;
+      }
+
+      let payload: any = {};
+      try {
+        payload = typeof op.payload_json === 'string' ? JSON.parse(op.payload_json) : (op.payload_json || {});
+      } catch (_) {
+        payload = {};
+      }
+      const opTs = op.op_timestamp ? new Date(op.op_timestamp) : new Date();
+      const opType = String(op.op_type || '').toUpperCase();
+      const rawBaseVer = op.base_version !== null && op.base_version !== undefined ? Number(op.base_version) : NaN;
+      const expectedBaseVersion = Number.isFinite(rawBaseVer) && rawBaseVer >= 1 ? Math.floor(rawBaseVer) : 1;
+
+      try {
+        if (opType === 'CREATE') {
+          const validUserId = payload.user_id && uuidRegex.test(String(payload.user_id)) ? String(payload.user_id) : null;
+          const acceptedTypes = Array.isArray(payload.accepted_contribution_types)
+            ? payload.accepted_contribution_types.map(String)
+            : null;
+          const createdAt = payload.created_at ? new Date(payload.created_at) : opTs;
+          const insertRes = await client.query(`
+            INSERT INTO banks (
+              id, name, user_id, bank_key, account_name, agency, account_number, accepted_contribution_types, version, created_at, updated_at
+            )
+            SELECT $1::uuid, $2::varchar, $3::uuid, $4::varchar, $5::varchar, $6::varchar, $7::varchar, $8::text[], 1, $9::timestamp, NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM bank_tombstones WHERE bank_id = $1::uuid)
+            ON CONFLICT (id) DO NOTHING
+            RETURNING *;
+          `, [
+            bankId,
+            payload.name || '',
+            validUserId,
+            payload.bank_key ?? null,
+            payload.account_name ?? payload.name ?? '',
+            typeof payload.agency === 'string' && payload.agency.trim() ? payload.agency.trim() : null,
+            typeof payload.account_number === 'string' && payload.account_number.trim() ? payload.account_number.trim() : null,
+            acceptedTypes,
+            createdAt
+          ]);
+
+          if (insertRes.rows.length > 0) {
+            this.upsertBankInLocalMirror(insertRes.rows[0]);
+            this.localEngine.query('DELETE FROM local_pending_bank_ops WHERE op_id = $1', [op.op_id]);
+            synced++;
+          } else {
+            const tombCheck = await client.query('SELECT bank_id FROM bank_tombstones WHERE bank_id = $1 LIMIT 1', [bankId]);
+            if (tombCheck.rows.length > 0) {
+              console.warn(`[Contributors API] Bank sync: CREATE bloqueado por tombstone no PostgreSQL (anti-ressurreição, bank_id=${bankId}, op_id=${op.op_id}).`);
+              this.localEngine.query('DELETE FROM banks WHERE id = $1', [bankId]);
+              discardInvalidatedBranch(bankId, Number(op.seq));
+              synced++;
+            } else {
+              const currentPg = await client.query('SELECT * FROM banks WHERE id = $1 LIMIT 1', [bankId]);
+              if (currentPg.rows[0]) {
+                this.upsertBankInLocalMirror(currentPg.rows[0]);
+              }
+              this.localEngine.query('DELETE FROM local_pending_bank_ops WHERE op_id = $1', [op.op_id]);
+              synced++;
+            }
+          }
+        } else if (opType === 'UPDATE') {
+          const setClauses: string[] = [];
+          const updateParams: any[] = [];
+          const pushParam = (val: any): string => {
+            updateParams.push(val);
+            return `$${updateParams.length}`;
+          };
+
+          if (payload.name_provided && payload.name !== null && payload.name !== undefined) {
+            setClauses.push(`name = ${pushParam(payload.name)}`);
+          }
+          if (payload.bank_key_provided) {
+            setClauses.push(`bank_key = ${pushParam(payload.bank_key ?? null)}`);
+          }
+          if (payload.account_name_provided && payload.account_name !== null && payload.account_name !== undefined) {
+            setClauses.push(`account_name = ${pushParam(payload.account_name)}`);
+          }
+          if (payload.agency_provided) {
+            const agencyVal = typeof payload.agency === 'string' && payload.agency.trim() ? payload.agency.trim() : null;
+            setClauses.push(`agency = ${pushParam(agencyVal)}`);
+          }
+          if (payload.account_number_provided) {
+            const accVal = typeof payload.account_number === 'string' && payload.account_number.trim() ? payload.account_number.trim() : null;
+            setClauses.push(`account_number = ${pushParam(accVal)}`);
+          }
+          if (payload.accepted_contribution_types_provided) {
+            const accTypes = Array.isArray(payload.accepted_contribution_types)
+              ? payload.accepted_contribution_types.map(String)
+              : null;
+            setClauses.push(`accepted_contribution_types = ${pushParam(accTypes)}`);
+          }
+
+          if (setClauses.length === 0) {
+            this.localEngine.query('DELETE FROM local_pending_bank_ops WHERE op_id = $1', [op.op_id]);
+            continue;
+          }
+
+          setClauses.push('version = COALESCE(version, 1) + 1');
+          setClauses.push('updated_at = NOW()');
+          const idPlaceholder = pushParam(bankId);
+          const baseVerPlaceholder = pushParam(expectedBaseVersion);
+
+          const updRes = await client.query(
+            `UPDATE banks
+             SET ${setClauses.join(', ')}
+             WHERE id = ${idPlaceholder}
+               AND COALESCE(version, 1) = ${baseVerPlaceholder}
+             RETURNING *`,
+            updateParams
+          );
+
+          if (updRes.rows.length > 0) {
+            this.upsertBankInLocalMirror(updRes.rows[0]);
+            this.localEngine.query('DELETE FROM local_pending_bank_ops WHERE op_id = $1', [op.op_id]);
+            synced++;
+          } else {
+            const pgCheck = await client.query('SELECT * FROM banks WHERE id = $1 LIMIT 1', [bankId]);
+            if (pgCheck.rows.length === 0) {
+              console.warn(`[Contributors API] Bank sync: UPDATE descartado para banco excluído no PostgreSQL (bank_id=${bankId}, op_id=${op.op_id}, base_version=${expectedBaseVersion}).`);
+              this.localEngine.query('DELETE FROM banks WHERE id = $1', [bankId]);
+            } else {
+              console.warn(`[Contributors API] Bank sync: CONFLITO DE VERSÃO em UPDATE (bank_id=${bankId}, op_id=${op.op_id}, base_version=${expectedBaseVersion}, pg_version=${pgCheck.rows[0]?.version ?? 1}). Versão do PostgreSQL preservada.`);
+              this.upsertBankInLocalMirror(pgCheck.rows[0]);
+            }
+            discardInvalidatedBranch(bankId, Number(op.seq));
+            synced++;
+          }
+        } else if (opType === 'DELETE') {
+          await client.query('BEGIN');
+          let deletedCount = 0;
+          try {
+            const delRes = await client.query(
+              `DELETE FROM banks
+               WHERE id = $1
+                 AND COALESCE(version, 1) = $2
+               RETURNING id`,
+              [bankId, expectedBaseVersion]
+            );
+            deletedCount = delRes.rows.length;
+            if (deletedCount > 0) {
+              await client.query(
+                `INSERT INTO bank_tombstones (bank_id, deleted_at)
+                 VALUES ($1, NOW())
+                 ON CONFLICT (bank_id) DO NOTHING`,
+                [bankId]
+              );
+            }
+            await client.query('COMMIT');
+          } catch (txErr) {
+            try { await client.query('ROLLBACK'); } catch (_) {}
+            throw txErr;
+          }
+
+          if (deletedCount > 0) {
+            this.localEngine.query('DELETE FROM banks WHERE id = $1', [bankId]);
+            this.localEngine.query('DELETE FROM local_pending_bank_ops WHERE op_id = $1', [op.op_id]);
+            synced++;
+          } else {
+            const pgStillExists = await client.query('SELECT * FROM banks WHERE id = $1 LIMIT 1', [bankId]);
+            if (pgStillExists.rows.length > 0) {
+              console.warn(`[Contributors API] Bank sync: CONFLITO DE VERSÃO em DELETE (bank_id=${bankId}, op_id=${op.op_id}, base_version=${expectedBaseVersion}, pg_version=${pgStillExists.rows[0]?.version ?? 1}). Versão do PostgreSQL preservada.`);
+              this.upsertBankInLocalMirror(pgStillExists.rows[0]);
+              discardInvalidatedBranch(bankId, Number(op.seq));
+            } else {
+              await client.query(
+                `INSERT INTO bank_tombstones (bank_id, deleted_at)
+                 VALUES ($1, NOW())
+                 ON CONFLICT (bank_id) DO NOTHING`,
+                [bankId]
+              );
+              this.localEngine.query('DELETE FROM banks WHERE id = $1', [bankId]);
+              this.localEngine.query('DELETE FROM local_pending_bank_ops WHERE op_id = $1', [op.op_id]);
+            }
+            synced++;
+          }
+        } else {
+          this.localEngine.query('DELETE FROM local_pending_bank_ops WHERE op_id = $1', [op.op_id]);
+        }
+      } catch (bankOpErr: any) {
+        failed++;
+        const errMsg = String(bankOpErr?.message || bankOpErr || 'unknown error').slice(0, 200);
+        this.localEngine.query(
+          'UPDATE local_pending_bank_ops SET attempts = COALESCE(attempts, 0) + 1, last_error = $1 WHERE op_id = $2',
+          [errMsg, op.op_id]
+        );
+        console.warn(`[Contributors API] Sync aviso (banks:${bankId}, op=${opType}, op_id=${op.op_id}):`, errMsg);
+        if (this.isNetworkError(bankOpErr)) {
+          this.isOffline = true;
+          abortedByNetwork = true;
+        }
+      }
+    }
+
+    return { synced, failed, abortedByNetwork };
   }
 
   private isNetworkError(err: any): boolean {
@@ -1363,6 +2079,8 @@ class SmartPool {
     return {
       mode: this.isOffline ? 'sqlite_fallback' : 'postgres',
       isOffline: this.isOffline,
+      pgSchemaReady: this.pgSchemaReady,
+      pgSchemaError: this.pgSchemaError,
       isSyncing: this.isSyncing,
       lastPgError: this.lastPgError,
       lastRecoveryCheckAt: this.lastRecoveryCheckAt,
@@ -1376,6 +2094,7 @@ class SmartPool {
     serverTime: string | null;
     error?: string;
     sqliteOperational: boolean;
+    pgSchemaReady: boolean;
     mode: 'postgres' | 'sqlite_fallback' | 'offline';
   }> {
     const start = Date.now();
@@ -1391,21 +2110,30 @@ class SmartPool {
       const res = await this.pgPool.query('SELECT 1 as alive, NOW() as server_time');
       const latencyMs = Date.now() - start;
       const wasOffline = this.isOffline;
-      this.isOffline = false;
-      this.lastPgError = null;
-      this.lastRecoverySuccessAt = new Date().toISOString();
-      if (wasOffline) {
-        console.log('[Contributors API] 🛡️ PostgreSQL detectado online no healthcheck. Disparando sincronização de resgate...');
-        this.syncPendingLocalToPostgres().catch(err => {
-          console.warn('[Contributors API] Aviso na sincronização de resgate para o PostgreSQL:', err?.message || err);
-        });
+      const hadPendingMigration = !this.pgSchemaReady;
+      const schemaOk = this.pgSchemaReady || !this.pgMigrationRunner
+        ? true
+        : await this.ensurePostgresSchemaReady();
+
+      if (schemaOk) {
+        this.isOffline = false;
+        this.lastPgError = null;
+        this.lastRecoverySuccessAt = new Date().toISOString();
+        if (wasOffline || hadPendingMigration) {
+          console.log('[Contributors API] 🛡️ PostgreSQL online e schema validado no healthcheck. Disparando sincronização de resgate...');
+          this.syncPendingLocalToPostgres().catch(err => {
+            console.warn('[Contributors API] Aviso na sincronização de resgate para o PostgreSQL:', err?.message || err);
+          });
+        }
       }
       return {
         connected: true,
         latencyMs,
         serverTime: res.rows?.[0]?.server_time || null,
+        error: schemaOk ? undefined : (this.pgSchemaError || 'Migrações PostgreSQL pendentes'),
         sqliteOperational,
-        mode: 'postgres'
+        pgSchemaReady: this.pgSchemaReady,
+        mode: schemaOk ? 'postgres' : (sqliteOperational ? 'sqlite_fallback' : 'offline')
       };
     } catch (err: any) {
       const latencyMs = Date.now() - start;
@@ -1420,6 +2148,7 @@ class SmartPool {
         serverTime: null,
         error: errMsg || 'PostgreSQL indisponível',
         sqliteOperational,
+        pgSchemaReady: this.pgSchemaReady,
         mode: sqliteOperational ? 'sqlite_fallback' : 'offline'
       };
     }
@@ -1428,7 +2157,7 @@ class SmartPool {
   public async probeAndRecover(force: boolean = false): Promise<boolean> {
     const now = Date.now();
     if (!force && (now - this.lastRecoveryProbeTime < 10000 || this.isSyncing)) {
-      return !this.isOffline;
+      return !this.isOffline && (this.pgSchemaReady || !this.pgMigrationRunner);
     }
     this.lastRecoveryProbeTime = now;
     this.lastRecoveryCheckAt = new Date().toISOString();
@@ -1441,12 +2170,23 @@ class SmartPool {
         client.release();
       }
 
-      if (this.isOffline) {
+      const wasOffline = this.isOffline;
+      const hadPendingMigration = !this.pgSchemaReady;
+      const schemaOk = this.pgSchemaReady || !this.pgMigrationRunner
+        ? true
+        : await this.ensurePostgresSchemaReady();
+
+      if (!schemaOk) {
+        console.warn('[Contributors API] PostgreSQL acessível, mas migrações obrigatórias ainda não foram concluídas. Nova tentativa agendada.');
+        return false;
+      }
+
+      if (wasOffline || hadPendingMigration) {
         this.isOffline = false;
         this.lastPgError = null;
         this.lastRecoverySuccessAt = new Date().toISOString();
-        console.log('[Contributors API] 🛡️ PostgreSQL restabelecido com sucesso! Retornando ao modo primário online.');
-        // Dispara sincronização de resgate assíncrona
+        console.log('[Contributors API] 🛡️ PostgreSQL restabelecido e migrações confirmadas! Retornando ao modo primário online.');
+        // Dispara sincronização de resgate somente após migrações confirmadas no PostgreSQL
         this.syncPendingLocalToPostgres().catch(err => {
           console.warn('[Contributors API] Aviso na sincronização de resgate para o PostgreSQL:', err?.message || err);
         });
@@ -1474,10 +2214,23 @@ class SmartPool {
 
     try {
       if (!this.isOffline) {
-        const client = await this.pgPool.connect();
-        return client;
+        if (!this.pgSchemaReady && this.pgMigrationRunner) {
+          const schemaOk = await this.ensurePostgresSchemaReady();
+          if (!schemaOk && !this.isOffline) {
+            const schemaErr: any = new Error(this.pgSchemaError || 'PostgreSQL schema migrations not ready');
+            schemaErr.code = 'SCHEMA_NOT_READY';
+            throw schemaErr;
+          }
+        }
+        if (!this.isOffline) {
+          const client = await this.pgPool.connect();
+          return client;
+        }
       }
     } catch (err: any) {
+      if (err?.code === 'SCHEMA_NOT_READY') {
+        throw err;
+      }
       this.isOffline = true;
       this.handlePoolError('conexão', err);
     }
@@ -1498,9 +2251,18 @@ class SmartPool {
     return virtualClient;
   }
 
-  async query(sql: string, params?: any[]): Promise<pg.QueryResult<any>> {
+  async queryWithMode(sql: string, params?: any[]): Promise<{ result: pg.QueryResult<any>; engine: 'postgres' | 'sqlite' }> {
     if (this.isOffline) {
       await this.probeAndRecover();
+    }
+
+    if (!this.isOffline && !this.pgSchemaReady && this.pgMigrationRunner) {
+      const schemaOk = await this.ensurePostgresSchemaReady();
+      if (!schemaOk && !this.isOffline) {
+        const schemaErr: any = new Error(this.pgSchemaError || 'PostgreSQL schema migrations not ready');
+        schemaErr.code = 'SCHEMA_NOT_READY';
+        throw schemaErr;
+      }
     }
 
     if (!this.isOffline) {
@@ -1513,20 +2275,25 @@ class SmartPool {
             this.localEngine.query(sql, params);
           } catch (_) {}
         }
-        return res;
+        return { result: res, engine: 'postgres' };
       } catch (err: any) {
         const isNetworkOrDns = this.isNetworkError(err);
         if (isNetworkOrDns) {
           this.isOffline = true;
           this.handlePoolError('consulta', err);
-          return this.localEngine.query(sql, params) as any;
+          return { result: this.localEngine.query(sql, params) as any, engine: 'sqlite' };
         }
         throw err;
       }
     }
 
     // Execute in durable local SQLite engine
-    return this.localEngine.query(sql, params) as any;
+    return { result: this.localEngine.query(sql, params) as any, engine: 'sqlite' };
+  }
+
+  async query(sql: string, params?: any[]): Promise<pg.QueryResult<any>> {
+    const { result } = await this.queryWithMode(sql, params);
+    return result;
   }
 
   /**
@@ -1536,6 +2303,10 @@ class SmartPool {
    */
   public async syncPendingLocalToPostgres(): Promise<void> {
     if (this.isSyncing) return;
+    if (!this.pgSchemaReady && this.pgMigrationRunner) {
+      const schemaOk = await this.ensurePostgresSchemaReady();
+      if (!schemaOk) return;
+    }
     this.isSyncing = true;
 
     try {
@@ -2046,44 +2817,10 @@ class SmartPool {
           });
         }
 
-        // 6. Bancos (banks)
-        const bankRows = this.localEngine.query('SELECT * FROM banks').rows || [];
-        for (const row of bankRows) {
-          if (!row.id || !row.name) continue;
-          const validId = uuidRegex.test(row.id) ? row.id : null;
-          if (!validId) continue;
-          const validUserId = row.user_id && uuidRegex.test(row.user_id) ? row.user_id : null;
-          let acceptedTypes: string[] | null = null;
-          if (Array.isArray(row.accepted_contribution_types)) {
-            acceptedTypes = row.accepted_contribution_types.map(String);
-          } else if (typeof row.accepted_contribution_types === 'string' && row.accepted_contribution_types.trim()) {
-            try {
-              const parsed = JSON.parse(row.accepted_contribution_types);
-              if (Array.isArray(parsed)) acceptedTypes = parsed.map(String);
-            } catch (_) {}
-          }
-          await runIsolatedRow('banks', validId, async () => {
-            await client.query(`
-              INSERT INTO banks (
-                id, name, user_id, bank_key, account_name, accepted_contribution_types, created_at
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-              ON CONFLICT (id) DO UPDATE SET
-                name = EXCLUDED.name,
-                user_id = COALESCE(EXCLUDED.user_id, banks.user_id),
-                bank_key = COALESCE(EXCLUDED.bank_key, banks.bank_key),
-                account_name = COALESCE(EXCLUDED.account_name, banks.account_name),
-                accepted_contribution_types = COALESCE(EXCLUDED.accepted_contribution_types, banks.accepted_contribution_types);
-            `, [
-              validId,
-              row.name,
-              validUserId,
-              row.bank_key || null,
-              row.account_name || row.name,
-              acceptedTypes,
-              row.created_at ? new Date(row.created_at) : new Date()
-            ]);
-          });
-        }
+        // 6. Bancos (banks) — Drenagem serializada e determinística da outbox offline (V1 versão monotônica, V2 atomicidade, V3 single-flight + tombstones)
+        const bankDrainStats = await this.drainPendingBankOps(undefined, client);
+        syncedRows += bankDrainStats.synced;
+        failedRows += bankDrainStats.failed;
 
         // 7. Associações aprendidas (learned_associations)
         const assocRows = this.localEngine.query('SELECT * FROM learned_associations').rows || [];
@@ -2487,6 +3224,10 @@ class SmartPool {
       clearInterval(this.checkOfflineRecoveryInterval);
       this.checkOfflineRecoveryInterval = null;
     }
+    if (this.migrationRetryTimer) {
+      clearTimeout(this.migrationRetryTimer);
+      this.migrationRetryTimer = null;
+    }
     await this.pgPool.end();
   }
 }
@@ -2547,6 +3288,43 @@ if (connectionString) {
   }) as any;
 }
 
+// Gate leve de prontidão de inicialização: garante que a primeira tentativa de migração PostgreSQL conclua antes de servir rotas de dados
+let initialBootstrapPromise: Promise<void> = Promise.resolve();
+app.use(async (req, res, next) => {
+  const p = req.path || '';
+  if (
+    p === '/health' ||
+    p === '/api/v1/health' ||
+    p === '/api/v1/monitoring/status' ||
+    p === '/api/v1/portal/manifest.json' ||
+    p === '/api/v1/portal/church-icon'
+  ) {
+    return next();
+  }
+  try {
+    await Promise.race([
+      initialBootstrapPromise,
+      new Promise<void>((resolve) => setTimeout(resolve, 8000))
+    ]);
+    const smart = pool as any;
+    if (
+      typeof smart.isUsingSqliteFallback === 'function' &&
+      !smart.isUsingSqliteFallback() &&
+      typeof smart.isPostgresSchemaReady === 'function' &&
+      !smart.isPostgresSchemaReady()
+    ) {
+      const ready = await smart.ensurePostgresSchemaReady();
+      if (!ready && !smart.isUsingSqliteFallback()) {
+        return res.status(503).json({
+          error: 'SCHEMA_NOT_READY',
+          message: 'Inicialização do banco de dados em andamento. Tente novamente em instantes.'
+        });
+      }
+    }
+  } catch (_) {}
+  return next();
+});
+
 // Mount Local Auth Router
 app.use('/api/v1/auth', createAuthRouter(pool));
 
@@ -2565,130 +3343,169 @@ app.use('/api/v1/profiles', createProfileRouter(pool));
 // Mount Payments Router
 app.use('/api/v1/payments', createPaymentRouter(pool));
 
-// Database tables initialization
-async function initializeDatabase() {
-  let client;
+const PG_MIGRATION_ADVISORY_LOCK_KEY = 72819401;
+
+// Isolated PostgreSQL schema migrations (direct PG connection only — NEVER falsely runs on SQLite virtualClient)
+async function runPostgresMigrations(): Promise<boolean> {
+  let rawClient: pg.PoolClient | null = null;
+  let lockAcquired = false;
+  const failedRequiredSteps: string[] = [];
+
   try {
-    client = await pool.connect();
-    console.log('[Contributors API] Connected to PostgreSQL environment successfully!');
-    
-    // Initialize Local Auth Database Tables & Profiles Table
+    const client: pg.PoolClient = await (pool as any).connectPostgresDirect();
+    rawClient = client;
+    console.log('[Contributors API] Connected to PostgreSQL environment directly for schema migrations.');
+
     try {
-      const authRepo = new AuthRepository(pool);
+      await client.query('SELECT pg_advisory_lock($1)', [PG_MIGRATION_ADVISORY_LOCK_KEY]);
+      lockAcquired = true;
+    } catch (lockErr: any) {
+      console.warn('[Contributors API] Aviso ao adquirir advisory lock de migração:', lockErr?.message || lockErr);
+    }
+
+    const directPgPoolAdapter: any = {
+      query: (sql: string, params?: any[]) => client!.query(sql, params),
+      connect: async () => ({
+        query: (sql: string, params?: any[]) => client!.query(sql, params),
+        release: () => {}
+      })
+    };
+
+    const runStep = async (stepName: string, required: boolean, fn: () => Promise<void>) => {
+      try {
+        await fn();
+      } catch (stepErr: any) {
+        if (required) {
+          failedRequiredSteps.push(stepName);
+        }
+        console.error(`[Contributors API] Migration step "${stepName}" failed${required ? ' (REQUIRED)' : ''}:`, stepErr?.message || stepErr);
+      }
+    };
+
+    // Step 1: Local Auth & Profiles tables
+    await runStep('auth_and_profiles', true, async () => {
+      const authRepo = new AuthRepository(directPgPoolAdapter);
       await authRepo.initTables();
-      const profileRepo = new ProfileRepository(pool);
+      const profileRepo = new ProfileRepository(directPgPoolAdapter);
       await profileRepo.ensureTableExists();
-    } catch (authDbErr: any) {
-      console.error('[Contributors API] Local Auth tables initialization error:', authDbErr?.message);
-    }
-    
-    // Enable extensions for UUID generation if possible
-    try {
-      await client.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp";');
-      await client.query('CREATE EXTENSION IF NOT EXISTS "pgcrypto";');
-    } catch (extErr) {
-      console.warn('[Contributors API] Warning: could not enable uuid/pgcrypto extensions:', (extErr as Error).message);
-    }
+    });
 
-    // Create table contributors
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS contributors (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        church_id UUID NOT NULL,
-        canonical_name VARCHAR(255) NOT NULL,
-        cpf VARCHAR(20),
-        email VARCHAR(255),
-        phone VARCHAR(50),
-        status VARCHAR(50) NOT NULL DEFAULT 'active',
-        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-      );
-    `);
-    
-    // Ensure all columns exist (in case the table already existed under an older schema)
-    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS cpf VARCHAR(20);");
-    try {
-      await client.query("ALTER TABLE contributors ALTER COLUMN cpf TYPE VARCHAR(20);");
-    } catch (_) {}
-    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS email VARCHAR(255);");
-    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS phone VARCHAR(50);");
-    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'active';");
-    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();");
-    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();");
-    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS person_type VARCHAR(20) DEFAULT 'PF';");
-    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS trade_name VARCHAR(255);");
-    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS rg_ie VARCHAR(50);");
-    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS birth_date VARCHAR(50);");
-    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS contact_person VARCHAR(255);");
-    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS category VARCHAR(100);");
-    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS pix_key VARCHAR(255);");
-    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100);");
-    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS bank_agency VARCHAR(50);");
-    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS bank_account VARCHAR(50);");
-    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS address_cep VARCHAR(20);");
-    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS address_street VARCHAR(255);");
-    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS address_number VARCHAR(50);");
-    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS address_city VARCHAR(100);");
-    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS address_state VARCHAR(10);");
-    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS notes TEXT;");
-    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS is_global BOOLEAN DEFAULT FALSE;");
-    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS role_position VARCHAR(100);");
-    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS photo_url TEXT;");
-    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS name VARCHAR(255);");
-    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS whatsapp VARCHAR(50);");
-    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS congregation VARCHAR(255);");
-    await client.query("CREATE INDEX IF NOT EXISTS idx_contributors_church_status ON contributors(church_id, status);");
-    await client.query("CREATE INDEX IF NOT EXISTS idx_contributors_canonical_name ON contributors(canonical_name);");
-    await client.query("CREATE INDEX IF NOT EXISTS idx_contributors_cpf ON contributors(cpf);");
-    await client.query("CREATE INDEX IF NOT EXISTS idx_contributors_phone ON contributors(phone);");
-    await client.query("CREATE INDEX IF NOT EXISTS idx_contributors_whatsapp ON contributors(whatsapp);");
-    await client.query("CREATE INDEX IF NOT EXISTS idx_contributors_email ON contributors(email);");
-    await client.query("CREATE INDEX IF NOT EXISTS idx_contributors_pix_key ON contributors(pix_key);");
-    console.log('[Contributors API] Table "contributors" verified or successfully created.');
+    // Step 2: Extensions (optional — some managed PG roles disallow CREATE EXTENSION)
+    await runStep('extensions', false, async () => {
+      await client!.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp";');
+      await client!.query('CREATE EXTENSION IF NOT EXISTS "pgcrypto";');
+    });
 
-    // 🛡️ Regra de Integridade e Preservação:
-    try {
-      await pool.query(`
+    // Step 3: Table contributors
+    await runStep('contributors', true, async () => {
+      await client!.query(`
+        CREATE TABLE IF NOT EXISTS contributors (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          church_id UUID NOT NULL,
+          canonical_name VARCHAR(255) NOT NULL,
+          cpf VARCHAR(20),
+          email VARCHAR(255),
+          phone VARCHAR(50),
+          status VARCHAR(50) NOT NULL DEFAULT 'active',
+          created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+        );
+      `);
+      await client!.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS cpf VARCHAR(20);");
+      try {
+        await client!.query("ALTER TABLE contributors ALTER COLUMN cpf TYPE VARCHAR(20);");
+      } catch (_) {}
+      await client!.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS email VARCHAR(255);");
+      await client!.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS phone VARCHAR(50);");
+      await client!.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'active';");
+      await client!.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();");
+      await client!.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();");
+      await client!.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS person_type VARCHAR(20) DEFAULT 'PF';");
+      await client!.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS trade_name VARCHAR(255);");
+      await client!.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS rg_ie VARCHAR(50);");
+      await client!.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS birth_date VARCHAR(50);");
+      await client!.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS contact_person VARCHAR(255);");
+      await client!.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS category VARCHAR(100);");
+      await client!.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS pix_key VARCHAR(255);");
+      await client!.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100);");
+      await client!.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS bank_agency VARCHAR(50);");
+      await client!.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS bank_account VARCHAR(50);");
+      await client!.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS address_cep VARCHAR(20);");
+      await client!.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS address_street VARCHAR(255);");
+      await client!.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS address_number VARCHAR(50);");
+      await client!.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS address_city VARCHAR(100);");
+      await client!.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS address_state VARCHAR(10);");
+      await client!.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS notes TEXT;");
+      await client!.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS is_global BOOLEAN DEFAULT FALSE;");
+      await client!.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS role_position VARCHAR(100);");
+      await client!.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS photo_url TEXT;");
+      await client!.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS name VARCHAR(255);");
+      await client!.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS whatsapp VARCHAR(50);");
+      await client!.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS congregation VARCHAR(255);");
+      await client!.query("CREATE INDEX IF NOT EXISTS idx_contributors_church_status ON contributors(church_id, status);");
+      await client!.query("CREATE INDEX IF NOT EXISTS idx_contributors_canonical_name ON contributors(canonical_name);");
+      await client!.query("CREATE INDEX IF NOT EXISTS idx_contributors_cpf ON contributors(cpf);");
+      await client!.query("CREATE INDEX IF NOT EXISTS idx_contributors_phone ON contributors(phone);");
+      await client!.query("CREATE INDEX IF NOT EXISTS idx_contributors_whatsapp ON contributors(whatsapp);");
+      await client!.query("CREATE INDEX IF NOT EXISTS idx_contributors_email ON contributors(email);");
+      await client!.query("CREATE INDEX IF NOT EXISTS idx_contributors_pix_key ON contributors(pix_key);");
+      console.log('[Contributors API] Table "contributors" verified or successfully created.');
+    });
+
+    // Step 4: Table banks + bank_tombstones (isolated & required — never skipped due to earlier step failure)
+    await runStep('banks', true, async () => {
+      await client!.query(`
+        CREATE TABLE IF NOT EXISTS banks (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          name VARCHAR(255) NOT NULL,
+          user_id UUID,
+          bank_key VARCHAR(255),
+          account_name VARCHAR(255),
+          agency VARCHAR(50),
+          account_number VARCHAR(50),
+          accepted_contribution_types TEXT[],
+          version INTEGER NOT NULL DEFAULT 1,
+          created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+        );
+      `);
+      await client!.query('ALTER TABLE banks ADD COLUMN IF NOT EXISTS name VARCHAR(255);');
+      await client!.query('ALTER TABLE banks ADD COLUMN IF NOT EXISTS user_id UUID;');
+      await client!.query('ALTER TABLE banks ADD COLUMN IF NOT EXISTS bank_key VARCHAR(255);');
+      await client!.query('ALTER TABLE banks ADD COLUMN IF NOT EXISTS account_name VARCHAR(255);');
+      await client!.query('ALTER TABLE banks ADD COLUMN IF NOT EXISTS agency VARCHAR(50);');
+      await client!.query('ALTER TABLE banks ADD COLUMN IF NOT EXISTS account_number VARCHAR(50);');
+      await client!.query('ALTER TABLE banks ADD COLUMN IF NOT EXISTS accepted_contribution_types TEXT[];');
+      await client!.query('ALTER TABLE banks ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1;');
+      await client!.query('ALTER TABLE banks ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();');
+      await client!.query('ALTER TABLE banks ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();');
+      await client!.query(`
+        CREATE TABLE IF NOT EXISTS bank_tombstones (
+          bank_id UUID PRIMARY KEY,
+          deleted_at TIMESTAMP NOT NULL DEFAULT NOW()
+        );
+      `);
+      console.log('[Contributors API] Table "banks" and "bank_tombstones" verified or successfully created.');
+    });
+
+    // Step 5: Safe contributors cleanup (optional data hygiene)
+    await runStep('contributors_cleanup', false, async () => {
+      await client!.query(`
         UPDATE contributors 
         SET church_id = '00000000-0000-0000-0000-000000000001' 
         WHERE church_id IS NULL OR trim(church_id::text) = '' OR church_id::text = 'church-1';
       `);
-      await pool.query(`
-        UPDATE consolidated_transactions 
-        SET church_id = '00000000-0000-0000-0000-000000000001' 
-        WHERE church_id IS NULL OR trim(church_id::text) = '' OR church_id::text = 'church-1';
-      `);
-      await pool.query(`
+      await client!.query(`
         DELETE FROM contributors 
         WHERE (canonical_name IS NULL OR trim(canonical_name) = '') 
           AND (name IS NULL OR trim(name) = '');
       `);
-    } catch (cleanErr: any) {
-      console.warn('[Contributors API] Aviso ao executar limpeza segura de cadastros:', cleanErr?.message);
-    }
+    });
 
-    // Create table banks
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS banks (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        name VARCHAR(255) NOT NULL,
-        user_id UUID,
-        bank_key VARCHAR(255),
-        account_name VARCHAR(255),
-        accepted_contribution_types TEXT[],
-        created_at TIMESTAMP NOT NULL DEFAULT NOW()
-      );
-    `);
-    await client.query('ALTER TABLE banks ADD COLUMN IF NOT EXISTS name VARCHAR(255);');
-    await client.query('ALTER TABLE banks ADD COLUMN IF NOT EXISTS user_id UUID;');
-    await client.query('ALTER TABLE banks ADD COLUMN IF NOT EXISTS bank_key VARCHAR(255);');
-    await client.query('ALTER TABLE banks ADD COLUMN IF NOT EXISTS account_name VARCHAR(255);');
-    await client.query('ALTER TABLE banks ADD COLUMN IF NOT EXISTS accepted_contribution_types TEXT[];');
-    await client.query('ALTER TABLE banks ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();');
-    console.log('[Contributors API] Table "banks" verified or successfully created.');
-
-    // Create table churches
-    await client.query(`
+    // Step 6: Remaining core tables (churches, communication, transactions, reports, finance, closings, audit)
+    await runStep('core_tables', true, async () => {
+      // Create table churches
+      await client!.query(`
       CREATE TABLE IF NOT EXISTS churches (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         name VARCHAR(255) NOT NULL,
@@ -3224,36 +4041,77 @@ async function initializeDatabase() {
     await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS notes TEXT;');
     await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();');
     await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_church_closings_lookup ON church_closings(church_id, year, month, status);');
+    await client!.query('CREATE INDEX IF NOT EXISTS idx_church_closings_lookup ON church_closings(church_id, year, month, status);');
     console.log('[Contributors API] Table "church_closings" verified or successfully created.');
+    });
 
-    // Initialize Audit Logs Database
-    await initAuditDatabase(pool);
+    // Step 7: Safe consolidated_transactions church_id normalization (optional)
+    await runStep('consolidated_transactions_cleanup', false, async () => {
+      await client!.query(`
+        UPDATE consolidated_transactions 
+        SET church_id = '00000000-0000-0000-0000-000000000001' 
+        WHERE church_id IS NULL OR trim(church_id::text) = '' OR church_id::text = 'church-1';
+      `);
+    });
 
-    // 🛡️ Sincronização de Resgate e Resiliência SQLite ➔ PostgreSQL:
-    // Promove automaticamente dados que possam ter sido registrados localmente durante indisponibilidades prévias
-    if (typeof (pool as any).syncPendingLocalToPostgres === 'function') {
-      await (pool as any).syncPendingLocalToPostgres();
+    // Step 8: Audit Logs Database
+    await runStep('audit_logs', true, async () => {
+      await initAuditDatabase(directPgPoolAdapter);
+    });
+
+    if (failedRequiredSteps.length > 0) {
+      console.error(`[Contributors API] PostgreSQL schema migration incomplete. Failed required steps: ${failedRequiredSteps.join(', ')}`);
+      return false;
     }
 
+    console.log('[Contributors API] PostgreSQL schema migrations completed successfully.');
+    return true;
   } catch (err: any) {
     const isNetworkOrDns = err?.code === 'EAI_AGAIN' || err?.code === 'ENOTFOUND' || err?.code === 'ECONNREFUSED' || err?.code === 'ETIMEDOUT';
-    console.warn(`[Contributors API] Database initialization paused (${isNetworkOrDns ? 'Aguardando conectividade com PostgreSQL' : 'Erro'}):`, err?.message || err);
+    console.warn(`[Contributors API] PostgreSQL migration paused (${isNetworkOrDns ? 'PostgreSQL indisponível no startup — retry automático armado' : 'Erro'}):`, err?.message || err);
+    return false;
   } finally {
-    if (client) client.release();
+    if (rawClient) {
+      if (lockAcquired) {
+        try {
+          await rawClient.query('SELECT pg_advisory_unlock($1)', [PG_MIGRATION_ADVISORY_LOCK_KEY]);
+        } catch (_) {}
+      }
+      rawClient.release();
+    }
   }
 }
 
-// Ensure database table setup executes upon initialization
-initializeDatabase().then(() => {
+// Separate database migration lifecycle from auxiliary background services
+async function initializeDatabase() {
+  (pool as any).registerPostgresMigrationRunner(runPostgresMigrations);
+
+  const pgReady = await (pool as any).ensurePostgresSchemaReady();
+
+  if (pgReady) {
+    // 🛡️ Sincronização de Resgate SQLite ➔ PostgreSQL só executa após migrações PG confirmadas
+    if (typeof (pool as any).syncPendingLocalToPostgres === 'function') {
+      await (pool as any).syncPendingLocalToPostgres();
+    }
+    healOrphanChurches(pool).catch((e: any) => console.warn('[AutoHeal:Churches] Erro no boot:', e));
+    cleanupOrphanAndFakeBanks(pool).catch((e: any) => console.warn('[AutoClean:Banks] Erro no boot:', e));
+  } else {
+    // Em modo fallback SQLite, ainda inicializa tabelas de auditoria no motor local de forma segura
+    try {
+      await initAuditDatabase(pool);
+    } catch (_) {}
+  }
+
+  // Serviços auxiliares independentes da migração síncrona
   scheduleAutomatedBackups(pool);
   startMonitoringService(pool);
   startBackgroundScheduler(pool);
-  healOrphanChurches(pool).catch((e: any) => console.warn('[AutoHeal:Churches] Erro no boot:', e));
-  cleanupOrphanAndFakeBanks(pool).catch((e: any) => console.warn('[AutoClean:Banks] Erro no boot:', e));
-}).catch((err: any) => {
+}
+
+// Ensure database table setup executes upon initialization and feeds the readiness gate
+initialBootstrapPromise = initializeDatabase().catch((err: any) => {
   const isNetworkOrDns = err?.code === 'EAI_AGAIN' || err?.code === 'ENOTFOUND' || err?.code === 'ECONNREFUSED' || err?.code === 'ETIMEDOUT';
-  console.warn(`[Contributors API] Initial database connection not ready (${isNetworkOrDns ? 'Aguardando host PostgreSQL' : 'Erro'}):`, err?.message || err);
+  console.warn(`[Contributors API] Initial database bootstrap error (${isNetworkOrDns ? 'Aguardando host PostgreSQL' : 'Erro'}):`, err?.message || err);
 });
 
 function ensureSuperAdmin(req: Request, res: Response): TenantContext | null {
@@ -7574,6 +8432,29 @@ async function getEquivalentUserIds(userId: string): Promise<string[]> {
   return result;
 }
 
+const normalizeOptionalBankCode = (
+  value: unknown,
+  fieldLabel: string
+): { provided: boolean; value: string | null; error?: string } => {
+  if (value === undefined) {
+    return { provided: false, value: null };
+  }
+  if (value === null) {
+    return { provided: true, value: null };
+  }
+  if (typeof value !== 'string') {
+    return { provided: true, value: null, error: `${fieldLabel} deve ser um valor textual válido.` };
+  }
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return { provided: true, value: null };
+  }
+  if (trimmed.length > 50) {
+    return { provided: true, value: null, error: `${fieldLabel} deve ter no máximo 50 caracteres.` };
+  }
+  return { provided: true, value: trimmed };
+};
+
 const normalizeBankRow = (b: any) => {
   if (!b || typeof b !== 'object') return b;
   let accepted = b.accepted_contribution_types;
@@ -7583,7 +8464,17 @@ const normalizeBankRow = (b: any) => {
       if (Array.isArray(parsed)) accepted = parsed;
     } catch (_) {}
   }
-  return { ...b, accepted_contribution_types: Array.isArray(accepted) ? accepted : null };
+  const normalized: any = {
+    ...b,
+    accepted_contribution_types: Array.isArray(accepted) ? accepted : null
+  };
+  if (Object.prototype.hasOwnProperty.call(b, 'agency')) {
+    normalized.agency = typeof b.agency === 'string' && b.agency.trim() ? b.agency.trim() : null;
+  }
+  if (Object.prototype.hasOwnProperty.call(b, 'account_number')) {
+    normalized.account_number = typeof b.account_number === 'string' && b.account_number.trim() ? b.account_number.trim() : null;
+  }
+  return normalized;
 };
 
 const getReferenceDataHandler = async (req: Request, res: Response) => {
@@ -7612,7 +8503,7 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
     const equivalentIds = cleanUserId ? await getEquivalentUserIds(cleanUserId) : [];
 
     // 1. Fetch Banks
-    let banksQuery = 'SELECT id, name, user_id, bank_key, account_name, accepted_contribution_types, created_at FROM banks WHERE 1=1';
+    let banksQuery = 'SELECT id, name, user_id, bank_key, account_name, agency, account_number, accepted_contribution_types, version, created_at, updated_at FROM banks WHERE 1=1';
     const banksParams: any[] = [];
     if (equivalentIds.length > 0) {
       banksParams.push(equivalentIds);
@@ -7670,12 +8561,16 @@ const getReferenceDataHandler = async (req: Request, res: Response) => {
     assocQuery += ' ORDER BY created_at DESC';
 
     // 🛡️ PARALELISMO CONCORRENTE: Executa as 4 consultas simultaneamente em paralelo via Promise.all
-    const [banksResult, churchesResult, reportsResult, assocResult] = await Promise.all([
-      pool.query(banksQuery, banksParams),
+    const [banksQueryRes, churchesResult, reportsResult, assocResult] = await Promise.all([
+      (pool as any).queryWithMode(banksQuery, banksParams),
       churchesQuery ? pool.query(churchesQuery, churchesParams) : Promise.resolve({ rows: [] }),
       reportsQuery ? pool.query(reportsQuery, reportsParams) : Promise.resolve({ rows: [] }),
       pool.query(assocQuery, assocParams)
     ]);
+    const banksResult = banksQueryRes.result;
+    if (banksQueryRes.engine === 'postgres' && equivalentIds.length > 0) {
+      (pool as any).reconcileTenantBanksMirror(equivalentIds, banksResult.rows || []);
+    }
 
     return res.json({
       banks: (banksResult.rows || []).map(normalizeBankRow),
@@ -7864,10 +8759,12 @@ app.get('/api/v1/banks', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'user_id é obrigatório para consultar bancos.' });
     }
 
-    let query = 'SELECT id, name, user_id, bank_key, account_name, accepted_contribution_types, created_at FROM banks WHERE 1=1';
+    let query = 'SELECT id, name, user_id, bank_key, account_name, agency, account_number, accepted_contribution_types, version, created_at, updated_at FROM banks WHERE 1=1';
     const params: any[] = [];
+    let resolvedOwnerIds: string[] = [];
     if (cleanUserId) {
       const userIds = await getEquivalentUserIds(cleanUserId);
+      resolvedOwnerIds = userIds;
       if (userIds.length > 0) {
         params.push(userIds);
         query += ` AND user_id::text = ANY($${params.length})`;
@@ -7878,7 +8775,10 @@ app.get('/api/v1/banks', async (req: Request, res: Response) => {
       query += ` AND 1=0`;
     }
     query += ' ORDER BY created_at DESC';
-    const result = await pool.query(query, params);
+    const { result, engine } = await (pool as any).queryWithMode(query, params);
+    if (engine === 'postgres' && resolvedOwnerIds.length > 0) {
+      (pool as any).reconcileTenantBanksMirror(resolvedOwnerIds, result.rows || []);
+    }
 
     return res.json((result.rows || []).map(normalizeBankRow));
   } catch (err) {
@@ -7892,7 +8792,7 @@ app.post('/api/v1/banks', async (req: Request, res: Response) => {
   try {
     const ctx = getTenantContext(req);
     await enrichSecondaryUserContext(pool, ctx);
-    const { name, user_id, bank_key, account_name, accepted_contribution_types } = req.body;
+    const { name, user_id, bank_key, account_name, agency, account_number, accepted_contribution_types } = req.body;
 
     if (!ctx.isAuthenticated) {
       return res.status(401).json({ error: 'UNAUTHORIZED' });
@@ -7913,18 +8813,64 @@ app.post('/api/v1/banks', async (req: Request, res: Response) => {
     if (!name || !effectiveUserId) {
       return res.status(400).json({ error: 'VALIDATION_ERROR' });
     }
-    const generatedBankId = crypto.randomUUID();
-    const result = await pool.query(
-      'INSERT INTO banks (id, name, user_id, bank_key, account_name, accepted_contribution_types) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [generatedBankId, name, effectiveUserId, bank_key || null, account_name || name, Array.isArray(accepted_contribution_types) ? accepted_contribution_types : null]
-    );
-    const createdBank = result.rows[0];
-    if (createdBank && typeof createdBank.accepted_contribution_types === 'string') {
-      try {
-        const parsed = JSON.parse(createdBank.accepted_contribution_types);
-        if (Array.isArray(parsed)) createdBank.accepted_contribution_types = parsed;
-      } catch (_) {}
+
+    const agencyNorm = normalizeOptionalBankCode(agency, 'Número da agência');
+    if (agencyNorm.error) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: agencyNorm.error });
     }
+    const accountNumberNorm = normalizeOptionalBankCode(account_number, 'Número da conta');
+    if (accountNumberNorm.error) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: accountNumberNorm.error });
+    }
+
+    const generatedBankId = crypto.randomUUID();
+    const opTimestamp = new Date().toISOString();
+    const acceptedTypesVal = Array.isArray(accepted_contribution_types) ? accepted_contribution_types : null;
+    const insertSql =
+      'INSERT INTO banks (id, name, user_id, bank_key, account_name, agency, account_number, accepted_contribution_types, version, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, NOW()) RETURNING *';
+    const insertParams = [
+      generatedBankId,
+      name,
+      effectiveUserId,
+      bank_key || null,
+      account_name || name,
+      agencyNorm.value,
+      accountNumberNorm.value,
+      acceptedTypesVal
+    ];
+
+    const { result, engine } = await (pool as any).executeBankMutationWithMode(
+      async () => (pool as any).pgPool.query(insertSql, insertParams),
+      () => {
+        const localRes = (pool as any).localEngine.query(insertSql, insertParams, true);
+        const localRow = localRes.rows[0];
+        (pool as any).insertPendingBankOpStrict(
+          generatedBankId,
+          'CREATE',
+          {
+            id: generatedBankId,
+            name,
+            user_id: effectiveUserId,
+            bank_key: bank_key || null,
+            account_name: account_name || name,
+            agency: agencyNorm.value,
+            account_number: accountNumberNorm.value,
+            accepted_contribution_types: acceptedTypesVal,
+            created_at: localRow?.created_at || opTimestamp
+          },
+          opTimestamp,
+          0
+        );
+        return localRes;
+      }
+    );
+
+    const rawCreated = result.rows[0];
+    if (engine === 'postgres' && rawCreated) {
+      (pool as any).upsertBankInLocalMirror(rawCreated);
+    }
+
+    const createdBank = normalizeBankRow(rawCreated);
     await logAudit(pool, {
       action: 'CREATE',
       entity: 'banks',
@@ -7934,7 +8880,10 @@ app.post('/api/v1/banks', async (req: Request, res: Response) => {
       req
     });
     return res.status(201).json(createdBank);
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.code === 'SCHEMA_NOT_READY') {
+      return res.status(503).json({ error: 'SCHEMA_NOT_READY', message: err.message });
+    }
     console.error('[Contributors API] Error POST bank:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
   }
@@ -7946,7 +8895,7 @@ app.put('/api/v1/banks/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
     const ctx = getTenantContext(req);
     await enrichSecondaryUserContext(pool, ctx);
-    const { name, bank_key, account_name, accepted_contribution_types } = req.body;
+    const { name, bank_key, account_name, agency, account_number, accepted_contribution_types } = req.body;
 
     if (!ctx.isAuthenticated) {
       return res.status(401).json({ error: 'UNAUTHORIZED' });
@@ -7955,6 +8904,18 @@ app.put('/api/v1/banks/:id', async (req: Request, res: Response) => {
     if (ctx.isSecondaryUser && !hasPermission(ctx, 'admin')) {
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: apenas o titular pode gerenciar contas bancárias.' });
     }
+
+    const agencyNorm = normalizeOptionalBankCode(agency, 'Número da agência');
+    if (agencyNorm.error) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: agencyNorm.error });
+    }
+    const accountNumberNorm = normalizeOptionalBankCode(account_number, 'Número da conta');
+    if (accountNumberNorm.error) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: accountNumberNorm.error });
+    }
+
+    // V3: Drena pendências offline do mesmo banco antes de ler estado atual e aplicar escrita online
+    await (pool as any).drainPendingBankOps(id);
 
     const oldBankRes = await pool.query('SELECT * FROM banks WHERE id = $1', [id]);
     const oldBank = oldBankRes.rows[0] || null;
@@ -7968,18 +8929,53 @@ app.put('/api/v1/banks/:id', async (req: Request, res: Response) => {
       }
     }
 
-    const result = await pool.query(
-      'UPDATE banks SET name = COALESCE($1, name), bank_key = COALESCE($2, bank_key), account_name = COALESCE($3, account_name), accepted_contribution_types = $4 WHERE id = $5 RETURNING *',
-      [name, bank_key || null, account_name || null, Array.isArray(accepted_contribution_types) ? accepted_contribution_types : null, id]
+    const resolvedAgency = agencyNorm.provided ? agencyNorm.value : (oldBank.agency ?? null);
+    const resolvedAccountNumber = accountNumberNorm.provided ? accountNumberNorm.value : (oldBank.account_number ?? null);
+    const resolvedAcceptedTypes = accepted_contribution_types !== undefined
+      ? (Array.isArray(accepted_contribution_types) ? accepted_contribution_types : null)
+      : (normalizeBankRow(oldBank).accepted_contribution_types ?? null);
+    const rawOldVersion = Number(oldBank.version);
+    const baseVersion = Number.isFinite(rawOldVersion) && rawOldVersion >= 1 ? Math.floor(rawOldVersion) : 1;
+
+    const opTimestamp = new Date().toISOString();
+    const updateSql =
+      'UPDATE banks SET name = COALESCE($1, name), bank_key = COALESCE($2, bank_key), account_name = COALESCE($3, account_name), agency = $4, account_number = $5, accepted_contribution_types = $6, version = COALESCE(version, 1) + 1, updated_at = NOW() WHERE id = $7 RETURNING *';
+    const updateParams = [name ?? null, bank_key || null, account_name || null, resolvedAgency, resolvedAccountNumber, resolvedAcceptedTypes, id];
+
+    const { result, engine } = await (pool as any).executeBankMutationWithMode(
+      async () => (pool as any).pgPool.query(updateSql, updateParams),
+      () => {
+        const localRes = (pool as any).localEngine.query(updateSql, updateParams, true);
+        (pool as any).insertPendingBankOpStrict(
+          id,
+          'UPDATE',
+          {
+            name_provided: name !== undefined,
+            name: name ?? null,
+            bank_key_provided: bank_key !== undefined,
+            bank_key: bank_key || null,
+            account_name_provided: account_name !== undefined,
+            account_name: account_name || null,
+            agency_provided: agencyNorm.provided,
+            agency: agencyNorm.value,
+            account_number_provided: accountNumberNorm.provided,
+            account_number: accountNumberNorm.value,
+            accepted_contribution_types_provided: accepted_contribution_types !== undefined,
+            accepted_contribution_types: resolvedAcceptedTypes
+          },
+          opTimestamp,
+          baseVersion
+        );
+        return localRes;
+      }
     );
 
-    const updatedBank = result.rows[0];
-    if (updatedBank && typeof updatedBank.accepted_contribution_types === 'string') {
-      try {
-        const parsed = JSON.parse(updatedBank.accepted_contribution_types);
-        if (Array.isArray(parsed)) updatedBank.accepted_contribution_types = parsed;
-      } catch (_) {}
+    const rawUpdated = result.rows[0];
+    if (engine === 'postgres' && rawUpdated) {
+      (pool as any).upsertBankInLocalMirror(rawUpdated);
     }
+
+    const updatedBank = normalizeBankRow(rawUpdated);
     await logAudit(pool, {
       action: 'UPDATE',
       entity: 'banks',
@@ -7990,7 +8986,10 @@ app.put('/api/v1/banks/:id', async (req: Request, res: Response) => {
       req
     });
     return res.json(updatedBank);
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.code === 'SCHEMA_NOT_READY') {
+      return res.status(503).json({ error: 'SCHEMA_NOT_READY', message: err.message });
+    }
     console.error('[Contributors API] Error PUT bank:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
   }
@@ -8011,6 +9010,9 @@ app.delete('/api/v1/banks/:id', async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: apenas o titular pode gerenciar contas bancárias.' });
     }
 
+    // V3: Drena pendências offline do mesmo banco antes de ler estado atual e executar exclusão online
+    await (pool as any).drainPendingBankOps(id);
+
     const oldBankRes = await pool.query('SELECT * FROM banks WHERE id = $1', [id]);
     const oldBank = oldBankRes.rows[0] || null;
 
@@ -8023,7 +9025,32 @@ app.delete('/api/v1/banks/:id', async (req: Request, res: Response) => {
       }
     }
 
-    const result = await pool.query('DELETE FROM banks WHERE id = $1 RETURNING id', [id]);
+    const rawOldVersion = Number(oldBank.version);
+    const baseVersion = Number.isFinite(rawOldVersion) && rawOldVersion >= 1 ? Math.floor(rawOldVersion) : 1;
+    const opTimestamp = new Date().toISOString();
+
+    const { engine } = await (pool as any).executeBankMutationWithMode(
+      async () => (pool as any).deleteBankInPostgresWithTombstone(id),
+      () => {
+        const pendingCreate = (pool as any).localEngine.query(
+          "SELECT seq FROM local_pending_bank_ops WHERE bank_id = $1 AND UPPER(op_type) = 'CREATE' LIMIT 1",
+          [id],
+          true
+        );
+        const delRes = (pool as any).localEngine.query('DELETE FROM banks WHERE id = $1 RETURNING id', [id], true);
+        if ((pendingCreate.rows || []).length > 0) {
+          // V3: Compactação atômica local de CREATE (+ UPDATEs) + DELETE offline
+          (pool as any).localEngine.query('DELETE FROM local_pending_bank_ops WHERE bank_id = $1', [id], true);
+        } else {
+          (pool as any).insertPendingBankOpStrict(id, 'DELETE', { id }, opTimestamp, baseVersion);
+        }
+        return delRes;
+      }
+    );
+
+    if (engine === 'postgres') {
+      (pool as any).deleteBankFromLocalMirror(id);
+    }
 
     await logAudit(pool, {
       action: 'DELETE',
@@ -8034,7 +9061,10 @@ app.delete('/api/v1/banks/:id', async (req: Request, res: Response) => {
       req
     });
     return res.json({ success: true, id });
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.code === 'SCHEMA_NOT_READY') {
+      return res.status(503).json({ error: 'SCHEMA_NOT_READY', message: err.message });
+    }
     console.error('[Contributors API] Error DELETE bank:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
   }

@@ -13,6 +13,8 @@ export const BankModal: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
     const { t } = useTranslation();
     const [accountName, setAccountName] = useState('');
     const [selectedBankKey, setSelectedBankKey] = useState('');
+    const [agency, setAgency] = useState('');
+    const [accountNumber, setAccountNumber] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Pix Key Section States
@@ -45,7 +47,9 @@ export const BankModal: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
             const newBank = await addBank({
                 bank_key: selectedBankKey,
                 name: accountName.trim(), // compatibilidade visual
-                account_name: accountName.trim()
+                account_name: accountName.trim(),
+                agency: agency.trim() || null,
+                account_number: accountNumber.trim() || null
             });
 
             if (newBank) {
@@ -74,6 +78,8 @@ export const BankModal: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
                 }
                 setAccountName('');
                 setSelectedBankKey('');
+                setAgency('');
+                setAccountNumber('');
                 onCancel();
             }
         } catch (error: any) {
@@ -193,6 +199,44 @@ export const BankModal: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
                                         Já existe uma conta cadastrada com esse nome neste banco.
                                     </p>
                                 )}
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                            <div className="space-y-1">
+                                <label htmlFor="bank-agency" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
+                                    Número da Agência <span className="font-normal text-slate-400">(Opcional)</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    inputMode="text"
+                                    id="bank-agency"
+                                    value={agency}
+                                    onChange={(e) => setAgency(e.target.value)}
+                                    maxLength={50}
+                                    autoComplete="off"
+                                    placeholder="Ex: 0001 ou 0001-9"
+                                    className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 px-3 outline-none transition-all text-xs font-medium tabular-nums"
+                                    disabled={isSubmitting}
+                                />
+                            </div>
+
+                            <div className="space-y-1">
+                                <label htmlFor="bank-account-number" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
+                                    Número da Conta <span className="font-normal text-slate-400">(Opcional)</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    inputMode="text"
+                                    id="bank-account-number"
+                                    value={accountNumber}
+                                    onChange={(e) => setAccountNumber(e.target.value)}
+                                    maxLength={50}
+                                    autoComplete="off"
+                                    placeholder="Ex: 0012345-6"
+                                    className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 px-3 outline-none transition-all text-xs font-medium tabular-nums"
+                                    disabled={isSubmitting}
+                                />
                             </div>
                         </div>
                     </div>

@@ -17,7 +17,9 @@ export const BanksList: React.FC = () => {
             const nameMatch = (b.name || '').toLowerCase().includes(query);
             const accMatch = (b.account_name || '').toLowerCase().includes(query);
             const keyMatch = (b.bank_key || '').toLowerCase().includes(query);
-            return nameMatch || accMatch || keyMatch;
+            const agencyMatch = (b.agency || '').toLowerCase().includes(query);
+            const accountNumMatch = (b.account_number || '').toLowerCase().includes(query);
+            return nameMatch || accMatch || keyMatch || agencyMatch || accountNumMatch;
         }), 
         [banks, search]
     );
@@ -91,9 +93,13 @@ export const BanksList: React.FC = () => {
                                     <span className="font-semibold text-slate-900 dark:text-white text-xs tracking-tight truncate block">
                                         {bank.account_name ?? bank.name}
                                     </span>
-                                    {catalogName && (
-                                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate block">
-                                            Instituição: {catalogName}
+                                    {(catalogName || bank.agency || bank.account_number) && (
+                                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate block tabular-nums">
+                                            {[
+                                                catalogName ? `Instituição: ${catalogName}` : null,
+                                                bank.agency ? `Ag. ${bank.agency}` : null,
+                                                bank.account_number ? `Conta ${bank.account_number}` : null
+                                            ].filter(Boolean).join(' • ')}
                                         </span>
                                     )}
                                 </div>

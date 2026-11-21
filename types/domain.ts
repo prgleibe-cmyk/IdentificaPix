@@ -19,6 +19,8 @@ export interface Bank {
   name: string;
   bank_key?: string | null;
   account_name?: string | null;
+  agency?: string | null;
+  account_number?: string | null;
   accepted_contribution_types?: string[] | null;
 }
 

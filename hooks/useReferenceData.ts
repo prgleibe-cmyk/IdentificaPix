@@ -484,14 +484,39 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const openEditBank = useCallback((bank: Bank) => setEditingBank(bank), []);
     const closeEditBank = useCallback(() => setEditingBank(null), []);
 
-    const updateBank = useCallback(async (bankId: string, name: string, accepted_contribution_types?: string[] | null) => {
+    const updateBank = useCallback(async (
+        bankId: string,
+        name: string,
+        accepted_contribution_types?: string[] | null,
+        bankDetails?: { agency?: string | null; account_number?: string | null }
+    ) => {
         const account_name = name;
         const existingBank = banks.find(b => b.id === bankId);
+        const hasAgencyDetail = Boolean(bankDetails && Object.prototype.hasOwnProperty.call(bankDetails, 'agency'));
+        const hasAccountNumberDetail = Boolean(bankDetails && Object.prototype.hasOwnProperty.call(bankDetails, 'account_number'));
         const resolvedAcceptedTypes = accepted_contribution_types !== undefined
             ? accepted_contribution_types
             : (existingBank?.accepted_contribution_types ?? null);
+        const resolvedAgency = hasAgencyDetail
+            ? (typeof bankDetails?.agency === 'string' && bankDetails.agency.trim() ? bankDetails.agency.trim() : null)
+            : (existingBank?.agency ?? null);
+        const resolvedAccountNumber = hasAccountNumberDetail
+            ? (typeof bankDetails?.account_number === 'string' && bankDetails.account_number.trim() ? bankDetails.account_number.trim() : null)
+            : (existingBank?.account_number ?? null);
 
-        console.log(`[WRITE:UPDATE] Atualizando banco name, account_name e accepted_contribution_types (ID: ${bankId}) no VPS`);
+        const requestBody: Record<string, any> = {
+            name,
+            account_name,
+            accepted_contribution_types: resolvedAcceptedTypes
+        };
+        if (hasAgencyDetail) {
+            requestBody.agency = resolvedAgency;
+        }
+        if (hasAccountNumberDetail) {
+            requestBody.account_number = resolvedAccountNumber;
+        }
+
+        console.log(`[WRITE:UPDATE] Atualizando conta bancária (ID: ${bankId}) no VPS`);
         const token = await getAuthToken();
         const res = await fetch(`/api/v1/banks/${bankId}`, {
             method: 'PUT',
@@ -499,7 +524,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                 'Content-Type': 'application/json',
                 ...(token ? { 'Authorization': `Bearer ${token}` } : {})
             },
-            body: JSON.stringify({ name, account_name, accepted_contribution_types: resolvedAcceptedTypes })
+            body: JSON.stringify(requestBody)
         });
 
         if (!res.ok) {
@@ -512,13 +537,29 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         const updatedBank = await res.json().catch(() => null);
         setBanks(prev => prev.map(b => b.id === bankId ? {
             ...b,
-            ...(updatedBank || { name, account_name, accepted_contribution_types: resolvedAcceptedTypes })
+            ...(updatedBank || {
+                name,
+                account_name,
+                agency: resolvedAgency,
+                account_number: resolvedAccountNumber,
+                accepted_contribution_types: resolvedAcceptedTypes
+            })
         } : b));
         showToast('Banco atualizado.', 'success');
         return updatedBank || true;
     }, [banks, setBanks, showToast]);
 
-    const addBank = useCallback(async (nameOrPayload: string | { name: string; bank_key?: string | null; account_name?: string | null; accepted_contribution_types?: string[] | null }, bank_key_legacy?: string | null): Promise<any> => {
+    const addBank = useCallback(async (
+        nameOrPayload: string | {
+            name: string;
+            bank_key?: string | null;
+            account_name?: string | null;
+            agency?: string | null;
+            account_number?: string | null;
+            accepted_contribution_types?: string[] | null;
+        },
+        bank_key_legacy?: string | null
+    ): Promise<any> => {
         if(!user || !effectiveUserId) return false;
         if (banks.length >= (subscription.maxBanks || 1)) {
             showToast(`Limite atingido.`, 'error');
@@ -528,6 +569,8 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         let name: string;
         let bank_key: string | null = null;
         let account_name: string | null = null;
+        let agency: string | null = null;
+        let account_number: string | null = null;
         let accepted_contribution_types: string[] | null = null;
 
         if (typeof nameOrPayload === 'string') {
@@ -538,6 +581,8 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             name = nameOrPayload.name;
             bank_key = nameOrPayload.bank_key || null;
             account_name = nameOrPayload.account_name ?? nameOrPayload.name;
+            agency = typeof nameOrPayload.agency === 'string' && nameOrPayload.agency.trim() ? nameOrPayload.agency.trim() : null;
+            account_number = typeof nameOrPayload.account_number === 'string' && nameOrPayload.account_number.trim() ? nameOrPayload.account_number.trim() : null;
             accepted_contribution_types = nameOrPayload.accepted_contribution_types || null;
         }
 
@@ -569,6 +614,8 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                 user_id: effectiveUserId,
                 bank_key: bank_key ?? null,
                 account_name: account_name ?? name,
+                agency,
+                account_number,
                 accepted_contribution_types
             })
         });
