@@ -277,6 +277,12 @@ export const ManualIdModal: React.FC = () => {
             return typeOptions;
         }
         const normQuery = selectedType.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const hasExactOption = typeOptions.some((t: string) =>
+            t.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") === normQuery
+        );
+        if (hasExactOption) {
+            return typeOptions;
+        }
         return typeOptions.filter((t: string) => {
             const normT = t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
             return normT.includes(normQuery);
@@ -1739,525 +1745,688 @@ export const ManualIdModal: React.FC = () => {
     }
 
     return (
-        <div
-            className="fixed inset-0 md:absolute md:inset-0 z-[56] flex items-center justify-center pt-16 md:pt-4 pb-3 md:pb-4 px-2 sm:px-6 bg-slate-900/55 backdrop-blur-[2px] animate-fade-in"
-            onClick={closeManualIdentify}
-        >
+        <>
             <div
-                className="w-full max-w-2xl max-h-[calc(100dvh-5rem)] md:max-h-[min(90vh,calc(100dvh-2.5rem))] bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-elevated flex flex-col overflow-hidden"
-                onClick={(e) => e.stopPropagation()}
+                className="fixed inset-0 md:absolute md:inset-0 z-[56] flex items-center justify-center pt-16 md:pt-4 pb-3 md:pb-4 px-2 sm:px-6 bg-slate-900/55 backdrop-blur-[2px] animate-fade-in"
+                onClick={closeManualIdentify}
             >
-            {/* Header */}
-            <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 shrink-0">
-                <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-orange-50 dark:bg-orange-950/50 border border-orange-200/70 dark:border-orange-900/50 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
-                        {count > 1 ? <CheckBadgeIcon className="w-4 h-4" /> : <Building2 className="w-4 h-4" />}
-                    </div>
-                    <div>
-                        <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
-                            {count > 1 ? 'Destinar Lote' : 'Identificação de Lançamento'}
-                        </h3>
-                        <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                            {count > 1 ? 'Reconciliação em lote dos registros selecionados.' : 'Vincule o contribuinte, igreja e categoria do lançamento.'}
-                        </p>
-                    </div>
-                </div>
-                <button type="button" onClick={closeManualIdentify} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer shrink-0" aria-label="Fechar">
-                    <XMarkIcon className="w-5 h-5" />
-                </button>
-            </div>
-
-            {/* Form fields */}
-            <div
-                className="p-4 sm:p-5 flex-1 overflow-y-auto w-full custom-scrollbar space-y-4"
-                style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}
-            >
-                    {count > 1 ? (
-                        <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700">
-                            <div className="flex justify-between items-center">
-                                <div>
-                                    <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block">Registros selecionados</span>
-                                    <span className="text-lg font-bold text-slate-900 dark:text-white">{count} <span className="text-xs font-medium text-slate-400">itens</span></span>
-                                </div>
-                                <div className="text-right">
-                                    <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block">Valor total do lote</span>
-                                    <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{formatCurrency(totalAmount, language)}</span>
-                                </div>
+                <div
+                    className="w-full max-w-3xl max-h-[calc(100dvh-5rem)] md:max-h-[min(92vh,calc(100dvh-2.5rem))] bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-elevated flex flex-col overflow-hidden"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {/* Header — Padronizado com Novo Lançamento */}
+                    <div className="px-4 sm:px-5 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 shrink-0 bg-white dark:bg-slate-900">
+                        <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-9 h-9 rounded-lg bg-orange-50 dark:bg-orange-950/50 border border-orange-200/70 dark:border-orange-900/50 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
+                                {count > 1 ? <CheckBadgeIcon className="w-4 h-4" /> : <Building2 className="w-4 h-4" />}
                             </div>
-                        </div>
-                    ) : null}
-
-                    {count === 1 && !isManualLaunch && (
-                        <div className="space-y-4">
-                            <div className="bg-slate-50/90 dark:bg-slate-800/50 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80 space-y-3">
-                                <div className="flex flex-wrap items-start justify-between gap-3">
-                                    <div className="min-w-0 flex-1">
-                                        <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500 block">Descrição do banco</span>
-                                        <span className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100 break-words [overflow-wrap:anywhere] block mt-0.5">
-                                            {bulkIdentificationTxs[0].description}
-                                        </span>
-                                    </div>
-                                    <div className="text-right shrink-0">
-                                        <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500 block">Valor</span>
-                                        <span className={`text-sm font-bold tabular-nums block mt-0.5 ${bulkIdentificationTxs[0].amount < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                                            {formatCurrency(bulkIdentificationTxs[0].amount, language)}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 p-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700 gap-1">
-                                    <button
-                                        type="button"
-                                        onClick={() => handleTypeSwitch('entrada')}
-                                        className={`py-1.5 px-3 rounded-lg font-semibold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer select-none ${
-                                            manualType === 'entrada'
-                                                ? 'bg-emerald-600 text-white shadow-xs'
-                                                : 'text-slate-600 dark:text-slate-300 hover:text-emerald-700 dark:hover:text-emerald-400'
-                                        }`}
-                                    >
-                                        <ArrowUpRight className="w-3.5 h-3.5" />
-                                        <span>Entrada (Receita)</span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => handleTypeSwitch('saida')}
-                                        className={`py-1.5 px-3 rounded-lg font-semibold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer select-none ${
-                                            manualType === 'saida'
-                                                ? 'bg-rose-600 text-white shadow-xs'
-                                                : 'text-slate-600 dark:text-slate-300 hover:text-rose-700 dark:hover:text-rose-400'
-                                        }`}
-                                    >
-                                        <ArrowDownRight className="w-3.5 h-3.5" />
-                                        <span>Saída (Despesa)</span>
-                                    </button>
-                                </div>
-
-                                {/* Destinação atual se já identificado */}
-                                {(() => {
-                                    const matchedResult = findMatchResult ? findMatchResult(bulkIdentificationTxs[0].id) : null;
-                                    if (matchedResult && matchedResult.contributor) {
-                                        return (
-                                            <div className="pt-2 border-t border-slate-200/70 dark:border-slate-700/70 flex flex-wrap items-center justify-between gap-2 text-xs">
-                                                <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                                                    Vinculado atualmente: <strong className="font-semibold text-slate-700 dark:text-slate-200">{matchedResult.contributor.name}</strong>
-                                                </span>
-                                                <span className="text-[11px] font-medium bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-md">
-                                                    {matchedResult.church?.name || 'Sem igreja'}
-                                                </span>
-                                            </div>
-                                        );
-                                    }
-                                    return null;
-                                })()}
-                            </div>
-
-                            <div className="space-y-1.5" id="manual-description-container">
-                                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
-                                    Contribuinte ou Favorecido
-                                </label>
-                                <div className="relative group">
-                                    <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
-                                    <input
-                                        type="text"
-                                        value={manualDescription}
-                                        onChange={e => {
-                                            const val = e.target.value;
-                                            isDescManuallyChangedRef.current = true;
-                                            setManualDescription(val);
-                                            setShowSuggestions(true);
-
-                                            // Se o texto digitado corresponder exatamente a um cadastro existente, unifica e auto-preenche a igreja
-                                            const valNorm = val.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                                            const exactMatch = valNorm.length >= 3 ? allContributors.find(c => {
-                                                const cName = (c.name || c.canonical_name || c.cleanedName || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                                                const cTrade = (c.trade_name || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                                                return cName === valNorm || cTrade === valNorm;
-                                            }) : null;
-
-                                            if (exactMatch) {
-                                                setSelectedAssociationType('unify');
-                                                setSelectedUnifiedField(exactMatch.id);
-                                                if (exactMatch._churchId && churches.some(ch => ch.id === exactMatch._churchId)) {
-                                                    setSelectedChurchId(exactMatch._churchId);
-                                                }
-                                            } else {
-                                                // Nome digitado manualmente não corresponde a cadastro existente: preserva como novo/manual
-                                                setSelectedAssociationType('create_new');
-                                                setSelectedUnifiedField('');
-                                            }
-                                        }}
-                                        onKeyDown={e => {
-                                            if (e.key === 'Enter') {
-                                                setShowSuggestions(false);
-                                            }
-                                        }}
-                                        onFocus={() => setShowSuggestions(true)}
-                                        placeholder="Digite o nome do verdadeiro contribuinte..."
-                                        className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 pl-9 pr-3 transition-all outline-none text-xs font-semibold placeholder:text-slate-400 placeholder:font-normal"
-                                    />
-                                    {showSuggestions && filteredContributors.length > 0 && (
-                                        <div className="absolute left-0 right-0 top-[105%] z-50 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl overflow-hidden max-h-56 overflow-y-auto custom-scrollbar">
-                                            <div className="border-b border-slate-100 dark:border-slate-800 text-[11px] font-semibold text-slate-500 dark:text-slate-400 px-3 py-1.5 bg-slate-50 dark:bg-slate-900/80 flex justify-between items-center">
-                                                <span>Cadastros encontrados</span>
-                                                <span className="text-[11px] font-medium text-orange-600 dark:text-orange-400">{filteredContributors.length} resultados</span>
-                                            </div>
-                                            {filteredContributors.map((col, cIdx) => {
-                                                const chosenName = col.name || col.canonical_name || col.cleanedName || '';
-                                                const hasTrade = col.trade_name && col.trade_name.trim() && col.trade_name.trim().toLowerCase() !== chosenName.trim().toLowerCase();
-                                                const isPj = col.person_type === 'PJ' || (col.cpf && col.cpf.replace(/\D/g, '').length === 14);
-
-                                                return (
-                                                    <button
-                                                        key={col.id || cIdx}
-                                                        type="button"
-                                                        onClick={() => handleChooseContributor(col)}
-                                                        className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-800 dark:text-slate-200 text-xs font-semibold transition-colors flex justify-between items-center border-b border-slate-50 dark:border-white/5 last:border-none cursor-pointer"
-                                                    >
-                                                        <div className="flex flex-col min-w-0 pr-2">
-                                                            <div className="flex items-center gap-1.5 flex-wrap">
-                                                                <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">{chosenName}</span>
-                                                                {isPj && (
-                                                                    <span className="text-[10px] font-semibold bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded border border-blue-200/80 dark:border-blue-800">
-                                                                        PJ
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                            {hasTrade && (
-                                                                <span className="text-[11px] text-slate-500 dark:text-slate-400 font-normal truncate">
-                                                                    {col.trade_name}
-                                                                </span>
-                                                            )}
-                                                            {col.cpf && (
-                                                                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">
-                                                                    {col.cpf.replace(/\D/g, '').length === 14 ? 'CNPJ' : 'CPF'}: {formatCpfCnpj(col.cpf)}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <span className="text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-md border border-slate-200/80 dark:border-slate-700 shrink-0 max-w-[160px] truncate">
-                                                            {col._churchName || 'Igreja'}
-                                                        </span>
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
-                                <p className="text-[11px] text-slate-400 dark:text-slate-500 ml-0.5">
-                                    Se o PIX foi feito por terceiro, altere ou selecione o verdadeiro contribuinte acima.
+                            <div className="min-w-0">
+                                <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight truncate">
+                                    {count > 1 ? 'Destinar Lote' : 'Identificação de Lançamento'}
+                                </h3>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                                    {count > 1 ? 'Reconciliação em lote dos registros selecionados.' : 'Vincule o contribuinte, igreja e categoria do lançamento.'}
                                 </p>
                             </div>
                         </div>
-                    )}
+                        <button
+                            type="button"
+                            onClick={closeManualIdentify}
+                            className="inline-flex items-center gap-1.5 p-1.5 sm:px-3 sm:py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer border border-slate-200/90 dark:border-slate-700 shadow-xs active:scale-95 shrink-0"
+                            aria-label="Fechar"
+                        >
+                            <XMarkIcon className="w-4 h-4" />
+                            <span className="hidden sm:inline">Fechar</span>
+                        </button>
+                    </div>
 
-                    {/* Seleção de similaridade e unificação de contribuintes */}
-                    {similarMatches.length > 0 && (
-                        <div className="bg-amber-50/50 dark:bg-amber-950/15 border border-amber-200/80 dark:border-amber-800/40 p-3.5 rounded-xl space-y-2.5">
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                                <div className="flex items-center gap-2">
-                                    <div className="p-1.5 rounded-lg bg-amber-100/80 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
-                                        <SparklesIcon className="w-3.5 h-3.5" />
-                                    </div>
+                    {/* Form fields */}
+                    <div
+                        className="p-4 sm:p-5 flex-1 overflow-y-auto w-full custom-scrollbar space-y-4"
+                        style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}
+                    >
+                        {count > 1 ? (
+                            <div className="bg-slate-50/80 dark:bg-slate-800/50 px-4 py-3 rounded-xl border border-slate-200/80 dark:border-slate-800">
+                                <div className="flex justify-between items-center gap-3">
                                     <div>
-                                        <h4 className="text-xs font-semibold text-slate-800 dark:text-slate-100">
-                                            {similarMatches[0].score >= 80 ? 'Cadastro correspondente encontrado' : 'Possível cadastro semelhante'}
-                                        </h4>
-                                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                                            Escolha se deseja vincular a um cadastro existente ou manter como novo.
-                                        </p>
+                                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block">Registros selecionados</span>
+                                        <span className="text-base font-bold text-slate-900 dark:text-white tabular-nums">
+                                            {count} <span className="text-xs font-medium text-slate-400">itens</span>
+                                        </span>
                                     </div>
-                                </div>
-
-                                <div className="inline-flex items-center bg-white dark:bg-slate-900 p-0.5 rounded-lg border border-slate-200/80 dark:border-slate-700 shrink-0">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setSelectedAssociationType('create_new');
-                                            if (!isChurchManuallyChangedRef.current) {
-                                                if (churches.length !== 1) {
-                                                    setSelectedChurchId('');
-                                                } else {
-                                                    setSelectedChurchId(churches[0].id);
-                                                }
-                                            }
-                                        }}
-                                        className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all cursor-pointer ${
-                                            selectedAssociationType === 'create_new'
-                                                ? 'bg-orange-600 text-white shadow-xs'
-                                                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                                        }`}
-                                    >
-                                        Cadastrar Novo
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setSelectedAssociationType('unify');
-                                            if (similarMatches.length > 0) {
-                                                const match = similarMatches[0];
-                                                setSelectedUnifiedField(match.contributor.id);
-                                                const chId = match.contributor._churchId || match.contributor.church_id || match.church?.id;
-                                                if (chId && !isChurchManuallyChangedRef.current) setSelectedChurchId(chId);
-                                            }
-                                        }}
-                                        className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all cursor-pointer ${
-                                            selectedAssociationType === 'unify'
-                                                ? 'bg-orange-600 text-white shadow-xs'
-                                                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                                        }`}
-                                    >
-                                        Unificar Cadastro
-                                    </button>
+                                    <div className="text-right">
+                                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block">Valor total do lote</span>
+                                        <span className="text-base font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                                            {formatCurrency(totalAmount, language)}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
+                        ) : null}
 
-                            {selectedAssociationType === 'unify' && (
-                                <div className="space-y-1.5 pt-1 border-t border-amber-200/50 dark:border-amber-800/30">
-                                    <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1 custom-scrollbar">
+                        {count === 1 && !isManualLaunch && (
+                            <div className="space-y-4">
+                                {/* Tipo de Movimentação + Resumo Bancário — Padronizado com Novo Lançamento */}
+                                <div className="space-y-3 pb-4 border-b border-slate-100 dark:border-slate-800">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <h4 className="text-sm font-semibold text-slate-900 dark:text-white tracking-tight">
+                                                Tipo de Movimentação
+                                            </h4>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                                Confirme a natureza do lançamento e os dados abaixo.
+                                            </p>
+                                        </div>
+
+                                        <div className="inline-grid grid-cols-2 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 gap-1 min-w-[260px] shrink-0">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleTypeSwitch('entrada')}
+                                                className={`py-2 px-3 rounded-lg font-semibold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer select-none ${
+                                                    manualType === 'entrada'
+                                                        ? 'bg-emerald-600 text-white shadow-xs'
+                                                        : 'text-slate-600 dark:text-slate-300 hover:text-emerald-700 dark:hover:text-emerald-400'
+                                                }`}
+                                            >
+                                                <ArrowUpRight className="w-4 h-4" />
+                                                <span>Entrada (Receita)</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleTypeSwitch('saida')}
+                                                className={`py-2 px-3 rounded-lg font-semibold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer select-none ${
+                                                    manualType === 'saida'
+                                                        ? 'bg-rose-600 text-white shadow-xs'
+                                                        : 'text-slate-600 dark:text-slate-300 hover:text-rose-700 dark:hover:text-rose-400'
+                                                }`}
+                                            >
+                                                <ArrowDownRight className="w-4 h-4" />
+                                                <span>Saída (Despesa)</span>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-slate-50/70 dark:bg-slate-800/40 px-3.5 py-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-2">
+                                        <div className="flex flex-wrap items-center justify-between gap-3">
+                                            <div className="min-w-0 flex-1">
+                                                <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500 block">Descrição do extrato</span>
+                                                <span className="text-xs font-semibold text-slate-800 dark:text-slate-100 break-words [overflow-wrap:anywhere] block mt-0.5">
+                                                    {bulkIdentificationTxs[0].description}
+                                                </span>
+                                            </div>
+                                            <div className="text-right shrink-0">
+                                                <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500 block">Valor</span>
+                                                <span className={`text-sm font-bold tabular-nums block mt-0.5 ${bulkIdentificationTxs[0].amount < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                                    {formatCurrency(bulkIdentificationTxs[0].amount, language)}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Destinação atual se já identificado */}
+                                        {(() => {
+                                            const matchedResult = findMatchResult ? findMatchResult(bulkIdentificationTxs[0].id) : null;
+                                            if (matchedResult && matchedResult.contributor) {
+                                                return (
+                                                    <div className="pt-2 border-t border-slate-200/70 dark:border-slate-700/70 flex flex-wrap items-center justify-between gap-2 text-xs">
+                                                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                                                            Vinculado atualmente: <strong className="font-semibold text-slate-700 dark:text-slate-200">{matchedResult.contributor.name}</strong>
+                                                        </span>
+                                                        <span className="text-[11px] font-medium bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-md">
+                                                            {matchedResult.church?.name || 'Sem igreja'}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            }
+                                            return null;
+                                        })()}
+                                    </div>
+                                </div>
+
+                                {/* Busca de Contribuinte / Favorecido — Padronizado com Novo Lançamento */}
+                                <div className="space-y-1.5" id="manual-description-container">
+                                    <div className="flex items-center justify-between flex-wrap gap-1">
+                                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
+                                            {manualType === 'saida' ? 'Favorecido / Razão Social' : 'Nome do Contribuinte'}
+                                        </label>
+                                        <span className="hidden sm:inline text-[11px] text-slate-400 dark:text-slate-500">
+                                            Se o PIX foi feito por terceiro, altere ou selecione o verdadeiro contribuinte
+                                        </span>
+                                    </div>
+                                    <div className="relative flex items-stretch rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xs focus-within:ring-2 focus-within:ring-orange-500/20 focus-within:border-orange-500 transition-all">
+                                        <div className="relative flex-1 min-w-0 group">
+                                            <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
+                                            <input
+                                                type="text"
+                                                value={manualDescription}
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    isDescManuallyChangedRef.current = true;
+                                                    setManualDescription(val);
+                                                    setShowSuggestions(true);
+
+                                                    // Se o texto digitado corresponder exatamente a um cadastro existente, unifica e auto-preenche a igreja
+                                                    const valNorm = val.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                                                    const exactMatch = valNorm.length >= 3 ? allContributors.find(c => {
+                                                        const cName = (c.name || c.canonical_name || c.cleanedName || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                                                        const cTrade = (c.trade_name || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                                                        return cName === valNorm || cTrade === valNorm;
+                                                    }) : null;
+
+                                                    if (exactMatch) {
+                                                        setSelectedAssociationType('unify');
+                                                        setSelectedUnifiedField(exactMatch.id);
+                                                        if (exactMatch._churchId && churches.some(ch => ch.id === exactMatch._churchId)) {
+                                                            setSelectedChurchId(exactMatch._churchId);
+                                                        }
+                                                    } else {
+                                                        // Nome digitado manualmente não corresponde a cadastro existente: preserva como novo/manual
+                                                        setSelectedAssociationType('create_new');
+                                                        setSelectedUnifiedField('');
+                                                    }
+                                                }}
+                                                onKeyDown={e => {
+                                                    if (e.key === 'Enter') {
+                                                        setShowSuggestions(false);
+                                                    }
+                                                }}
+                                                onFocus={() => setShowSuggestions(true)}
+                                                placeholder={manualType === 'saida' ? 'Digite o nome, razão social ou CNPJ/CPF do favorecido...' : 'Digite o nome ou CPF do contribuinte...'}
+                                                className="block w-full rounded-l-lg border-0 bg-transparent text-slate-900 dark:text-white py-2 pl-9 pr-3 transition-all outline-none text-xs font-medium placeholder:text-slate-400"
+                                            />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setQuickRegisterEntity('contributors')}
+                                            title="Gerenciar Empresas e Pessoas"
+                                            aria-label="Gerenciar Empresas e Pessoas"
+                                            className="shrink-0 w-9 flex items-center justify-center border-l border-slate-200 dark:border-slate-700/80 bg-slate-50/70 hover:bg-orange-50 dark:bg-slate-800/50 dark:hover:bg-orange-950/40 text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors cursor-pointer rounded-r-lg"
+                                        >
+                                            <SquarePen className="w-3.5 h-3.5" />
+                                        </button>
+                                        {showSuggestions && filteredContributors.length > 0 && (
+                                            <div className="absolute left-0 right-0 top-[105%] z-50 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl overflow-hidden max-h-56 overflow-y-auto custom-scrollbar">
+                                                <div className="border-b border-slate-100 dark:border-slate-800 text-[11px] font-semibold text-slate-500 dark:text-slate-400 px-3 py-1.5 bg-slate-50 dark:bg-slate-900/80 flex justify-between items-center">
+                                                    <span>Cadastros encontrados</span>
+                                                    <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">Preenche a igreja</span>
+                                                </div>
+                                                {filteredContributors.map((col, cIdx) => {
+                                                    const chosenName = col.name || col.canonical_name || col.cleanedName || '';
+                                                    const hasTrade = col.trade_name && col.trade_name.trim() && col.trade_name.trim().toLowerCase() !== chosenName.trim().toLowerCase();
+                                                    const isPj = col.person_type === 'PJ' || (col.cpf && col.cpf.replace(/\D/g, '').length === 14);
+
+                                                    return (
+                                                        <button
+                                                            key={col.id || cIdx}
+                                                            type="button"
+                                                            onClick={() => handleChooseContributor(col)}
+                                                            className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-800 dark:text-slate-200 text-xs font-semibold transition-colors flex justify-between items-center border-b border-slate-50 dark:border-white/5 last:border-none cursor-pointer"
+                                                        >
+                                                            <div className="flex flex-col min-w-0 pr-2">
+                                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                                    <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">{chosenName}</span>
+                                                                    {isPj && (
+                                                                        <span className="text-[10px] font-semibold bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded border border-blue-200/80 dark:border-blue-800">
+                                                                            PJ
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                {hasTrade && (
+                                                                    <span className="text-[11px] text-slate-500 dark:text-slate-400 font-normal truncate">
+                                                                        {col.trade_name}
+                                                                    </span>
+                                                                )}
+                                                                {col.cpf && (
+                                                                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">
+                                                                        {col.cpf.replace(/\D/g, '').length === 14 ? 'CNPJ' : 'CPF'}: {formatCpfCnpj(col.cpf)}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <span className="text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-md border border-slate-200/80 dark:border-slate-700 shrink-0 max-w-[170px] truncate">
+                                                                {col._churchName || 'Igreja'}
+                                                            </span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Seleção de similaridade e unificação — Padronizado com Novo Lançamento */}
+                        {similarMatches.length > 0 && (
+                            <div className="p-3 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 space-y-2.5 animate-fade-in">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        {selectedAssociationType === 'unify' && selectedUnifiedField ? (
+                                            <CheckBadgeIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                        ) : (
+                                            <SparklesIcon className="w-4 h-4 text-amber-500 shrink-0" />
+                                        )}
+                                        <div className="min-w-0">
+                                            <h4 className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">
+                                                {similarMatches[0].score >= 80 ? 'Cadastro correspondente encontrado' : 'Possível cadastro semelhante'}
+                                            </h4>
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                                                Escolha se deseja vincular a um cadastro existente ou manter como novo.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="inline-flex items-center bg-slate-200/70 dark:bg-slate-800 p-0.5 rounded-lg shrink-0">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setSelectedAssociationType('create_new');
+                                                if (!isChurchManuallyChangedRef.current) {
+                                                    if (churches.length !== 1) {
+                                                        setSelectedChurchId('');
+                                                    } else {
+                                                        setSelectedChurchId(churches[0].id);
+                                                    }
+                                                }
+                                            }}
+                                            className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all cursor-pointer ${
+                                                selectedAssociationType === 'create_new'
+                                                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs'
+                                                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                                            }`}
+                                        >
+                                            Cadastrar Novo
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setSelectedAssociationType('unify');
+                                                if (similarMatches.length > 0) {
+                                                    const match = similarMatches[0];
+                                                    setSelectedUnifiedField(match.contributor.id);
+                                                    const chId = match.contributor._churchId || match.contributor.church_id || match.church?.id;
+                                                    if (chId && !isChurchManuallyChangedRef.current) setSelectedChurchId(chId);
+                                                }
+                                            }}
+                                            className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all cursor-pointer ${
+                                                selectedAssociationType === 'unify'
+                                                    ? 'bg-orange-600 text-white shadow-2xs'
+                                                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                                            }`}
+                                        >
+                                            Unificar Cadastro
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {selectedAssociationType === 'unify' && (
+                                    <div className="pt-2 border-t border-slate-200/70 dark:border-slate-800 space-y-1.5 max-h-28 overflow-y-auto pr-1 custom-scrollbar">
                                         {similarMatches.map((m, idx) => {
                                             const chId = m.contributor._churchId || m.contributor.church_id || m.church?.id;
                                             const churchName = m.church?.name || 'Sem igreja';
                                             const isSelected = selectedUnifiedField === m.contributor.id;
-                                            
+
                                             return (
-                                                <div
+                                                <button
                                                     key={m.contributor.id || idx}
+                                                    type="button"
                                                     onClick={() => {
                                                         setSelectedUnifiedField(m.contributor.id);
                                                         if (chId && !isChurchManuallyChangedRef.current) setSelectedChurchId(chId);
                                                     }}
-                                                    className={`p-2.5 rounded-lg border text-left cursor-pointer transition-all ${
+                                                    className={`w-full px-3 py-2 rounded-lg border text-left cursor-pointer transition-all flex items-center justify-between gap-2 ${
                                                         isSelected
-                                                            ? 'border-orange-400 bg-white dark:bg-slate-900 ring-1 ring-orange-400/30 text-slate-900 dark:text-white'
-                                                            : 'border-slate-200/80 dark:border-slate-700 bg-white/70 dark:bg-slate-900/50 hover:bg-white text-slate-700 dark:text-slate-300'
+                                                            ? 'border-orange-500/80 bg-orange-50/70 dark:bg-orange-950/35 text-slate-900 dark:text-white'
+                                                            : 'border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
                                                     }`}
                                                 >
-                                                    <div className="flex justify-between items-center gap-2">
-                                                        <span className="text-xs font-semibold truncate">{m.contributor.name || m.contributor.canonical_name}</span>
-                                                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 shrink-0 tabular-nums">
-                                                            {m.score}% compatível
-                                                        </span>
+                                                    <div className="min-w-0">
+                                                        <span className="text-xs font-semibold truncate block">{m.contributor.name || m.contributor.canonical_name}</span>
+                                                        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                                                            <span className="truncate">{churchName}</span>
+                                                            {m.contributor.cpf && (
+                                                                <>
+                                                                    <span>•</span>
+                                                                    <span className="tabular-nums font-mono text-[10px]">{m.contributor.cpf}</span>
+                                                                </>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                    <div className="flex gap-2 text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                                        <span>{churchName}</span>
-                                                        {m.contributor.cpf && (
-                                                            <>
-                                                                <span>•</span>
-                                                                <span className="tabular-nums">{m.contributor.cpf}</span>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </div>
+                                                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/50 shrink-0 tabular-nums">
+                                                        {m.score}% compatível
+                                                    </span>
+                                                </button>
                                             );
                                         })}
                                     </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                        <div className="space-y-1.5">
-                            <div className="flex items-center justify-between flex-wrap gap-1">
-                                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
-                                    Data de Referência (Competência)
-                                </label>
-                                {(() => {
-                                    const safeBankDate = formatBankDateSafe(bulkIdentificationTxs?.[0]?.date);
-                                    return safeBankDate ? (
-                                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded tabular-nums">
-                                            Banco: {safeBankDate}
-                                        </span>
-                                    ) : null;
-                                })()}
+                                )}
                             </div>
-                            <input
-                                type="date"
-                                value={toYmd(selectedDate)}
-                                onChange={e => {
-                                    const val = e.target.value;
-                                    setSelectedDate(val);
-                                    isDateManuallyChangedRef.current = true;
-                                }}
-                                className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 px-3 transition-all outline-none text-xs font-semibold tabular-nums"
-                            />
-                        </div>
+                        )}
 
-                        <div className="space-y-1.5">
-                            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
-                                Igreja de Destino <span className="text-rose-500">*</span>
-                            </label>
-                            <div className="relative group">
-                                <Building2 className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
-                                <select
-                                    value={selectedChurchId}
+                        {/* Linha 1: Data de Referência e Igreja de Destino */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                            <div className="space-y-1.5">
+                                <div className="flex items-center justify-between gap-2 min-h-[18px]">
+                                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5 truncate">
+                                        Data de Referência
+                                    </label>
+                                    {(() => {
+                                        const safeBankDate = formatBankDateSafe(bulkIdentificationTxs?.[0]?.date);
+                                        return safeBankDate ? (
+                                            <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500 tabular-nums shrink-0">
+                                                Banco: {safeBankDate}
+                                            </span>
+                                        ) : null;
+                                    })()}
+                                </div>
+                                <input
+                                    type="date"
+                                    value={toYmd(selectedDate)}
                                     onChange={e => {
-                                        setSelectedChurchId(e.target.value);
-                                        isChurchManuallyChangedRef.current = true;
+                                        const val = e.target.value;
+                                        setSelectedDate(val);
+                                        isDateManuallyChangedRef.current = true;
                                     }}
-                                    className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 pl-9 pr-8 transition-all outline-none text-xs font-semibold appearance-none cursor-pointer"
-                                >
-                                    <option value="">Selecione a igreja...</option>
-                                    {churches.map(church => (
-                                        <option key={church.id} value={church.id}>
-                                            {church.name}
-                                        </option>
-                                    ))}
-                                </select>
-                                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                    <ChevronDownIcon className="w-3.5 h-3.5" />
-                                </div>
+                                    className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 px-3 transition-all outline-none text-xs font-semibold tabular-nums"
+                                />
                             </div>
-                        </div>
-                    </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                        <div className="space-y-1.5">
-                            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
-                                Conta / Caixa de Destino
-                            </label>
-                            <div className="relative group">
-                                <Landmark className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
-                                <select
-                                    value={selectedBankId}
-                                    onChange={e => setSelectedBankId(e.target.value)}
-                                    className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 pl-9 pr-8 transition-all outline-none text-xs font-semibold appearance-none cursor-pointer"
-                                >
-                                    <option value="">Sem conta / caixa principal</option>
-                                    {availableBanks.map((bank: any) => (
-                                        <option key={bank.id} value={bank.id}>
-                                            {bank.account_name || bank.name || 'Conta Bancária / Caixa'}
-                                        </option>
-                                    ))}
-                                </select>
-                                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                    <ChevronDownIcon className="w-3.5 h-3.5" />
+                            <div className="space-y-1.5">
+                                <div className="flex items-center justify-between gap-2 min-h-[18px]">
+                                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
+                                        Igreja de Destino <span className="text-rose-500">*</span>
+                                    </label>
+                                    {selectedAssociationType === 'unify' && selectedChurchId && (
+                                        <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 shrink-0">
+                                            Auto-preenchida
+                                        </span>
+                                    )}
                                 </div>
-                            </div>
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
-                                Forma de Pagamento
-                            </label>
-                            {isCustomPaymentMethod ? (
-                                <div className="flex gap-2 items-center">
-                                    <input
-                                        type="text"
-                                        value={selectedPaymentMethod}
-                                        onChange={e => setSelectedPaymentMethod(e.target.value.toUpperCase())}
-                                        placeholder="Digite a forma (ex: PIX, Dinheiro)"
-                                        className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 px-3 transition-all outline-none text-xs font-semibold"
-                                        autoFocus
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setIsCustomPaymentMethod(false);
-                                            setSelectedPaymentMethod('PIX');
-                                        }}
-                                        className="py-2 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-semibold rounded-lg text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer transition-all shrink-0"
-                                    >
-                                        Lista
-                                    </button>
-                                </div>
-                            ) : (
-                                <div className="relative group">
-                                    <CreditCard className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
-                                    <select
-                                        value={selectedPaymentMethod}
-                                        onChange={e => {
-                                            const val = e.target.value;
-                                            if (val === '__CUSTOM__') {
-                                                setIsCustomPaymentMethod(true);
-                                                setSelectedPaymentMethod('');
-                                            } else {
-                                                setSelectedPaymentMethod(val);
-                                            }
-                                        }}
-                                        className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 pl-9 pr-8 transition-all outline-none text-xs font-semibold appearance-none cursor-pointer"
-                                    >
-                                        {paymentMethodsOptions.map((method: string) => (
-                                            <option key={method} value={method}>{method}</option>
-                                        ))}
-                                        <option value="__CUSTOM__">Outro (digitar manualmente...)</option>
-                                    </select>
-                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                        <ChevronDownIcon className="w-3.5 h-3.5" />
+                                <div className="flex items-stretch rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xs focus-within:ring-2 focus-within:ring-orange-500/20 focus-within:border-orange-500 transition-all">
+                                    <div className="relative flex-1 min-w-0 group">
+                                        <Building2 className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
+                                        <select
+                                            value={selectedChurchId}
+                                            onChange={e => {
+                                                setSelectedChurchId(e.target.value);
+                                                isChurchManuallyChangedRef.current = true;
+                                            }}
+                                            className={`block w-full border-0 bg-transparent text-slate-900 dark:text-white py-2 pl-9 pr-8 transition-all outline-none text-xs font-semibold appearance-none cursor-pointer ${!isSecondaryUser ? 'rounded-l-lg' : 'rounded-lg'}`}
+                                        >
+                                            <option value="">Selecione a igreja...</option>
+                                            {churches.map(church => (
+                                                <option key={church.id} value={church.id}>
+                                                    {church.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                            <ChevronDownIcon className="w-3.5 h-3.5" />
+                                        </div>
                                     </div>
+                                    {!isSecondaryUser && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setQuickRegisterEntity('churches')}
+                                            title="Gerenciar Igrejas e Congregações"
+                                            aria-label="Gerenciar Igrejas e Congregações"
+                                            className="shrink-0 w-9 flex items-center justify-center border-l border-slate-200 dark:border-slate-700/80 bg-slate-50/70 hover:bg-orange-50 dark:bg-slate-800/50 dark:hover:bg-orange-950/40 text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors cursor-pointer rounded-r-lg"
+                                        >
+                                            <SquarePen className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
                                 </div>
-                            )}
+                            </div>
                         </div>
-                    </div>
 
-                    <div className="space-y-1.5">
-                        <div className="flex items-center justify-between flex-wrap gap-1.5">
+                        {/* Linha 2: Conta / Caixa de Destino e Forma de Pagamento */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                            <div className="space-y-1.5">
+                                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
+                                    Conta / Caixa de Destino
+                                </label>
+                                <div className="flex items-stretch rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xs focus-within:ring-2 focus-within:ring-orange-500/20 focus-within:border-orange-500 transition-all">
+                                    <div className="relative flex-1 min-w-0 group">
+                                        <Landmark className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
+                                        <select
+                                            value={selectedBankId}
+                                            onChange={e => setSelectedBankId(e.target.value)}
+                                            className={`block w-full border-0 bg-transparent text-slate-900 dark:text-white py-2 pl-9 pr-8 transition-all outline-none text-xs font-semibold appearance-none cursor-pointer ${!isSecondaryUser ? 'rounded-l-lg' : 'rounded-lg'}`}
+                                        >
+                                            <option value="">Selecione a conta ou caixa...</option>
+                                            {availableBanks.map((bank: any) => (
+                                                <option key={bank.id} value={bank.id}>
+                                                    {bank.account_name || bank.name || 'Conta Bancária / Caixa'}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                            <ChevronDownIcon className="w-3.5 h-3.5" />
+                                        </div>
+                                    </div>
+                                    {!isSecondaryUser && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setQuickRegisterEntity('banks')}
+                                            title="Gerenciar Contas e Caixas"
+                                            aria-label="Gerenciar Contas e Caixas"
+                                            className="shrink-0 w-9 flex items-center justify-center border-l border-slate-200 dark:border-slate-700/80 bg-slate-50/70 hover:bg-orange-50 dark:bg-slate-800/50 dark:hover:bg-orange-950/40 text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors cursor-pointer rounded-r-lg"
+                                        >
+                                            <SquarePen className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
+                                    Forma de Pagamento
+                                </label>
+                                {isCustomPaymentMethod ? (
+                                    <div className="flex items-stretch rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xs focus-within:ring-2 focus-within:ring-orange-500/20 focus-within:border-orange-500 transition-all">
+                                        <input
+                                            type="text"
+                                            value={selectedPaymentMethod}
+                                            onChange={e => setSelectedPaymentMethod(e.target.value.toUpperCase())}
+                                            placeholder="Digite a forma (ex: PIX, Dinheiro)"
+                                            className="flex-1 min-w-0 rounded-l-lg border-0 bg-transparent text-slate-900 dark:text-white py-2 px-3 transition-all outline-none text-xs font-semibold"
+                                            autoFocus
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setIsCustomPaymentMethod(false);
+                                                setSelectedPaymentMethod('PIX');
+                                            }}
+                                            className="px-2.5 border-l border-slate-200 dark:border-slate-700/80 bg-slate-50/70 hover:bg-slate-100 dark:bg-slate-800/50 dark:hover:bg-slate-700 text-[11px] font-semibold text-slate-600 dark:text-slate-300 cursor-pointer transition-colors shrink-0"
+                                        >
+                                            Lista
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setQuickRegisterEntity('payment')}
+                                            title="Gerenciar Formas de Recebimento / Pagamento"
+                                            aria-label="Gerenciar Formas de Recebimento / Pagamento"
+                                            className="shrink-0 w-9 flex items-center justify-center border-l border-slate-200 dark:border-slate-700/80 bg-slate-50/70 hover:bg-orange-50 dark:bg-slate-800/50 dark:hover:bg-orange-950/40 text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors cursor-pointer rounded-r-lg"
+                                        >
+                                            <SquarePen className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-stretch rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xs focus-within:ring-2 focus-within:ring-orange-500/20 focus-within:border-orange-500 transition-all">
+                                        <div className="relative flex-1 min-w-0 group">
+                                            <CreditCard className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
+                                            <select
+                                                value={selectedPaymentMethod}
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    if (val === '__CUSTOM__') {
+                                                        setIsCustomPaymentMethod(true);
+                                                        setSelectedPaymentMethod('');
+                                                    } else {
+                                                        setSelectedPaymentMethod(val);
+                                                    }
+                                                }}
+                                                className="block w-full rounded-l-lg border-0 bg-transparent text-slate-900 dark:text-white py-2 pl-9 pr-8 transition-all outline-none text-xs font-semibold appearance-none cursor-pointer"
+                                            >
+                                                {paymentMethodsOptions.map((method: string) => (
+                                                    <option key={method} value={method}>{method}</option>
+                                                ))}
+                                                <option value="__CUSTOM__">Outro (digitar manualmente...)</option>
+                                            </select>
+                                            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                                <ChevronDownIcon className="w-3.5 h-3.5" />
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setQuickRegisterEntity('payment')}
+                                            title="Gerenciar Formas de Recebimento / Pagamento"
+                                            aria-label="Gerenciar Formas de Recebimento / Pagamento"
+                                            className="shrink-0 w-9 flex items-center justify-center border-l border-slate-200 dark:border-slate-700/80 bg-slate-50/70 hover:bg-orange-50 dark:bg-slate-800/50 dark:hover:bg-orange-950/40 text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors cursor-pointer rounded-r-lg"
+                                        >
+                                            <SquarePen className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Linha 3: Descrição / Categoria — Idêntico ao Novo Lançamento */}
+                        <div className="space-y-1.5 relative">
                             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 ml-0.5">
                                 Descrição / Categoria
                             </label>
-                            <select
-                                value=""
-                                onChange={e => {
-                                    if (e.target.value) {
-                                        setSelectedType(e.target.value.toUpperCase());
-                                    }
-                                }}
-                                className="bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[11px] font-medium py-0.5 px-2 rounded-md border border-slate-200/90 dark:border-slate-700 cursor-pointer outline-none transition-colors"
-                                title="Escolher categoria pré-definida"
-                            >
-                                <option value="" disabled>Carregar modelo...</option>
-                                {typeOptions.map((type: string) => (
-                                    <option key={type} value={type}>{type}</option>
-                                ))}
-                            </select>
+                            <div className="relative flex items-stretch rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xs focus-within:ring-2 focus-within:ring-orange-500/20 focus-within:border-orange-500 transition-all">
+                                <div className="relative flex-1 min-w-0 group">
+                                    <Tag className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
+                                    <input
+                                        type="text"
+                                        value={selectedType}
+                                        onChange={e => {
+                                            setSelectedType(e.target.value.toUpperCase());
+                                            setShowTypeSuggestions(true);
+                                        }}
+                                        onFocus={() => setShowTypeSuggestions(true)}
+                                        onBlur={() => {
+                                            setTimeout(() => setShowTypeSuggestions(false), 200);
+                                        }}
+                                        placeholder={manualType === 'saida' ? 'Digite ou escolha (ex: Despesa Geral, Fatura, Manutenção)...' : 'Digite ou escolha (ex: Dízimo, Oferta)...'}
+                                        className="block w-full rounded-l-lg border-0 bg-transparent text-slate-900 dark:text-white py-2 pl-9 pr-14 transition-all outline-none text-xs font-semibold placeholder:text-slate-400 placeholder:font-normal"
+                                    />
+                                    <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                                        {selectedType && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setSelectedType('');
+                                                    setShowTypeSuggestions(false);
+                                                }}
+                                                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 text-xs cursor-pointer"
+                                                title="Limpar campo"
+                                            >
+                                                <X className="w-3.5 h-3.5" />
+                                            </button>
+                                        )}
+                                        <button
+                                            type="button"
+                                            onMouseDown={(e) => {
+                                                e.preventDefault();
+                                                setShowTypeSuggestions(prev => !prev);
+                                            }}
+                                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 cursor-pointer transition-transform"
+                                            title="Ver modelos cadastrados"
+                                        >
+                                            <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform ${showTypeSuggestions ? 'rotate-180' : ''}`} />
+                                        </button>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setQuickRegisterEntity('contribution')}
+                                    title="Gerenciar Descrições (Entrada/Saída)"
+                                    aria-label="Gerenciar Descrições (Entrada/Saída)"
+                                    className="shrink-0 w-9 flex items-center justify-center border-l border-slate-200 dark:border-slate-700/80 bg-slate-50/70 hover:bg-orange-50 dark:bg-slate-800/50 dark:hover:bg-orange-950/40 text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors cursor-pointer rounded-r-lg"
+                                >
+                                    <SquarePen className="w-3.5 h-3.5" />
+                                </button>
+
+                                {showTypeSuggestions && filteredTypeOptions.length > 0 && (
+                                    <div className="absolute left-0 right-0 bottom-full mb-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto custom-scrollbar">
+                                        <div className="p-1.5 space-y-0.5">
+                                            {filteredTypeOptions.map((opt: string) => (
+                                                <button
+                                                    key={opt}
+                                                    type="button"
+                                                    onMouseDown={(e) => {
+                                                        e.preventDefault();
+                                                        setSelectedType(opt.toUpperCase());
+                                                        setShowTypeSuggestions(false);
+                                                    }}
+                                                    className={`w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center justify-between cursor-pointer ${
+                                                        selectedType.toUpperCase() === opt.toUpperCase()
+                                                            ? 'bg-orange-50 dark:bg-orange-950/60 text-orange-600 dark:text-orange-400'
+                                                            : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
+                                                    }`}
+                                                >
+                                                    <span>{opt}</span>
+                                                    <span className="text-[10px] text-slate-400">Modelo</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                        <div className="relative w-full group">
-                            <Tag className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-orange-600 transition-colors pointer-events-none" />
-                            <input
-                                type="text"
-                                value={selectedType}
-                                onChange={e => setSelectedType(e.target.value.toUpperCase())}
-                                placeholder="Digite a descrição detalhada ou selecione um modelo..."
-                                className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 py-2 pl-9 pr-3 transition-all outline-none text-xs font-semibold placeholder:text-slate-400 placeholder:font-normal"
-                            />
-                        </div>
+
+                        {/* Comprovantes e Faturas para Saídas Bancárias */}
+                        {bulkIdentificationTxs.some(t => Number(t.amount) < 0 || t.type === 'expense') && (
+                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 animate-fade-in">
+                                <ExpenseDocumentUploader
+                                    attachments={attachments}
+                                    onChangeAttachments={handleAttachmentsChange}
+                                    currentAmount={Math.abs(bulkIdentificationTxs[0]?.amount || 0)}
+                                />
+                            </div>
+                        )}
                     </div>
 
-                    {/* Comprovantes e Faturas para Saídas Bancárias */}
-                    {bulkIdentificationTxs.some(t => Number(t.amount) < 0 || t.type === 'expense') && (
-                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 animate-fade-in">
-                            <ExpenseDocumentUploader
-                                attachments={attachments}
-                                onChangeAttachments={handleAttachmentsChange}
-                                currentAmount={Math.abs(bulkIdentificationTxs[0]?.amount || 0)}
-                            />
+                    {/* Footer — Padronizado com Novo Lançamento */}
+                    <div className="px-4 sm:px-5 py-3.5 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                        <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                            {!selectedChurchId
+                                ? 'Selecione a Igreja de Destino.'
+                                : 'Pronto para salvar (atalho Enter).'}
+                        </span>
+                        <div className="flex items-center gap-2 ml-auto">
+                            <button 
+                                type="button" 
+                                onClick={closeManualIdentify} 
+                                disabled={isSaving}
+                                className="px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200/90 dark:border-slate-700 rounded-lg shadow-xs transition-colors cursor-pointer"
+                            >
+                                {t('common.cancel')}
+                            </button>
+                            <button 
+                                type="button" 
+                                onClick={handleConfirm} 
+                                disabled={!selectedChurchId || (isManualLaunch && !selectedBankId) || isSaving} 
+                                className={`px-5 py-2 text-xs font-semibold rounded-lg shadow-xs transition-all flex items-center gap-1.5 active:scale-95 ${
+                                    !selectedChurchId || (isManualLaunch && !selectedBankId) || isSaving
+                                        ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed'
+                                        : 'bg-orange-600 hover:bg-orange-700 text-white cursor-pointer'
+                                }`}
+                            >
+                                <CheckCircle2 className="w-4 h-4" />
+                                <span>{isSaving ? 'Salvando...' : count > 1 ? 'Confirmar Lote' : 'Salvar Identificação'}</span>
+                            </button>
                         </div>
-                    )}
+                    </div>
+                </div>
             </div>
 
-            {/* Footer */}
-            <div className="px-5 py-3.5 bg-slate-50/80 dark:bg-slate-900/80 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2.5 shrink-0">
-                <button 
-                    type="button" 
-                    onClick={closeManualIdentify} 
-                    className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/90 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-lg shadow-xs transition-colors cursor-pointer"
-                >
-                    {t('common.cancel')}
-                </button>
-                <button 
-                    type="button" 
-                    onClick={handleConfirm} 
-                    disabled={!selectedChurchId || (isManualLaunch && !selectedBankId) || isSaving} 
-                    className={`px-5 py-2 text-xs font-semibold rounded-lg shadow-xs transition-all flex items-center gap-1.5 active:scale-95 ${
-                        !selectedChurchId || (isManualLaunch && !selectedBankId) || isSaving
-                            ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed'
-                            : 'bg-orange-600 hover:bg-orange-700 text-white cursor-pointer'
-                    }`}
-                >
-                     <CheckCircle2 className="w-4 h-4" />
-                     <span>{isSaving ? 'Salvando...' : count > 1 ? 'Confirmar Lote' : 'Salvar Identificação'}</span>
-                </button>
-            </div>
-            </div>
-        </div>
+            <QuickRegisterModal
+                entity={quickRegisterEntity}
+                onClose={() => setQuickRegisterEntity(null)}
+            />
+        </>
     );
 };
