@@ -192,7 +192,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     reconciliationRef.current = reconciliation;
 
     const initialDataLoaded = Boolean(
-        !user || (isSubscriptionReady && referenceData.isReady && reportManager.isReportsReady && (reconciliation.hasCompletedInitialHydration || !isReferenceReady))
+        !user || (isSubscriptionReady && referenceData.isReady && reportManager.isReportsReady && (reconciliation.hasCompletedInitialHydration || Boolean(reconciliation.activeReportId) || !isReferenceReady))
     );
 
     const viewSavedReport = useCallback(async (reportId: string) => {
