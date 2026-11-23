@@ -3,7 +3,7 @@ import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { useAuth } from '../contexts/AuthContext';
 import { UserPlusIcon, XMarkIcon, LockClosedIcon, TrashIcon } from './Icons';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, isPeriodClosed } from '../utils/formatters';
 
 interface BulkActionToolbarProps {
     selectedIds: string[];
@@ -48,9 +48,20 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
 
     if (!selectedIds || selectedIds.length === 0) return null;
 
+    const isItemInClosedPeriod = (r: any): boolean => {
+        const cId = r.church?.id || r._churchId || r.transaction?.church_id || r.church_id;
+        const bId = r.transaction?.bank_id || r.bankId || null;
+        const dt = r.contributor?.reference_date || r.reference_date || r.transaction?.reference_date || r.transaction?.date || r.date;
+        return Boolean(cId && dt && isPeriodClosed(dt, undefined, cId, bId));
+    };
+
+    const isItemConfirmed = (r: any): boolean => Boolean(r.transaction?.isConfirmed ?? r.isConfirmed ?? false);
+
+    const unlockedSelected = selectedData.filter((r: any) => !isItemConfirmed(r) && !isItemInClosedPeriod(r));
+    const hasAnyLockedRow = selectedData.some((r: any) => isItemConfirmed(r) || isItemInClosedPeriod(r));
+
     const handleBulkIdentify = () => {
-        const txsToProcess = selectedData
-            .filter((r: any) => !(r.transaction?.isConfirmed ?? r.isConfirmed ?? false))
+        const txsToProcess = unlockedSelected
             .map((r: any) => r.transaction)
             .filter(Boolean);
 
@@ -60,11 +71,16 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
     };
 
     const handleBulkConfirm = async () => {
-        await toggleConfirmation(selectedIds, true);
+        const confirmableIds = unlockedSelected
+            .map((r: any) => String(r.transaction?.id ?? r.transaction_id ?? r.transactionId ?? r.id ?? ''))
+            .filter(Boolean);
+        if (confirmableIds.length === 0) return;
+        await toggleConfirmation(confirmableIds, true);
         onClear();
     };
 
     const handleBulkDelete = () => {
+        if (hasAnyLockedRow) return;
         openDeleteConfirmation({
             type: 'report-row-bulk',
             id: 'report-row-bulk',
@@ -73,7 +89,7 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
         });
     };
 
-    const canConfirm = selectedData.some((r: any) => !(r.transaction?.isConfirmed ?? r.isConfirmed ?? false));
+    const canConfirm = unlockedSelected.length > 0;
 
     const hasBankTransactions = selectedData.some((r: any) => {
         const isManual = r.isManual || 
@@ -83,7 +99,7 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
             (r.transaction?.row_hash && r.transaction?.row_hash.includes('|bmanual|'));
         return !isManual;
     });
-    const canBulkDelete = !isSecondaryUser || !hasBankTransactions;
+    const canBulkDelete = (!isSecondaryUser || !hasBankTransactions) && !hasAnyLockedRow;
 
     return (
         <div
@@ -123,7 +139,7 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
                 </div>
 
                 <div className="flex items-center flex-wrap sm:flex-nowrap gap-1.5 sm:gap-2 w-full sm:w-auto sm:ml-auto">
-                    {canIdentify && (
+                    {canIdentify && unlockedSelected.length > 0 && (
                         <button
                             type="button"
                             onClick={handleBulkIdentify}

@@ -461,6 +461,9 @@ export interface MonthClosingRecord {
   bankId?: string | null;
   month: number;
   year: number;
+  periodType?: 'monthly' | 'custom';
+  startDate?: string | null;
+  endDate?: string | null;
   closedAt: string;
   closedBy?: string;
   totalIncome: number;
@@ -472,7 +475,7 @@ export interface MonthClosingRecord {
   targetChurchName?: string;
   signatures: DigitalSignature[];
   integrityHash: string;
-  status: 'draft' | 'signed' | 'locked' | 'reopened';
+  status: 'draft' | 'closed' | 'signed' | 'locked' | 'reopened';
   notes?: string;
   transferTransactions?: any[];
 }

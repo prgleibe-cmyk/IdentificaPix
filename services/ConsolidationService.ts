@@ -15,6 +15,31 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
     return headers;
 }
 
+async function parseApiError(response: Response, fallbackMsg: string): Promise<Error> {
+    let errorText = '';
+    try {
+        errorText = await response.text();
+    } catch (_) {}
+
+    let parsedMessage = '';
+    let parsedCode: string | undefined;
+    if (errorText) {
+        try {
+            const parsed = JSON.parse(errorText);
+            if (parsed?.message) parsedMessage = String(parsed.message);
+            else if (parsed?.error) parsedMessage = String(parsed.error);
+            if (parsed?.error) parsedCode = String(parsed.error);
+        } catch (_) {
+            parsedMessage = errorText;
+        }
+    }
+
+    const err: any = new Error(parsedMessage || fallbackMsg);
+    err.status = response.status;
+    if (parsedCode) err.code = parsedCode;
+    return err;
+}
+
 export const getEffectiveUserId = async (currentUserId: string | undefined): Promise<string | undefined> => {
     if (!currentUserId) return undefined;
     if (ownerIdCache.has(currentUserId)) {
@@ -163,8 +188,7 @@ export const consolidationService = {
             });
 
             if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Erro ao inserir transações em lote na VPS: ${errorText}`);
+                throw await parseApiError(response, `Erro HTTP ${response.status} ao inserir transações em lote.`);
             }
 
             const results = await response.json();
@@ -294,14 +318,7 @@ export const consolidationService = {
             });
 
             if (!response.ok) {
-                const errorText = await response.text();
-                let parsedErrorMsg = errorText;
-                try {
-                    const parsed = JSON.parse(errorText);
-                    if (parsed?.message) parsedErrorMsg = parsed.message;
-                    else if (parsed?.error) parsedErrorMsg = parsed.error;
-                } catch (_) {}
-                throw new Error(parsedErrorMsg || `Erro HTTP ${response.status} ao atualizar transação.`);
+                throw await parseApiError(response, `Erro HTTP ${response.status} ao atualizar transação.`);
             }
 
             return true;
@@ -345,103 +362,65 @@ export const consolidationService = {
     },
 
     /**
-     * CONFIRMAÇÃO FINAL
+     * CONFIRMAÇÃO FINAL / DESBLOQUEIO ATÔMICO EM LOTE
      */
     updateConfirmationStatus: async (ids: string[], is_confirmed: boolean, churchId?: string | null, bankId?: string, contributorId?: string | null) => {
         try {
-            const session = await getAuthSession();
-            const currentUserId = session?.user?.id;
-
-            // Busca o owner_id para garantir que usamos o ID do proprietário da conta na escrita
-            const effectiveUserId = await getEffectiveUserId(currentUserId);
-
             if (!ids || ids.length === 0) return true;
 
-            const updateData: any = {
-                is_confirmed,
-                user_id: effectiveUserId, // FORÇAMOS O ID CORRETO NA ESCRITA
-                updated_at: new Date().toISOString()
+            const isUuid = (id: any) => !id || id === null || /^[0-9a-fA-F-]{36}$/.test(id);
+            const errors: string[] = [];
+
+            const payload: Record<string, any> = {
+                ids,
+                is_confirmed
             };
 
-            // AO confirmar: status='resolved'
-            if (is_confirmed) {
-                updateData.status = 'resolved';
-            } else if (contributorId || churchId) {
-                // AO desfazer: restaurar status=identified se houver vínculo
-                updateData.status = 'identified';
+            if (churchId !== undefined) {
+                if (!isUuid(churchId)) {
+                    errors.push(`church_id inválido: ${churchId}`);
+                } else {
+                    payload.church_id = churchId;
+                }
             }
-
-            if (churchId !== undefined) updateData.church_id = churchId;
-            if (bankId !== undefined) updateData.bank_id = bankId;
-            
-            // Limpeza de contributorId para evitar erros de FK com IDs temporários (Padrão de Segurança)
+            if (bankId !== undefined) {
+                payload.bank_id = bankId === 'virtual' ? null : bankId;
+            }
             if (contributorId !== undefined) {
-                updateData.contributor_id = (contributorId && !String(contributorId).startsWith('temp-')) 
-                    ? contributorId 
+                const sanitizedContributorId = (contributorId && !String(contributorId).startsWith('temp-'))
+                    ? contributorId
                     : null;
-            }
-
-            console.log('[ID:WRITE]', {
-              userId: currentUserId,
-              effectiveUserId,
-              payloadUserId: updateData.user_id
-            });
-
-            console.log('[WRITE:START]', {
-              userId: effectiveUserId,
-              transactionId: ids,
-              payload: updateData
-            });
-
-            console.log('💾 SALVANDO MATCH (ConfirmationStatus)', updateData);
-
-            // Validação preventiva contra consolidated_transactions_type_check
-            const errors: string[] = [];
-            const isUuid = (id: any) => !id || id === null || /^[0-9a-fA-F-]{36}$/.test(id);
-
-            if (updateData.status !== undefined && !['pending', 'identified', 'resolved'].includes(updateData.status)) {
-                errors.push(`Status inválido: ${updateData.status}`);
-            }
-            if (updateData.status === 'resolved' && updateData.is_confirmed === false) {
-                errors.push('Inconsistência: status=resolved exige is_confirmed=true');
-            }
-            if (updateData.is_confirmed === false && updateData.status === 'resolved') {
-                errors.push('Inconsistência: is_confirmed=false não permite status=resolved');
-            }
-
-            // Validação de UUIDs
-            if (updateData.church_id !== undefined && !isUuid(updateData.church_id)) {
-                errors.push(`church_id inválido: ${updateData.church_id}`);
-            }
-            if (updateData.contributor_id !== undefined && !isUuid(updateData.contributor_id)) {
-                errors.push(`contributor_id inválido: ${updateData.contributor_id}`);
+                if (!isUuid(sanitizedContributorId)) {
+                    errors.push(`contributor_id inválido: ${sanitizedContributorId}`);
+                } else {
+                    payload.contributor_id = sanitizedContributorId;
+                }
             }
 
             if (errors.length > 0) {
-                console.error('[TYPE_CHECK:BLOCKED_PAYLOAD] [updateConfirmationStatus]', { errors, updateData });
-                return false; // Bloqueia o PATCH
+                console.error('[TYPE_CHECK:BLOCKED_PAYLOAD] [updateConfirmationStatus]', { errors, payload });
+                throw new Error(`Validação de dados falhou: ${errors.join('; ')}`);
             }
 
             const headers = await getAuthHeaders();
-            // Executa as atualizações em paralelo via VPS PUT
-            const updatePromises = ids.map(async (id) => {
-                const response = await fetch(`/api/v1/consolidated_transactions/${id}`, {
-                    method: 'PUT',
-                    headers,
-                    body: JSON.stringify(updateData)
-                });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erro ao atualizar confirmação para ID ${id}: ${errorText}`);
-                }
+            const response = await fetch('/api/v1/consolidated_transactions/confirm-batch', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(payload)
             });
 
-            await Promise.all(updatePromises);
+            if (!response.ok) {
+                throw await parseApiError(
+                    response,
+                    `Erro HTTP ${response.status} ao ${is_confirmed ? 'confirmar' : 'remover bloqueio dos'} lançamentos.`
+                );
+            }
+
             return true;
 
         } catch (error) {
             console.error("[Consolidation] Erro ao atualizar confirmação:", error);
-            return false;
+            throw error;
         }
     },
 
@@ -559,8 +538,7 @@ export const consolidationService = {
                     console.warn(`[Consolidation] Transação ${id} não encontrada no banco, mantendo exclusão local.`);
                     return true;
                 }
-                const errorText = await response.text();
-                throw new Error(`Erro ao excluir transação: ${errorText}`);
+                throw await parseApiError(response, `Erro HTTP ${response.status} ao excluir transação.`);
             }
 
             if (typeof BroadcastChannel !== 'undefined') {
@@ -591,14 +569,13 @@ export const consolidationService = {
             });
 
             if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Erro ao excluir transações em lote: ${errorText}`);
+                throw await parseApiError(response, `Erro HTTP ${response.status} ao excluir transações em lote.`);
             }
 
             if (typeof BroadcastChannel !== 'undefined') {
                 try {
                     const bc = new BroadcastChannel('identificapix_realtime_sync');
-                    bc.postMessage({ type: 'TRANSACTION_UPDATED', txIds: ids, action: 'DELETE' });
+                    bc.postMessage({ type: 'TRANSACTION_UPDATED', ids, action: 'BULK_DELETE' });
                     bc.close();
                 } catch (_) {}
             }

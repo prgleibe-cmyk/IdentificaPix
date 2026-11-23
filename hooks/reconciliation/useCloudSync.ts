@@ -546,7 +546,7 @@ export const useCloudSync = ({
                                 reference_date: resolvedRefDate
                             } : null,
                             status: useDbAsPrimary ? r.status : (saved.status || r.status),
-                            isConfirmed: useDbAsPrimary ? r.isConfirmed : (saved.isConfirmed ?? r.isConfirmed),
+                            isConfirmed: r.isConfirmed,
                             contributionType: r.contributionType || saved.contributionType,
                             paymentMethod: r.paymentMethod || saved.paymentMethod,
                             splits: (Array.isArray(r.splits) && r.splits.length > 0) ? r.splits : (Array.isArray(saved.splits) && saved.splits.length > 0 ? saved.splits : undefined),

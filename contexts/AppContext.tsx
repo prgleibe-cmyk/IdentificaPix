@@ -128,6 +128,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                                     reconciliationRef.current?.removeTransactions?.(data.ids);
                                 }
                             }
+                            if (data.type === 'MONTH_CLOSING_UPDATED') {
+                                syncAllChurchClosings().catch(() => {});
+                            }
                             triggerRefresh(true);
                         }
                     } catch (_) {}

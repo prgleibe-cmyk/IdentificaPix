@@ -295,43 +295,47 @@ const MobileCard = memo(({
                                         <span>Recibo</span>
                                     </button>
                                 )}
-                                <button
-                                    type="button"
-                                    onClick={(e) => { e.stopPropagation(); onServiceReceipt(row); }}
-                                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold transition-all cursor-pointer shadow-2xs ${
-                                        serviceReceiptAtt
-                                            ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800/80'
-                                            : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/60'
-                                    }`}
-                                    title="Emitir ou Assinar Digitalmente o Recibo de Pagamento para o Prestador de Serviço"
-                                >
-                                    <FileSignature className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
-                                    <span>{serviceReceiptAtt ? 'Novo Recibo' : 'Emitir Recibo'}</span>
-                                </button>
+                                {!confirmed && !isClosedPeriod && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); onServiceReceipt(row); }}
+                                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold transition-all cursor-pointer shadow-2xs ${
+                                            serviceReceiptAtt
+                                                ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800/80'
+                                                : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/60'
+                                        }`}
+                                        title="Emitir ou Assinar Digitalmente o Recibo de Pagamento para o Prestador de Serviço"
+                                    >
+                                        <FileSignature className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
+                                        <span>{serviceReceiptAtt ? 'Novo Recibo' : 'Emitir Recibo'}</span>
+                                    </button>
+                                )}
                                 {txAttachments.length > identifiedCount && (
                                     <span className="text-[9px] text-slate-400 font-bold">
                                         +{txAttachments.length - identifiedCount} anexo(s)
                                     </span>
                                 )}
-                                <button
-                                    type="button"
-                                    onClick={(e) => { e.stopPropagation(); onQuickAttach(row); }}
-                                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold transition-all cursor-pointer ${
-                                        txAttachments.length === 0
-                                            ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50'
-                                            : 'bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
-                                    }`}
-                                    title={txAttachments.length === 0 ? "Nenhum comprovante anexado. Clique para anexar fatura ou comprovante." : "Gerenciar ou anexar mais documentos"}
-                                >
-                                    {txAttachments.length === 0 ? (
-                                        <>
-                                            <Paperclip className="w-2.5 h-2.5" />
-                                            <span>Anexar</span>
-                                        </>
-                                    ) : (
-                                        <Plus className="w-2.5 h-2.5" />
-                                    )}
-                                </button>
+                                {!confirmed && !isClosedPeriod && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); onQuickAttach(row); }}
+                                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold transition-all cursor-pointer ${
+                                            txAttachments.length === 0
+                                                ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50'
+                                                : 'bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                                        }`}
+                                        title={txAttachments.length === 0 ? "Nenhum comprovante anexado. Clique para anexar fatura ou comprovante." : "Gerenciar ou anexar mais documentos"}
+                                    >
+                                        {txAttachments.length === 0 ? (
+                                            <>
+                                                <Paperclip className="w-2.5 h-2.5" />
+                                                <span>Anexar</span>
+                                            </>
+                                        ) : (
+                                            <Plus className="w-2.5 h-2.5" />
+                                        )}
+                                    </button>
+                                )}
                             </div>
                         )}
                         {row.splits && row.splits.length > 0 && (
@@ -478,7 +482,7 @@ const MobileCard = memo(({
                         );
                     })()}
                     {confirmed ? (
-                        (!isClosedPeriod && canConfirmFinal) && (
+                        (!isClosedPeriod && !isSecondaryUser) && (
                             <button
                                 type="button"
                                 onClick={() => onToggleLock(row.transaction.id, false)}
@@ -782,43 +786,47 @@ const IncomeRow = memo(({
                                         <span>Recibo</span>
                                     </button>
                                 )}
-                                <button
-                                    type="button"
-                                    onClick={(e) => { e.stopPropagation(); onServiceReceipt(row); }}
-                                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold transition-all cursor-pointer shadow-2xs ${
-                                        serviceReceiptAtt
-                                            ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800/80'
-                                            : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/60'
-                                    }`}
-                                    title="Emitir ou Assinar Digitalmente o Recibo de Pagamento para o Prestador de Serviço"
-                                >
-                                    <FileSignature className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
-                                    <span>{serviceReceiptAtt ? 'Novo Recibo' : 'Emitir Recibo'}</span>
-                                </button>
+                                {!confirmed && !isClosedPeriod && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); onServiceReceipt(row); }}
+                                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold transition-all cursor-pointer shadow-2xs ${
+                                            serviceReceiptAtt
+                                                ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800/80'
+                                                : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/60'
+                                        }`}
+                                        title="Emitir ou Assinar Digitalmente o Recibo de Pagamento para o Prestador de Serviço"
+                                    >
+                                        <FileSignature className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
+                                        <span>{serviceReceiptAtt ? 'Novo Recibo' : 'Emitir Recibo'}</span>
+                                    </button>
+                                )}
                                 {txAttachments.length > identifiedCount && (
                                     <span className="text-[9px] text-slate-400 font-bold">
                                         +{txAttachments.length - identifiedCount} anexo(s)
                                     </span>
                                 )}
-                                <button
-                                    type="button"
-                                    onClick={(e) => { e.stopPropagation(); onQuickAttach(row); }}
-                                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold transition-all cursor-pointer ${
-                                        txAttachments.length === 0
-                                            ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50'
-                                            : 'bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
-                                    }`}
-                                    title={txAttachments.length === 0 ? "Nenhum comprovante anexado. Clique para anexar fatura ou comprovante." : "Gerenciar ou anexar mais documentos"}
-                                >
-                                    {txAttachments.length === 0 ? (
-                                        <>
-                                            <Paperclip className="w-2.5 h-2.5" />
-                                            <span>Anexar</span>
-                                        </>
-                                    ) : (
-                                        <Plus className="w-2.5 h-2.5" />
-                                    )}
-                                </button>
+                                {!confirmed && !isClosedPeriod && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); onQuickAttach(row); }}
+                                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold transition-all cursor-pointer ${
+                                            txAttachments.length === 0
+                                                ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50'
+                                                : 'bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                                        }`}
+                                        title={txAttachments.length === 0 ? "Nenhum comprovante anexado. Clique para anexar fatura ou comprovante." : "Gerenciar ou anexar mais documentos"}
+                                    >
+                                        {txAttachments.length === 0 ? (
+                                            <>
+                                                <Paperclip className="w-2.5 h-2.5" />
+                                                <span>Anexar</span>
+                                            </>
+                                        ) : (
+                                            <Plus className="w-2.5 h-2.5" />
+                                        )}
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>
@@ -918,7 +926,7 @@ const IncomeRow = memo(({
                         })()}
 
                         {confirmed ? (
-                            (!isClosedPeriod && canConfirmFinal) && (
+                            (!isClosedPeriod && !isSecondaryUser) && (
                                 <button onClick={() => onToggleLock(row.transaction.id, false)} className="p-1.5 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 border border-indigo-200/70 dark:border-indigo-800 cursor-pointer" title="Remover Bloqueio">
                                     <LockOpenIcon className="w-3.5 h-3.5" />
                                 </button>
@@ -1313,6 +1321,15 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
         const txId = selectedReceipt.transaction?.id;
         if (!txId) return;
 
+        const isRowConfirmed = Boolean(selectedReceipt.isConfirmed || selectedReceipt.transaction?.isConfirmed);
+        const rowEffectiveDate = selectedReceipt.contributor?.reference_date || selectedReceipt.reference_date || selectedReceipt.transaction?.reference_date || selectedReceipt.transaction?.date;
+        const rowChurchId = selectedReceipt.church?.id || (selectedReceipt as any)._churchId;
+        const rowBankId = (selectedReceipt.transaction as any)?.bank_id || (selectedReceipt as any)?.bankId;
+        if (isRowConfirmed || isPeriodClosed(rowEffectiveDate, undefined, rowChurchId, rowBankId)) {
+            showToast('TRANSAÇÃO PROTEGIDA: Não é permitido alterar recibos ou assinaturas em lançamentos confirmados ou períodos fechados.', 'error');
+            return;
+        }
+
         const updatedSigs = {
             ...receiptSignatures,
             [activePadSlot]: sig
@@ -1372,17 +1389,23 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                 newAtts = [...currentAtts, receiptAtt];
             }
 
-            saveAttachmentsForTransaction(txId, newAtts);
-            setAttachmentsMap(prev => {
-                const next = new Map(prev);
-                next.set(txId, newAtts);
-                return next;
-            });
-        } catch (err) {
+            saveAttachmentsForTransaction(txId, newAtts)
+                .then(() => {
+                    setAttachmentsMap(prev => {
+                        const next = new Map(prev);
+                        next.set(txId, newAtts);
+                        return next;
+                    });
+                    showToast?.(`Assinatura digital de ${sig.signerName} salva com sucesso no recibo!`, 'success');
+                })
+                .catch((err: any) => {
+                    console.error('Erro ao salvar anexo de recibo assinado:', err);
+                    showToast?.(err?.message || 'Não foi possível salvar a assinatura no lançamento bloqueado.', 'error');
+                });
+        } catch (err: any) {
             console.warn('Erro ao salvar anexo de recibo assinado:', err);
+            showToast?.(err?.message || 'Erro ao salvar assinatura digital.', 'error');
         }
-
-        showToast?.(`Assinatura digital de ${sig.signerName} salva com sucesso no recibo!`, 'success');
     };
 
     const handleRemoveReceiptSignature = (slot: 'recipient' | 'treasurer') => {
@@ -1497,9 +1520,10 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                     </thead>
                     <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                         {paginatedData.map(result => {
-                            const rowChurchId = result.church?.id || (result.transaction as any)?.church_id || (result as any).church_id;
-                            const rowDate = result.transaction?.date || result.contributor?.date;
-                            const isClosedPeriod = isSecondaryUser && Boolean(rowChurchId && isPeriodClosed(rowDate, undefined, rowChurchId));
+                            const rowChurchId = result.church?.id || (result as any)._churchId || (result.transaction as any)?.church_id || (result as any).church_id;
+                            const rowBankId = (result.transaction as any)?.bank_id || (result as any).bankId || null;
+                            const rowDate = result.contributor?.reference_date || result.reference_date || result.transaction?.reference_date || result.transaction?.date || result.contributor?.date;
+                            const isClosedPeriod = Boolean(rowChurchId && isPeriodClosed(rowDate, undefined, rowChurchId, rowBankId));
                             return (
                                 <IncomeRow 
                                     key={result.transaction.id}
@@ -1548,9 +1572,10 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                 </div>
                 <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800">
                     {paginatedData.map(result => {
-                        const rowChurchId = result.church?.id || (result.transaction as any)?.church_id || (result as any).church_id;
-                        const rowDate = result.transaction?.date || result.contributor?.date;
-                        const isClosedPeriod = isSecondaryUser && Boolean(rowChurchId && isPeriodClosed(rowDate, undefined, rowChurchId));
+                        const rowChurchId = result.church?.id || (result as any)._churchId || (result.transaction as any)?.church_id || (result as any).church_id;
+                        const rowBankId = (result.transaction as any)?.bank_id || (result as any).bankId || null;
+                        const rowDate = result.contributor?.reference_date || result.reference_date || result.transaction?.reference_date || result.transaction?.date || result.contributor?.date;
+                        const isClosedPeriod = Boolean(rowChurchId && isPeriodClosed(rowDate, undefined, rowChurchId, rowBankId));
                         return (
                             <MobileCard 
                                 key={result.transaction.id}

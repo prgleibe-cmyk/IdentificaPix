@@ -1,6 +1,6 @@
 import React, { memo, useContext, useState, useCallback, useEffect } from 'react';
 import { MatchResult } from '../types';
-import { formatCurrency, formatDate, resolvePaymentMethod, resolveTransactionSource } from '../utils/formatters';
+import { formatCurrency, formatDate, resolvePaymentMethod, resolveTransactionSource, isPeriodClosed } from '../utils/formatters';
 import { useTranslation } from '../contexts/I18nContext';
 import { AppContext } from '../contexts/AppContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -172,8 +172,12 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                             const isManualTx = sourceInfo.isManual || transaction.source === 'manual' || transaction.isManual;
                             const refDate = contributor?.reference_date || transaction.reference_date;
                             const hasRefDate = !isManualTx && Boolean(refDate && refDate !== transaction.date);
-                            const displayDate = formatDate(refDate || transaction.date);
+                            const effectiveRowDate = refDate || transaction.date;
+                            const displayDate = formatDate(effectiveRowDate);
                             const originalBankDate = formatDate(transaction.date);
+                            const rowChurchId = church?.id || (transaction as any)?.church_id;
+                            const rowBankId = transaction.bank_id || null;
+                            const isRowClosedPeriod = Boolean(rowChurchId && isPeriodClosed(effectiveRowDate, undefined, rowChurchId, rowBankId));
                             
                             const bankDescription = cleanDisplayDescription(transaction.description);
                             const statusStr = String(status);
@@ -301,7 +305,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                                     <td className="px-4 py-2.5 text-center">
                                         <div className="flex items-center justify-center gap-1">
                                             {confirmed ? (
-                                                canConfirmFinal ? (
+                                                (!isSecondaryUser && !isRowClosedPeriod) ? (
                                                     <button 
                                                         onClick={() => toggleConfirmation([transaction.id], false)}
                                                         className="w-7 h-7 inline-flex items-center justify-center rounded-lg border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 hover:border-indigo-300 dark:hover:bg-indigo-950/40 transition-colors cursor-pointer"
@@ -310,8 +314,20 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                                                         <LockOpenIcon className="w-3.5 h-3.5" />
                                                     </button>
                                                 ) : (
-                                                    <span className="text-slate-300 dark:text-slate-600 text-xs">-</span>
+                                                    <span
+                                                        className="w-7 h-7 inline-flex items-center justify-center rounded-lg border border-slate-200/60 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 text-slate-400 dark:text-slate-500"
+                                                        title={isRowClosedPeriod ? "Período fechado — reabra no Livro Caixa para alterar" : "Lançamento confirmado — apenas o titular pode remover o bloqueio"}
+                                                    >
+                                                        <LockClosedIcon className="w-3.5 h-3.5" />
+                                                    </span>
                                                 )
+                                            ) : isRowClosedPeriod ? (
+                                                <span
+                                                    className="w-7 h-7 inline-flex items-center justify-center rounded-lg border border-slate-200/60 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 text-slate-400 dark:text-slate-500"
+                                                    title="Período fechado — edição bloqueada"
+                                                >
+                                                    <LockClosedIcon className="w-3.5 h-3.5" />
+                                                </span>
                                             ) : (
                                                 canIdentify ? (
                                                     <button 

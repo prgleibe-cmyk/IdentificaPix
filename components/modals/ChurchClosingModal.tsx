@@ -7,7 +7,7 @@ import { formatCurrency } from '../../utils/formatters';
 import { MatchResult, Church, ReconciliationStatus } from '../../types';
 import { DigitalSignature, MonthClosingRecord } from '../../types/domain';
 import { DigitalSignatureCollectionSection } from './DigitalSignatureCollectionSection';
-import { saveMonthClosingRecord, getMonthClosingRecord, generateClosingIntegrityHash, reopenMonthClosingRecord } from '../../services/monthClosingService';
+import { saveMonthClosingRecord, getMonthClosingRecord, generateClosingIntegrityHash, reopenMonthClosingRecord, isChurchPeriodClosedSync } from '../../services/monthClosingService';
 
 const formatDateBRL = (dateStr: string) => {
     if (!dateStr) return '';
@@ -42,6 +42,9 @@ interface ChurchClosingModalProps {
     currentBankId?: string | null;
     initialMonth?: number;
     initialYear?: number;
+    periodType?: 'monthly' | 'custom';
+    startDate?: string | null;
+    endDate?: string | null;
     asView?: boolean;
     periodLabel?: string;
     initialClosingDate?: string;
@@ -58,6 +61,9 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
     currentBankId,
     initialMonth,
     initialYear,
+    periodType,
+    startDate,
+    endDate,
     asView = false,
     periodLabel,
     initialClosingDate,
@@ -192,15 +198,24 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                     }
                 }
 
-                // Filtra pelo mês e ano se a data da transação existir (prioridade à data de referência)
+                // Filtra pelo intervalo personalizado (inclusive multi-mês) ou mês/ano
                 const txDate = r.contributor?.reference_date || r.reference_date || r.transaction?.reference_date || r.transaction?.date || '';
                 if (txDate) {
-                    const parts = txDate.split('-');
-                    if (parts.length >= 2) {
-                        const y = parseInt(parts[0], 10);
-                        const m = parseInt(parts[1], 10);
-                        if (y !== closingYear || m !== closingMonth) {
+                    const cleanTxDate = txDate.split(/[T ]/)[0];
+                    if (periodType === 'custom' && startDate && endDate) {
+                        const cleanStart = startDate.split(/[T ]/)[0];
+                        const cleanEnd = endDate.split(/[T ]/)[0];
+                        if (cleanTxDate < cleanStart || cleanTxDate > cleanEnd) {
                             return;
+                        }
+                    } else {
+                        const parts = cleanTxDate.split('-');
+                        if (parts.length >= 2) {
+                            const y = parseInt(parts[0], 10);
+                            const m = parseInt(parts[1], 10);
+                            if (y !== closingYear || m !== closingMonth) {
+                                return;
+                            }
                         }
                     }
                 }
@@ -218,7 +233,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
             expenses: expensesSum,
             balance: incomeSum - expensesSum
         };
-    }, [originChurchId, originBankId, matchResults, closingMonth, closingYear]);
+    }, [originChurchId, originBankId, matchResults, closingMonth, closingYear, periodType, startDate, endDate]);
 
     // Valores contábeis efetivos (priorizam o cálculo consolidado do Livro Caixa)
     const effectiveBalance = finalBalance !== undefined ? finalBalance : metrics.balance;
@@ -231,14 +246,17 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
         }
     }, [initialClosingDate]);
 
-    // Carrega fechamento existente para este mês e ano caso já tenha sido homologado
+    // Carrega fechamento existente para este mês/ano ou intervalo personalizado caso já tenha sido homologado
     useEffect(() => {
         let isMounted = true;
         async function loadExistingClosing() {
             if (!originChurchId || !isOpen) return;
             try {
                 const bankParam = originBankId && originBankId !== 'all' ? originBankId : null;
-                const rec = await getMonthClosingRecord(originChurchId, closingYear, closingMonth, bankParam);
+                const customOpts = periodType === 'custom' && startDate && endDate
+                    ? { startDate: startDate.split(/[T ]/)[0], endDate: endDate.split(/[T ]/)[0] }
+                    : undefined;
+                const rec = await getMonthClosingRecord(originChurchId, closingYear, closingMonth, bankParam, customOpts);
                 if (isMounted) {
                     setExistingRecord(rec);
                     if (rec && rec.signatures && rec.signatures.length > 0) {
@@ -255,7 +273,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
         }
         loadExistingClosing();
         return () => { isMounted = false; };
-    }, [originChurchId, originBankId, closingYear, closingMonth, isOpen]);
+    }, [originChurchId, originBankId, closingYear, closingMonth, periodType, startDate, endDate, isOpen]);
 
     // Recalcula o Hash SHA-256 de integridade contábil
     useEffect(() => {
@@ -482,8 +500,11 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                     const originTxUuid = crypto.randomUUID();
                     const destTxUuid = crypto.randomUUID();
 
-                    const originRowHash = `closing-${isNegative ? 'deficit-cover' : 'outflow'}-${originChurch.id}-${d.churchId}-${closingYear}-${closingMonth}-${idx}`;
-                    const destRowHash = `closing-${isNegative ? 'deficit-transfer' : 'inflow'}-${originChurch.id}-${d.churchId}-${closingYear}-${closingMonth}-${idx}`;
+                    const periodHashSeg = (periodType === 'custom' && startDate && endDate)
+                        ? `${startDate.split(/[T ]/)[0]}_${endDate.split(/[T ]/)[0]}`
+                        : `${closingYear}-${closingMonth}`;
+                    const originRowHash = `closing-${isNegative ? 'deficit-cover' : 'outflow'}-${originChurch.id}-${d.churchId}-${periodHashSeg}-${idx}`;
+                    const destRowHash = `closing-${isNegative ? 'deficit-transfer' : 'inflow'}-${originChurch.id}-${d.churchId}-${periodHashSeg}-${idx}`;
 
                     const originAmount = isNegative ? amt : -amt;
                     const destAmount = isNegative ? -amt : amt;
@@ -513,7 +534,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                             paymentMethod: 'TRANSFERÊNCIA'
                         },
                         contributor: null,
-                        status: ReconciliationStatus.IDENTIFIED,
+                        status: ReconciliationStatus.RESOLVED,
                         church: {
                             id: originChurch.id,
                             name: originChurch.name,
@@ -549,7 +570,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                             paymentMethod: 'TRANSFERÊNCIA'
                         },
                         contributor: null,
-                        status: ReconciliationStatus.IDENTIFIED,
+                        status: ReconciliationStatus.RESOLVED,
                         church: {
                             id: destChurch.id,
                             name: destChurch.name,
@@ -568,66 +589,29 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                 });
             }
 
-            // Confirma automaticamente todas as transações da congregação no período contábil
-            let updatedResults: MatchResult[] = [];
-            setMatchResults((prev: any) => {
-                const confirmedList = (prev || []).map((r: MatchResult) => {
-                    const cId = r.church?.id || r._churchId;
-                    if (cId === originChurch.id) {
-                        const txDate = r.contributor?.reference_date || r.reference_date || r.transaction?.reference_date || r.transaction?.date || '';
-                        if (txDate) {
-                            const parts = txDate.split('-');
-                            if (parts.length >= 2) {
-                                const y = parseInt(parts[0], 10);
-                                const m = parseInt(parts[1], 10);
-                                if (y === closingYear && m === closingMonth) {
-                                    return {
-                                        ...r,
-                                        isConfirmed: true,
-                                        transaction: r.transaction ? { ...r.transaction, isConfirmed: true } : r.transaction
-                                    };
-                                }
-                            }
-                        }
-                    }
-                    return r;
-                });
+            // 2. Montar e persistir o Fechamento Contábil no Backend PRIMEIRO (sem mutar estado local antes da confirmação)
+            const isIndividualBank = Boolean(originBankId && originBankId !== 'all');
+            const effectivePeriodType: 'monthly' | 'custom' =
+                periodType === 'custom' || (Boolean(startDate) && Boolean(endDate)) ? 'custom' : 'monthly';
+            const cleanStartDate = effectivePeriodType === 'custom' && startDate ? startDate.split(/[T ]/)[0] : null;
+            const cleanEndDate = effectivePeriodType === 'custom' && endDate ? endDate.split(/[T ]/)[0] : null;
 
-                const next = generatedTxs.length > 0
-                    ? [...confirmedList, ...generatedTxs]
-                    : confirmedList;
-                updatedResults = next;
-                return next;
-            });
-
-            if (saveCurrentReportChanges) {
-                await saveCurrentReportChanges(updatedResults);
-            }
-
-            // 2. Salva histórico inteligente de destino(s) para esta Igreja + Conta
-            if (isTransferEnabled && targetTotal > 0 && destinations.length > 0) {
-                try {
-                    const historyData = destinations.map(d => ({
-                        churchId: d.churchId,
-                        ratio: targetTotal > 0 ? (parseAmount(d.amount) / targetTotal) : 1
-                    }));
-                    localStorage.setItem(getHistoryKey(originChurchId, originBankId), JSON.stringify(historyData));
-                } catch (e) {
-                    console.error('[ChurchClosingModal] Erro ao salvar preferência de destino:', e);
-                }
-            }
-
-            // 3. Salvar Registro de Fechamento Contábil com Assinaturas Digitais e Hash SHA-256
-            const isIndividualBank = originBankId && originBankId !== 'all';
             const closingRecord: MonthClosingRecord = {
-                id: isIndividualBank 
-                    ? `closing_${originChurch.id}_${originBankId}_${closingYear}_${closingMonth}`
-                    : `closing_${originChurch.id}_${closingYear}_${closingMonth}`,
+                id: effectivePeriodType === 'custom' && cleanStartDate && cleanEndDate
+                    ? (isIndividualBank
+                        ? `closing_${originChurch.id}_${originBankId}_custom_${cleanStartDate}_${cleanEndDate}`
+                        : `closing_${originChurch.id}_custom_${cleanStartDate}_${cleanEndDate}`)
+                    : (isIndividualBank
+                        ? `closing_${originChurch.id}_${originBankId}_${closingYear}_${closingMonth}`
+                        : `closing_${originChurch.id}_${closingYear}_${closingMonth}`),
                 churchId: originChurch.id,
                 churchName: originChurch.name,
                 bankId: isIndividualBank ? originBankId : null,
                 month: closingMonth,
                 year: closingYear,
+                periodType: effectivePeriodType,
+                startDate: cleanStartDate,
+                endDate: cleanEndDate,
                 closedAt: new Date().toISOString(),
                 totalIncome: effectiveIncome,
                 totalExpenses: effectiveExpenses,
@@ -641,7 +625,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                 }).filter(Boolean).join(', ') || undefined,
                 signatures: signatures,
                 integrityHash: calculatedHash || 'HASH-AUTENTICADO',
-                status: signatures.length > 0 ? 'signed' : 'draft',
+                status: signatures.length > 0 ? 'signed' : 'closed',
                 notes: customMemo.trim() || undefined,
                 transferTransactions: generatedTxs.length > 0 ? generatedTxs.map(m => ({
                     id: m.transaction?.id,
@@ -655,21 +639,86 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                     reference_date: m.transaction?.reference_date || m.transaction?.date,
                     row_hash: m.transaction?.row_hash,
                     source: 'closing',
-                    status: 'identified',
+                    status: 'resolved',
                     is_confirmed: true,
                     contribution_type: m.contributionType,
                     payment_method: 'TRANSFERÊNCIA'
                 })) : undefined
             };
 
-            await saveMonthClosingRecord(closingRecord);
-            setExistingRecord(closingRecord);
-            if (onClosingComplete) {
-                onClosingComplete(closingRecord);
-            }
-            window.dispatchEvent(new CustomEvent('month_closing_updated', { detail: closingRecord }));
+            const savedRecord = await saveMonthClosingRecord(closingRecord);
 
-            let successText = `Fechamento do mês ${String(closingMonth).padStart(2, '0')}/${closingYear} registrado com sucesso para a igreja "${originChurch.name}".`;
+            // 3. Somente após confirmação ACID no backend: confirma transações do escopo no estado local
+            let updatedResults: MatchResult[] = [];
+            setMatchResults((prev: any) => {
+                const confirmedList = (prev || []).map((r: MatchResult) => {
+                    const cId = r.church?.id || r._churchId;
+                    if (cId !== originChurch.id) return r;
+
+                    if (isIndividualBank) {
+                        const txBankId = (r.transaction as any)?.bank_id || (r.transaction as any)?.bankId || (r as any).bankId || (r as any)._bankId;
+                        if (txBankId !== originBankId) return r;
+                    }
+
+                    const rawTxDate = r.contributor?.reference_date || r.reference_date || r.transaction?.reference_date || r.transaction?.date || '';
+                    const cleanTxDate = rawTxDate ? rawTxDate.split(/[T ]/)[0] : '';
+                    if (!cleanTxDate) return r;
+
+                    let inScope = false;
+                    if (effectivePeriodType === 'custom' && cleanStartDate && cleanEndDate) {
+                        inScope = cleanTxDate >= cleanStartDate && cleanTxDate <= cleanEndDate;
+                    } else {
+                        const parts = cleanTxDate.split('-');
+                        if (parts.length >= 2) {
+                            const y = parseInt(parts[0], 10);
+                            const m = parseInt(parts[1], 10);
+                            inScope = y === closingYear && m === closingMonth;
+                        }
+                    }
+
+                    if (!inScope) return r;
+
+                    return {
+                        ...r,
+                        status: ReconciliationStatus.RESOLVED,
+                        isConfirmed: true,
+                        transaction: r.transaction ? { ...r.transaction, isConfirmed: true } : r.transaction
+                    };
+                });
+
+                const next = generatedTxs.length > 0
+                    ? [...confirmedList, ...generatedTxs]
+                    : confirmedList;
+                updatedResults = next;
+                return next;
+            });
+
+            if (saveCurrentReportChanges) {
+                await saveCurrentReportChanges(updatedResults);
+            }
+
+            // 4. Salva histórico inteligente de destino(s) para esta Igreja + Conta
+            if (isTransferEnabled && targetTotal > 0 && destinations.length > 0) {
+                try {
+                    const historyData = destinations.map(d => ({
+                        churchId: d.churchId,
+                        ratio: targetTotal > 0 ? (parseAmount(d.amount) / targetTotal) : 1
+                    }));
+                    localStorage.setItem(getHistoryKey(originChurchId, originBankId), JSON.stringify(historyData));
+                } catch (e) {
+                    console.error('[ChurchClosingModal] Erro ao salvar preferência de destino:', e);
+                }
+            }
+
+            setExistingRecord(savedRecord);
+            if (onClosingComplete) {
+                onClosingComplete(savedRecord);
+            }
+
+            const periodText = effectivePeriodType === 'custom' && cleanStartDate && cleanEndDate
+                ? `${formatDateBRL(cleanStartDate)} até ${formatDateBRL(cleanEndDate)}`
+                : `${String(closingMonth).padStart(2, '0')}/${closingYear}`;
+            let successText = `Fechamento do período ${periodText} registrado com sucesso para a igreja "${originChurch.name}".`;
             if (signatures.length > 0) {
                 successText += ` ${signatures.length} assinatura(s) digital(is) homologada(s) com Hash SHA-256 inviolável.`;
             }
@@ -698,18 +747,20 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
 
     const handleReopenClosing = async () => {
         if (!isPrincipalUser) {
-            alert('Apenas o Usuário Principal tem autorização para desfazer fechamentos e reabrir períodos contábeis.');
+            setErrorMessage('Apenas o Usuário Principal tem autorização para desfazer fechamentos e reabrir períodos contábeis.');
             return;
         }
 
         const originChurch = churches?.find(c => c.id === originChurchId);
         const churchName = originChurch?.name || 'Congregação Selecionada';
-        const formattedPeriod = `${String(closingMonth).padStart(2, '0')}/${closingYear}`;
+        const formattedPeriod = existingRecord?.periodType === 'custom' && existingRecord.startDate && existingRecord.endDate
+            ? `${formatDateBRL(existingRecord.startDate)} até ${formatDateBRL(existingRecord.endDate)}`
+            : `${String(closingMonth).padStart(2, '0')}/${closingYear}`;
 
         const confirmText = `⚠️ ATENÇÃO: DESFAZER FECHAMENTO FINAL\n\n` +
             `Deseja realmente desfazer o Fechamento Final de ${formattedPeriod} para a igreja "${churchName}"?\n\n` +
             `• O bloqueio será removido imediatamente.\n` +
-            `• O período será reaberto para novos lançamentos, edições e correções.\n` +
+            `• Os lançamentos confirmados dentro deste período serão liberados para edição e correção.\n` +
             `• Eventuais transferências automáticas de saldo deste fechamento serão revertidas.\n\n` +
             `Deseja prosseguir com a reabertura imediata?`;
 
@@ -721,33 +772,83 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
         setErrorMessage(null);
         try {
             const bankParam = originBankId && originBankId !== 'all' ? originBankId : null;
-            const success = await reopenMonthClosingRecord(originChurchId, closingYear, closingMonth, bankParam);
-            if (!success) {
-                throw new Error('Falha ao registrar a reabertura no servidor.');
-            }
+            const reopenResult = await reopenMonthClosingRecord(
+                originChurchId,
+                closingYear,
+                closingMonth,
+                bankParam,
+                {
+                    closingId: existingRecord?.id || null,
+                    startDate: existingRecord?.startDate || (periodType === 'custom' ? startDate : null),
+                    endDate: existingRecord?.endDate || (periodType === 'custom' ? endDate : null)
+                }
+            );
 
-            // Remove transações de fechamento automático que estavam no state ativo
+            // Somente após confirmação do backend: remove pernas de fechamento e reverte confirmações do escopo reaberto (Decisão 3 + P5-A)
             const targetMonthStr = `${closingYear}-${String(closingMonth).padStart(2, '0')}`;
-            let hasRemovedTxs = false;
+            const reopenStart = reopenResult.startDate || existingRecord?.startDate || null;
+            const reopenEnd = reopenResult.endDate || existingRecord?.endDate || null;
+            let hasStateChanges = false;
             let updatedList: MatchResult[] = [];
 
             setMatchResults((prev: any) => {
                 if (!Array.isArray(prev)) return prev;
-                const next = prev.filter((r: MatchResult) => {
+                const next: MatchResult[] = [];
+
+                for (const r of prev as MatchResult[]) {
                     const txId = r.transaction?.id || (r as any).id || '';
-                    const isClosingTx = txId.startsWith('closing-');
-                    const txDate = r.transaction?.date || (r as any).date || '';
-                    if (isClosingTx && txDate.startsWith(targetMonthStr)) {
-                        hasRemovedTxs = true;
-                        return false;
+                    const rowHash = String(r.transaction?.row_hash || (r as any).row_hash || '');
+                    const source = String(r.transaction?.source || (r as any).source || '');
+                    const isClosingTx = source === 'closing' || rowHash.startsWith('closing-') || txId.startsWith('closing-');
+                    const rawTxDate = r.contributor?.reference_date || r.reference_date || r.transaction?.reference_date || r.transaction?.date || (r as any).date || '';
+                    const cleanTxDate = rawTxDate ? String(rawTxDate).split(/[T ]/)[0] : '';
+                    const cId = r.church?.id || r._churchId;
+                    const txBankId = (r.transaction as any)?.bank_id || (r.transaction as any)?.bankId || (r as any).bankId || (r as any)._bankId || null;
+
+                    const inDateScope = (reopenStart && reopenEnd)
+                        ? (cleanTxDate >= reopenStart && cleanTxDate <= reopenEnd)
+                        : cleanTxDate.startsWith(targetMonthStr);
+
+                    const reopenedIdSet = new Set<string>(reopenResult.reopenedClosingIds || []);
+                    if (existingRecord?.id) reopenedIdSet.add(existingRecord.id);
+                    const txReportId = String((r.transaction as any)?.report_id || (r as any).report_id || '');
+                    const matchesThisClosingLeg = reopenedIdSet.size > 0 && txReportId
+                        ? reopenedIdSet.has(txReportId)
+                        : (inDateScope && (cId === originChurchId || rowHash.includes(`-${originChurchId}-`)));
+
+                    if (isClosingTx && matchesThisClosingLeg) {
+                        hasStateChanges = true;
+                        continue;
                     }
-                    return true;
-                });
+
+                    if (!isClosingTx && r.isConfirmed && cId === originChurchId && inDateScope) {
+                        const matchesBank = !bankParam || txBankId === bankParam;
+                        // P5-A: se outro fechamento independente (ex: conta específica) ainda cobre o lançamento, preserva confirmado
+                        const stillCoveredByOtherClosing = isChurchPeriodClosedSync(cId, cleanTxDate, txBankId);
+                        if (matchesBank && !stillCoveredByOtherClosing) {
+                            hasStateChanges = true;
+                            const nextStatus = (r.contributor || r.church || r._churchId)
+                                ? ReconciliationStatus.IDENTIFIED
+                                : ReconciliationStatus.UNIDENTIFIED;
+                            next.push({
+                                ...r,
+                                status: nextStatus,
+                                isConfirmed: false,
+                                transaction: r.transaction ? { ...r.transaction, isConfirmed: false } : r.transaction,
+                                updatedAt: new Date().toISOString()
+                            });
+                            continue;
+                        }
+                    }
+
+                    next.push(r);
+                }
+
                 updatedList = next;
                 return next;
             });
 
-            if (hasRemovedTxs && saveCurrentReportChanges) {
+            if (hasStateChanges && saveCurrentReportChanges) {
                 await saveCurrentReportChanges(updatedList);
             }
 
@@ -757,8 +858,6 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
 
             if (showToast) {
                 showToast(`Fechamento desfeito com sucesso! O período ${formattedPeriod} foi reaberto para novos lançamentos.`, 'success');
-            } else {
-                alert(`Fechamento desfeito com sucesso! O período ${formattedPeriod} foi reaberto.`);
             }
 
             onClose();
@@ -841,7 +940,9 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                                 </div>
                                 <div>
                                     <h5 className="text-xs font-black text-emerald-950 dark:text-emerald-200">
-                                        Fechamento de {String(closingMonth).padStart(2, '0')}/{closingYear} Já Homologado
+                                        Fechamento de {existingRecord.periodType === 'custom' && existingRecord.startDate && existingRecord.endDate
+                                            ? `${formatDateBRL(existingRecord.startDate)} até ${formatDateBRL(existingRecord.endDate)}`
+                                            : `${String(existingRecord.month || closingMonth).padStart(2, '0')}/${existingRecord.year || closingYear}`} Já Homologado
                                     </h5>
                                     <p className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium">
                                         {existingRecord.signatures && existingRecord.signatures.length > 0 

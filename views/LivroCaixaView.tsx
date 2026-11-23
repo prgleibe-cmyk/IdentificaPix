@@ -11,6 +11,7 @@ import { ServiceReceiptModal } from '../components/modals/ServiceReceiptModal';
 import { preloadAllAttachmentsMap, getCachedAttachmentsMap, getAttachmentsForTransaction } from '../services/expenseAttachmentService';
 import { getAllChurchClosings } from '../services/monthClosingService';
 import { cleanDisplayDescription } from '../services/utils/parsingUtils';
+import { isPeriodClosed } from '../utils/formatters';
 import { ExpenseAttachment, MonthClosingRecord } from '../types/domain';
 import { 
     BookOpen, 
@@ -38,7 +39,8 @@ import {
     Receipt,
     FileSignature,
     Pencil,
-    ShieldCheck
+    ShieldCheck,
+    Lock
 } from 'lucide-react';
 import { BuildingOfficeIcon } from '../components/Icons';
 import { PeriodSelector, PeriodSelectionMode } from '../components/reports/PeriodSelector';
@@ -182,10 +184,19 @@ export const LivroCaixaView: React.FC = memo(() => {
                 : (rec?.bankId === activeBankId);
 
         const resolveActiveClosing = (records: MonthClosingRecord[]): MonthClosingRecord | null => {
-            if (!m || !y || !churchId) return null;
-            const activeForPeriod = records.filter(
-                r => r.status !== 'reopened' && Number(r.year) === y && Number(r.month) === m && matchesBank(r)
-            );
+            if (!churchId) return null;
+            const activeForPeriod = records.filter(r => {
+                if (!r || r.status === 'reopened') return false;
+                if (!matchesBank(r)) return false;
+                if (selectionMode === 'dates' && customStartDate && customEndDate) {
+                    if (r.periodType === 'custom' && r.startDate && r.endDate) {
+                        const rStart = String(r.startDate).split('T')[0];
+                        const rEnd = String(r.endDate).split('T')[0];
+                        return rStart <= customEndDate && rEnd >= customStartDate;
+                    }
+                }
+                return Boolean(m && y && Number(r.year) === y && Number(r.month) === m);
+            });
             const primary = activeForPeriod.find(r => r.churchId === churchId);
             if (primary) return primary;
             if (selectedChurchIds.length === 0 && churches.length > 1) {
@@ -235,7 +246,7 @@ export const LivroCaixaView: React.FC = memo(() => {
             isMounted = false;
             window.removeEventListener('month_closing_updated', handleClosingUpdate);
         };
-    }, [selectedChurchIds, selectedBankIds, churches, selectionMode, selectedMonth, selectedYear, customStartDate]);
+    }, [selectedChurchIds, selectedBankIds, churches, selectionMode, selectedMonth, selectedYear, customStartDate, customEndDate]);
 
     const banks = useMemo(() => {
         const raw = context?.banks || [];
@@ -1478,6 +1489,9 @@ export const LivroCaixaView: React.FC = memo(() => {
                     currentBankId={selectedBankIds.length === 1 ? selectedBankIds[0] : null}
                     initialMonth={selectedMonth}
                     initialYear={selectedYear}
+                    periodType={selectionMode === 'dates' && customStartDate && customEndDate ? 'custom' : 'monthly'}
+                    startDate={selectionMode === 'dates' ? customStartDate : null}
+                    endDate={selectionMode === 'dates' ? customEndDate : null}
                     asView={true}
                     periodLabel={periodLabel}
                     initialClosingDate={effectiveEndDate}
@@ -1496,11 +1510,15 @@ export const LivroCaixaView: React.FC = memo(() => {
                     isOpen={true}
                     row={editingManualTx}
                     onClose={() => setEditingManualTx(null)}
-                    onSave={(updatedRow) => {
+                    onSave={async (updatedRow) => {
                         if (context?.updateReportData) {
-                            context.updateReportData(updatedRow);
+                            const res = await context.updateReportData(updatedRow);
+                            if (res && res.success === false) {
+                                return res;
+                            }
                         }
                         setEditingManualTx(null);
+                        return { success: true };
                     }}
                     asView={true}
                 />
@@ -2025,6 +2043,21 @@ export const LivroCaixaView: React.FC = memo(() => {
                                             String(tx.description || tx.desc || '').startsWith('[RECEBIMENTO]') ||
                                             String(tx.description || tx.desc || '').startsWith('[APORTE/FECHAMENTO]') ||
                                             String(tx.description || tx.desc || '').startsWith('[REPASSE/FECHAMENTO]');
+                                        const rowChurchId = tx.churchId || tx.raw?.church?.id || tx.raw?._churchId || undefined;
+                                        const rowBankId = tx.bankId || (tx.raw?.transaction as any)?.bank_id || (tx.raw as any)?.bankId || undefined;
+                                        const isRowConfirmed = Boolean(tx.isConfirmed || tx.raw?.isConfirmed || tx.raw?.transaction?.isConfirmed);
+                                        const isRowPeriodClosed = Boolean(
+                                            !isClosingTx &&
+                                            rowChurchId &&
+                                            rowChurchId !== 'unidentified' &&
+                                            isPeriodClosed(tx.date, context?.matchResults, rowChurchId, rowBankId)
+                                        );
+                                        const isRowLocked = !isClosingTx && (isRowConfirmed || isRowPeriodClosed);
+                                        const rowLockTitle = isRowPeriodClosed
+                                            ? 'Período Fechado Definitivamente: edição, anexos e emissão de recibos estão bloqueados.'
+                                            : isRowConfirmed
+                                                ? 'Lançamento com Confirmação Final: edição, anexos e emissão de recibos estão bloqueados.'
+                                                : '';
 
                                         return (
                                             <tr key={tx.id || idx} className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors ${isClosingTx ? 'bg-amber-50/30 dark:bg-amber-950/10' : ''}`}>
@@ -2055,7 +2088,24 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                                 {isExpense ? 'Transporte p/ Outro Caixa (Débito)' : 'Transporte Recebido (Crédito)'}
                                                             </span>
                                                         )}
-                                                        {isManualRow && !isClosingTx && (
+                                                        {!isClosingTx && isRowPeriodClosed ? (
+                                                            <span
+                                                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/60"
+                                                                title={rowLockTitle}
+                                                            >
+                                                                <Lock className="w-2.5 h-2.5 shrink-0" />
+                                                                <span>Período Fechado</span>
+                                                            </span>
+                                                        ) : !isClosingTx && isRowConfirmed ? (
+                                                            <span
+                                                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700"
+                                                                title={rowLockTitle}
+                                                            >
+                                                                <Lock className="w-2.5 h-2.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                                                                <span>Confirmado</span>
+                                                            </span>
+                                                        ) : null}
+                                                        {isManualRow && !isClosingTx && !isRowLocked && (
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setEditingManualTx(tx.raw || tx)}
@@ -2157,43 +2207,47 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                                     <span>Recibo</span>
                                                                 </button>
                                                             )}
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setServiceReceiptTx(tx)}
-                                                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold transition-colors cursor-pointer shadow-2xs ${
-                                                                    serviceReceiptAtt
-                                                                        ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800/80'
-                                                                        : 'bg-amber-50/70 hover:bg-amber-100 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-700/60'
-                                                                }`}
-                                                                title="Emitir ou Assinar Digitalmente o Recibo de Pagamento para o Prestador de Serviço"
-                                                            >
-                                                                <FileSignature className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
-                                                                <span>{serviceReceiptAtt ? 'Novo Recibo' : 'Emitir Recibo'}</span>
-                                                            </button>
+                                                            {!isRowLocked && !isClosingTx && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setServiceReceiptTx(tx)}
+                                                                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold transition-colors cursor-pointer shadow-2xs ${
+                                                                        serviceReceiptAtt
+                                                                            ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800/80'
+                                                                            : 'bg-amber-50/70 hover:bg-amber-100 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-700/60'
+                                                                    }`}
+                                                                    title="Emitir ou Assinar Digitalmente o Recibo de Pagamento para o Prestador de Serviço"
+                                                                >
+                                                                    <FileSignature className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
+                                                                    <span>{serviceReceiptAtt ? 'Novo Recibo' : 'Emitir Recibo'}</span>
+                                                                </button>
+                                                            )}
                                                             {txAttachments.length > identifiedCount && (
                                                                 <span className="text-[10px] text-slate-400 font-semibold tabular-nums">
                                                                     +{txAttachments.length - identifiedCount} anexo(s)
                                                                 </span>
                                                             )}
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setQuickAttachTx(tx)}
-                                                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold transition-colors cursor-pointer ${
-                                                                    txAttachments.length === 0
-                                                                        ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50'
-                                                                        : 'bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
-                                                                }`}
-                                                                title={txAttachments.length === 0 ? "Nenhum comprovante anexado. Clique para anexar fatura ou comprovante." : "Gerenciar ou anexar mais documentos"}
-                                                            >
-                                                                {txAttachments.length === 0 ? (
-                                                                    <>
-                                                                        <Paperclip className="w-2.5 h-2.5" />
-                                                                        <span>Anexar</span>
-                                                                    </>
-                                                                ) : (
-                                                                    <Plus className="w-2.5 h-2.5" />
-                                                                )}
-                                                            </button>
+                                                            {!isRowLocked && !isClosingTx && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setQuickAttachTx(tx)}
+                                                                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold transition-colors cursor-pointer ${
+                                                                        txAttachments.length === 0
+                                                                            ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50'
+                                                                            : 'bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                                                                    }`}
+                                                                    title={txAttachments.length === 0 ? "Nenhum comprovante anexado. Clique para anexar fatura ou comprovante." : "Gerenciar ou anexar mais documentos"}
+                                                                >
+                                                                    {txAttachments.length === 0 ? (
+                                                                        <>
+                                                                            <Paperclip className="w-2.5 h-2.5" />
+                                                                            <span>Anexar</span>
+                                                                        </>
+                                                                    ) : (
+                                                                        <Plus className="w-2.5 h-2.5" />
+                                                                    )}
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </td>

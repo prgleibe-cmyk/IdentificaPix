@@ -4,7 +4,7 @@ import { Calendar, DollarSign, PlusCircle, ArrowLeft, ArrowUpRight, ArrowDownRig
 import { AppContext } from '../../contexts/AppContext';
 import { useUI } from '../../contexts/UIContext';
 import { useTranslation } from '../../contexts/I18nContext';
-import { formatCurrency, isPeriodClosed } from '../../utils/formatters';
+import { formatCurrency, isPeriodClosed, getDateChurchLockReason } from '../../utils/formatters';
 import { useAuth } from '../../contexts/AuthContext';
 import { XMarkIcon, SparklesIcon, CheckBadgeIcon, BuildingOfficeIcon, ChevronDownIcon } from '../Icons';
 import { Contributor, MatchResult, ReconciliationStatus, MatchMethod } from '../../types';
@@ -975,8 +975,27 @@ export const ManualIdModal: React.FC = () => {
 
         const effectiveDateToCheck = selectedDate || bulkIdentificationTxs?.[0]?.date || new Date().toISOString().split('T')[0];
 
-        if (selectedChurchId && isPeriodClosed(effectiveDateToCheck, matchResults, selectedChurchId)) {
-            alert("PERÍODO CONGELADO: Este período contábil já teve seu Fechamento Final homologado para a congregação selecionada. Novos lançamentos ou alterações nesta congregação estão bloqueados.");
+        if (!isManualLaunch && Array.isArray(bulkIdentificationTxs) && bulkIdentificationTxs.length > 0) {
+            const hasLockedSource = bulkIdentificationTxs.some((tx: any) => {
+                const match = matchResults?.find((m: any) => m.transaction?.id === tx.id);
+                if (tx?.isConfirmed || match?.isConfirmed || match?.transaction?.isConfirmed) return true;
+                const srcDate = match?.contributor?.reference_date || match?.reference_date || tx?.reference_date || tx?.date;
+                const srcChurch = match?.church?.id || (match as any)?._churchId || tx?.church_id;
+                const srcBank = tx?.bank_id || (match?.transaction as any)?.bank_id || (match as any)?.bankId;
+                return Boolean(srcChurch && srcChurch !== 'unidentified' && isPeriodClosed(srcDate, matchResults, srcChurch, srcBank));
+            });
+            if (hasLockedSource) {
+                showToast("LANÇAMENTO PROTEGIDO: Um ou mais lançamentos selecionados já possuem Confirmação Final ou pertencem a um período fechado e não podem ser alterados.", "error");
+                return;
+            }
+        }
+
+        const excludeTxIdForDayCheck = !isManualLaunch && bulkIdentificationTxs?.length === 1 ? bulkIdentificationTxs[0]?.id : undefined;
+        const targetLockReason = selectedChurchId
+            ? getDateChurchLockReason(effectiveDateToCheck, selectedChurchId, matchResults, selectedBankId || undefined, excludeTxIdForDayCheck)
+            : null;
+        if (targetLockReason) {
+            showToast(targetLockReason, "error");
             return;
         }
 

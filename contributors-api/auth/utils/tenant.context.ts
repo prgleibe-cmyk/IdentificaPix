@@ -109,6 +109,11 @@ export function hasPermission(ctx: TenantContext, ...requiredPermissions: string
       if (['treasurer', 'tesoureiro', 'operador', 'operator'].includes(ctx.role || '')) return true;
       if (ctx.permissions.length === 0) return true;
     }
+    if (p === 'confirm_final' || p === 'confirmar_final' || p === 'confirmfinal') {
+      if (ctx.permissions.some(x => ['confirmar_final', 'confirmfinal', 'confirm_final'].includes(x))) return true;
+      if (ctx.permissions.length === 0 && ['treasurer', 'tesoureiro', 'operador', 'operator'].includes(ctx.role || '')) return true;
+      return false;
+    }
     if (p === 'reports') {
       if (ctx.permissions.some(x => [
         'reports', 'imprimir', 'printreport', 'baixar_arquivo', 'downloadfile', 'can_export', 'view', 'read'
@@ -356,11 +361,11 @@ export function validateTransactionSplits(
 
     totalSplits += itemAmount;
 
-    // Validação Multi-tenant para usuário secundário
-    if (ctx && ctx.isSecondaryUser && ctx.allowedChurchIds && ctx.allowedChurchIds.length > 0) {
+    // Validação Multi-tenant fail-closed para usuário secundário
+    if (ctx && ctx.isSecondaryUser) {
       const splitChurchId = split.churchId || split.church_id;
       if (splitChurchId && splitChurchId !== 'unidentified' && splitChurchId !== 'geral') {
-        if (!ctx.allowedChurchIds.includes(splitChurchId)) {
+        if (!ctx.allowedChurchIds || !ctx.allowedChurchIds.includes(splitChurchId)) {
           return {
             isValid: false,
             error: 'SPLITS_CHURCH_NOT_ALLOWED',

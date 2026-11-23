@@ -41,7 +41,7 @@ import {
     ChevronLeft,
     ChevronRight
 } from 'lucide-react';
-import { formatCurrency, formatDate, isPeriodClosed } from '../utils/formatters';
+import { formatCurrency, formatDate, isPeriodClosed, getDateChurchLockReason } from '../utils/formatters';
 import { PastorAutomationTab } from '../components/PastorAutomationTab';
 import { ExpenseDocumentUploader } from '../components/financial/ExpenseDocumentUploader';
 import { ExpenseAttachment, ExtractedExpenseDoc, ExpenseValidationStatus, validateExpenseAgainstDocument } from '../utils/expenseDocumentParser';
@@ -292,27 +292,68 @@ export const FinancialView: React.FC = memo(() => {
         return { totalPayable, totalReceivable, totalPaid, totalReceived, overdueCount };
     }, [records]);
 
+    const parseFinancialApiError = async (res: Response, fallback: string): Promise<string> => {
+        try {
+            const body = await res.json();
+            return body?.message || body?.error || fallback;
+        } catch {
+            return fallback;
+        }
+    };
+
+    const getRecordLockReason = (record: FinancialRecord): string | null => {
+        if (!record?.church_id) return null;
+        const recDate = (record.payment_date || record.due_date || '').split('T')[0];
+        if (!recDate) return null;
+        return getDateChurchLockReason(recDate, record.church_id, matchResults, record.bank_id || record.account_id || undefined);
+    };
+
     // Handle delete
     const handleDelete = async (id: string) => {
+        const targetRecord = records.find(r => r.id === id);
+        if (targetRecord) {
+            const lockReason = getRecordLockReason(targetRecord);
+            if (lockReason) {
+                showToast(lockReason, 'error');
+                return;
+            }
+        }
         if (!confirm('Deseja realmente excluir este registro financeiro?')) return;
         try {
             const token = await getAuthToken();
             const headers: Record<string, string> = {};
             if (token) headers['Authorization'] = `Bearer ${token}`;
             const res = await fetch(`/api/v1/financial_records/${id}`, { method: 'DELETE', headers });
-            if (!res.ok) throw new Error('Falha ao excluir registro');
+            if (!res.ok) {
+                const msg = await parseFinancialApiError(res, 'Falha ao excluir registro');
+                throw new Error(msg);
+            }
             showToast('Registro excluído com sucesso!', 'success');
             fetchRecords();
         } catch (err: any) {
             console.error(err);
-            showToast('Erro ao excluir registro.', 'error');
+            showToast(err?.message || 'Erro ao excluir registro.', 'error');
         }
     };
 
     // Toggle status
     const handleToggleStatus = async (record: FinancialRecord) => {
+        const currentLockReason = getRecordLockReason(record);
+        if (currentLockReason) {
+            showToast(currentLockReason, 'error');
+            return;
+        }
+
         const newStatus = record.status === 'pending' ? 'paid' : 'pending';
         const newPaymentDate = newStatus === 'paid' ? new Date().toISOString().split('T')[0] : null;
+
+        if (newPaymentDate && record.church_id) {
+            const targetLockReason = getDateChurchLockReason(newPaymentDate, record.church_id, matchResults, record.bank_id || record.account_id || undefined);
+            if (targetLockReason) {
+                showToast(targetLockReason, 'error');
+                return;
+            }
+        }
 
         try {
             const token = await getAuthToken();
@@ -327,13 +368,16 @@ export const FinancialView: React.FC = memo(() => {
                     payment_date: newPaymentDate
                 })
             });
-            if (!res.ok) throw new Error('Falha ao atualizar status');
+            if (!res.ok) {
+                const msg = await parseFinancialApiError(res, 'Falha ao atualizar status');
+                throw new Error(msg);
+            }
             const isReceivable = record.type === 'receivable';
             showToast(`Registro marcado como ${newStatus === 'paid' ? (isReceivable ? 'Recebido' : 'Pago') : 'Pendente'}`, 'success');
             fetchRecords();
         } catch (err: any) {
             console.error(err);
-            showToast('Erro ao atualizar status.', 'error');
+            showToast(err?.message || 'Erro ao atualizar status.', 'error');
         }
     };
 
@@ -471,9 +515,20 @@ export const FinancialView: React.FC = memo(() => {
             return;
         }
 
+        if (editingRecord) {
+            const origLockReason = getRecordLockReason(editingRecord);
+            if (origLockReason) {
+                showToast(origLockReason, 'error');
+                return;
+            }
+        }
+
         const targetDate = formPaymentDate || formDueDate || new Date().toISOString().split('T')[0];
-        if (isSecondaryUser && isPeriodClosed(targetDate, matchResults, formChurchId)) {
-            showToast("Este período já foi fechado de forma definitiva pelo usuário principal. Não é permitido realizar novos lançamentos ou edições.", "error");
+        const targetLockReason = formChurchId
+            ? getDateChurchLockReason(targetDate, formChurchId, matchResults, formBankId || undefined)
+            : null;
+        if (targetLockReason) {
+            showToast(targetLockReason, 'error');
             return;
         }
 
@@ -559,13 +614,16 @@ export const FinancialView: React.FC = memo(() => {
                 });
             }
 
-            if (!res.ok) throw new Error('Falha ao salvar registro');
+            if (!res.ok) {
+                const msg = await parseFinancialApiError(res, 'Falha ao salvar registro');
+                throw new Error(msg);
+            }
             showToast(editingRecord ? 'Lançamento atualizado!' : 'Lançamento cadastrado com sucesso!', 'success');
             setIsModalOpen(false);
             fetchRecords();
         } catch (err: any) {
             console.error(err);
-            showToast('Erro ao salvar registro financeiro.', 'error');
+            showToast(err?.message || 'Erro ao salvar registro financeiro.', 'error');
         }
     };
 
@@ -1412,6 +1470,8 @@ export const FinancialView: React.FC = memo(() => {
                                         const hasAttachments = record.attachments && record.attachments.length > 0;
                                         const primaryDoc = hasAttachments ? record.attachments![0] : null;
                                         const docStatus: ExpenseValidationStatus = record.validation_status || (primaryDoc?.validationStatus || (hasAttachments ? 'manual_review' : 'pending_attachment'));
+                                        const recordLockReason = getRecordLockReason(record);
+                                        const isRecordLocked = Boolean(recordLockReason);
                                         
                                         return (
                                             <tr key={record.id} className="border-b border-slate-100 dark:border-slate-800/70 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
@@ -1525,9 +1585,14 @@ export const FinancialView: React.FC = memo(() => {
                                                         </div>
                                                     ) : (
                                                         <button
-                                                            onClick={() => openModal(record)}
-                                                            className="px-2.5 py-1 rounded-md text-[10px] font-semibold flex items-center gap-1 text-slate-500 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20 border border-dashed border-slate-300 dark:border-slate-700 transition-colors cursor-pointer"
-                                                            title="Clique para editar e anexar a nota fiscal ou comprovante"
+                                                            onClick={() => !isRecordLocked && openModal(record)}
+                                                            disabled={isRecordLocked}
+                                                            className={`px-2.5 py-1 rounded-md text-[10px] font-semibold flex items-center gap-1 border border-dashed transition-colors ${
+                                                                isRecordLocked
+                                                                    ? 'text-slate-400 border-slate-200 dark:border-slate-800 opacity-50 cursor-not-allowed'
+                                                                    : 'text-slate-500 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20 border-slate-300 dark:border-slate-700 cursor-pointer'
+                                                            }`}
+                                                            title={recordLockReason || "Clique para editar e anexar a nota fiscal ou comprovante"}
                                                         >
                                                             <FileMinus className="w-3 h-3 text-amber-600 dark:text-amber-400" />
                                                             <span>Sem anexo</span>
@@ -1537,8 +1602,12 @@ export const FinancialView: React.FC = memo(() => {
 
                                                 <td className="px-4 py-3.5">
                                                     <button
-                                                        onClick={() => handleToggleStatus(record)}
-                                                        className={`px-2.5 py-1 rounded-md text-[10px] font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
+                                                        onClick={() => !isRecordLocked && handleToggleStatus(record)}
+                                                        disabled={isRecordLocked}
+                                                        title={recordLockReason || undefined}
+                                                        className={`px-2.5 py-1 rounded-md text-[10px] font-semibold flex items-center gap-1 transition-colors ${
+                                                            isRecordLocked ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+                                                        } ${
                                                             record.status === 'paid'
                                                                 ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-900/40 hover:bg-emerald-100'
                                                                 : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200/60 dark:border-amber-900/40 hover:bg-amber-100'
@@ -1560,16 +1629,26 @@ export const FinancialView: React.FC = memo(() => {
                                                 <td className="px-4 py-3.5 text-right">
                                                     <div className="flex justify-end gap-1.5">
                                                         <button
-                                                            onClick={() => openModal(record)}
-                                                            className="p-1.5 text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-                                                            title="Editar"
+                                                            onClick={() => !isRecordLocked && openModal(record)}
+                                                            disabled={isRecordLocked}
+                                                            className={`p-1.5 rounded-lg transition-colors ${
+                                                                isRecordLocked
+                                                                    ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed'
+                                                                    : 'text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer'
+                                                            }`}
+                                                            title={recordLockReason || "Editar"}
                                                         >
                                                             <Edit className="w-3.5 h-3.5" />
                                                         </button>
                                                         <button
-                                                            onClick={() => handleDelete(record.id)}
-                                                            className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors cursor-pointer"
-                                                            title="Excluir"
+                                                            onClick={() => !isRecordLocked && handleDelete(record.id)}
+                                                            disabled={isRecordLocked}
+                                                            className={`p-1.5 rounded-lg transition-colors ${
+                                                                isRecordLocked
+                                                                    ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed'
+                                                                    : 'text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 cursor-pointer'
+                                                            }`}
+                                                            title={recordLockReason || "Excluir"}
                                                         >
                                                             <Trash2 className="w-3.5 h-3.5" />
                                                         </button>

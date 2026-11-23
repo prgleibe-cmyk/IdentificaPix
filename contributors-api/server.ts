@@ -37,12 +37,84 @@ class LocalSqliteEngine {
   private isReady: boolean = false;
   public activeClosingLocks: Set<string> = new Set();
   private xactLocksByOwner: Map<string, Set<string>> = new Map();
+  private sharedXactLocksByOwner: Map<string, Set<string>> = new Map();
+  private sharedLockCounts: Map<string, number> = new Map();
   private sessionLocksByOwner: Map<string, Set<string>> = new Map();
   private activeSqlTxOwners: Set<string> = new Set();
+  private activeSqlTxOwner: string | null = null;
+  private sqlTxWaitQueue: Array<() => void> = [];
+  private lockWaiters: Set<() => void> = new Set();
   private currentQueryOwnerId: string = '__direct__';
 
   constructor() {
     this.init();
+  }
+
+  private notifyLockWaiters() {
+    if (this.lockWaiters.size === 0) return;
+    const waiters = Array.from(this.lockWaiters);
+    this.lockWaiters.clear();
+    for (const wake of waiters) {
+      try { wake(); } catch (_) {}
+    }
+  }
+
+  private isExclusivelyLockedByOther(key: string, ownerId: string): boolean {
+    if (!this.activeClosingLocks.has(key)) return false;
+    if (this.xactLocksByOwner.get(ownerId)?.has(key)) return false;
+    if (this.sessionLocksByOwner.get(ownerId)?.has(key)) return false;
+    return true;
+  }
+
+  public async acquireTransactionSlot(ownerId: string): Promise<void> {
+    if (this.activeSqlTxOwner === ownerId) return;
+    while (this.activeSqlTxOwner !== null && this.activeSqlTxOwner !== ownerId) {
+      await new Promise<void>((resolve) => {
+        this.sqlTxWaitQueue.push(resolve);
+      });
+    }
+    this.activeSqlTxOwner = ownerId;
+  }
+
+  public releaseTransactionSlot(ownerId: string): void {
+    if (this.activeSqlTxOwner === ownerId) {
+      this.activeSqlTxOwner = null;
+      this.drainTransactionQueue();
+    }
+  }
+
+  private drainTransactionQueue(): void {
+    if (this.activeSqlTxOwner !== null) return;
+    const next = this.sqlTxWaitQueue.shift();
+    if (next) {
+      try { next(); } catch (_) {}
+    }
+  }
+
+  public async waitForSharedAdvisoryLock(k1: any, k2: any, ownerId: string, timeoutMs: number = 2500): Promise<void> {
+    const key = k2 !== undefined && k2 !== null ? `${k1}:${k2}` : `${k1}`;
+    if (!this.isExclusivelyLockedByOther(key, ownerId)) return;
+    const deadline = Date.now() + timeoutMs;
+    while (this.isExclusivelyLockedByOther(key, ownerId)) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        const lockErr: any = new Error(`CONCURRENT_LOCK_TIMEOUT: Recurso ${key} bloqueado por operação exclusiva concorrente.`);
+        lockErr.code = '55P03';
+        throw lockErr;
+      }
+      await new Promise<void>((resolve) => {
+        let settled = false;
+        const done = () => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          this.lockWaiters.delete(done);
+          resolve();
+        };
+        const timer = setTimeout(done, Math.min(remaining, 25));
+        this.lockWaiters.add(done);
+      });
+    }
   }
 
   public releaseClosingLock(k1: number, k2: number) {
@@ -51,33 +123,62 @@ class LocalSqliteEngine {
     for (const lockSet of this.xactLocksByOwner.values()) {
       lockSet.delete(key);
     }
+    for (const lockSet of this.sharedXactLocksByOwner.values()) {
+      if (lockSet.delete(key)) {
+        const nextCount = (this.sharedLockCounts.get(key) || 1) - 1;
+        if (nextCount <= 0) this.sharedLockCounts.delete(key);
+        else this.sharedLockCounts.set(key, nextCount);
+      }
+    }
     for (const lockSet of this.sessionLocksByOwner.values()) {
       lockSet.delete(key);
     }
+    this.notifyLockWaiters();
   }
 
   public releaseOwnerLocks(ownerId: string, includeSessionLocks: boolean = false) {
+    let releasedAny = false;
     const xactSet = this.xactLocksByOwner.get(ownerId);
     if (xactSet) {
       for (const key of xactSet) {
         this.activeClosingLocks.delete(key);
+        releasedAny = true;
       }
       this.xactLocksByOwner.delete(ownerId);
+    }
+    const sharedSet = this.sharedXactLocksByOwner.get(ownerId);
+    if (sharedSet) {
+      for (const key of sharedSet) {
+        const nextCount = (this.sharedLockCounts.get(key) || 1) - 1;
+        if (nextCount <= 0) this.sharedLockCounts.delete(key);
+        else this.sharedLockCounts.set(key, nextCount);
+        releasedAny = true;
+      }
+      this.sharedXactLocksByOwner.delete(ownerId);
     }
     if (includeSessionLocks) {
       const sessSet = this.sessionLocksByOwner.get(ownerId);
       if (sessSet) {
         for (const key of sessSet) {
           this.activeClosingLocks.delete(key);
+          releasedAny = true;
         }
         this.sessionLocksByOwner.delete(ownerId);
       }
-      if (this.activeSqlTxOwners.has(ownerId)) {
-        this.activeSqlTxOwners.delete(ownerId);
-        if (this.activeSqlTxOwners.size === 0 && this.db) {
+      const heldTx = this.activeSqlTxOwner === ownerId || this.activeSqlTxOwners.has(ownerId);
+      this.activeSqlTxOwners.delete(ownerId);
+      if (heldTx && (this.activeSqlTxOwner === ownerId || this.activeSqlTxOwners.size === 0)) {
+        if (this.db) {
           try { this.db.exec('ROLLBACK'); } catch (_) {}
         }
+        if (this.activeSqlTxOwner === ownerId) {
+          this.activeSqlTxOwner = null;
+          this.drainTransactionQueue();
+        }
       }
+    }
+    if (releasedAny) {
+      this.notifyLockWaiters();
     }
   }
 
@@ -105,17 +206,20 @@ class LocalSqliteEngine {
   private init() {
     try {
       const { DatabaseSync } = requireFallback('node:sqlite');
-      // Unificação absoluta: apontar sempre para o diretório raiz data/ do projeto
+      // Unificação absoluta: apontar sempre para o diretório raiz data/ do projeto (ou override explícito de teste isolado D-4)
+      const customSqlitePath = process.env.CONTRIBUTORS_SQLITE_PATH?.trim();
       const rootAppDir = this.resolveRootAppDir();
-      const dbDir = path.resolve(rootAppDir, 'data');
+      const dbPath = customSqlitePath
+        ? path.resolve(customSqlitePath)
+        : path.join(path.resolve(rootAppDir, 'data'), 'contributors_local.sqlite');
+      const dbDir = path.dirname(dbPath);
       if (!fs.existsSync(dbDir)) {
         fs.mkdirSync(dbDir, { recursive: true });
       }
-      const dbPath = path.join(dbDir, 'contributors_local.sqlite');
 
       // Se o banco canônico ainda não existir e houver banco legado em contributors-api/data, migra antes de abrir
       const subDbPath = path.resolve(rootAppDir, 'contributors-api', 'data', 'contributors_local.sqlite');
-      if (!fs.existsSync(dbPath) && fs.existsSync(subDbPath) && subDbPath !== dbPath) {
+      if (!customSqlitePath && !fs.existsSync(dbPath) && fs.existsSync(subDbPath) && subDbPath !== dbPath) {
         try {
           fs.copyFileSync(subDbPath, dbPath);
           if (fs.existsSync(`${subDbPath}-wal`)) fs.copyFileSync(`${subDbPath}-wal`, `${dbPath}-wal`);
@@ -146,18 +250,20 @@ class LocalSqliteEngine {
         if (ownerSet && ownerSet.has(key)) {
           ownerSet.delete(key);
           this.activeClosingLocks.delete(key);
+          this.notifyLockWaiters();
           return 1;
         }
         if (owner === '__direct__') {
           this.activeClosingLocks.delete(key);
           for (const s of this.sessionLocksByOwner.values()) s.delete(key);
+          this.notifyLockWaiters();
           return 1;
         }
         return 0;
       });
       this.db.function('pg_try_advisory_xact_lock', { varargs: true }, (k1: any, k2: any) => {
         const key = k2 !== undefined && k2 !== null ? `${k1}:${k2}` : `${k1}`;
-        if (this.activeClosingLocks.has(key)) {
+        if (this.activeClosingLocks.has(key) || (this.sharedLockCounts.get(key) || 0) > 0) {
           return 0;
         }
         this.activeClosingLocks.add(key);
@@ -166,6 +272,40 @@ class LocalSqliteEngine {
           this.xactLocksByOwner.set(owner, new Set());
         }
         this.xactLocksByOwner.get(owner)!.add(key);
+        return 1;
+      });
+      this.db.function('pg_advisory_xact_lock_shared', { varargs: true }, (k1: any, k2: any) => {
+        const key = k2 !== undefined && k2 !== null ? `${k1}:${k2}` : `${k1}`;
+        const owner = this.currentQueryOwnerId || '__direct__';
+        if (this.isExclusivelyLockedByOther(key, owner)) {
+          const lockErr: any = new Error(`CONCURRENT_LOCK_CONFLICT: exclusive closing lock active for ${key}`);
+          lockErr.code = '55P03';
+          throw lockErr;
+        }
+        if (!this.sharedXactLocksByOwner.has(owner)) {
+          this.sharedXactLocksByOwner.set(owner, new Set());
+        }
+        const ownerSet = this.sharedXactLocksByOwner.get(owner)!;
+        if (!ownerSet.has(key)) {
+          ownerSet.add(key);
+          this.sharedLockCounts.set(key, (this.sharedLockCounts.get(key) || 0) + 1);
+        }
+        return 1;
+      });
+      this.db.function('pg_try_advisory_xact_lock_shared', { varargs: true }, (k1: any, k2: any) => {
+        const key = k2 !== undefined && k2 !== null ? `${k1}:${k2}` : `${k1}`;
+        const owner = this.currentQueryOwnerId || '__direct__';
+        if (this.isExclusivelyLockedByOther(key, owner)) {
+          return 0;
+        }
+        if (!this.sharedXactLocksByOwner.has(owner)) {
+          this.sharedXactLocksByOwner.set(owner, new Set());
+        }
+        const ownerSet = this.sharedXactLocksByOwner.get(owner)!;
+        if (!ownerSet.has(key)) {
+          ownerSet.add(key);
+          this.sharedLockCounts.set(key, (this.sharedLockCounts.get(key) || 0) + 1);
+        }
         return 1;
       });
       this.db.function('regexp_replace', { varargs: true }, (str: any, pat: any, rep: any, flags: any) => {
@@ -198,7 +338,7 @@ class LocalSqliteEngine {
 
       this.initTables();
       this.isReady = true;
-      console.log('[Contributors API] Local persistent SQLite database initialized successfully at data/contributors_local.sqlite');
+      console.log(`[Contributors API] Local persistent SQLite database initialized successfully at ${customSqlitePath ? dbPath : 'data/contributors_local.sqlite'}`);
     } catch (e: any) {
       try { this.db?.close(); } catch (_) {}
       this.db = null;
@@ -479,6 +619,9 @@ class LocalSqliteEngine {
         bank_id TEXT,
         year INTEGER NOT NULL,
         month INTEGER NOT NULL,
+        period_type TEXT DEFAULT 'monthly',
+        start_date TEXT,
+        end_date TEXT,
         status TEXT NOT NULL DEFAULT 'closed',
         closed_at TEXT NOT NULL DEFAULT (now()),
         closed_by TEXT,
@@ -887,6 +1030,12 @@ class LocalSqliteEngine {
         `);
       }
     } catch (_) {}
+    safeAdd('church_closings', "period_type TEXT DEFAULT 'monthly'");
+    safeAdd('church_closings', 'start_date TEXT');
+    safeAdd('church_closings', 'end_date TEXT');
+    try {
+      this.db?.exec('CREATE INDEX IF NOT EXISTS idx_church_closings_dates ON church_closings(church_id, start_date, end_date, status);');
+    } catch (_) {}
 
     safeAdd('learned_associations', 'normalized_description TEXT');
     safeAdd('learned_associations', 'contributor_normalized_name TEXT');
@@ -1088,7 +1237,7 @@ class LocalSqliteEngine {
       const rootDir = this.resolveRootAppDir();
       const subDbPath = path.resolve(rootDir, 'contributors-api', 'data', 'contributors_local.sqlite');
       const canonicalPath = path.resolve(rootDir, 'data', 'contributors_local.sqlite');
-      if (fs.existsSync(subDbPath) && fs.existsSync(canonicalPath) && subDbPath !== canonicalPath) {
+      if (!process.env.CONTRIBUTORS_SQLITE_PATH?.trim() && fs.existsSync(subDbPath) && fs.existsSync(canonicalPath) && subDbPath !== canonicalPath) {
         const { DatabaseSync: SubDbSync } = requireFallback('node:sqlite');
         const subDb = new SubDbSync(subDbPath);
         let mergeCompletedCleanly = true;
@@ -1208,33 +1357,47 @@ class LocalSqliteEngine {
 
     let s = sql.trim();
 
-    // Handle transaction control statements safely with per-owner advisory lock & SQLite transaction coordination
+    // Handle transaction control statements safely with serialized single-owner ACID SQLite transaction coordination
     const firstWord = s.split(/\s+/)[0].toUpperCase();
     if (firstWord === 'BEGIN' || firstWord === 'COMMIT' || firstWord === 'ROLLBACK') {
       if (firstWord === 'BEGIN') {
         const shouldBeginSqlite = this.activeSqlTxOwners.size === 0;
+        this.activeSqlTxOwner = ownerId;
         this.activeSqlTxOwners.add(ownerId);
         if (shouldBeginSqlite) {
           try {
             this.db.exec('BEGIN');
           } catch (tErr: any) {
             const isAlreadyActive = /within a transaction|cannot start a transaction/i.test(tErr?.message || '');
-            if (throwOnError && !isAlreadyActive) throw tErr;
+            if (throwOnError && !isAlreadyActive) {
+              this.activeSqlTxOwners.delete(ownerId);
+              if (this.activeSqlTxOwner === ownerId) {
+                this.activeSqlTxOwner = null;
+                this.drainTransactionQueue();
+              }
+              throw tErr;
+            }
           }
         }
       } else {
         this.releaseOwnerLocks(ownerId, false);
-        const wasOwnerInTx = this.activeSqlTxOwners.has(ownerId);
+        const wasOwnerInTx = this.activeSqlTxOwner === ownerId || this.activeSqlTxOwners.has(ownerId);
         this.activeSqlTxOwners.delete(ownerId);
-        if (this.activeSqlTxOwners.size === 0 && (wasOwnerInTx || ownerId === '__direct__')) {
+        const shouldExecSqliteEnd = (this.activeSqlTxOwner === ownerId || ownerId === '__direct__') && (wasOwnerInTx || ownerId === '__direct__');
+        let txEndErr: any = null;
+        if (shouldExecSqliteEnd) {
           try {
             this.db.exec(firstWord);
           } catch (tErr: any) {
-            // Se for ROLLBACK ou COMMIT sem transação ativa no SQLite, normaliza sem estourar exceção
             const isNoActiveTx = /cannot rollback|cannot commit|no transaction is active/i.test(tErr?.message || '');
-            if (throwOnError && !isNoActiveTx) throw tErr;
+            if (throwOnError && !isNoActiveTx) txEndErr = tErr;
           }
         }
+        if (this.activeSqlTxOwner === ownerId) {
+          this.activeSqlTxOwner = null;
+          this.drainTransactionQueue();
+        }
+        if (txEndErr) throw txEndErr;
       }
       return { rows: [], rowCount: 0, command: firstWord, oid: 0, fields: [] };
     }
@@ -2235,11 +2398,25 @@ class SmartPool {
       this.handlePoolError('conexão', err);
     }
 
-    // Return virtual resilient client backed by Local SQLite with isolated ownerId
+    // Return virtual resilient client backed by Local SQLite with isolated ownerId & serialized ACID transactions
     const self = this;
     const virtualClientId = `vc-${++this.virtualClientSeq}`;
     const virtualClient: any = {
       query: async (sql: string, params?: any[]) => {
+        const trimmed = String(sql || '').trim();
+        const firstWord = trimmed.split(/\s+/)[0]?.toUpperCase() || '';
+        if (firstWord === 'BEGIN') {
+          await self.localEngine.acquireTransactionSlot(virtualClientId);
+          try {
+            return self.localEngine.query(sql, params, true, virtualClientId);
+          } catch (beginErr) {
+            self.localEngine.releaseTransactionSlot(virtualClientId);
+            throw beginErr;
+          }
+        }
+        if (/pg_advisory_xact_lock_shared/i.test(trimmed)) {
+          await self.localEngine.waitForSharedAdvisoryLock(params?.[0], params?.[1], virtualClientId);
+        }
         return self.localEngine.query(sql, params, true, virtualClientId);
       },
       release: () => {
@@ -2510,12 +2687,15 @@ class SmartPool {
           await runIsolatedRow('church_closings', row.id, async () => {
             await client.query(`
               INSERT INTO church_closings (
-                id, church_id, bank_id, year, month, status, closed_at, closed_by, 
+                id, church_id, bank_id, year, month, period_type, start_date, end_date, status, closed_at, closed_by, 
                 total_income, total_expenses, final_balance, transferred_balance, 
                 target_church_id, target_church_name, integrity_hash, signatures, notes, updated_at
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
               ON CONFLICT (id) DO UPDATE SET
                 status = CASE WHEN EXCLUDED.updated_at >= COALESCE(church_closings.updated_at, to_timestamp(0)) THEN EXCLUDED.status ELSE church_closings.status END,
+                period_type = CASE WHEN EXCLUDED.updated_at >= COALESCE(church_closings.updated_at, to_timestamp(0)) THEN COALESCE(EXCLUDED.period_type, church_closings.period_type, 'monthly') ELSE church_closings.period_type END,
+                start_date = CASE WHEN EXCLUDED.updated_at >= COALESCE(church_closings.updated_at, to_timestamp(0)) THEN EXCLUDED.start_date ELSE church_closings.start_date END,
+                end_date = CASE WHEN EXCLUDED.updated_at >= COALESCE(church_closings.updated_at, to_timestamp(0)) THEN EXCLUDED.end_date ELSE church_closings.end_date END,
                 bank_id = EXCLUDED.bank_id,
                 closed_at = EXCLUDED.closed_at,
                 closed_by = EXCLUDED.closed_by,
@@ -2535,6 +2715,9 @@ class SmartPool {
               row.bank_id || null,
               Number(row.year),
               Number(row.month),
+              row.period_type || 'monthly',
+              row.start_date || null,
+              row.end_date || null,
               row.status || 'closed',
               row.closed_at ? new Date(row.closed_at) : new Date(),
               row.closed_by || null,
@@ -4005,6 +4188,9 @@ async function runPostgresMigrations(): Promise<boolean> {
         church_id VARCHAR(255) NOT NULL,
         year INT NOT NULL,
         month INT NOT NULL,
+        period_type VARCHAR(20) DEFAULT 'monthly',
+        start_date VARCHAR(10),
+        end_date VARCHAR(10),
         status VARCHAR(50) NOT NULL DEFAULT 'closed',
         closed_at TIMESTAMP NOT NULL DEFAULT NOW(),
         closed_by VARCHAR(255),
@@ -4027,6 +4213,9 @@ async function runPostgresMigrations(): Promise<boolean> {
     await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS church_id VARCHAR(255);');
     await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS year INT;');
     await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS month INT;');
+    await client.query("ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS period_type VARCHAR(20) DEFAULT 'monthly';");
+    await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS start_date VARCHAR(10);');
+    await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS end_date VARCHAR(10);');
     await client.query("ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'closed';");
     await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP DEFAULT NOW();');
     await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS closed_by VARCHAR(255);');
@@ -4042,6 +4231,7 @@ async function runPostgresMigrations(): Promise<boolean> {
     await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();');
     await client.query('ALTER TABLE church_closings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();');
     await client!.query('CREATE INDEX IF NOT EXISTS idx_church_closings_lookup ON church_closings(church_id, year, month, status);');
+    await client!.query('CREATE INDEX IF NOT EXISTS idx_church_closings_dates ON church_closings(church_id, start_date, end_date, status);');
     console.log('[Contributors API] Table "church_closings" verified or successfully created.');
     });
 
@@ -8202,6 +8392,65 @@ app.put('/api/v1/contributors/:id', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * 🛡️ AUD-04: Impede exclusão física de contribuinte (e consequente SET contributor_id = NULL)
+ * quando existir lançamento confirmado ou dentro de período fechado vinculado (fail-closed 503).
+ */
+async function assertContributorHardDeleteAllowed(
+  clientOrPool: any,
+  contributorId: string
+): Promise<{ blocked: boolean; statusCode?: number; error?: string; message?: string }> {
+  try {
+    const linkedRes = await clientOrPool.query(
+      `SELECT id, church_id, bank_id, is_confirmed, reference_date, transaction_date, source, row_hash
+       FROM consolidated_transactions
+       WHERE contributor_id::text = $1`,
+      [String(contributorId)]
+    );
+    const linkedRows = linkedRes.rows || [];
+    const seenPeriodChecks = new Set<string>();
+
+    for (const tx of linkedRows) {
+      if (isTruthyDbBool(tx.is_confirmed) || isForgedOrProtectedClosingTx(tx)) {
+        return {
+          blocked: true,
+          statusCode: 422,
+          error: 'CONTRIBUTOR_HAS_CONFIRMED_TRANSACTIONS',
+          message: 'EXCLUSÃO BLOQUEADA: Este contribuinte possui lançamentos com Confirmação Final vinculados. Desative o cadastro (exclusão lógica) ou reabra o período antes de excluir permanentemente.'
+        };
+      }
+      if (!isRealChurchId(tx.church_id)) continue;
+      const dates = [tx.reference_date, tx.transaction_date]
+        .map((d) => normalizeIsoDateOnly(d))
+        .filter((d): d is string => Boolean(d));
+      const bankKey = tx.bank_id && tx.bank_id !== 'all' ? String(tx.bank_id) : 'all';
+      for (const isoDate of dates) {
+        const key = `${tx.church_id}|${bankKey}|${isoDate}`;
+        if (seenPeriodChecks.has(key)) continue;
+        seenPeriodChecks.add(key);
+        const periodCheck = await isChurchPeriodClosed(clientOrPool, tx.church_id, isoDate, tx.bank_id, false);
+        if (periodCheck.isClosed) {
+          return {
+            blocked: true,
+            statusCode: 422,
+            error: 'PERIOD_CLOSED',
+            message: `EXCLUSÃO BLOQUEADA: Este contribuinte possui lançamentos vinculados em período fechado (${periodCheck.message || 'período congelado'}). Desative o cadastro ou reabra o período antes de excluir permanentemente.`
+          };
+        }
+      }
+    }
+    return { blocked: false };
+  } catch (err: any) {
+    console.error('[Contributors API] Erro fail-closed ao verificar integridade de exclusão de contribuinte:', err?.message || err);
+    return {
+      blocked: true,
+      statusCode: 503,
+      error: 'LOCK_VERIFICATION_UNAVAILABLE',
+      message: 'Não foi possível verificar lançamentos confirmados ou fechados vinculados ao contribuinte. Operação cancelada por segurança.'
+    };
+  }
+}
+
 // DELETE /api/v1/contributors/:id
 app.delete('/api/v1/contributors/:id', async (req: Request, res: Response) => {
   try {
@@ -8247,6 +8496,15 @@ app.delete('/api/v1/contributors/:id', async (req: Request, res: Response) => {
 
     let result;
     if (hardDelete) {
+      // 🛡️ AUD-04: Bloqueia exclusão física se houver lançamentos confirmados ou em período fechado
+      const deleteGuard = await assertContributorHardDeleteAllowed(pool, id);
+      if (deleteGuard.blocked) {
+        return res.status(deleteGuard.statusCode || 422).json({
+          error: deleteGuard.error,
+          message: deleteGuard.message
+        });
+      }
+
       // 1. Unlink in consolidated_transactions inside PostgreSQL VPS
       await pool.query(
         "UPDATE consolidated_transactions SET contributor_id = NULL WHERE contributor_id::text = $1",
@@ -8351,15 +8609,25 @@ app.post('/api/v1/contributors/cleanup-invalids', async (req: Request, res: Resp
       }
     }
     let removedCount = 0;
+    let skippedProtectedCount = 0;
     for (const badId of invalidIds) {
+      // 🛡️ AUD-04: Nunca desvincular/excluir contribuinte ligado a lançamento confirmado ou período fechado
+      const guard = await assertContributorHardDeleteAllowed(pool, String(badId));
+      if (guard.blocked) {
+        if (guard.statusCode === 503) {
+          return res.status(503).json({ error: guard.error, message: guard.message });
+        }
+        skippedProtectedCount++;
+        continue;
+      }
       try {
-        await pool.query("UPDATE consolidated_transactions SET contributor_id = NULL WHERE contributor_id = $1", [badId]);
+        await pool.query("UPDATE consolidated_transactions SET contributor_id = NULL WHERE contributor_id::text = $1", [String(badId)]);
         await pool.query("DELETE FROM contributors WHERE id = $1", [badId]);
         removedCount++;
       } catch (_) {}
     }
-    console.log(`[Contributors API] Limpeza de inválidos via API executada: ${removedCount} registros removidos.`);
-    return res.json({ success: true, removedCount });
+    console.log(`[Contributors API] Limpeza de inválidos via API executada: ${removedCount} removidos, ${skippedProtectedCount} protegidos preservados.`);
+    return res.json({ success: true, removedCount, skippedProtectedCount });
   } catch (err: any) {
     console.error('[Contributors API] Error during cleanup-invalids:', err);
     return res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Erro ao limpar cadastros incompletos.' });
@@ -9023,6 +9291,38 @@ app.delete('/api/v1/banks/:id', async (req: Request, res: Response) => {
       if (!oldBank.user_id || !ownerUserIds.includes(String(oldBank.user_id))) {
         return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o recurso pertence a outro usuário.' });
       }
+    }
+
+    // 🛡️ AUD-04 (D-2 A): Bloqueia exclusão de conta bancária com histórico de fechamento ou lançamentos confirmados/de fechamento
+    try {
+      const bankClosingsRes = await pool.query(
+        'SELECT id FROM church_closings WHERE bank_id::text = $1 LIMIT 1',
+        [String(id)]
+      );
+      if (bankClosingsRes.rows.length > 0) {
+        return res.status(422).json({
+          error: 'BANK_HAS_CLOSINGS',
+          message: 'EXCLUSÃO BLOQUEADA: Esta conta bancária possui histórico de Fechamento de Livro Caixa registrado e não pode ser excluída.'
+        });
+      }
+      const bankConfirmedTxRes = await pool.query(
+        `SELECT id FROM consolidated_transactions
+         WHERE bank_id::text = $1 AND (is_confirmed = $2 OR COALESCE(source, '') = 'closing')
+         LIMIT 1`,
+        [String(id), true]
+      );
+      if (bankConfirmedTxRes.rows.length > 0) {
+        return res.status(422).json({
+          error: 'BANK_HAS_CONFIRMED_TRANSACTIONS',
+          message: 'EXCLUSÃO BLOQUEADA: Esta conta bancária possui lançamentos com Confirmação Final ou de fechamento vinculados e não pode ser excluída.'
+        });
+      }
+    } catch (lockErr: any) {
+      console.error('[Banks API] Erro fail-closed ao verificar integridade antes da exclusão do banco:', lockErr?.message || lockErr);
+      return res.status(503).json({
+        error: 'LOCK_VERIFICATION_UNAVAILABLE',
+        message: 'Não foi possível verificar fechamentos ou lançamentos confirmados vinculados à conta bancária. Operação cancelada por segurança.'
+      });
     }
 
     const rawOldVersion = Number(oldBank.version);
@@ -10493,6 +10793,53 @@ app.delete('/api/v1/churches/:id', async (req: Request, res: Response) => {
       }
     }
 
+    // 🛡️ AUD-04 (D-2 A): Bloqueia exclusão de congregação com histórico de fechamento ou lançamentos confirmados/rateios confirmados
+    try {
+      const churchClosingsRes = await pool.query(
+        'SELECT id FROM church_closings WHERE church_id::text = $1 LIMIT 1',
+        [String(id)]
+      );
+      if (churchClosingsRes.rows.length > 0) {
+        return res.status(422).json({
+          error: 'CHURCH_HAS_CLOSINGS',
+          message: 'EXCLUSÃO BLOQUEADA: Esta congregação possui histórico de Fechamento de Livro Caixa registrado e não pode ser excluída.'
+        });
+      }
+      const churchConfirmedTxRes = await pool.query(
+        `SELECT id FROM consolidated_transactions
+         WHERE church_id::text = $1 AND (is_confirmed = $2 OR COALESCE(source, '') = 'closing')
+         LIMIT 1`,
+        [String(id), true]
+      );
+      if (churchConfirmedTxRes.rows.length > 0) {
+        return res.status(422).json({
+          error: 'CHURCH_HAS_CONFIRMED_TRANSACTIONS',
+          message: 'EXCLUSÃO BLOQUEADA: Esta congregação possui lançamentos com Confirmação Final ou de fechamento vinculados e não pode ser excluída.'
+        });
+      }
+      const splitConfirmedRes = await pool.query(
+        `SELECT id, splits FROM consolidated_transactions
+         WHERE is_confirmed = $1 AND splits IS NOT NULL AND splits::text LIKE $2
+         LIMIT 20`,
+        [true, `%${String(id)}%`]
+      );
+      const hasConfirmedSplit = (splitConfirmedRes.rows || []).some((r: any) =>
+        extractSplitChurchIds(r.splits).includes(String(id))
+      );
+      if (hasConfirmedSplit) {
+        return res.status(422).json({
+          error: 'CHURCH_HAS_CONFIRMED_TRANSACTIONS',
+          message: 'EXCLUSÃO BLOQUEADA: Esta congregação participa de lançamentos rateados com Confirmação Final e não pode ser excluída.'
+        });
+      }
+    } catch (lockErr: any) {
+      console.error('[Churches API] Erro fail-closed ao verificar integridade antes da exclusão da congregação:', lockErr?.message || lockErr);
+      return res.status(503).json({
+        error: 'LOCK_VERIFICATION_UNAVAILABLE',
+        message: 'Não foi possível verificar fechamentos ou lançamentos confirmados vinculados à congregação. Operação cancelada por segurança.'
+      });
+    }
+
     const result = await pool.query('DELETE FROM churches WHERE id = $1 RETURNING id', [id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
 
@@ -10751,6 +11098,133 @@ app.get('/api/v1/saved_reports', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * 🛡️ AUD-04 (D-1 A): Protege relatórios explicitamente salvos (name != '[SESSÃO_ATIVA]')
+ * contra sobrescrita/alteração/exclusão quando possuírem lançamentos confirmados ou em período fechado,
+ * preservando o auto-save operacional da '[SESSÃO_ATIVA]' em POST/PUT.
+ */
+async function assertSavedReportWritable(
+  clientOrPool: any,
+  existingReport: any,
+  actionVerb: 'sobrescrever' | 'alterar' | 'excluir',
+  checkDbEvenIfLiveSession: boolean = false
+): Promise<{ blocked: boolean; statusCode?: number; error?: string; message?: string }> {
+  const reportId = String(existingReport?.id || '');
+  const isLiveSession = String(existingReport?.name || '').trim() === '[SESSÃO_ATIVA]';
+  if (isLiveSession && !checkDbEvenIfLiveSession) {
+    return { blocked: false };
+  }
+
+  try {
+    // 1. Verifica lançamentos vinculados no banco de dados (report_id)
+    const linkedTxsRes = await clientOrPool.query(
+      `SELECT id, church_id, bank_id, is_confirmed, reference_date, transaction_date
+       FROM consolidated_transactions
+       WHERE report_id::text = $1`,
+      [reportId]
+    );
+    const linkedTxs = linkedTxsRes.rows || [];
+    const seenPeriods = new Set<string>();
+
+    for (const tx of linkedTxs) {
+      if (isTruthyDbBool(tx.is_confirmed)) {
+        return {
+          blocked: true,
+          statusCode: 422,
+          error: 'REPORT_HAS_CONFIRMED_TRANSACTIONS',
+          message: `RELATÓRIO PROTEGIDO: Este relatório possui lançamentos com Confirmação Final. Desbloqueie os lançamentos ou reabra o período antes de ${actionVerb} o relatório.`
+        };
+      }
+      if (!isLiveSession && isRealChurchId(tx.church_id)) {
+        const dates = [tx.reference_date, tx.transaction_date]
+          .map((d) => normalizeIsoDateOnly(d))
+          .filter((d): d is string => Boolean(d));
+        const bKey = tx.bank_id && tx.bank_id !== 'all' ? String(tx.bank_id) : 'all';
+        for (const isoDate of dates) {
+          const pKey = `${tx.church_id}|${bKey}|${isoDate}`;
+          if (seenPeriods.has(pKey)) continue;
+          seenPeriods.add(pKey);
+          const pCheck = await isChurchPeriodClosed(clientOrPool, tx.church_id, isoDate, tx.bank_id, false);
+          if (pCheck.isClosed) {
+            return {
+              blocked: true,
+              statusCode: 422,
+              error: 'PERIOD_CLOSED',
+              message: `RELATÓRIO PROTEGIDO: Este relatório possui lançamentos em período fechado. Reabra o período antes de ${actionVerb} o relatório.`
+            };
+          }
+        }
+      }
+    }
+
+    // 2. Para relatórios explicitamente salvos, inspeciona também o snapshot JSON persistido (existingReport.data)
+    if (!isLiveSession && existingReport?.data) {
+      let parsed: any = existingReport.data;
+      if (typeof parsed === 'string') {
+        try {
+          parsed = JSON.parse(parsed);
+        } catch (_) {
+          parsed = null;
+        }
+      }
+      const items: any[] = Array.isArray(parsed)
+        ? parsed
+        : (Array.isArray(parsed?.results)
+          ? parsed.results
+          : (Array.isArray(parsed?.matchResults) ? parsed.matchResults : []));
+
+      for (const item of items) {
+        if (!item || typeof item !== 'object') continue;
+        if (item.isConfirmed === true || item.is_confirmed === true || item.transaction?.isConfirmed === true || item.transaction?.is_confirmed === true) {
+          return {
+            blocked: true,
+            statusCode: 422,
+            error: 'REPORT_HAS_CONFIRMED_TRANSACTIONS',
+            message: `RELATÓRIO PROTEGIDO: Este relatório salvo contém lançamentos com Confirmação Final e não pode ser alterado ou excluído. Salve como novo relatório ou desbloqueie os lançamentos antes de ${actionVerb}.`
+          };
+        }
+        const cId = item.church?.id || item._churchId || item.church_id || item.churchId || existingReport.church_id || null;
+        if (!isRealChurchId(cId)) continue;
+        const bId = item.transaction?.bank_id || item.transaction?.bankId || item.bankId || item.bank_id || null;
+        const bKey = bId && bId !== 'all' ? String(bId) : 'all';
+        const rawDates = [
+          item.contributor?.reference_date,
+          item.reference_date,
+          item.transaction?.reference_date,
+          item.transaction?.date,
+          item.date
+        ];
+        for (const rd of rawDates) {
+          const isoDate = normalizeIsoDateOnly(rd);
+          if (!isoDate) continue;
+          const pKey = `${cId}|${bKey}|${isoDate}`;
+          if (seenPeriods.has(pKey)) continue;
+          seenPeriods.add(pKey);
+          const pCheck = await isChurchPeriodClosed(clientOrPool, String(cId), isoDate, bId, false);
+          if (pCheck.isClosed) {
+            return {
+              blocked: true,
+              statusCode: 422,
+              error: 'PERIOD_CLOSED',
+              message: `RELATÓRIO PROTEGIDO: Este relatório salvo contém registros de período fechado e não pode ser alterado ou excluído. Reabra o período antes de ${actionVerb}.`
+            };
+          }
+        }
+      }
+    }
+
+    return { blocked: false };
+  } catch (lockErr: any) {
+    console.error('[SavedReports] Erro fail-closed ao verificar integridade do relatório:', lockErr?.message || lockErr);
+    return {
+      blocked: true,
+      statusCode: 503,
+      error: 'LOCK_VERIFICATION_UNAVAILABLE',
+      message: 'Não foi possível verificar lançamentos confirmados ou fechados vinculados ao relatório. Operação cancelada por segurança.'
+    };
+  }
+}
+
 // POST /api/v1/saved_reports
 app.post('/api/v1/saved_reports', async (req: Request, res: Response) => {
   try {
@@ -10796,6 +11270,32 @@ app.post('/api/v1/saved_reports', async (req: Request, res: Response) => {
 
     const finalId = id || undefined;
     const finalData = typeof data === 'string' ? data : JSON.stringify(data);
+
+    // 🛡️ AUD-04 (D-1 A): Antes de ON CONFLICT (id) DO UPDATE, valida titularidade e imutabilidade de relatório existente
+    if (finalId) {
+      const existingRepRes = await pool.query('SELECT * FROM saved_reports WHERE id::text = $1 LIMIT 1', [String(finalId)]);
+      const existingRep = existingRepRes.rows[0] || null;
+      if (existingRep) {
+        if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
+          if (existingRep.user_id && existingRep.user_id !== ctx.userId && existingRep.user_id !== ctx.ownerId) {
+            return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o relatório pertence a outro usuário.' });
+          }
+        }
+        if (ctx.isSecondaryUser && existingRep.church_id) {
+          if (!ctx.allowedChurchIds || !ctx.allowedChurchIds.includes(existingRep.church_id)) {
+            return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o relatório pertence a uma congregação não autorizada.' });
+          }
+        }
+        const repGuard = await assertSavedReportWritable(pool, existingRep, 'sobrescrever');
+        if (repGuard.blocked) {
+          return res.status(repGuard.statusCode || 422).json({
+            error: repGuard.error,
+            message: repGuard.message
+          });
+        }
+      }
+    }
+
     let result;
     if (finalId) {
       result = await pool.query(
@@ -10875,6 +11375,15 @@ app.put('/api/v1/saved_reports/:id', async (req: Request, res: Response) => {
           return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: congregação não pertence à sua organização.' });
         }
       }
+    }
+
+    // 🛡️ AUD-04 (D-1 A): Protege relatórios salvos (name != '[SESSÃO_ATIVA]') com itens confirmados ou período fechado
+    const putReportGuard = await assertSavedReportWritable(pool, oldReport, 'alterar');
+    if (putReportGuard.blocked) {
+      return res.status(putReportGuard.statusCode || 422).json({
+        error: putReportGuard.error,
+        message: putReportGuard.message
+      });
     }
 
     let query = 'UPDATE saved_reports SET ';
@@ -10958,6 +11467,15 @@ app.delete('/api/v1/saved_reports/:id', async (req: Request, res: Response) => {
       }
     }
 
+    // 🛡️ Proteção de Relatórios com Lançamentos Confirmados ou Período Fechado (Bypass I + AUD-04 D-1 A)
+    const delReportGuard = await assertSavedReportWritable(pool, oldReport, 'excluir', true);
+    if (delReportGuard.blocked) {
+      return res.status(delReportGuard.statusCode || 422).json({
+        error: delReportGuard.error,
+        message: delReportGuard.message
+      });
+    }
+
     const result = await pool.query('DELETE FROM saved_reports WHERE id = $1 RETURNING id', [id]);
     try {
       await logAudit(pool, {
@@ -11033,16 +11551,49 @@ async function matchAndLinkContributionRequest(clientOrPool: any, tx: {
       );
 
       // If the matched request has splits and tx.id is known, copy splits to consolidated_transactions
+      // 🛡️ Guard (Bypass F): nunca mutar transação já confirmada, perna de fechamento ou período/dia bloqueado
       if (tx.id && matchedReq.splits) {
         try {
-          const splitsVal = typeof matchedReq.splits === 'string' ? matchedReq.splits : JSON.stringify(matchedReq.splits);
-          await clientOrPool.query(
-            `UPDATE consolidated_transactions 
-             SET splits = COALESCE(splits, $1::jsonb),
-                 contribution_request_id = $2
-             WHERE id = $3`,
-            [splitsVal, matchedReqId, tx.id]
+          const txStateRes = await clientOrPool.query(
+            `SELECT id, is_confirmed, source, row_hash, church_id, reference_date, transaction_date, bank_id
+             FROM consolidated_transactions
+             WHERE id::text = $1 LIMIT 1`,
+            [String(tx.id)]
           );
+          const existingTx = txStateRes.rows?.[0] || null;
+          let allowMutation = true;
+          if (existingTx) {
+            if (isTruthyDbBool(existingTx.is_confirmed) || isForgedOrProtectedClosingTx(existingTx)) {
+              allowMutation = false;
+            } else {
+              const datesToCheck = [existingTx.reference_date, existingTx.transaction_date];
+              const txGuard = await assertWritablePeriodAndDate(clientOrPool, {
+                churchId: existingTx.church_id || tx.church_id,
+                dates: datesToCheck,
+                bankId: existingTx.bank_id,
+                excludeTxId: String(existingTx.id),
+                actionContext: 'update'
+              });
+              if (txGuard.blocked) {
+                allowMutation = false;
+              } else {
+                const splitGuard = await assertSplitsWritable(clientOrPool, matchedReq.splits, datesToCheck, existingTx.bank_id, String(existingTx.id));
+                if (splitGuard.blocked) {
+                  allowMutation = false;
+                }
+              }
+            }
+          }
+          if (allowMutation) {
+            const splitsVal = typeof matchedReq.splits === 'string' ? matchedReq.splits : JSON.stringify(matchedReq.splits);
+            await clientOrPool.query(
+              `UPDATE consolidated_transactions 
+               SET splits = COALESCE(splits, $1::jsonb),
+                   contribution_request_id = $2
+               WHERE id::text = $3`,
+              [splitsVal, matchedReqId, String(tx.id)]
+            );
+          }
         } catch (_) {}
       }
 
@@ -11057,8 +11608,57 @@ async function matchAndLinkContributionRequest(clientOrPool: any, tx: {
 }
 
 /**
- * 🛡️ BLINDAGEM DE FECHAMENTO FINAL:
- * Verifica se um determinado período contábil (mês/ano) de uma congregação
+ * 🛡️ ERRO FAIL-CLOSED DE VERIFICAÇÃO DE BLOQUEIO (503)
+ * Nunca permitir gravação quando não for possível consultar bloqueios no banco.
+ */
+class LockVerificationUnavailableError extends Error {
+  public readonly statusCode = 503;
+  public readonly code = 'LOCK_VERIFICATION_UNAVAILABLE';
+  constructor(message: string, public readonly cause?: unknown) {
+    super(message);
+    this.name = 'LockVerificationUnavailableError';
+  }
+}
+
+function handleLockVerificationError(res: Response, err: unknown): boolean {
+  if (err instanceof LockVerificationUnavailableError) {
+    res.status(503).json({
+      error: err.code,
+      message: err.message
+    });
+    return true;
+  }
+  return false;
+}
+
+function isForgedOrProtectedClosingTx(tx: { source?: any; id?: any; row_hash?: any } | null | undefined): boolean {
+  if (!tx) return false;
+  return tx.source === 'closing' ||
+    (Boolean(tx.id) && String(tx.id).startsWith('closing-')) ||
+    (Boolean(tx.row_hash) && String(tx.row_hash).startsWith('closing-'));
+}
+
+function isRealChurchId(churchId: any): churchId is string {
+  if (!churchId) return false;
+  const normalized = String(churchId).trim();
+  return normalized !== '' && normalized !== 'unidentified' && normalized !== 'geral';
+}
+
+function isTruthyDbBool(val: any): boolean {
+  return val === true || val === 1 || val === 'true' || val === '1';
+}
+
+function formatIsoDateToBr(dateStr: string): string {
+  const parts = String(dateStr || '').split('-');
+  if (parts.length >= 3) {
+    return `${parts[2].substring(0, 2)}/${parts[1].substring(0, 2)}/${parts[0]}`;
+  }
+  return dateStr;
+}
+
+/**
+ * 🛡️ BLINDAGEM DE FECHAMENTO FINAL (FAIL-CLOSED + MENSAL + PERSONALIZADO):
+ * Verifica se um determinado período contábil (mês/ano ou intervalo personalizado) de uma congregação
  * já teve seu Fechamento Final homologado e está congelado contra novas inserções, edições ou exclusões.
  */
 async function isChurchPeriodClosed(
@@ -11067,15 +11667,25 @@ async function isChurchPeriodClosed(
   dateInput: string | Date | null | undefined,
   bankId?: string | null | undefined,
   isClosingTx?: boolean
-): Promise<{ isClosed: boolean; churchId?: string; year?: number; month?: number; message?: string }> {
+): Promise<{
+  isClosed: boolean;
+  churchId?: string;
+  year?: number;
+  month?: number;
+  periodType?: string;
+  startDate?: string | null;
+  endDate?: string | null;
+  closingId?: string;
+  message?: string;
+}> {
   if (isClosingTx) {
     return { isClosed: false };
   }
-  if (!churchId || !dateInput || churchId === 'unidentified' || churchId === 'geral') {
+  if (!isRealChurchId(churchId) || !dateInput) {
     return { isClosed: false };
   }
 
-  let dateStr = typeof dateInput === 'string' ? dateInput : (dateInput as Date).toISOString();
+  let dateStr = typeof dateInput === 'string' ? dateInput.trim() : (dateInput as Date).toISOString();
   dateStr = dateStr.split(/[T ]/)[0];
   const parts = dateStr.split('-');
   if (parts.length < 2) {
@@ -11087,12 +11697,23 @@ async function isChurchPeriodClosed(
   if (isNaN(year) || isNaN(month)) {
     return { isClosed: false };
   }
+  const isoDay = parts.length >= 3 && /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? dateStr : null;
 
   try {
-    let query = `SELECT id, church_id, bank_id, year, month, status, closed_at 
-       FROM church_closings 
-       WHERE church_id::text = $1 AND year = $2 AND month = $3 AND status != 'reopened'`;
+    let query = `
+      SELECT id, church_id, bank_id, year, month, period_type, start_date, end_date, status, closed_at
+      FROM church_closings
+      WHERE church_id::text = $1
+        AND status != 'reopened'
+        AND (
+          (year = $2 AND month = $3 AND (period_type IS NULL OR period_type != 'custom'))`;
     const params: any[] = [String(churchId), year, month];
+
+    if (isoDay) {
+      query += ` OR (start_date IS NOT NULL AND end_date IS NOT NULL AND start_date <= $${params.length + 1} AND end_date >= $${params.length + 2})`;
+      params.push(isoDay, isoDay);
+    }
+    query += `)`;
 
     if (bankId && bankId !== 'all') {
       query += ` AND (bank_id IS NULL OR bank_id = '' OR bank_id = 'all' OR bank_id::text = $${params.length + 1})`;
@@ -11104,20 +11725,403 @@ async function isChurchPeriodClosed(
     const res = await clientOrPool.query(query, params);
 
     if (res.rows && res.rows.length > 0) {
-      const mStr = String(month).padStart(2, '0');
+      const row = res.rows[0];
+      const effYear = Number(row.year) || year;
+      const effMonth = Number(row.month) || month;
+      const mStr = String(effMonth).padStart(2, '0');
+      const isCustom = row.period_type === 'custom' && row.start_date && row.end_date;
+      const periodLabel = isCustom
+        ? `${formatIsoDateToBr(String(row.start_date))} a ${formatIsoDateToBr(String(row.end_date))}`
+        : `${mStr}/${effYear}`;
       return {
         isClosed: true,
         churchId: String(churchId),
-        year,
-        month,
-        message: `PERÍODO CONGELADO: O período ${mStr}/${year} desta congregação já teve seu Fechamento Final homologado. Novos lançamentos, alterações ou exclusões estão expressamente bloqueados.`
+        year: effYear,
+        month: effMonth,
+        periodType: row.period_type || 'monthly',
+        startDate: row.start_date || null,
+        endDate: row.end_date || null,
+        closingId: row.id ? String(row.id) : undefined,
+        message: `PERÍODO CONGELADO: O período ${periodLabel} desta congregação já teve seu Fechamento Final homologado. Novos lançamentos, alterações ou exclusões estão expressamente bloqueados.`
       };
     }
   } catch (err: any) {
-    console.error('[ChurchClosings] Erro ao consultar status do fechamento:', err?.message || err);
+    console.error('[ChurchClosings] Erro crítico (fail-closed) ao consultar status do fechamento:', err?.message || err);
+    throw new LockVerificationUnavailableError(
+      'Não foi possível verificar o status de fechamento do período no banco de dados. Operação bloqueada por segurança.',
+      err
+    );
   }
 
   return { isClosed: false };
+}
+
+/**
+ * 🛡️ DECISÃO 1 + P2-A (BLOQUEIO POR DIA + IGREJA EM TODAS AS CONTAS — FAIL-CLOSED):
+ * Verifica se já existe ao menos 1 lançamento operacional com Confirmação Final (is_confirmed = true)
+ * na combinação exata (Data do lançamento, Igreja), independente da conta bancária (P2-A).
+ */
+async function isChurchDayConfirmed(
+  clientOrPool: any,
+  churchId: string | null | undefined,
+  dateInput: string | Date | null | undefined,
+  excludeTxId?: string | null
+): Promise<{
+  isLocked: boolean;
+  code?: 'DAY_CONFIRMED_LOCKED';
+  churchId?: string;
+  date?: string;
+  blockingTxId?: string;
+  message?: string;
+}> {
+  if (!isRealChurchId(churchId) || !dateInput) {
+    return { isLocked: false };
+  }
+
+  const dateStr = normalizeIsoDateOnly(dateInput);
+  if (!dateStr) {
+    return { isLocked: false };
+  }
+
+  try {
+    let query = `
+      SELECT id
+      FROM consolidated_transactions
+      WHERE church_id::text = $1
+        AND is_confirmed = $2
+        AND COALESCE(source, '') != 'closing'
+        AND id::text NOT LIKE 'closing-%'
+        AND (row_hash IS NULL OR row_hash NOT LIKE 'closing-%')
+        AND SUBSTR(COALESCE(NULLIF(TRIM(reference_date::text), ''), transaction_date::text), 1, 10) = $3`;
+    const params: any[] = [String(churchId), true, dateStr];
+
+    if (excludeTxId) {
+      query += ` AND id::text != $${params.length + 1}`;
+      params.push(String(excludeTxId));
+    }
+
+    query += ' LIMIT 1';
+
+    const res = await clientOrPool.query(query, params);
+    if (res.rows && res.rows.length > 0) {
+      const brDate = formatIsoDateToBr(dateStr);
+      return {
+        isLocked: true,
+        code: 'DAY_CONFIRMED_LOCKED',
+        churchId: String(churchId),
+        date: dateStr,
+        blockingTxId: String(res.rows[0].id),
+        message: `DIA CONFIRMADO: A data ${brDate} desta congregação já possui lançamento com Confirmação Final. Novos lançamentos, alterações ou exclusões nesta data e congregação estão bloqueados.`
+      };
+    }
+  } catch (err: any) {
+    console.error('[ConfirmFinalLock] Erro crítico (fail-closed) ao verificar dia confirmado:', err?.message || err);
+    throw new LockVerificationUnavailableError(
+      'Não foi possível verificar o bloqueio de Confirmação Final no banco de dados. Operação bloqueada por segurança.',
+      err
+    );
+  }
+
+  return { isLocked: false };
+}
+
+interface WritableGuardResult {
+  blocked: boolean;
+  statusCode?: number;
+  error?: 'PERIOD_CLOSED' | 'DAY_CONFIRMED_LOCKED';
+  message?: string;
+  churchId?: string;
+  year?: number;
+  month?: number;
+  date?: string;
+  closingId?: string;
+}
+
+/**
+ * 🛡️ GUARDIÃO UNIFICADO DE IMUTABILIDADE (Etapa 3):
+ * Valida TODAS as datas fornecidas (reference_date E transaction_date — fecha Bypass C)
+ * contra Fechamento do Livro Caixa (Decisão 2) e Dia Confirmado (Decisão 1 + P2-A).
+ */
+async function assertWritablePeriodAndDate(
+  clientOrPool: any,
+  opts: {
+    churchId: string | null | undefined;
+    dates: Array<string | Date | null | undefined>;
+    bankId?: string | null | undefined;
+    excludeTxId?: string | null;
+    checkDayConfirmed?: boolean;
+    actionContext?: 'create' | 'update' | 'delete' | 'split';
+  }
+): Promise<WritableGuardResult> {
+  if (!isRealChurchId(opts.churchId)) {
+    return { blocked: false };
+  }
+
+  const normalizedDates = Array.from(
+    new Set(
+      (opts.dates || [])
+        .map((d) => {
+          const iso = normalizeIsoDateOnly(d);
+          if (iso) return iso;
+          if (typeof d === 'string' && /^\d{4}-\d{2}/.test(d.trim())) return d.trim().substring(0, 7);
+          return null;
+        })
+        .filter((d): d is string => Boolean(d))
+    )
+  );
+
+  for (const dateStr of normalizedDates) {
+    const periodCheck = await isChurchPeriodClosed(clientOrPool, opts.churchId, dateStr, opts.bankId, false);
+    if (periodCheck.isClosed) {
+      return {
+        blocked: true,
+        statusCode: 422,
+        error: 'PERIOD_CLOSED',
+        message: opts.actionContext === 'split'
+          ? `PERÍODO CONGELADO NO RATEIO: ${periodCheck.message}`
+          : periodCheck.message,
+        churchId: periodCheck.churchId,
+        year: periodCheck.year,
+        month: periodCheck.month,
+        date: dateStr,
+        closingId: periodCheck.closingId
+      };
+    }
+
+    if (opts.checkDayConfirmed !== false) {
+      const dayCheck = await isChurchDayConfirmed(clientOrPool, opts.churchId, dateStr, opts.excludeTxId);
+      if (dayCheck.isLocked) {
+        return {
+          blocked: true,
+          statusCode: 422,
+          error: 'DAY_CONFIRMED_LOCKED',
+          message: opts.actionContext === 'split'
+            ? `DIA CONFIRMADO NO RATEIO: ${dayCheck.message}`
+            : dayCheck.message,
+          churchId: dayCheck.churchId,
+          date: dayCheck.date
+        };
+      }
+    }
+  }
+
+  return { blocked: false };
+}
+
+function extractSplitChurchIds(splitsRaw: any): string[] {
+  if (!splitsRaw) return [];
+  let parsed: any = splitsRaw;
+  if (typeof splitsRaw === 'string') {
+    try {
+      parsed = JSON.parse(splitsRaw);
+    } catch (_) {
+      return [];
+    }
+  }
+  if (!Array.isArray(parsed)) return [];
+  const ids = new Set<string>();
+  for (const item of parsed) {
+    const cid = item?.churchId || item?.church_id;
+    if (isRealChurchId(cid)) {
+      ids.add(String(cid));
+    }
+  }
+  return Array.from(ids);
+}
+
+/**
+ * 🛡️ GUARDIÃO DE RATEIOS / SPLITS (Fecha Bypass F):
+ * Valida período fechado e dia confirmado para CADA congregação participante do rateio.
+ */
+async function assertSplitsWritable(
+  clientOrPool: any,
+  splitsRaw: any,
+  dates: Array<string | Date | null | undefined>,
+  bankId?: string | null | undefined,
+  excludeTxId?: string | null
+): Promise<WritableGuardResult> {
+  const splitChurchIds = extractSplitChurchIds(splitsRaw);
+  for (const splitChurchId of splitChurchIds) {
+    const guard = await assertWritablePeriodAndDate(clientOrPool, {
+      churchId: splitChurchId,
+      dates,
+      bankId,
+      excludeTxId,
+      checkDayConfirmed: true,
+      actionContext: 'split'
+    });
+    if (guard.blocked) {
+      return guard;
+    }
+  }
+  return { blocked: false };
+}
+
+/**
+ * 🛡️ SHARED ADVISORY LOCKS PARA CONCORRÊNCIA CONTRA FECHAMENTO/REABERTURA:
+ * Adquire locks compartilhados em ordem determinística (evita deadlock) sobre todas as chaves
+ * (igreja + consolidado/banco + ano/mês) que correspondem ao lock exclusivo de POST /church-closings.
+ */
+async function acquireSharedPeriodLocks(
+  client: any,
+  targets: Array<{
+    churchId?: string | null;
+    dates: Array<string | Date | null | undefined>;
+    bankId?: string | null;
+  }>
+): Promise<void> {
+  const uniqueKeyMap = new Map<string, [number, number]>();
+
+  for (const target of targets) {
+    if (!isRealChurchId(target.churchId)) continue;
+    const effBankId = target.bankId && target.bankId !== 'all' ? String(target.bankId) : null;
+
+    for (const rawDate of target.dates || []) {
+      const iso = normalizeIsoDateOnly(rawDate);
+      const rawStr = iso || (typeof rawDate === 'string' ? rawDate.trim().split(/[T ]/)[0] : null);
+      if (!rawStr) continue;
+      const parts = rawStr.split('-');
+      if (parts.length < 2) continue;
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10);
+      if (isNaN(year) || isNaN(month)) continue;
+
+      const consolidatedKeys = getClosingLockKeys(String(target.churchId), null, year, month);
+      uniqueKeyMap.set(`${consolidatedKeys[0]}:${consolidatedKeys[1]}`, consolidatedKeys);
+
+      if (effBankId) {
+        const bankKeys = getClosingLockKeys(String(target.churchId), effBankId, year, month);
+        uniqueKeyMap.set(`${bankKeys[0]}:${bankKeys[1]}`, bankKeys);
+      }
+    }
+  }
+
+  const sortedKeys = Array.from(uniqueKeyMap.values()).sort((a, b) => (a[0] !== b[0] ? a[0] - b[0] : a[1] - b[1]));
+  for (const [k1, k2] of sortedKeys) {
+    await client.query('SELECT pg_advisory_xact_lock_shared($1, $2)', [k1, k2]);
+  }
+}
+
+const STRICT_UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isValidStrictUuid(val: unknown): val is string {
+  return typeof val === 'string' && STRICT_UUID_REGEX.test(val.trim());
+}
+
+function normalizePgNullableUuid(val: unknown): string | null {
+  if (val === undefined || val === null) return null;
+  const s = String(val).trim();
+  if (!s || s === 'unidentified' || s === 'all' || s.startsWith('manual') || s === 'gmail-sync') {
+    return null;
+  }
+  return STRICT_UUID_REGEX.test(s) ? s : null;
+}
+
+/**
+ * 🛡️ DIFF-03: Versão não-bloqueante de acquireSharedPeriodLocks para travar destinos de transferência
+ * em transações que já possuem locks exclusivos (evita deadlock AB-BA no PostgreSQL).
+ */
+async function tryAcquireSharedPeriodLocks(
+  client: any,
+  targets: Array<{
+    churchId?: string | null;
+    dates: Array<string | Date | null | undefined>;
+    bankId?: string | null;
+  }>
+): Promise<boolean> {
+  const uniqueKeyMap = new Map<string, [number, number]>();
+
+  for (const target of targets) {
+    if (!isRealChurchId(target.churchId)) continue;
+    const effBankId = target.bankId && target.bankId !== 'all' ? String(target.bankId) : null;
+
+    for (const rawDate of target.dates || []) {
+      const iso = normalizeIsoDateOnly(rawDate);
+      const rawStr = iso || (typeof rawDate === 'string' ? rawDate.trim().split(/[T ]/)[0] : null);
+      if (!rawStr) continue;
+      const parts = rawStr.split('-');
+      if (parts.length < 2) continue;
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10);
+      if (isNaN(year) || isNaN(month)) continue;
+
+      const consolidatedKeys = getClosingLockKeys(String(target.churchId), null, year, month);
+      uniqueKeyMap.set(`${consolidatedKeys[0]}:${consolidatedKeys[1]}`, consolidatedKeys);
+
+      if (effBankId) {
+        const bankKeys = getClosingLockKeys(String(target.churchId), effBankId, year, month);
+        uniqueKeyMap.set(`${bankKeys[0]}:${bankKeys[1]}`, bankKeys);
+      }
+    }
+  }
+
+  const sortedKeys = Array.from(uniqueKeyMap.values()).sort((a, b) => (a[0] !== b[0] ? a[0] - b[0] : a[1] - b[1]));
+  for (const [k1, k2] of sortedKeys) {
+    const res = await client.query('SELECT pg_try_advisory_xact_lock_shared($1, $2) as acquired', [k1, k2]);
+    if (!Boolean(res.rows?.[0]?.acquired)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function mirrorTxRowToLocalSqlite(row: any): void {
+  if (!row || (pool as any).isUsingSqliteFallback?.() || !(pool as any).localEngine) return;
+  try {
+    (pool as any).localEngine.query(
+      `INSERT INTO consolidated_transactions (
+        id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash,
+        is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id,
+        payment_method, contribution_type, contribution_request_id, splits, attachments, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, NOW())
+      ON CONFLICT (id) DO UPDATE SET
+        amount = EXCLUDED.amount,
+        description = EXCLUDED.description,
+        type = EXCLUDED.type,
+        pix_key = EXCLUDED.pix_key,
+        source = EXCLUDED.source,
+        status = EXCLUDED.status,
+        bank_id = EXCLUDED.bank_id,
+        row_hash = EXCLUDED.row_hash,
+        is_confirmed = EXCLUDED.is_confirmed,
+        transaction_date = EXCLUDED.transaction_date,
+        reference_date = EXCLUDED.reference_date,
+        church_id = EXCLUDED.church_id,
+        contributor_id = EXCLUDED.contributor_id,
+        report_id = EXCLUDED.report_id,
+        payment_method = EXCLUDED.payment_method,
+        contribution_type = EXCLUDED.contribution_type,
+        contribution_request_id = EXCLUDED.contribution_request_id,
+        splits = EXCLUDED.splits,
+        attachments = EXCLUDED.attachments,
+        updated_at = NOW()`,
+      [
+        String(row.id),
+        row.amount,
+        row.description,
+        row.type,
+        row.pix_key || null,
+        row.source || 'file',
+        row.user_id || null,
+        row.status || 'pending',
+        row.bank_id || null,
+        row.row_hash || null,
+        isTruthyDbBool(row.is_confirmed),
+        row.transaction_date || null,
+        row.reference_date || null,
+        row.church_id || null,
+        row.contributor_id || null,
+        row.report_id || null,
+        row.payment_method || null,
+        row.contribution_type || null,
+        row.contribution_request_id || null,
+        row.splits ? (typeof row.splits === 'string' ? row.splits : JSON.stringify(row.splits)) : null,
+        row.attachments ? (typeof row.attachments === 'string' ? row.attachments : JSON.stringify(row.attachments)) : '[]'
+      ]
+    );
+  } catch (mirrorErr) {
+    console.warn('[LocalMirror] Aviso ao espelhar transação no SQLite local:', mirrorErr);
+  }
 }
 
 // GET /api/v1/church-closings
@@ -11154,16 +12158,28 @@ app.get('/api/v1/church-closings', async (req: Request, res: Response) => {
       params.push(String(church_id));
       query += ` AND church_id::text = $${params.length}`;
     }
-    if (year) {
-      params.push(parseInt(String(year), 10));
-      query += ` AND year = $${params.length}`;
-    }
-    if (month) {
-      params.push(parseInt(String(month), 10));
-      query += ` AND month = $${params.length}`;
+    if (year && month) {
+      const yNum = parseInt(String(year), 10);
+      const mNum = parseInt(String(month), 10);
+      if (!isNaN(yNum) && !isNaN(mNum)) {
+        const lastDay = new Date(Date.UTC(yNum, mNum, 0)).getUTCDate();
+        const mStart = `${yNum}-${String(mNum).padStart(2, '0')}-01`;
+        const mEnd = `${yNum}-${String(mNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+        params.push(yNum, mNum, mEnd, mStart);
+        query += ` AND ((year = $${params.length - 3} AND month = $${params.length - 2}) OR (start_date IS NOT NULL AND end_date IS NOT NULL AND start_date <= $${params.length - 1} AND end_date >= $${params.length}))`;
+      }
+    } else {
+      if (year) {
+        params.push(parseInt(String(year), 10));
+        query += ` AND year = $${params.length}`;
+      }
+      if (month) {
+        params.push(parseInt(String(month), 10));
+        query += ` AND month = $${params.length}`;
+      }
     }
 
-    query += ' ORDER BY year DESC, month DESC';
+    query += ' ORDER BY year DESC, month DESC, updated_at DESC';
     const result = await pool.query(query, params);
     return res.json(result.rows || []);
   } catch (err) {
@@ -11179,9 +12195,15 @@ app.get('/api/v1/church-closings/:churchId/:year/:month', async (req: Request, r
     if (!ctx.isAuthenticated) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Autenticação necessária para consultar fechamento.' });
     }
+    await enrichSecondaryUserContext(pool, ctx);
 
     const { churchId, year, month } = req.params;
-    const { bank_id } = req.query;
+    const { bank_id, closing_id, start_date, end_date } = req.query;
+    const effYear = parseInt(year, 10);
+    const effMonth = parseInt(month, 10);
+    const explicitClosingId = typeof closing_id === 'string' && closing_id.trim() ? closing_id.trim() : null;
+    const normStart = normalizeIsoDateOnly(typeof start_date === 'string' ? start_date : null);
+    const normEnd = normalizeIsoDateOnly(typeof end_date === 'string' ? end_date : null);
 
     if (!ctx.isSuperAdmin) {
       if (ctx.isSecondaryUser) {
@@ -11201,19 +12223,61 @@ app.get('/api/v1/church-closings/:churchId/:year/:month', async (req: Request, r
       }
     }
 
+    const effBankId = bank_id && bank_id !== 'all' ? String(bank_id) : null;
+    const bankFilterSql = effBankId
+      ? ` AND bank_id::text = $BANK$`
+      : ` AND (bank_id IS NULL OR bank_id = '' OR bank_id = 'all')`;
+
     let query: string;
     let params: any[];
 
-    if (bank_id && bank_id !== 'all') {
-      query = `SELECT * FROM church_closings 
-       WHERE church_id::text = $1 AND year = $2 AND month = $3 AND bank_id::text = $4 
+    if (explicitClosingId) {
+      query = `SELECT * FROM church_closings WHERE id::text = $1 AND church_id::text = $2 LIMIT 1`;
+      params = [explicitClosingId, String(churchId)];
+    } else if (normStart && normEnd && normStart <= normEnd) {
+      const startParts = normStart.split('-');
+      const endParts = normEnd.split('-');
+      const startYM = parseInt(startParts[0], 10) * 100 + parseInt(startParts[1], 10);
+      const endYM = parseInt(endParts[0], 10) * 100 + parseInt(endParts[1], 10);
+      params = [String(churchId), normStart, normEnd, startYM, endYM];
+      let bClause = ` AND (bank_id IS NULL OR bank_id = '' OR bank_id = 'all')`;
+      if (effBankId) {
+        params.push(effBankId);
+        bClause = ` AND bank_id::text = $${params.length}`;
+      }
+      query = `SELECT * FROM church_closings
+       WHERE church_id::text = $1${bClause}
+         AND (
+           (start_date = $2 AND end_date = $3)
+           OR (status != 'reopened' AND (period_type IS NULL OR period_type != 'custom') AND (year * 100 + month) >= $4 AND (year * 100 + month) <= $5)
+           OR (status != 'reopened' AND start_date IS NOT NULL AND end_date IS NOT NULL AND start_date <= $3 AND end_date >= $2)
+         )
+       ORDER BY
+         CASE WHEN start_date = $2 AND end_date = $3 THEN 0 ELSE 1 END,
+         CASE WHEN status != 'reopened' THEN 0 ELSE 1 END,
+         updated_at DESC
        LIMIT 1`;
-      params = [String(churchId), parseInt(year, 10), parseInt(month, 10), String(bank_id)];
     } else {
-      query = `SELECT * FROM church_closings 
-       WHERE church_id::text = $1 AND year = $2 AND month = $3 AND (bank_id IS NULL OR bank_id = '' OR bank_id = 'all') 
+      const lastDay = new Date(Date.UTC(effYear, effMonth, 0)).getUTCDate();
+      const monthStart = `${effYear}-${String(effMonth).padStart(2, '0')}-01`;
+      const monthEnd = `${effYear}-${String(effMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      params = [String(churchId), effYear, effMonth, monthEnd, monthStart];
+      let bClause = bankFilterSql;
+      if (effBankId) {
+        params.push(effBankId);
+        bClause = bankFilterSql.replace('$BANK$', `$${params.length}`);
+      }
+      query = `SELECT * FROM church_closings
+       WHERE church_id::text = $1${bClause}
+         AND (
+           (year = $2 AND month = $3)
+           OR (status != 'reopened' AND start_date IS NOT NULL AND end_date IS NOT NULL AND start_date <= $4 AND end_date >= $5)
+         )
+       ORDER BY
+         CASE WHEN (period_type IS NULL OR period_type != 'custom') AND year = $2 AND month = $3 THEN 0 ELSE 1 END,
+         CASE WHEN status != 'reopened' THEN 0 ELSE 1 END,
+         updated_at DESC
        LIMIT 1`;
-      params = [String(churchId), parseInt(year, 10), parseInt(month, 10)];
     }
 
     const result = await pool.query(query, params);
@@ -11246,6 +12310,290 @@ function getClosingLockKeys(churchId: string, bankId: string | null, year: numbe
   return [h1, h2];
 }
 
+function normalizeIsoDateOnly(input?: string | Date | null): string | null {
+  if (!input) return null;
+  const raw = typeof input === 'string' ? input.trim() : input.toISOString();
+  const datePart = raw.split(/[T ]/)[0];
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return null;
+  return datePart;
+}
+
+function resolveClosingDateRange(
+  year: number,
+  month: number,
+  startDateInput?: string | null,
+  endDateInput?: string | null,
+  periodTypeInput?: string | null
+): { periodType: 'monthly' | 'custom'; startDate: string; endDate: string } {
+  const normStart = normalizeIsoDateOnly(startDateInput);
+  const normEnd = normalizeIsoDateOnly(endDateInput);
+  if (normStart && normEnd && normStart <= normEnd) {
+    const isCustom = String(periodTypeInput || '').toLowerCase() === 'custom';
+    const lastDayNum = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+    const monthEnd = `${year}-${String(month).padStart(2, '0')}-${String(lastDayNum).padStart(2, '0')}`;
+    const coversExactMonth = normStart === monthStart && normEnd === monthEnd;
+    return {
+      periodType: isCustom || !coversExactMonth ? 'custom' : 'monthly',
+      startDate: normStart,
+      endDate: normEnd
+    };
+  }
+  const lastDayNum = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const mm = String(month).padStart(2, '0');
+  return {
+    periodType: 'monthly',
+    startDate: `${year}-${mm}-01`,
+    endDate: `${year}-${mm}-${String(lastDayNum).padStart(2, '0')}`
+  };
+}
+
+/**
+ * 🛡️ AUD-05: Enumera todos os pares (year, month) abrangidos por um intervalo ISO [startDate..endDate],
+ * garantindo locks exclusivos em todos os meses para fechamentos personalizados multi-mês.
+ */
+function getMonthsInDateRange(startDate: string, endDate: string): Array<{ year: number; month: number }> {
+  const normStart = normalizeIsoDateOnly(startDate);
+  const normEnd = normalizeIsoDateOnly(endDate);
+  if (!normStart || !normEnd || normStart > normEnd) return [];
+
+  const [sy, sm] = normStart.split('-').map((n) => parseInt(n, 10));
+  const [ey, em] = normEnd.split('-').map((n) => parseInt(n, 10));
+  if (isNaN(sy) || isNaN(sm) || isNaN(ey) || isNaN(em)) return [];
+
+  const months: Array<{ year: number; month: number }> = [];
+  let cy = sy;
+  let cm = sm;
+  let guardCount = 0;
+  while ((cy < ey || (cy === ey && cm <= em)) && guardCount < 120) {
+    months.push({ year: cy, month: cm });
+    cm += 1;
+    if (cm > 12) {
+      cm = 1;
+      cy += 1;
+    }
+    guardCount += 1;
+  }
+  return months;
+}
+
+/**
+ * 🛡️ AUD-05: Monta lista deduplicada e deterministicamente ordenada de chaves de lock exclusivo
+ * cobrindo todos os meses de todos os intervalos envolvidos (evita deadlock e race em fechamento multi-mês).
+ */
+function buildExclusiveClosingLockKeys(
+  churchId: string,
+  bankId: string | null,
+  ranges: Array<{ startDate: string; endDate: string; bankId?: string | null }>,
+  fallbackYear: number,
+  fallbackMonth: number
+): Array<[number, number]> {
+  const uniqueMap = new Map<string, [number, number]>();
+  const addMonth = (bId: string | null, y: number, m: number) => {
+    if (isNaN(y) || isNaN(m) || m < 1 || m > 12) return;
+    const pair = getClosingLockKeys(churchId, bId, y, m);
+    uniqueMap.set(`${pair[0]}:${pair[1]}`, pair);
+  };
+
+  if (ranges.length === 0) {
+    addMonth(bankId, fallbackYear, fallbackMonth);
+  }
+  for (const r of ranges) {
+    const scopeBankId = r.bankId !== undefined ? r.bankId : bankId;
+    const months = getMonthsInDateRange(r.startDate, r.endDate);
+    if (months.length === 0) {
+      addMonth(scopeBankId, fallbackYear, fallbackMonth);
+    } else {
+      for (const ym of months) {
+        addMonth(scopeBankId, ym.year, ym.month);
+      }
+    }
+  }
+
+  return Array.from(uniqueMap.values()).sort((a, b) => (a[0] !== b[0] ? a[0] - b[0] : a[1] - b[1]));
+}
+
+async function tryAcquireExclusiveClosingLocks(
+  client: any,
+  lockKeysList: Array<[number, number]>,
+  acquiredTracker: Array<[number, number]>
+): Promise<boolean> {
+  const alreadyHeld = new Set(acquiredTracker.map(([k1, k2]) => `${k1}:${k2}`));
+  for (const [k1, k2] of lockKeysList) {
+    const keyStr = `${k1}:${k2}`;
+    if (alreadyHeld.has(keyStr)) continue;
+    const lockRes = await client.query(
+      'SELECT pg_try_advisory_xact_lock($1, $2) as acquired',
+      [k1, k2]
+    );
+    if (!Boolean(lockRes.rows?.[0]?.acquired)) {
+      return false;
+    }
+    acquiredTracker.push([k1, k2]);
+    alreadyHeld.add(keyStr);
+  }
+  return true;
+}
+
+function releaseExclusiveClosingLocks(acquiredTracker: Array<[number, number]>): void {
+  if (!acquiredTracker.length || !(pool as any).localEngine?.releaseClosingLock) return;
+  for (const [k1, k2] of acquiredTracker) {
+    (pool as any).localEngine.releaseClosingLock(k1, k2);
+  }
+}
+
+/**
+ * 🛡️ AUD-05: Limpa pernas sintéticas (source='closing') vinculadas aos fechamentos alvo
+ * usando report_id exato (cobrindo fechamentos multi-mês sem depender de LIKE monthPrefix%)
+ * e fallback legado (report_id nulo) estritamente dentro do intervalo [startDate..endDate].
+ */
+async function deleteClosingTransferLegs(
+  client: any,
+  opts: {
+    closingIds: string[];
+    effChurchId: string;
+    effBankId: string | null;
+    startDate: string;
+    endDate: string;
+    includeLegacyFallback?: boolean;
+  }
+): Promise<string[]> {
+  const deletedSet = new Set<string>();
+  const uniqueIds = Array.from(new Set((opts.closingIds || []).map((id) => String(id).trim()).filter(Boolean)));
+
+  for (const cid of uniqueIds) {
+    const res = await client.query(
+      `DELETE FROM consolidated_transactions
+       WHERE report_id::text = $1
+         AND (source = 'closing' OR id::text LIKE 'closing-%' OR row_hash LIKE 'closing-%')
+       RETURNING id`,
+      [cid]
+    );
+    for (const r of (res.rows || [])) {
+      deletedSet.add(String(r.id));
+    }
+  }
+
+  if (opts.includeLegacyFallback !== false && opts.startDate && opts.endDate) {
+    const legacySql = opts.effBankId
+      ? `DELETE FROM consolidated_transactions
+         WHERE (report_id IS NULL OR report_id = '')
+           AND SUBSTR(COALESCE(NULLIF(TRIM(reference_date::text), ''), transaction_date::text), 1, 10) >= $1
+           AND SUBSTR(COALESCE(NULLIF(TRIM(reference_date::text), ''), transaction_date::text), 1, 10) <= $2
+           AND (
+             row_hash LIKE $3
+             OR (
+               church_id::text = $4
+               AND bank_id::text = $5
+               AND (source = 'closing' OR id::text LIKE 'closing-%' OR row_hash LIKE 'closing-%')
+             )
+           )
+         RETURNING id`
+      : `DELETE FROM consolidated_transactions
+         WHERE (report_id IS NULL OR report_id = '')
+           AND SUBSTR(COALESCE(NULLIF(TRIM(reference_date::text), ''), transaction_date::text), 1, 10) >= $1
+           AND SUBSTR(COALESCE(NULLIF(TRIM(reference_date::text), ''), transaction_date::text), 1, 10) <= $2
+           AND row_hash LIKE $3
+         RETURNING id`;
+    const legacyParams = opts.effBankId
+      ? [opts.startDate, opts.endDate, `closing-%-${opts.effChurchId}-${opts.effBankId}-%`, opts.effChurchId, opts.effBankId]
+      : [opts.startDate, opts.endDate, `closing-%-${opts.effChurchId}-all-%`];
+    const legacyRes = await client.query(legacySql, legacyParams);
+    for (const r of (legacyRes.rows || [])) {
+      deletedSet.add(String(r.id));
+    }
+  }
+
+  return Array.from(deletedSet);
+}
+
+/**
+ * 🛡️ ETAPA 2 (Decisão 3 + P5-A):
+ * Reverte is_confirmed = false e status = 'identified' (quando 'resolved') estritamente
+ * para as transações operacionais dentro do escopo efetivamente reaberto, preservando
+ * qualquer transação que continue coberta por outro fechamento ativo da mesma congregação.
+ */
+async function revertConfirmedTransactionsForReopen(
+  client: any,
+  effChurchId: string,
+  effBankId: string | null,
+  startDate: string,
+  endDate: string
+): Promise<{ reopenedTxIds: string[]; reopenedTxs: Array<{ id: string; status: string }> }> {
+  // Busca fechamentos ainda ativos para a mesma congregação (fora o fechamento já marcado como 'reopened')
+  const activeClosingsRes = await client.query(
+    `SELECT id, bank_id, year, month, period_type, start_date, end_date, status
+     FROM church_closings
+     WHERE church_id::text = $1 AND status != 'reopened'`,
+    [effChurchId]
+  );
+  const remainingActiveClosings = (activeClosingsRes.rows || []).map((c: any) => {
+    const range = resolveClosingDateRange(
+      Number(c.year),
+      Number(c.month),
+      c.start_date,
+      c.end_date,
+      c.period_type
+    );
+    const bId = c.bank_id && c.bank_id !== '' && c.bank_id !== 'all' ? String(c.bank_id) : null;
+    return { bankId: bId, startDate: range.startDate, endDate: range.endDate };
+  });
+
+  // Busca transações operacionais confirmadas dentro da janela reaberta
+  const selectSql = effBankId
+    ? `SELECT id, bank_id, status, transaction_date, reference_date
+       FROM consolidated_transactions
+       WHERE church_id::text = $1
+         AND bank_id::text = $2
+         AND COALESCE(source, '') != 'closing'
+         AND is_confirmed = $3
+         AND SUBSTR(COALESCE(NULLIF(TRIM(reference_date::text), ''), transaction_date::text), 1, 10) >= $4
+         AND SUBSTR(COALESCE(NULLIF(TRIM(reference_date::text), ''), transaction_date::text), 1, 10) <= $5`
+    : `SELECT id, bank_id, status, transaction_date, reference_date
+       FROM consolidated_transactions
+       WHERE church_id::text = $1
+         AND COALESCE(source, '') != 'closing'
+         AND is_confirmed = $2
+         AND SUBSTR(COALESCE(NULLIF(TRIM(reference_date::text), ''), transaction_date::text), 1, 10) >= $3
+         AND SUBSTR(COALESCE(NULLIF(TRIM(reference_date::text), ''), transaction_date::text), 1, 10) <= $4`;
+
+  const selectParams = effBankId
+    ? [effChurchId, effBankId, true, startDate, endDate]
+    : [effChurchId, true, startDate, endDate];
+
+  const candidatesRes = await client.query(selectSql, selectParams);
+  const candidates = candidatesRes.rows || [];
+  const reopenedTxIds: string[] = [];
+  const reopenedTxs: Array<{ id: string; status: string }> = [];
+
+  for (const tx of candidates) {
+    const effDate = normalizeIsoDateOnly(tx.reference_date) || normalizeIsoDateOnly(tx.transaction_date);
+    if (!effDate) continue;
+    const txBankId = tx.bank_id && tx.bank_id !== '' && tx.bank_id !== 'all' ? String(tx.bank_id) : null;
+
+    // P5-A: Preservar proteção se outro fechamento ativo ainda cobre esta (data, banco)
+    const stillProtected = remainingActiveClosings.some((ac: { bankId: string | null; startDate: string; endDate: string }) => {
+      if (effDate < ac.startDate || effDate > ac.endDate) return false;
+      if (ac.bankId === null) return true; // Fechamento consolidado ainda ativo cobre todos os bancos
+      return txBankId !== null && ac.bankId === txBankId;
+    });
+
+    if (stillProtected) continue;
+
+    const nextStatus = tx.status === 'resolved' ? 'identified' : (tx.status || 'identified');
+    await client.query(
+      `UPDATE consolidated_transactions
+       SET is_confirmed = $1, status = $2, updated_at = NOW()
+       WHERE id::text = $3`,
+      [false, nextStatus, String(tx.id)]
+    );
+    reopenedTxIds.push(String(tx.id));
+    reopenedTxs.push({ id: String(tx.id), status: nextStatus });
+  }
+
+  return { reopenedTxIds, reopenedTxs };
+}
+
 // POST /api/v1/church-closings
 app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
   try {
@@ -11264,6 +12612,12 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
       bank_id,
       year,
       month,
+      periodType,
+      period_type,
+      startDate,
+      start_date,
+      endDate,
+      end_date,
       status,
       closedAt,
       closed_at,
@@ -11298,13 +12652,16 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'churchId, year e month são obrigatórios.' });
     }
 
+    // 🛡️ Alinhamento RBAC: Fechamento formal do Livro Caixa restrito ao titular/administrador (coerente com /reopen, DELETE e UI)
+    const ownerId = String(ctx.ownerId || ctx.userId || '').trim();
+    const ownerUserIds = !ctx.isSuperAdmin ? await getEquivalentUserIds(ownerId) : [];
+
     if (ctx.isSecondaryUser) {
-      if (!ctx.allowedChurchIds.includes(effChurchId)) {
-        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: congregação não autorizada para fechamento.' });
-      }
+      return res.status(403).json({
+        error: 'FORBIDDEN',
+        message: 'Apenas o usuário principal ou administrador tem autorização para homologar o Fechamento do Livro Caixa.'
+      });
     } else if (!ctx.isSuperAdmin) {
-      const ownerId = String(ctx.ownerId || ctx.userId || '').trim();
-      const ownerUserIds = await getEquivalentUserIds(ownerId);
       const chCheck = await pool.query(
         'SELECT id FROM churches WHERE id::text = $1 AND (user_id::text = ANY($2) OR id::text = $3) LIMIT 1',
         [effChurchId, ownerUserIds, ownerId]
@@ -11314,17 +12671,83 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
       }
     }
 
-    const effId = id || (effBankId
-      ? `closing_${effChurchId}_${effBankId}_${effYear}_${effMonth}`
-      : `closing_${effChurchId}_${effYear}_${effMonth}`);
-    const effStatus = status || 'closed';
+    // 🛡️ AUD-03: Validação estrita de status (proíbe gravar 'reopened' via POST; exige /reopen dedicado)
+    const rawStatus = String(status || 'closed').trim().toLowerCase();
+    if (rawStatus === 'reopened') {
+      return res.status(400).json({
+        error: 'INVALID_CLOSING_STATUS',
+        message: 'Não é permitido reabrir um fechamento via POST /church-closings. Utilize o endpoint dedicado POST /api/v1/church-closings/reopen.'
+      });
+    }
+    if (rawStatus !== 'closed' && rawStatus !== 'signed' && rawStatus !== 'draft') {
+      return res.status(400).json({
+        error: 'INVALID_CLOSING_STATUS',
+        message: `Status de fechamento inválido ("${rawStatus}"). Valores permitidos: closed, signed.`
+      });
+    }
+
+    const effTargetChurchId = targetChurchId || target_church_id || null;
+    const targetIds = effTargetChurchId
+      ? Array.from(new Set(String(effTargetChurchId).split(',').map((s: string) => s.trim()).filter(Boolean)))
+      : [];
+
+    // 🛡️ AUD-03: Validação cross-tenant de todas as congregações de destino (targetChurchId)
+    if (!ctx.isSuperAdmin && targetIds.length > 0) {
+      for (const destId of targetIds) {
+        if (!ownerUserIds.includes(destId)) {
+          const destCheck = await pool.query(
+            'SELECT id FROM churches WHERE id::text = $1 AND (user_id::text = ANY($2) OR id::text = $3) LIMIT 1',
+            [destId, ownerUserIds, ownerId]
+          );
+          if (destCheck.rows.length === 0) {
+            return res.status(403).json({
+              error: 'FORBIDDEN',
+              message: 'Acesso negado: uma ou mais congregações de destino informadas não pertencem à sua organização.'
+            });
+          }
+        }
+      }
+    }
+
+    const rawStartInput = startDate || start_date || null;
+    const rawEndInput = endDate || end_date || null;
+    if (rawStartInput || rawEndInput) {
+      const checkStart = normalizeIsoDateOnly(rawStartInput);
+      const checkEnd = normalizeIsoDateOnly(rawEndInput);
+      if (!checkStart || !checkEnd || checkStart > checkEnd) {
+        return res.status(400).json({
+          error: 'VALIDATION_ERROR',
+          message: 'Intervalo personalizado inválido: informe startDate e endDate válidos com data inicial menor ou igual à data final.'
+        });
+      }
+    }
+
+    const resolvedRange = resolveClosingDateRange(
+      effYear,
+      effMonth,
+      rawStartInput,
+      rawEndInput,
+      periodType || period_type || null
+    );
+    const effPeriodType = resolvedRange.periodType;
+    const effStartDate = resolvedRange.startDate;
+    const effEndDate = resolvedRange.endDate;
+
+    const effId = id || (effPeriodType === 'custom'
+      ? (effBankId
+        ? `closing_${effChurchId}_${effBankId}_${effStartDate}_${effEndDate}`
+        : `closing_${effChurchId}_${effStartDate}_${effEndDate}`)
+      : (effBankId
+        ? `closing_${effChurchId}_${effBankId}_${effYear}_${effMonth}`
+        : `closing_${effChurchId}_${effYear}_${effMonth}`));
+    // P4-A: Normaliza 'draft' sem assinatura para 'closed' (bloqueio efetivo), aceitando somente 'closed' ou 'signed'
+    const effStatus = rawStatus === 'draft' ? 'closed' : rawStatus;
     const effClosedAt = closedAt || closed_at || new Date().toISOString();
     const effClosedBy = closedBy || closed_by || (ctx.userId ? String(ctx.userId) : null);
     const effIncome = Number(totalIncome !== undefined ? totalIncome : (total_income || 0));
     const effExpenses = Number(totalExpenses !== undefined ? totalExpenses : (total_expenses || 0));
     const effBalance = Number(finalBalance !== undefined ? finalBalance : (final_balance || 0));
     const effTransferred = transferredBalance !== undefined ? Number(transferredBalance) : (transferred_balance !== undefined ? Number(transferred_balance) : null);
-    const effTargetChurchId = targetChurchId || target_church_id || null;
     const effTargetChurchName = targetChurchName || target_church_name || null;
     const effHash = integrityHash || integrity_hash || null;
     const effSignatures = signatures ? (typeof signatures === 'string' ? signatures : JSON.stringify(signatures)) : null;
@@ -11332,13 +12755,16 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
 
     const query = `
       INSERT INTO church_closings (
-        id, church_id, bank_id, year, month, status, closed_at, closed_by, 
+        id, church_id, bank_id, year, month, period_type, start_date, end_date, status, closed_at, closed_by, 
         total_income, total_expenses, final_balance, transferred_balance, 
         target_church_id, target_church_name, integrity_hash, signatures, notes, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW())
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW())
       ON CONFLICT (id) DO UPDATE SET
         status = EXCLUDED.status,
         bank_id = EXCLUDED.bank_id,
+        period_type = EXCLUDED.period_type,
+        start_date = EXCLUDED.start_date,
+        end_date = EXCLUDED.end_date,
         closed_at = EXCLUDED.closed_at,
         closed_by = EXCLUDED.closed_by,
         total_income = EXCLUDED.total_income,
@@ -11355,25 +12781,30 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
     `;
 
     const params = [
-      effId, effChurchId, effBankId, effYear, effMonth, effStatus, effClosedAt, effClosedBy,
+      effId, effChurchId, effBankId, effYear, effMonth, effPeriodType, effStartDate, effEndDate, effStatus, effClosedAt, effClosedBy,
       effIncome, effExpenses, effBalance, effTransferred, effTargetChurchId,
       effTargetChurchName, effHash, effSignatures, effNotes
     ];
 
-    // 🛡️ Execução em Transação Atômica ACID com Proteção Mútua de Concorrência (Advisory Lock)
+    // 🛡️ Execução em Transação Atômica ACID com Proteção Mútua de Concorrência em todos os meses abrangidos (AUD-05)
     const client = await pool.connect();
     let saved: any = null;
-    let lockAcquired = false;
-    const lockKeys = getClosingLockKeys(effChurchId, effBankId, effYear, effMonth);
+    let confirmedTxIds: string[] = [];
+    let deletedClosingLegIds: string[] = [];
+    let insertedTransferRows: any[] = [];
+    const acquiredLocks: Array<[number, number]> = [];
+    const lockKeysList = buildExclusiveClosingLockKeys(
+      effChurchId,
+      effBankId,
+      [{ startDate: effStartDate, endDate: effEndDate }],
+      effYear,
+      effMonth
+    );
 
     try {
       await client.query('BEGIN');
 
-      const lockRes = await client.query(
-        'SELECT pg_try_advisory_xact_lock($1, $2) as acquired',
-        lockKeys
-      );
-      const acquired = Boolean(lockRes.rows?.[0]?.acquired);
+      const acquired = await tryAcquireExclusiveClosingLocks(client, lockKeysList, acquiredLocks);
       if (!acquired) {
         await client.query('ROLLBACK');
         return res.status(409).json({
@@ -11381,52 +12812,46 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
           message: 'Existe outra operação de fechamento ou reabertura em andamento para esta congregação e período contábil. Tente novamente em instantes.'
         });
       }
-      lockAcquired = true;
 
       const result = await client.query(query, params);
       saved = result.rows[0];
 
-      // 🛡️ Gravação definitiva das transações financeiras reais de transporte de saldo
-      if (effStatus !== 'reopened' && effTransferred !== null && effTransferred !== 0) {
-        const monthPrefix = `${effYear}-${String(effMonth).padStart(2, '0')}`;
-        
-        // Limpa transações anteriores deste mesmo fechamento para evitar duplicidade
-        if (effBankId) {
-          await client.query(
-            `DELETE FROM consolidated_transactions 
-             WHERE (transaction_date::text LIKE $1 OR reference_date::text LIKE $1)
-               AND (
-                 report_id = $2
-                 OR row_hash LIKE $3
-                 OR (
-                   church_id::text = $4 
-                   AND bank_id::text = $5 
-                   AND (source = 'closing' OR id::text LIKE 'closing-%' OR row_hash LIKE 'closing-%')
-                 )
-               )`,
-            [
-              `${monthPrefix}%`,
-              effId,
-              `closing-%-${effChurchId}-${effBankId}-%`,
-              effChurchId,
-              effBankId
-            ]
-          );
-        } else {
-          await client.query(
-            `DELETE FROM consolidated_transactions 
-             WHERE (transaction_date::text LIKE $1 OR reference_date::text LIKE $1)
-               AND (
-                 report_id = $2
-                 OR row_hash LIKE $3
-               )`,
-            [
-              `${monthPrefix}%`,
-              effId,
-              `closing-%-${effChurchId}-all-%`
-            ]
-          );
-        }
+      // 🛡️ DECISÃO 2 (Equivalência Real): Confirma definitivamente todas as transações operacionais do período/igreja (e banco) fechado
+      const confirmSql = effBankId
+        ? `UPDATE consolidated_transactions
+           SET is_confirmed = $1, status = 'resolved', updated_at = NOW()
+           WHERE church_id::text = $2
+             AND bank_id::text = $3
+             AND COALESCE(source, '') != 'closing'
+             AND SUBSTR(COALESCE(NULLIF(TRIM(reference_date::text), ''), transaction_date::text), 1, 10) >= $4
+             AND SUBSTR(COALESCE(NULLIF(TRIM(reference_date::text), ''), transaction_date::text), 1, 10) <= $5
+           RETURNING id`
+        : `UPDATE consolidated_transactions
+           SET is_confirmed = $1, status = 'resolved', updated_at = NOW()
+           WHERE church_id::text = $2
+             AND COALESCE(source, '') != 'closing'
+             AND SUBSTR(COALESCE(NULLIF(TRIM(reference_date::text), ''), transaction_date::text), 1, 10) >= $3
+             AND SUBSTR(COALESCE(NULLIF(TRIM(reference_date::text), ''), transaction_date::text), 1, 10) <= $4
+           RETURNING id`;
+
+      const confirmParams = effBankId
+        ? [true, effChurchId, effBankId, effStartDate, effEndDate]
+        : [true, effChurchId, effStartDate, effEndDate];
+
+      const confirmRes = await client.query(confirmSql, confirmParams);
+      confirmedTxIds = (confirmRes.rows || []).map((r: any) => String(r.id));
+
+      // 🛡️ Gravação definitiva das transações financeiras reais de transporte de saldo (PB-007)
+      if (effTransferred !== null && effTransferred !== 0) {
+        // 🛡️ AUD-05: Limpa exclusivamente pernas anteriores deste fechamento (por report_id, preservando outros fechamentos do mesmo mês)
+        deletedClosingLegIds = await deleteClosingTransferLegs(client, {
+          closingIds: [effId],
+          effChurchId,
+          effBankId,
+          startDate: effStartDate,
+          endDate: effEndDate,
+          includeLegacyFallback: effPeriodType !== 'custom'
+        });
 
         const providedTxs = Array.isArray(transferTransactions || transfer_transactions) 
           ? (transferTransactions || transfer_transactions) 
@@ -11439,14 +12864,17 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
         } else if (effTargetChurchId) {
           const isNegative = effTransferred < 0;
           const absAmt = Math.abs(effTransferred);
-          const targetIds = String(effTargetChurchId).split(',').map((s: string) => s.trim()).filter(Boolean);
           const eachAmt = targetIds.length > 0 ? (absAmt / targetIds.length) : absAmt;
-          const memoPrefix = effNotes ? String(effNotes).trim() : `FECHAMENTO DE CAIXA PERÍODO ${String(effMonth).padStart(2, '0')}/${effYear}`;
-          const originPeriodPrefix = `${effYear}-${String(effMonth).padStart(2, '0')}`;
-          const originDate = (closedAt || closed_at) && String(closedAt || closed_at).startsWith(originPeriodPrefix)
-            ? String(closedAt || closed_at).split('T')[0]
-            : `${originPeriodPrefix}-01`;
+          const periodDesc = effPeriodType === 'custom'
+            ? `${formatIsoDateToBr(effStartDate)} A ${formatIsoDateToBr(effEndDate)}`
+            : `${String(effMonth).padStart(2, '0')}/${effYear}`;
+          const memoPrefix = effNotes ? String(effNotes).trim() : `FECHAMENTO DE CAIXA PERÍODO ${periodDesc}`;
+          const closedAtIso = normalizeIsoDateOnly(closedAt || closed_at || null);
+          const originDate = (closedAtIso && closedAtIso >= effStartDate && closedAtIso <= effEndDate)
+            ? closedAtIso
+            : effEndDate;
           const bankSegment = effBankId ? effBankId : 'all';
+          const periodHashSeg = effPeriodType === 'custom' ? `${effStartDate}_${effEndDate}` : `${effYear}-${effMonth}`;
 
           // Origem: Saída do saldo transportado (ou Aporte se negativo)
           txsToInsert.push({
@@ -11461,10 +12889,10 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
               : `[FECHAMENTO] ${memoPrefix} - TRANSPORTE DE SALDO PARA ${effTargetChurchName || 'DESTINO'}`,
             transaction_date: originDate,
             reference_date: originDate,
-            row_hash: `closing-${isNegative ? 'deficit-cover' : 'outflow'}-${effChurchId}-${bankSegment}-${targetIds[0] || 'dest'}-${effYear}-${effMonth}-0`,
+            row_hash: `closing-${isNegative ? 'deficit-cover' : 'outflow'}-${effChurchId}-${bankSegment}-${targetIds[0] || 'dest'}-${periodHashSeg}-0`,
             report_id: effId,
             source: 'closing',
-            status: 'identified',
+            status: 'resolved',
             is_confirmed: true,
             contribution_type: isNegative ? 'ENTRADA / TRANSFERÊNCIA' : 'SAÍDA / TRANSFERÊNCIA',
             payment_method: 'TRANSFERÊNCIA'
@@ -11484,10 +12912,10 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
                 : `[RECEBIMENTO] ${memoPrefix} - SALDO RECEBIDO DE IGREJA ORIGEM`,
               transaction_date: originDate,
               reference_date: originDate,
-              row_hash: `closing-${isNegative ? 'deficit-transfer' : 'inflow'}-${effChurchId}-${bankSegment}-${destId}-${effYear}-${effMonth}-${idx}`,
+              row_hash: `closing-${isNegative ? 'deficit-transfer' : 'inflow'}-${effChurchId}-${bankSegment}-${destId}-${periodHashSeg}-${idx}`,
               report_id: effId,
               source: 'closing',
-              status: 'identified',
+              status: 'resolved',
               is_confirmed: true,
               contribution_type: isNegative ? 'SAÍDA / TRANSFERÊNCIA' : 'ENTRADA / TRANSFERÊNCIA',
               payment_method: 'TRANSFERÊNCIA'
@@ -11495,30 +12923,145 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
           });
         }
 
-        const originPeriodPrefix = `${effYear}-${String(effMonth).padStart(2, '0')}`;
-        const fallbackPeriodDate = `${originPeriodPrefix}-01`;
+        const fallbackPeriodDate = effEndDate;
+        const allowedTransferChurchIds = new Set<string>([effChurchId, ...targetIds]);
+        const isClientProvidedTransfers = providedTxs.length > 0;
 
         for (const tx of txsToInsert) {
-          const finalTxId = (tx.id && /^[0-9a-fA-F-]{36}$/.test(tx.id)) ? tx.id : crypto.randomUUID();
+          const clientSuppliedId = tx.id ? String(tx.id).trim() : '';
+          const finalTxId = (clientSuppliedId && /^[0-9a-fA-F-]{36}$/.test(clientSuppliedId)) ? clientSuppliedId : crypto.randomUUID();
           const finalUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : (tx.user_id || ctx.userId || null);
-          const finalChurchId = String(tx.church_id || tx.churchId || effChurchId);
-          const finalBankId = (tx.bank_id && tx.bank_id !== 'all') ? String(tx.bank_id) : null;
-          const finalAmount = Number(tx.amount || 0);
-          const finalType = tx.type || (finalAmount >= 0 ? 'income' : 'expense');
+          const rawTxChurchId = String(tx.church_id || tx.churchId || '').trim();
+          const finalChurchId = isClientProvidedTransfers ? rawTxChurchId : (rawTxChurchId || effChurchId);
+          const finalBankId = (tx.bank_id && tx.bank_id !== 'all') ? String(tx.bank_id).trim() : null;
+          const finalAmount = Number(tx.amount);
+          const finalType = tx.type ? String(tx.type).trim().toLowerCase() : (finalAmount >= 0 ? 'income' : 'expense');
           const finalDesc = String(tx.description || tx.desc || 'Transporte de Fechamento');
-          const finalDate = tx.transaction_date || tx.date || fallbackPeriodDate;
-          const finalRefDate = tx.reference_date || finalDate;
-          const finalRowHash = tx.row_hash || `closing-${finalTxId}`;
+          const finalDate = String(tx.transaction_date || tx.date || fallbackPeriodDate).trim();
+          const finalRefDate = String(tx.reference_date || finalDate).trim();
+          const finalRowHash = tx.row_hash ? String(tx.row_hash).trim() : `closing-${finalTxId}`;
           const finalContribType = tx.contribution_type || (finalType === 'expense' ? 'SAÍDA / TRANSFERÊNCIA' : 'ENTRADA / TRANSFERÊNCIA');
           const finalPaymentMethod = tx.payment_method || 'TRANSFERÊNCIA';
-          const finalReportId = tx.report_id || effId;
+          // 🛡️ AUD-03: Força vínculo exclusivo com este fechamento (bloqueia spoof de report_id)
+          const finalReportId = effId;
 
-          await client.query(
+          // 🛡️ AUD-03: Valida congregação, banco, tipo, valor e data de cada perna de transferência
+          if (!finalChurchId || !allowedTransferChurchIds.has(finalChurchId)) {
+            await client.query('ROLLBACK');
+            return res.status(403).json({
+              error: 'FORBIDDEN',
+              message: 'Acesso negado: perna de transferência referencia congregação fora do escopo autorizado deste fechamento.'
+            });
+          }
+
+          if (!Number.isFinite(finalAmount) || finalAmount === 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({
+              error: 'VALIDATION_ERROR',
+              message: 'Perna de transferência de fechamento possui valor inválido ou zerado.'
+            });
+          }
+
+          if (finalType !== 'income' && finalType !== 'expense') {
+            await client.query('ROLLBACK');
+            return res.status(400).json({
+              error: 'VALIDATION_ERROR',
+              message: `Tipo inválido na perna de transferência ("${finalType}").`
+            });
+          }
+
+          if (!normalizeIsoDateOnly(finalDate) || !normalizeIsoDateOnly(finalRefDate)) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({
+              error: 'VALIDATION_ERROR',
+              message: 'Data inválida na perna de transferência de fechamento.'
+            });
+          }
+
+          const isRealTransferBankId = Boolean(
+            finalBankId &&
+            finalBankId !== 'unidentified' &&
+            !finalBankId.startsWith('manual') &&
+            finalBankId !== 'gmail-sync'
+          );
+          if (isClientProvidedTransfers && isRealTransferBankId && finalBankId && finalBankId !== effBankId && !ctx.isSuperAdmin) {
+            const transferBankCheck = await client.query(
+              'SELECT id FROM banks WHERE id::text = $1 AND user_id::text = ANY($2) LIMIT 1',
+              [finalBankId, ownerUserIds]
+            );
+            if (transferBankCheck.rows.length === 0) {
+              await client.query('ROLLBACK');
+              return res.status(403).json({
+                error: 'FORBIDDEN',
+                message: 'Acesso negado: conta bancária informada na perna de transferência não pertence à sua organização.'
+              });
+            }
+          }
+
+          // 🛡️ AUD-03 + DIFF-02: Valida UUID estrito e impede colisão/sequestro de lançamentos reais existentes via ON CONFLICT(id)
+          if (clientSuppliedId) {
+            if (!isValidStrictUuid(clientSuppliedId)) {
+              await client.query('ROLLBACK');
+              return res.status(400).json({
+                error: 'VALIDATION_ERROR',
+                message: 'ID inválido informado em transferTransactions (UUID esperado).'
+              });
+            }
+            const existingLegCheck = await client.query(
+              'SELECT id, source, report_id FROM consolidated_transactions WHERE id::text = $1 LIMIT 1',
+              [finalTxId]
+            );
+            if (existingLegCheck.rows.length > 0) {
+              const ex = existingLegCheck.rows[0];
+              const isOwnClosingLeg = String(ex.source || '') === 'closing' && String(ex.report_id || '') === effId;
+              if (!isOwnClosingLeg) {
+                await client.query('ROLLBACK');
+                return res.status(409).json({
+                  error: 'CLOSING_LEG_ID_CONFLICT',
+                  message: 'Conflito de integridade: o ID informado em transferTransactions já pertence a um lançamento existente e não pode ser sobrescrito.'
+                });
+              }
+            }
+          }
+
+          const safeFinalBankId = normalizePgNullableUuid(finalBankId);
+
+          // 🛡️ AUD-03 + DIFF-03: Se a perna destina saldo para outra congregação, trava destino de forma não-bloqueante (evita deadlock AB-BA no PG)
+          if (finalChurchId !== effChurchId) {
+            const destLockAcquired = await tryAcquireSharedPeriodLocks(client, [{
+              churchId: finalChurchId,
+              dates: [finalRefDate, finalDate],
+              bankId: safeFinalBankId
+            }]);
+            if (!destLockAcquired) {
+              await client.query('ROLLBACK');
+              return res.status(409).json({
+                error: 'CLOSING_IN_PROGRESS',
+                message: 'A congregação de destino possui uma operação de fechamento ou reabertura em andamento para este período. Tente novamente em instantes.'
+              });
+            }
+            const destPeriodGuard = await assertWritablePeriodAndDate(client, {
+              churchId: finalChurchId,
+              dates: [finalRefDate, finalDate],
+              bankId: safeFinalBankId,
+              checkDayConfirmed: false,
+              actionContext: 'create'
+            });
+            if (destPeriodGuard.blocked) {
+              await client.query('ROLLBACK');
+              return res.status(destPeriodGuard.statusCode || 422).json({
+                error: destPeriodGuard.error,
+                message: `Não é possível gravar o transporte de saldo: ${destPeriodGuard.message}`
+              });
+            }
+          }
+
+          const legUpsertRes = await client.query(
             `INSERT INTO consolidated_transactions (
               id, user_id, church_id, bank_id, amount, type, description, 
               transaction_date, reference_date, row_hash, source, status, 
               is_confirmed, contribution_type, payment_method, report_id, updated_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'closing', 'identified', true, $11, $12, $13, NOW())
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'closing', 'resolved', true, $11, $12, $13, NOW())
             ON CONFLICT (id) DO UPDATE SET
               amount = EXCLUDED.amount,
               type = EXCLUDED.type,
@@ -11527,18 +13070,22 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
               reference_date = EXCLUDED.reference_date,
               row_hash = EXCLUDED.row_hash,
               source = 'closing',
-              status = 'identified',
+              status = 'resolved',
               is_confirmed = true,
               contribution_type = EXCLUDED.contribution_type,
               payment_method = EXCLUDED.payment_method,
               report_id = EXCLUDED.report_id,
-              updated_at = NOW()`,
+              updated_at = NOW()
+            RETURNING *`,
             [
-              finalTxId, finalUserId, finalChurchId, finalBankId, finalAmount,
+              finalTxId, finalUserId, finalChurchId, safeFinalBankId, finalAmount,
               finalType, finalDesc, finalDate, finalRefDate, finalRowHash,
               finalContribType, finalPaymentMethod, finalReportId
             ]
           );
+          if (legUpsertRes.rows?.[0]) {
+            insertedTransferRows.push(legUpsertRes.rows[0]);
+          }
         }
         console.log(`[ChurchClosings] 💸 ${txsToInsert.length} transações financeiras reais de transporte gravadas em consolidated_transactions.`);
       }
@@ -11552,10 +13099,32 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
       }
       throw txErr;
     } finally {
-      if (lockAcquired && (pool as any).localEngine?.releaseClosingLock) {
-        (pool as any).localEngine.releaseClosingLock(lockKeys[0], lockKeys[1]);
-      }
+      releaseExclusiveClosingLocks(acquiredLocks);
       client.release();
+    }
+
+    // Espelhamento fiel no SQLite local quando commit ocorreu no PostgreSQL (incluindo pernas source='closing')
+    if (!(pool as any).isUsingSqliteFallback?.() && (pool as any).localEngine) {
+      try {
+        (pool as any).localEngine.query(query, params);
+        for (const txId of confirmedTxIds) {
+          (pool as any).localEngine.query(
+            `UPDATE consolidated_transactions SET is_confirmed = $1, status = 'resolved', updated_at = NOW() WHERE id::text = $2`,
+            [true, txId]
+          );
+        }
+        for (const legId of deletedClosingLegIds) {
+          (pool as any).localEngine.query(
+            `DELETE FROM consolidated_transactions WHERE id::text = $1`,
+            [legId]
+          );
+        }
+        for (const legRow of insertedTransferRows) {
+          mirrorTxRowToLocalSqlite(legRow);
+        }
+      } catch (mirrorErr) {
+        console.warn('[ChurchClosings] Aviso ao espelhar fechamento no SQLite local:', mirrorErr);
+      }
     }
 
     try {
@@ -11565,15 +13134,33 @@ app.post('/api/v1/church-closings', async (req: Request, res: Response) => {
         entityId: saved.id,
         churchId: effChurchId,
         userId: ctx.userId || null,
-        newValues: saved,
+        newValues: {
+          ...saved,
+          confirmed_transactions_count: confirmedTxIds.length,
+          scope: { periodType: effPeriodType, startDate: effStartDate, endDate: effEndDate, bankId: effBankId }
+        },
         req
       });
     } catch (auditErr) {
       console.warn('[Audit] Erro ao gravar audit log de fechamento:', auditErr);
     }
 
-    console.log(`[ChurchClosings] ✅ Fechamento Final registrado no banco: Igreja ${effChurchId}, Período ${effMonth}/${effYear}, Status: ${effStatus}`);
-    return res.status(201).json(saved);
+    notifyTenantRealtime(ctx.ownerId || ctx.userId, {
+      type: 'MONTH_CLOSING_UPDATED',
+      action: 'CLOSE',
+      closingId: saved.id,
+      churchId: effChurchId,
+      bankId: effBankId,
+      year: effYear,
+      month: effMonth,
+      periodType: effPeriodType,
+      startDate: effStartDate,
+      endDate: effEndDate,
+      status: effStatus
+    });
+
+    console.log(`[ChurchClosings] ✅ Fechamento Final registrado no banco: Igreja ${effChurchId}, Período ${effStartDate}..${effEndDate} (${effPeriodType}), Status: ${effStatus}, Confirmados: ${confirmedTxIds.length}`);
+    return res.status(201).json({ ...saved, confirmedTransactionsCount: confirmedTxIds.length });
   } catch (err) {
     console.error('[ChurchClosings] Erro ao salvar fechamento:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
@@ -11587,11 +13174,12 @@ app.post('/api/v1/church-closings/reopen', async (req: Request, res: Response) =
     if (!ctx.isAuthenticated) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Autenticação necessária para reabrir períodos contábeis.' });
     }
-    const { churchId, church_id, year, month, bankId, bank_id } = req.body || {};
+    const { churchId, church_id, year, month, bankId, bank_id, closingId, closing_id, startDate, start_date, endDate, end_date } = req.body || {};
     const effChurchId = String(churchId || church_id || '');
     const effBankId = (bankId && bankId !== 'all') ? String(bankId) : ((bank_id && bank_id !== 'all') ? String(bank_id) : null);
     const effYear = parseInt(String(year), 10);
     const effMonth = parseInt(String(month), 10);
+    const explicitClosingId = closingId || closing_id ? String(closingId || closing_id) : null;
 
     if (!effChurchId || isNaN(effYear) || isNaN(effMonth)) {
       return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'churchId, year e month são obrigatórios.' });
@@ -11614,22 +13202,69 @@ app.post('/api/v1/church-closings/reopen', async (req: Request, res: Response) =
       }
     }
 
-    // 🛡️ Execução em Transação Atômica ACID com Proteção Mútua de Concorrência (Advisory Lock)
+    const explicitStartDate = normalizeIsoDateOnly(startDate || start_date || null);
+    const explicitEndDate = normalizeIsoDateOnly(endDate || end_date || null);
+    const resolvedReopenRange = resolveClosingDateRange(effYear, effMonth, explicitStartDate, explicitEndDate);
+    const hasCustomRangeFilter = Boolean(
+      !explicitClosingId &&
+      explicitStartDate &&
+      explicitEndDate &&
+      explicitStartDate <= explicitEndDate &&
+      resolvedReopenRange.periodType === 'custom'
+    );
+
+    // Pré-leitura leve para mapear todos os meses cobertos por fechamentos multi-mês antes do BEGIN (lock ordenado sem deadlock)
+    let whereSql: string;
+    let whereParams: any[];
+    if (explicitClosingId) {
+      whereSql = `WHERE id::text = $1 AND church_id::text = $2`;
+      whereParams = [explicitClosingId, effChurchId];
+    } else if (hasCustomRangeFilter) {
+      if (effBankId) {
+        whereSql = `WHERE church_id::text = $1 AND bank_id::text = $2 AND start_date = $3 AND end_date = $4`;
+        whereParams = [effChurchId, effBankId, explicitStartDate, explicitEndDate];
+      } else {
+        whereSql = `WHERE church_id::text = $1 AND (bank_id IS NULL OR bank_id = '' OR bank_id = 'all') AND start_date = $2 AND end_date = $3`;
+        whereParams = [effChurchId, explicitStartDate, explicitEndDate];
+      }
+    } else if (effBankId) {
+      whereSql = `WHERE church_id::text = $1 AND year = $2 AND month = $3 AND bank_id::text = $4`;
+      whereParams = [effChurchId, effYear, effMonth, effBankId];
+    } else {
+      whereSql = `WHERE church_id::text = $1 AND year = $2 AND month = $3 AND (bank_id IS NULL OR bank_id = '' OR bank_id = 'all')`;
+      whereParams = [effChurchId, effYear, effMonth];
+    }
+
+    const preCandidatesRes = await pool.query(
+      `SELECT id, bank_id, year, month, period_type, start_date, end_date FROM church_closings ${whereSql}`,
+      whereParams
+    );
+    const preCandidateRows = preCandidatesRes.rows || [];
+    const preRanges: Array<{ startDate: string; endDate: string; bankId: string | null }> = preCandidateRows.length > 0
+      ? preCandidateRows.map((row: any) => {
+          const rr = resolveClosingDateRange(Number(row.year) || effYear, Number(row.month) || effMonth, row.start_date, row.end_date, row.period_type);
+          const rowBankId = (row.bank_id && row.bank_id !== 'all') ? String(row.bank_id) : null;
+          return { startDate: rr.startDate, endDate: rr.endDate, bankId: rowBankId };
+        })
+      : [{ startDate: resolvedReopenRange.startDate, endDate: resolvedReopenRange.endDate, bankId: effBankId }];
+
+    // 🛡️ Execução em Transação Atômica ACID com Locks Exclusivos Ordenados em todos os meses/bancos (AUD-05 + DIFF-01)
     const client = await pool.connect();
-    let result: any = null;
-    let matchedClosingId: string | null = null;
+    let reopenedIds: string[] = [];
     let defaultClosingId: string = '';
-    let lockAcquired = false;
-    const lockKeys = getClosingLockKeys(effChurchId, effBankId, effYear, effMonth);
+    let effectiveRespBankId: string | null = effBankId;
+    let reopenedTxIds: string[] = [];
+    let reopenedTxs: Array<{ id: string; status: string }> = [];
+    let deletedClosingLegIds: string[] = [];
+    let effectiveUnionStart = resolvedReopenRange.startDate;
+    let effectiveUnionEnd = resolvedReopenRange.endDate;
+    const acquiredLocks: Array<[number, number]> = [];
+    const lockKeysList = buildExclusiveClosingLockKeys(effChurchId, effBankId, preRanges, effYear, effMonth);
 
     try {
       await client.query('BEGIN');
 
-      const lockRes = await client.query(
-        'SELECT pg_try_advisory_xact_lock($1, $2) as acquired',
-        lockKeys
-      );
-      const acquired = Boolean(lockRes.rows?.[0]?.acquired);
+      const acquired = await tryAcquireExclusiveClosingLocks(client, lockKeysList, acquiredLocks);
       if (!acquired) {
         await client.query('ROLLBACK');
         return res.status(409).json({
@@ -11637,89 +13272,74 @@ app.post('/api/v1/church-closings/reopen', async (req: Request, res: Response) =
           message: 'Existe outra operação de fechamento ou reabertura em andamento para esta congregação e período contábil. Tente novamente em instantes.'
         });
       }
-      lockAcquired = true;
 
-      // 1. Atualiza status para 'reopened' no banco central (libera imediatamente a checagem isChurchPeriodClosed)
-      let updateQuery: string;
-      let updateParams: any[];
+      // 1. Atualiza status para 'reopened' preservando o histórico do fechamento (sem DELETE físico)
+      const updateResult = await client.query(
+        `UPDATE church_closings SET status = 'reopened', updated_at = NOW() ${whereSql} RETURNING *`,
+        whereParams
+      );
+      const reopenedRows = updateResult.rows || [];
+      reopenedIds = reopenedRows.map((r: any) => String(r.id));
 
-      if (effBankId) {
-        updateQuery = `UPDATE church_closings 
-         SET status = 'reopened', updated_at = NOW() 
-         WHERE church_id::text = $1 AND year = $2 AND month = $3 AND bank_id::text = $4 
-         RETURNING *`;
-        updateParams = [effChurchId, effYear, effMonth, effBankId];
-      } else {
-        updateQuery = `UPDATE church_closings 
-         SET status = 'reopened', updated_at = NOW() 
-         WHERE church_id::text = $1 AND year = $2 AND month = $3 AND (bank_id IS NULL OR bank_id = '' OR bank_id = 'all') 
-         RETURNING *`;
-        updateParams = [effChurchId, effYear, effMonth];
-      }
+      // 🛡️ DIFF-01: Deriva escopo real (bank_id + datas) de cada fechamento efetivamente reaberto
+      const reopenRanges: Array<{ startDate: string; endDate: string; bankId: string | null }> = reopenedRows.length > 0
+        ? reopenedRows.map((r: any) => {
+            const rr = resolveClosingDateRange(Number(r.year) || effYear, Number(r.month) || effMonth, r.start_date, r.end_date, r.period_type);
+            const rowBankId = (r.bank_id && r.bank_id !== 'all') ? String(r.bank_id) : null;
+            return { startDate: rr.startDate, endDate: rr.endDate, bankId: rowBankId };
+          })
+        : [{ startDate: resolvedReopenRange.startDate, endDate: resolvedReopenRange.endDate, bankId: effBankId }];
 
-      result = await client.query(updateQuery, updateParams);
-
-      // Se não encontrou registro com UPDATE, tenta remover por garantia
-      if (!result.rows || result.rows.length === 0) {
-        if (effBankId) {
-          await client.query(
-            `DELETE FROM church_closings WHERE church_id::text = $1 AND year = $2 AND month = $3 AND bank_id::text = $4`,
-            [effChurchId, effYear, effMonth, effBankId]
-          );
-        } else {
-          await client.query(
-            `DELETE FROM church_closings WHERE church_id::text = $1 AND year = $2 AND month = $3 AND (bank_id IS NULL OR bank_id = '' OR bank_id = 'all')`,
-            [effChurchId, effYear, effMonth]
-          );
-        }
-      }
-
-      // 2. Remove eventuais transações automáticas de transferência geradas pelo fechamento anterior
-      const monthPrefix = `${effYear}-${String(effMonth).padStart(2, '0')}`;
-      defaultClosingId = effBankId 
-        ? `closing_${effChurchId}_${effBankId}_${effYear}_${effMonth}` 
+      const distinctReopenedBanks = Array.from(new Set(reopenRanges.map(r => r.bankId || '')));
+      effectiveRespBankId = effBankId ?? (distinctReopenedBanks.length === 1 && distinctReopenedBanks[0] ? distinctReopenedBanks[0] : null);
+      defaultClosingId = effectiveRespBankId
+        ? `closing_${effChurchId}_${effectiveRespBankId}_${effYear}_${effMonth}`
         : `closing_${effChurchId}_${effYear}_${effMonth}`;
-      matchedClosingId = result.rows?.[0]?.id || defaultClosingId;
 
-      if (effBankId) {
-        await client.query(
-          `DELETE FROM consolidated_transactions 
-           WHERE (transaction_date::text LIKE $1 OR reference_date::text LIKE $1)
-             AND (
-               report_id = $2
-               OR report_id = $3
-               OR row_hash LIKE $4
-               OR (
-                 church_id::text = $5 
-                 AND bank_id::text = $6 
-                 AND (source = 'closing' OR id::text LIKE 'closing-%' OR row_hash LIKE 'closing-%')
-               )
-             )`,
-          [
-            `${monthPrefix}%`,
-            matchedClosingId,
-            defaultClosingId,
-            `closing-%-${effChurchId}-${effBankId}-%`,
-            effChurchId,
-            effBankId
-          ]
+      const postLockKeys = buildExclusiveClosingLockKeys(effChurchId, effectiveRespBankId, reopenRanges, effYear, effMonth);
+      const extraAcquired = await tryAcquireExclusiveClosingLocks(client, postLockKeys, acquiredLocks);
+      if (!extraAcquired) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({
+          error: 'CONCURRENT_OPERATION',
+          message: 'Existe outra operação de fechamento ou reabertura em andamento para esta congregação e período contábil. Tente novamente em instantes.'
+        });
+      }
+
+      effectiveUnionStart = reopenRanges.reduce((min, r) => (r.startDate < min ? r.startDate : min), reopenRanges[0].startDate);
+      effectiveUnionEnd = reopenRanges.reduce((max, r) => (r.endDate > max ? r.endDate : max), reopenRanges[0].endDate);
+
+      // 2. Remove transações automáticas de transferência (PB-007) de TODOS os fechamentos reabertos sem colisão
+      const legClosingIds = reopenedIds.length > 0
+        ? reopenedIds
+        : [explicitClosingId || defaultClosingId];
+      const allCustomOnly = reopenedRows.length > 0 && reopenedRows.every((r: any) => r.period_type === 'custom');
+      deletedClosingLegIds = await deleteClosingTransferLegs(client, {
+        closingIds: legClosingIds,
+        effChurchId,
+        effBankId: effectiveRespBankId,
+        startDate: effectiveUnionStart,
+        endDate: effectiveUnionEnd,
+        includeLegacyFallback: !explicitClosingId && !hasCustomRangeFilter && !allCustomOnly
+      });
+
+      // 3. DECISÃO 3 + P5-A + AUD-05 + DIFF-01: Reverte confirmações respeitando o bank_id real de CADA fechamento reaberto
+      const seenReopenedTxIds = new Set<string>();
+      for (const range of reopenRanges) {
+        const revertResult = await revertConfirmedTransactionsForReopen(
+          client,
+          effChurchId,
+          range.bankId,
+          range.startDate,
+          range.endDate
         );
-      } else {
-        await client.query(
-          `DELETE FROM consolidated_transactions 
-           WHERE (transaction_date::text LIKE $1 OR reference_date::text LIKE $1)
-             AND (
-               report_id = $2
-               OR report_id = $3
-               OR row_hash LIKE $4
-             )`,
-          [
-            `${monthPrefix}%`,
-            matchedClosingId,
-            defaultClosingId,
-            `closing-%-${effChurchId}-all-%`
-          ]
-        );
+        for (const tx of revertResult.reopenedTxs) {
+          if (!seenReopenedTxIds.has(tx.id)) {
+            seenReopenedTxIds.add(tx.id);
+            reopenedTxIds.push(tx.id);
+            reopenedTxs.push(tx);
+          }
+        }
       }
 
       await client.query('COMMIT');
@@ -11731,34 +13351,92 @@ app.post('/api/v1/church-closings/reopen', async (req: Request, res: Response) =
       }
       throw txErr;
     } finally {
-      if (lockAcquired && (pool as any).localEngine?.releaseClosingLock) {
-        (pool as any).localEngine.releaseClosingLock(lockKeys[0], lockKeys[1]);
-      }
+      releaseExclusiveClosingLocks(acquiredLocks);
       client.release();
+    }
+
+    const primaryReopenedId = reopenedIds[0] || explicitClosingId || defaultClosingId;
+
+    // Espelhamento fiel no SQLite local para TODOS os fechamentos reabertos, pernas removidas e transações revertidas
+    if (!(pool as any).isUsingSqliteFallback?.() && (pool as any).localEngine) {
+      try {
+        for (const cid of (reopenedIds.length > 0 ? reopenedIds : (explicitClosingId ? [explicitClosingId] : []))) {
+          (pool as any).localEngine.query(
+            `UPDATE church_closings SET status = 'reopened', updated_at = NOW() WHERE id::text = $1`,
+            [cid]
+          );
+        }
+        for (const legId of deletedClosingLegIds) {
+          (pool as any).localEngine.query(
+            `DELETE FROM consolidated_transactions WHERE id::text = $1`,
+            [legId]
+          );
+        }
+        for (const tx of reopenedTxs) {
+          (pool as any).localEngine.query(
+            `UPDATE consolidated_transactions SET is_confirmed = $1, status = $2, updated_at = NOW() WHERE id::text = $3`,
+            [false, tx.status, tx.id]
+          );
+        }
+      } catch (mirrorErr) {
+        console.warn('[ChurchClosings] Aviso ao espelhar reabertura no SQLite local:', mirrorErr);
+      }
     }
 
     try {
       await logAudit(pool, {
         action: 'UPDATE',
         entity: 'church_closings',
-        entityId: effBankId ? `closing_${effChurchId}_${effBankId}_${effYear}_${effMonth}` : `closing_${effChurchId}_${effYear}_${effMonth}`,
+        entityId: primaryReopenedId,
         churchId: effChurchId,
         userId: ctx.userId || null,
-        newValues: { status: 'reopened', reopened_at: new Date().toISOString() },
+        newValues: {
+          status: 'reopened',
+          reopened_at: new Date().toISOString(),
+          reopened_by: ctx.userId || null,
+          reopened_closing_ids: reopenedIds,
+          reopened_transactions_count: reopenedTxIds.length,
+          reopened_transaction_ids_sample: reopenedTxIds.slice(0, 100),
+          scope: {
+            churchId: effChurchId,
+            bankId: effectiveRespBankId,
+            year: effYear,
+            month: effMonth,
+            startDate: effectiveUnionStart,
+            endDate: effectiveUnionEnd
+          }
+        },
         req
       });
     } catch (auditErr) {
       console.warn('[Audit] Erro ao gravar audit log de reabertura de fechamento:', auditErr);
     }
 
-    console.log(`[ChurchClosings] 🔓 Fechamento Final DESFEITO / REABERTO no banco: Igreja ${effChurchId}, Conta ${effBankId || 'Consolidado'}, Período ${effMonth}/${effYear}`);
+    notifyTenantRealtime(ctx.ownerId || ctx.userId, {
+      type: 'MONTH_CLOSING_UPDATED',
+      action: 'REOPEN',
+      closingIds: reopenedIds,
+      churchId: effChurchId,
+      bankId: effectiveRespBankId,
+      year: effYear,
+      month: effMonth,
+      startDate: effectiveUnionStart,
+      endDate: effectiveUnionEnd,
+      status: 'reopened'
+    });
+
+    console.log(`[ChurchClosings] 🔓 Fechamento Final DESFEITO / REABERTO no banco: Igreja ${effChurchId}, Conta ${effectiveRespBankId || 'Consolidado'}, Período ${effectiveUnionStart}..${effectiveUnionEnd}, Fechamentos: ${reopenedIds.length}, Lançamentos reabertos: ${reopenedTxIds.length}`);
     return res.json({ 
       success: true, 
       status: 'reopened', 
       churchId: effChurchId, 
-      bankId: effBankId,
+      bankId: effectiveRespBankId,
       year: effYear, 
       month: effMonth,
+      startDate: effectiveUnionStart,
+      endDate: effectiveUnionEnd,
+      reopenedClosingIds: reopenedIds,
+      reopenedTransactionsCount: reopenedTxIds.length,
       message: `Período ${String(effMonth).padStart(2, '0')}/${effYear} reaberto com sucesso. Lançamentos liberados.` 
     });
   } catch (err) {
@@ -11767,159 +13445,225 @@ app.post('/api/v1/church-closings/reopen', async (req: Request, res: Response) =
   }
 });
 
+function mapReopenScopes(
+  rows: any[],
+  effYear: number,
+  effMonth: number,
+  fallbackRange: { startDate: string; endDate: string },
+  effBankId: string | null
+): Array<{ startDate: string; endDate: string; bankId: string | null }> {
+  if (!rows || rows.length === 0) {
+    return [{ startDate: fallbackRange.startDate, endDate: fallbackRange.endDate, bankId: effBankId }];
+  }
+  return rows.map((r: any) => {
+    const rr = resolveClosingDateRange(Number(r.year) || effYear, Number(r.month) || effMonth, r.start_date, r.end_date, r.period_type);
+    const rowBankId = (r.bank_id && r.bank_id !== 'all') ? String(r.bank_id) : null;
+    return { startDate: rr.startDate, endDate: rr.endDate, bankId: rowBankId };
+  });
+}
+
+function mirrorReopenToLocalSqlite(reopenedIds: string[], explicitClosingId: string | null, deletedClosingLegIds: string[], reopenedTxs: Array<{ id: string; status: string }>): void {
+  if ((pool as any).isUsingSqliteFallback?.() || !(pool as any).localEngine) return;
+  try {
+    for (const cid of (reopenedIds.length > 0 ? reopenedIds : (explicitClosingId ? [explicitClosingId] : []))) {
+      (pool as any).localEngine.query(`UPDATE church_closings SET status = 'reopened', updated_at = NOW() WHERE id::text = $1`, [cid]);
+    }
+    for (const legId of deletedClosingLegIds) {
+      (pool as any).localEngine.query(`DELETE FROM consolidated_transactions WHERE id::text = $1`, [legId]);
+    }
+    for (const tx of reopenedTxs) {
+      (pool as any).localEngine.query(`UPDATE consolidated_transactions SET is_confirmed = $1, status = $2, updated_at = NOW() WHERE id::text = $3`, [false, tx.status, tx.id]);
+    }
+  } catch (mirrorErr) {
+    console.warn('[ChurchClosings] Aviso ao espelhar reabertura no SQLite local:', mirrorErr);
+  }
+}
+
 // DELETE /api/v1/church-closings/:churchId/:year/:month
 app.delete('/api/v1/church-closings/:churchId/:year/:month', async (req: Request, res: Response) => {
   try {
     const ctx = getTenantContext(req);
-
-    // 🛡️ 1. Bloqueio Mandatório de Acesso Anônimo (Deny-by-Default)
     if (!ctx.isAuthenticated) {
-      return res.status(401).json({
-        error: 'UNAUTHORIZED',
-        message: 'Autenticação necessária para reabrir períodos contábeis.'
-      });
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Autenticação necessária para reabrir períodos contábeis.' });
     }
 
     const { churchId, year, month } = req.params;
-    const { bank_id } = req.query;
+    const { bank_id, start_date, end_date, closing_id } = req.query;
     const effChurchId = String(churchId || '');
     const effBankId = (bank_id && bank_id !== 'all') ? String(bank_id) : null;
     const effYear = parseInt(String(year), 10);
     const effMonth = parseInt(String(month), 10);
+    const explicitClosingId = closing_id ? String(closing_id) : null;
 
-    // 🛡️ 2. Restrição do Usuário Secundário: apenas o usuário principal tem autorização para reabrir períodos contábeis
     if (ctx.isSecondaryUser) {
-      return res.status(403).json({
-        error: 'FORBIDDEN',
-        message: 'Apenas o usuário principal tem autorização para reabrir períodos contábeis.'
-      });
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Apenas o usuário principal tem autorização para reabrir períodos contábeis.' });
     }
 
-    // 🛡️ 3. Isolamento da Congregação (Cross-Tenant): Titular só acessa congregações da própria organização
     if (!ctx.isSuperAdmin) {
       const ownerId = String(ctx.ownerId || ctx.userId || '').trim();
       const ownerUserIds = await getEquivalentUserIds(ownerId);
-
       const chCheck = await pool.query(
         'SELECT id FROM churches WHERE id::text = $1 AND (user_id::text = ANY($2) OR id::text = $3) LIMIT 1',
         [effChurchId, ownerUserIds, ownerId]
       );
-
       if (chCheck.rows.length === 0) {
-        return res.status(403).json({
-          error: 'FORBIDDEN',
-          message: 'Acesso negado: a congregação pertence a outra organização.'
-        });
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: a congregação pertence a outra organização.' });
       }
     }
 
-    // 🛡️ Execução em Transação Atômica ACID com Proteção Mútua de Concorrência (Advisory Lock)
+    const explicitStartDate = normalizeIsoDateOnly(typeof start_date === 'string' ? start_date : null);
+    const explicitEndDate = normalizeIsoDateOnly(typeof end_date === 'string' ? end_date : null);
+    const resolvedReopenRange = resolveClosingDateRange(effYear, effMonth, explicitStartDate, explicitEndDate);
+    const hasCustomRangeFilter = Boolean(
+      !explicitClosingId && explicitStartDate && explicitEndDate && explicitStartDate <= explicitEndDate && resolvedReopenRange.periodType === 'custom'
+    );
+
+    let whereSql: string;
+    let whereParams: any[];
+    if (explicitClosingId) {
+      whereSql = `WHERE id::text = $1 AND church_id::text = $2`;
+      whereParams = [explicitClosingId, effChurchId];
+    } else if (hasCustomRangeFilter) {
+      whereSql = effBankId
+        ? `WHERE church_id::text = $1 AND bank_id::text = $2 AND start_date = $3 AND end_date = $4`
+        : `WHERE church_id::text = $1 AND (bank_id IS NULL OR bank_id = '' OR bank_id = 'all') AND start_date = $2 AND end_date = $3`;
+      whereParams = effBankId ? [effChurchId, effBankId, explicitStartDate, explicitEndDate] : [effChurchId, explicitStartDate, explicitEndDate];
+    } else if (effBankId) {
+      whereSql = `WHERE church_id::text = $1 AND year = $2 AND month = $3 AND bank_id::text = $4`;
+      whereParams = [effChurchId, effYear, effMonth, effBankId];
+    } else {
+      whereSql = `WHERE church_id::text = $1 AND year = $2 AND month = $3 AND (bank_id IS NULL OR bank_id = '' OR bank_id = 'all')`;
+      whereParams = [effChurchId, effYear, effMonth];
+    }
+
+    const preCandidatesRes = await pool.query(`SELECT id, bank_id, year, month, period_type, start_date, end_date FROM church_closings ${whereSql}`, whereParams);
+    const preRanges = mapReopenScopes(preCandidatesRes.rows || [], effYear, effMonth, resolvedReopenRange, effBankId);
+
     const client = await pool.connect();
-    let lockAcquired = false;
-    const lockKeys = getClosingLockKeys(effChurchId, effBankId, effYear, effMonth);
+    let reopenedIds: string[] = [];
+    let effectiveRespBankId: string | null = effBankId;
+    let reopenedTxIds: string[] = [];
+    let reopenedTxs: Array<{ id: string; status: string }> = [];
+    let deletedClosingLegIds: string[] = [];
+    let effectiveUnionStart = resolvedReopenRange.startDate;
+    let effectiveUnionEnd = resolvedReopenRange.endDate;
+    const acquiredLocks: Array<[number, number]> = [];
+    const lockKeysList = buildExclusiveClosingLockKeys(effChurchId, effBankId, preRanges, effYear, effMonth);
+    let defaultClosingId = effBankId ? `closing_${effChurchId}_${effBankId}_${effYear}_${effMonth}` : `closing_${effChurchId}_${effYear}_${effMonth}`;
 
     try {
       await client.query('BEGIN');
-
-      const lockRes = await client.query(
-        'SELECT pg_try_advisory_xact_lock($1, $2) as acquired',
-        lockKeys
-      );
-      const acquired = Boolean(lockRes.rows?.[0]?.acquired);
-      if (!acquired) {
+      if (!(await tryAcquireExclusiveClosingLocks(client, lockKeysList, acquiredLocks))) {
         await client.query('ROLLBACK');
-        return res.status(409).json({
-          error: 'CONCURRENT_OPERATION',
-          message: 'Existe outra operação de fechamento ou reabertura em andamento para esta congregação e período contábil. Tente novamente em instantes.'
-        });
-      }
-      lockAcquired = true;
-
-      let matchedClosingId: string | null = null;
-      if (effBankId) {
-        const upRes = await client.query(
-          `UPDATE church_closings 
-           SET status = 'reopened', updated_at = NOW() 
-           WHERE church_id::text = $1 AND year = $2 AND month = $3 AND bank_id::text = $4
-           RETURNING id`,
-          [effChurchId, effYear, effMonth, effBankId]
-        );
-        matchedClosingId = upRes.rows?.[0]?.id || null;
-      } else {
-        const upRes = await client.query(
-          `UPDATE church_closings 
-           SET status = 'reopened', updated_at = NOW() 
-           WHERE church_id::text = $1 AND year = $2 AND month = $3 AND (bank_id IS NULL OR bank_id = '' OR bank_id = 'all')
-           RETURNING id`,
-          [effChurchId, effYear, effMonth]
-        );
-        matchedClosingId = upRes.rows?.[0]?.id || null;
+        return res.status(409).json({ error: 'CONCURRENT_OPERATION', message: 'Existe outra operação de fechamento ou reabertura em andamento para esta congregação e período contábil. Tente novamente em instantes.' });
       }
 
-      // Remove eventuais transações automáticas de transferência geradas pelo fechamento
-      const monthPrefix = `${effYear}-${String(effMonth).padStart(2, '0')}`;
-      const defaultClosingId = effBankId 
-        ? `closing_${effChurchId}_${effBankId}_${effYear}_${effMonth}` 
-        : `closing_${effChurchId}_${effYear}_${effMonth}`;
-      const effClosingId = matchedClosingId || defaultClosingId;
+      const upRes = await client.query(`UPDATE church_closings SET status = 'reopened', updated_at = NOW() ${whereSql} RETURNING *`, whereParams);
+      const reopenedRows = upRes.rows || [];
+      reopenedIds = reopenedRows.map((r: any) => String(r.id));
 
-      if (effBankId) {
-        await client.query(
-          `DELETE FROM consolidated_transactions 
-           WHERE (transaction_date::text LIKE $1 OR reference_date::text LIKE $1)
-             AND (
-               report_id = $2
-               OR report_id = $3
-               OR row_hash LIKE $4
-               OR (
-                 church_id::text = $5 
-                 AND bank_id::text = $6 
-                 AND (source = 'closing' OR id::text LIKE 'closing-%' OR row_hash LIKE 'closing-%')
-               )
-             )`,
-          [
-            `${monthPrefix}%`,
-            effClosingId,
-            defaultClosingId,
-            `closing-%-${effChurchId}-${effBankId}-%`,
-            effChurchId,
-            effBankId
-          ]
-        );
-      } else {
-        await client.query(
-          `DELETE FROM consolidated_transactions 
-           WHERE (transaction_date::text LIKE $1 OR reference_date::text LIKE $1)
-             AND (
-               report_id = $2
-               OR report_id = $3
-               OR row_hash LIKE $4
-             )`,
-          [
-            `${monthPrefix}%`,
-            effClosingId,
-            defaultClosingId,
-            `closing-%-${effChurchId}-all-%`
-          ]
-        );
+      const reopenRanges = mapReopenScopes(reopenedRows, effYear, effMonth, resolvedReopenRange, effBankId);
+      const distinctReopenedBanks = Array.from(new Set(reopenRanges.map(r => r.bankId || '')));
+      effectiveRespBankId = effBankId ?? (distinctReopenedBanks.length === 1 && distinctReopenedBanks[0] ? distinctReopenedBanks[0] : null);
+      defaultClosingId = effectiveRespBankId ? `closing_${effChurchId}_${effectiveRespBankId}_${effYear}_${effMonth}` : `closing_${effChurchId}_${effYear}_${effMonth}`;
+
+      const postLockKeys = buildExclusiveClosingLockKeys(effChurchId, effectiveRespBankId, reopenRanges, effYear, effMonth);
+      if (!(await tryAcquireExclusiveClosingLocks(client, postLockKeys, acquiredLocks))) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ error: 'CONCURRENT_OPERATION', message: 'Existe outra operação de fechamento ou reabertura em andamento para esta congregação e período contábil. Tente novamente em instantes.' });
+      }
+
+      effectiveUnionStart = reopenRanges.reduce((min, r) => (r.startDate < min ? r.startDate : min), reopenRanges[0].startDate);
+      effectiveUnionEnd = reopenRanges.reduce((max, r) => (r.endDate > max ? r.endDate : max), reopenRanges[0].endDate);
+
+      const legClosingIds = reopenedIds.length > 0 ? reopenedIds : [explicitClosingId || defaultClosingId];
+      const allCustomOnly = reopenedRows.length > 0 && reopenedRows.every((r: any) => r.period_type === 'custom');
+      deletedClosingLegIds = await deleteClosingTransferLegs(client, {
+        closingIds: legClosingIds,
+        effChurchId,
+        effBankId: effectiveRespBankId,
+        startDate: effectiveUnionStart,
+        endDate: effectiveUnionEnd,
+        includeLegacyFallback: !explicitClosingId && !hasCustomRangeFilter && !allCustomOnly
+      });
+
+      const seenReopenedTxIds = new Set<string>();
+      for (const range of reopenRanges) {
+        const revertResult = await revertConfirmedTransactionsForReopen(client, effChurchId, range.bankId, range.startDate, range.endDate);
+        for (const tx of revertResult.reopenedTxs) {
+          if (!seenReopenedTxIds.has(tx.id)) {
+            seenReopenedTxIds.add(tx.id);
+            reopenedTxIds.push(tx.id);
+            reopenedTxs.push(tx);
+          }
+        }
       }
 
       await client.query('COMMIT');
     } catch (txErr) {
-      try {
-        await client.query('ROLLBACK');
-      } catch (rbErr) {
-        console.warn('[ChurchClosings] Erro ao reverter transação de deleção de fechamento (ROLLBACK):', rbErr);
-      }
+      try { await client.query('ROLLBACK'); } catch (rbErr) { console.warn('[ChurchClosings] Erro ao reverter transação de deleção de fechamento (ROLLBACK):', rbErr); }
       throw txErr;
     } finally {
-      if (lockAcquired && (pool as any).localEngine?.releaseClosingLock) {
-        (pool as any).localEngine.releaseClosingLock(lockKeys[0], lockKeys[1]);
-      }
+      releaseExclusiveClosingLocks(acquiredLocks);
       client.release();
     }
 
-    return res.json({ success: true, status: 'reopened', churchId: effChurchId, year: effYear, month: effMonth, bankId: effBankId });
+    const primaryReopenedId = reopenedIds[0] || explicitClosingId || defaultClosingId;
+    mirrorReopenToLocalSqlite(reopenedIds, explicitClosingId, deletedClosingLegIds, reopenedTxs);
+
+    try {
+      await logAudit(pool, {
+        action: 'UPDATE',
+        entity: 'church_closings',
+        entityId: primaryReopenedId,
+        churchId: effChurchId,
+        userId: ctx.userId || null,
+        newValues: {
+          status: 'reopened',
+          reopened_at: new Date().toISOString(),
+          reopened_by: ctx.userId || null,
+          reopened_closing_ids: reopenedIds,
+          reopened_transactions_count: reopenedTxIds.length,
+          scope: {
+            churchId: effChurchId,
+            bankId: effectiveRespBankId,
+            year: effYear,
+            month: effMonth,
+            startDate: effectiveUnionStart,
+            endDate: effectiveUnionEnd
+          }
+        },
+        req
+      });
+    } catch (auditErr) {
+      console.warn('[Audit] Erro ao gravar audit log de reabertura (DELETE) de fechamento:', auditErr);
+    }
+
+    notifyTenantRealtime(ctx.ownerId || ctx.userId, {
+      type: 'MONTH_CLOSING_UPDATED',
+      action: 'REOPEN',
+      closingIds: reopenedIds,
+      churchId: effChurchId,
+      bankId: effectiveRespBankId,
+      year: effYear,
+      month: effMonth,
+      startDate: effectiveUnionStart,
+      endDate: effectiveUnionEnd,
+      status: 'reopened'
+    });
+
+    return res.json({
+      success: true,
+      status: 'reopened',
+      churchId: effChurchId,
+      year: effYear,
+      month: effMonth,
+      bankId: effectiveRespBankId,
+      startDate: effectiveUnionStart,
+      endDate: effectiveUnionEnd,
+      reopenedClosingIds: reopenedIds,
+      reopenedTransactionsCount: reopenedTxIds.length
+    });
   } catch (err) {
     console.error('[ChurchClosings] Erro ao deletar fechamento:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
@@ -11929,7 +13673,7 @@ app.delete('/api/v1/church-closings/:churchId/:year/:month', async (req: Request
 // 🛡️ Função Cirúrgica de Auto-Cura de Transações com congregação nula (estritamente isolada por tenant)
 async function healOrphanChurches(poolInstance: any, scopedOwnerUserIds?: string[]): Promise<{ totalFound: number; repairedCount: number }> {
   try {
-    let orphanSql = `SELECT id, description, contributor_id, user_id FROM consolidated_transactions 
+    let orphanSql = `SELECT id, description, contributor_id, user_id, is_confirmed, source, row_hash, reference_date, transaction_date, bank_id FROM consolidated_transactions 
        WHERE (church_id IS NULL OR trim(church_id::text) = '' OR church_id::text = 'unidentified') 
          AND status IN ('identified', 'resolved')`;
     const orphanParams: any[] = [];
@@ -12020,6 +13764,27 @@ async function healOrphanChurches(poolInstance: any, scopedOwnerUserIds?: string
       }
 
       if (resolvedChurchId && resolvedChurchId !== 'unidentified') {
+        // 🛡️ Guard (Bypass F): nunca sobrescrever transação já confirmada, perna de fechamento ou mover para período/dia congelado
+        if (isTruthyDbBool(tx.is_confirmed) || isForgedOrProtectedClosingTx(tx)) {
+          console.log(`[AutoHeal:Churches] Ignorando transação protegida/confirmada ${tx.id}.`);
+          continue;
+        }
+        try {
+          const healGuard = await assertWritablePeriodAndDate(poolInstance, {
+            churchId: resolvedChurchId,
+            dates: [tx.reference_date, tx.transaction_date],
+            bankId: tx.bank_id,
+            excludeTxId: String(tx.id),
+            actionContext: 'update'
+          });
+          if (healGuard.blocked) {
+            console.log(`[AutoHeal:Churches] Ignorando transação ${tx.id} pois destino (${resolvedChurchId}) está bloqueado: ${healGuard.error}`);
+            continue;
+          }
+        } catch (lockErr: any) {
+          console.warn(`[AutoHeal:Churches] Falha fail-closed ao verificar bloqueio da transação ${tx.id}; pulando por segurança:`, lockErr?.message || lockErr);
+          continue;
+        }
         await poolInstance.query(
           `UPDATE consolidated_transactions SET church_id = $1 WHERE id::text = $2`,
           [resolvedChurchId, String(tx.id)]
@@ -12339,6 +14104,22 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
     }
     const { id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits, attachments } = req.body;
 
+    // 🛡️ Fecha Bypass B (PB-007): bloqueia forjar perna contábil de fechamento via endpoint público
+    if (isForgedOrProtectedClosingTx({ source, id, row_hash })) {
+      return res.status(403).json({
+        error: 'CLOSING_SOURCE_FORBIDDEN',
+        message: 'Operação bloqueada: lançamentos de fechamento (source="closing" ou prefixo "closing-") só podem ser gerados pelo fluxo oficial de Fechamento do Livro Caixa.'
+      });
+    }
+
+    // 🛡️ RBAC explícito: criar lançamento já confirmado exige permissão confirmFinal
+    if (isTruthyDbBool(is_confirmed) && ctx.isSecondaryUser && !hasPermission(ctx, 'confirm_final', 'confirmar_final', 'confirmfinal')) {
+      return res.status(403).json({
+        error: 'FORBIDDEN',
+        message: 'Acesso negado: você não possui permissão de "Confirmar Final".'
+      });
+    }
+
     const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
     const defaultChurchId = (ctx.allowedChurchIds && ctx.allowedChurchIds.length > 0) ? ctx.allowedChurchIds[0] : '00000000-0000-0000-0000-000000000001';
     const effectiveChurchId = (church_id && church_id !== 'unidentified') ? String(church_id) : ((ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : defaultChurchId);
@@ -12357,7 +14138,6 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
         });
       }
     }
-
 
     // 🛡️ Validação de Congregação Permitida (Anti-Injeção Cross-Tenant)
     if (church_id && church_id !== 'unidentified') {
@@ -12408,100 +14188,212 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
     let effectiveType = type;
     const descUpper = (description || '').toUpperCase();
     if (
-      effectiveType === 'expense' && 
+      effectiveType === 'expense' &&
       (descUpper.includes('NU PAGAMENTOS') || descUpper.includes('RECEBEU') || descUpper.includes('RECEBIDO')) &&
-      !descUpper.includes('ENVIADO') && 
+      !descUpper.includes('ENVIADO') &&
       !descUpper.includes('PAGO A')
     ) {
       effectiveType = 'income';
     }
 
-    // 🛡️ Validação de Período Fechado (Congelamento)
-    const isClosingTx = source === 'closing' || (id && String(id).startsWith('closing-')) || (row_hash && String(row_hash).startsWith('closing-'));
-    const closedCheck = await isChurchPeriodClosed(pool, effectiveChurchId, transaction_date || reference_date, bank_id, isClosingTx);
-    if (closedCheck.isClosed) {
-      return res.status(422).json({
-        error: 'PERIOD_CLOSED',
-        message: closedCheck.message,
-        churchId: closedCheck.churchId,
-        year: closedCheck.year,
-        month: closedCheck.month
-      });
-    }
+    const client = await pool.connect();
+    let row: any = null;
+    try {
+      await client.query('BEGIN');
 
-    // Check row_hash duplicate if row_hash is provided
-    if (row_hash) {
-      const dupCheck = await pool.query('SELECT id FROM consolidated_transactions WHERE user_id = $1 AND row_hash = $2 LIMIT 1', [effectiveUserId, row_hash]);
-      if (dupCheck.rows.length > 0) {
-        return res.status(409).json({ error: 'ROW_HASH_ALREADY_EXISTS', id: dupCheck.rows[0].id });
+      const incomingDates = [reference_date, transaction_date];
+      const lockTargets: Array<{ churchId?: string | null; dates: Array<string | Date | null | undefined>; bankId?: string | null }> = [
+        { churchId: effectiveChurchId, dates: incomingDates, bankId: bank_id }
+      ];
+      for (const splitChurchId of extractSplitChurchIds(splits)) {
+        lockTargets.push({ churchId: splitChurchId, dates: incomingDates, bankId: bank_id });
       }
-    }
 
-    const finalId = id || crypto.randomUUID();
-
-    const finalContribReqId = await matchAndLinkContributionRequest(pool, {
-      id: finalId,
-      church_id: effectiveChurchId,
-      contributor_id,
-      amount,
-      contribution_request_id
-    });
-
-    let initialSplits = splits ? (typeof splits === 'string' ? splits : JSON.stringify(splits)) : null;
-    let initialContributionType = contribution_type || null;
-    const initialAttachments = attachments ? (typeof attachments === 'string' ? attachments : JSON.stringify(attachments)) : '[]';
-
-    if (finalContribReqId && !initialSplits) {
-      try {
-        const reqCheck = await pool.query('SELECT splits, description FROM contribution_requests WHERE id = $1 LIMIT 1', [finalContribReqId]);
-        if (reqCheck.rows.length > 0 && reqCheck.rows[0].splits) {
-          const reqSplits = reqCheck.rows[0].splits;
-          initialSplits = typeof reqSplits === 'string' ? reqSplits : JSON.stringify(reqSplits);
-          try {
-            const parsed = typeof reqSplits === 'string' ? JSON.parse(reqSplits) : reqSplits;
-            if (Array.isArray(parsed) && parsed.length > 1) {
-              initialContributionType = initialContributionType || 'Rateado';
-            } else if (Array.isArray(parsed) && parsed.length === 1) {
-              initialContributionType = initialContributionType || parsed[0]?.contributionType || parsed[0]?.label || null;
-            }
-          } catch (_) {}
+      // 🛡️ Fecha Bypass A (ON CONFLICT (id) DO UPDATE): inspeciona registro existente ANTES do upsert
+      let existingRow: any = null;
+      if (id) {
+        const existingRes = await client.query(
+          'SELECT * FROM consolidated_transactions WHERE id::text = $1 LIMIT 1',
+          [String(id)]
+        );
+        existingRow = existingRes.rows[0] || null;
+        if (existingRow) {
+          const isAuthorizedExisting = await isAuthorizedForTransaction(client, ctx, existingRow);
+          if (!isAuthorizedExisting) {
+            await client.query('ROLLBACK');
+            return res.status(403).json({
+              error: 'FORBIDDEN',
+              message: 'Acesso negado: o lançamento informado pertence a outra organização ou congregação não autorizada.'
+            });
+          }
+          if (isForgedOrProtectedClosingTx(existingRow)) {
+            await client.query('ROLLBACK');
+            return res.status(403).json({
+              error: 'CLOSING_LEG_PROTECTED',
+              message: 'Lançamento protegido: Esta transação é uma perna contábil de transporte de saldo gerada por Fechamento.'
+            });
+          }
+          if (isTruthyDbBool(existingRow.is_confirmed)) {
+            await client.query('ROLLBACK');
+            return res.status(422).json({
+              error: 'TRANSACTION_CONFIRMED',
+              message: 'LANÇAMENTO CONFIRMADO: Este lançamento já possui Confirmação Final e não pode ser sobrescrito.'
+            });
+          }
+          const existingDates = [existingRow.reference_date, existingRow.transaction_date];
+          lockTargets.push({ churchId: existingRow.church_id, dates: existingDates, bankId: existingRow.bank_id });
+          for (const oldSplitChurchId of extractSplitChurchIds(existingRow.splits)) {
+            lockTargets.push({ churchId: oldSplitChurchId, dates: existingDates, bankId: existingRow.bank_id });
+          }
         }
+      }
+
+      // 🛡️ Concorrência: shared advisory locks coordenados com POST /church-closings e /reopen
+      await acquireSharedPeriodLocks(client, lockTargets);
+
+      // Revalida origem existente sob shared lock
+      if (existingRow) {
+        const existingGuard = await assertWritablePeriodAndDate(client, {
+          churchId: existingRow.church_id,
+          dates: [existingRow.reference_date, existingRow.transaction_date],
+          bankId: existingRow.bank_id,
+          excludeTxId: String(existingRow.id),
+          actionContext: 'update'
+        });
+        if (existingGuard.blocked) {
+          await client.query('ROLLBACK');
+          return res.status(existingGuard.statusCode || 422).json({
+            error: existingGuard.error,
+            message: existingGuard.message,
+            churchId: existingGuard.churchId,
+            year: existingGuard.year,
+            month: existingGuard.month,
+            date: existingGuard.date
+          });
+        }
+      }
+
+      // 🛡️ Validação Unificada (Bypass C + Decisão 1 + P2-A + Período Mensal/Personalizado)
+      const incomingGuard = await assertWritablePeriodAndDate(client, {
+        churchId: effectiveChurchId,
+        dates: incomingDates,
+        bankId: bank_id,
+        excludeTxId: existingRow ? String(existingRow.id) : null,
+        actionContext: existingRow ? 'update' : 'create'
+      });
+      if (incomingGuard.blocked) {
+        await client.query('ROLLBACK');
+        return res.status(incomingGuard.statusCode || 422).json({
+          error: incomingGuard.error,
+          message: incomingGuard.message,
+          churchId: incomingGuard.churchId,
+          year: incomingGuard.year,
+          month: incomingGuard.month,
+          date: incomingGuard.date
+        });
+      }
+
+      // Check row_hash duplicate if row_hash is provided
+      if (row_hash) {
+        const dupCheck = await client.query('SELECT id FROM consolidated_transactions WHERE user_id = $1 AND row_hash = $2 LIMIT 1', [effectiveUserId, row_hash]);
+        if (dupCheck.rows.length > 0 && (!existingRow || String(dupCheck.rows[0].id) !== String(existingRow.id))) {
+          await client.query('ROLLBACK');
+          return res.status(409).json({ error: 'ROW_HASH_ALREADY_EXISTS', id: dupCheck.rows[0].id });
+        }
+      }
+
+      const finalId = id || crypto.randomUUID();
+
+      const finalContribReqId = await matchAndLinkContributionRequest(client, {
+        id: finalId,
+        church_id: effectiveChurchId,
+        contributor_id,
+        amount,
+        contribution_request_id
+      });
+
+      let initialSplits = splits ? (typeof splits === 'string' ? splits : JSON.stringify(splits)) : null;
+      let initialContributionType = contribution_type || null;
+      const initialAttachments = attachments ? (typeof attachments === 'string' ? attachments : JSON.stringify(attachments)) : '[]';
+
+      if (finalContribReqId && !initialSplits) {
+        try {
+          const reqCheck = await client.query('SELECT splits, description FROM contribution_requests WHERE id = $1 LIMIT 1', [finalContribReqId]);
+          if (reqCheck.rows.length > 0 && reqCheck.rows[0].splits) {
+            const reqSplits = reqCheck.rows[0].splits;
+            initialSplits = typeof reqSplits === 'string' ? reqSplits : JSON.stringify(reqSplits);
+            try {
+              const parsed = typeof reqSplits === 'string' ? JSON.parse(reqSplits) : reqSplits;
+              if (Array.isArray(parsed) && parsed.length > 1) {
+                initialContributionType = initialContributionType || 'Rateado';
+              } else if (Array.isArray(parsed) && parsed.length === 1) {
+                initialContributionType = initialContributionType || parsed[0]?.contributionType || parsed[0]?.label || null;
+              }
+            } catch (_) {}
+          }
+        } catch (_) {}
+      }
+
+      // 🛡️ Fecha Bypass F (Rateios / Splits): valida cada congregação participante do rateio
+      if (initialSplits) {
+        const splitGuard = await assertSplitsWritable(client, initialSplits, incomingDates, bank_id, existingRow ? String(existingRow.id) : null);
+        if (splitGuard.blocked) {
+          await client.query('ROLLBACK');
+          return res.status(splitGuard.statusCode || 422).json({
+            error: splitGuard.error,
+            message: splitGuard.message,
+            churchId: splitGuard.churchId,
+            year: splitGuard.year,
+            month: splitGuard.month,
+            date: splitGuard.date
+          });
+        }
+      }
+
+      let query = '';
+      let params: any[] = [];
+      if (finalId) {
+        query = `INSERT INTO consolidated_transactions 
+          (id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits, attachments) 
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) 
+          ON CONFLICT (id) DO UPDATE SET 
+            amount = EXCLUDED.amount, 
+            description = EXCLUDED.description, 
+            status = EXCLUDED.status, 
+            is_confirmed = EXCLUDED.is_confirmed,
+            bank_id = EXCLUDED.bank_id,
+            reference_date = EXCLUDED.reference_date,
+            church_id = EXCLUDED.church_id,
+            contributor_id = EXCLUDED.contributor_id,
+            report_id = EXCLUDED.report_id,
+            payment_method = EXCLUDED.payment_method,
+            contribution_type = EXCLUDED.contribution_type,
+            contribution_request_id = EXCLUDED.contribution_request_id,
+            splits = EXCLUDED.splits,
+            attachments = EXCLUDED.attachments,
+            updated_at = NOW()
+          RETURNING *`;
+        params = [finalId, amount, description, effectiveType, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, reference_date || null, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, initialContributionType, finalContribReqId || null, initialSplits, initialAttachments];
+      } else {
+        query = `INSERT INTO consolidated_transactions 
+          (amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits, attachments) 
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING *`;
+        params = [amount, description, effectiveType, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, reference_date || null, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, initialContributionType, finalContribReqId || null, initialSplits, initialAttachments];
+      }
+
+      const result = await client.query(query, params);
+      row = result.rows[0];
+      await client.query('COMMIT');
+    } catch (txErr) {
+      try {
+        await client.query('ROLLBACK');
       } catch (_) {}
+      throw txErr;
+    } finally {
+      client.release();
     }
 
-    let query = '';
-    let params: any[] = [];
-    if (finalId) {
-      query = `INSERT INTO consolidated_transactions 
-        (id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits, attachments) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) 
-        ON CONFLICT (id) DO UPDATE SET 
-          amount = EXCLUDED.amount, 
-          description = EXCLUDED.description, 
-          status = EXCLUDED.status, 
-          is_confirmed = EXCLUDED.is_confirmed,
-          bank_id = EXCLUDED.bank_id,
-          reference_date = EXCLUDED.reference_date,
-          church_id = EXCLUDED.church_id,
-          contributor_id = EXCLUDED.contributor_id,
-          report_id = EXCLUDED.report_id,
-          payment_method = EXCLUDED.payment_method,
-          contribution_type = EXCLUDED.contribution_type,
-          contribution_request_id = EXCLUDED.contribution_request_id,
-          splits = EXCLUDED.splits,
-          attachments = EXCLUDED.attachments,
-          updated_at = NOW()
-        RETURNING *`;
-      params = [finalId, amount, description, effectiveType, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, reference_date || null, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, initialContributionType, finalContribReqId || null, initialSplits, initialAttachments];
-    } else {
-      query = `INSERT INTO consolidated_transactions 
-        (amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits, attachments) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING *`;
-      params = [amount, description, effectiveType, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, reference_date || null, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, initialContributionType, finalContribReqId || null, initialSplits, initialAttachments];
-    }
-
-    const result = await pool.query(query, params);
-    const row = result.rows[0];
+    mirrorTxRowToLocalSqlite(row);
 
     if (row && row.is_confirmed) {
       publishContributionConfirmedEvent(pool, row).catch(e => console.error('[EventPublish] Error:', e));
@@ -12522,6 +14414,7 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
     notifyTenantRealtime(effectiveUserId || ctx.ownerId || ctx.userId, { type: 'TRANSACTION_UPDATED', action: 'CREATE', txId: row?.id, churchId: row?.church_id });
     return res.status(201).json(row);
   } catch (err) {
+    if (handleLockVerificationError(res, err)) return;
     console.error('[Contributors API] Error POST consolidated_transaction:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
   }
@@ -12544,12 +14437,46 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
       return res.status(400).json({ error: 'VALIDATION_ERROR: Transactions array is required' });
     }
 
+    // Pré-validação rápida de Bypass B e RBAC confirmFinal antes de abrir transação
+    for (const tx of transactions) {
+      if (isForgedOrProtectedClosingTx({ source: tx?.source, id: tx?.id, row_hash: tx?.row_hash })) {
+        return res.status(403).json({
+          error: 'CLOSING_SOURCE_FORBIDDEN',
+          message: 'Operação bloqueada: lançamentos de fechamento (source="closing" ou prefixo "closing-") só podem ser gerados pelo fluxo oficial de Fechamento do Livro Caixa.'
+        });
+      }
+      if (isTruthyDbBool(tx?.is_confirmed) && ctx.isSecondaryUser && !hasPermission(ctx, 'confirm_final', 'confirmar_final', 'confirmfinal')) {
+        return res.status(403).json({
+          error: 'FORBIDDEN',
+          message: 'Acesso negado: você não possui permissão de "Confirmar Final".'
+        });
+      }
+    }
+
     await client.query('BEGIN');
+
+    // 🛡️ Adquire shared advisory locks determinísticos para todos os períodos do lote
+    const bulkLockTargets: Array<{ churchId?: string | null; dates: Array<string | Date | null | undefined>; bankId?: string | null }> = [];
+    for (const tx of transactions) {
+      const effChurchId = (tx.church_id && tx.church_id !== 'unidentified')
+        ? tx.church_id
+        : ((ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : (tx.church_id || null));
+      const txDates = [tx.reference_date, tx.transaction_date];
+      if (isRealChurchId(effChurchId)) {
+        bulkLockTargets.push({ churchId: effChurchId, dates: txDates, bankId: tx.bank_id });
+      }
+      for (const splitChurchId of extractSplitChurchIds(tx.splits)) {
+        bulkLockTargets.push({ churchId: splitChurchId, dates: txDates, bankId: tx.bank_id });
+      }
+    }
+    await acquireSharedPeriodLocks(client, bulkLockTargets);
+
     const inserted: any[] = [];
+    const mutatedRows: any[] = [];
 
     for (const tx of transactions) {
       const { id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits, attachments } = tx;
-      
+
       const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
       const effectiveChurchId = (church_id && church_id !== 'unidentified')
         ? church_id
@@ -12567,7 +14494,6 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
           });
         }
       }
-
 
       // 🛡️ Validação de Congregação Permitida (Anti-Injeção Cross-Tenant)
       if (effectiveChurchId && effectiveChurchId !== 'unidentified') {
@@ -12633,18 +14559,81 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
         }
       }
 
-      // 🛡️ Validação de Período Fechado (Congelamento)
-      const isClosingTx = source === 'closing' || (tx.id && String(tx.id).startsWith('closing-')) || (row_hash && String(row_hash).startsWith('closing-'));
-      const closedCheck = await isChurchPeriodClosed(client, effectiveChurchId, transaction_date || reference_date, bank_id, isClosingTx);
-      if (closedCheck.isClosed) {
+      // 🛡️ Fecha Bypass A (ON CONFLICT (id) DO UPDATE): verifica se ID já existe antes de sobrescrever
+      let existingRow: any = null;
+      if (id) {
+        const existingRes = await client.query(
+          'SELECT * FROM consolidated_transactions WHERE id::text = $1 LIMIT 1',
+          [String(id)]
+        );
+        existingRow = existingRes.rows[0] || null;
+        if (existingRow) {
+          const isAuthorizedExisting = await isAuthorizedForTransaction(client, ctx, existingRow);
+          if (!isAuthorizedExisting) {
+            await client.query('ROLLBACK');
+            return res.status(403).json({
+              error: 'FORBIDDEN',
+              message: 'Acesso negado: um ou mais lançamentos do lote pertencem a outra organização ou congregação não autorizada.'
+            });
+          }
+          if (isForgedOrProtectedClosingTx(existingRow)) {
+            await client.query('ROLLBACK');
+            return res.status(403).json({
+              error: 'CLOSING_LEG_PROTECTED',
+              message: `Lançamento protegido: "${existingRow.description}" é uma perna contábil de fechamento e não pode ser sobrescrita em lote.`
+            });
+          }
+          if (isTruthyDbBool(existingRow.is_confirmed)) {
+            await client.query('ROLLBACK');
+            return res.status(422).json({
+              error: 'TRANSACTION_CONFIRMED',
+              message: `LANÇAMENTO CONFIRMADO: "${existingRow.description}" já possui Confirmação Final e não pode ser sobrescrito em lote.`
+            });
+          }
+          const existingDates = [existingRow.reference_date, existingRow.transaction_date];
+          await acquireSharedPeriodLocks(client, [{ churchId: existingRow.church_id, dates: existingDates, bankId: existingRow.bank_id }]);
+          const existingGuard = await assertWritablePeriodAndDate(client, {
+            churchId: existingRow.church_id,
+            dates: existingDates,
+            bankId: existingRow.bank_id,
+            excludeTxId: String(existingRow.id),
+            actionContext: 'update'
+          });
+          if (existingGuard.blocked) {
+            await client.query('ROLLBACK');
+            return res.status(existingGuard.statusCode || 422).json({
+              error: existingGuard.error,
+              message: existingGuard.message,
+              churchId: existingGuard.churchId,
+              year: existingGuard.year,
+              month: existingGuard.month,
+              date: existingGuard.date,
+              transaction: { description: existingRow.description, amount: existingRow.amount, date: existingRow.reference_date || existingRow.transaction_date }
+            });
+          }
+        }
+      }
+
+      // 🛡️ Validação Unificada (Bypass C + Decisão 1 + P2-A + Período Mensal/Personalizado)
+      // Preserva PB-004 / PB-005 IC-3: extratos pendentes sem igreja (effectiveChurchId nulo/'unidentified') passam livremente
+      const txDates = [reference_date, transaction_date];
+      const incomingGuard = await assertWritablePeriodAndDate(client, {
+        churchId: effectiveChurchId,
+        dates: txDates,
+        bankId: bank_id,
+        excludeTxId: existingRow ? String(existingRow.id) : null,
+        actionContext: existingRow ? 'update' : 'create'
+      });
+      if (incomingGuard.blocked) {
         await client.query('ROLLBACK');
-        return res.status(422).json({
-          error: 'PERIOD_CLOSED',
-          message: closedCheck.message,
-          churchId: closedCheck.churchId,
-          year: closedCheck.year,
-          month: closedCheck.month,
-          transaction: { description: tx.description, amount: tx.amount, date: transaction_date || reference_date }
+        return res.status(incomingGuard.statusCode || 422).json({
+          error: incomingGuard.error,
+          message: incomingGuard.message,
+          churchId: incomingGuard.churchId,
+          year: incomingGuard.year,
+          month: incomingGuard.month,
+          date: incomingGuard.date,
+          transaction: { description: tx.description, amount: tx.amount, date: reference_date || transaction_date }
         });
       }
 
@@ -12678,6 +14667,23 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
             } catch (_) {}
           }
         } catch (_) {}
+      }
+
+      // 🛡️ Fecha Bypass F (Rateios / Splits)
+      if (initialSplits) {
+        const splitGuard = await assertSplitsWritable(client, initialSplits, txDates, bank_id, existingRow ? String(existingRow.id) : null);
+        if (splitGuard.blocked) {
+          await client.query('ROLLBACK');
+          return res.status(splitGuard.statusCode || 422).json({
+            error: splitGuard.error,
+            message: splitGuard.message,
+            churchId: splitGuard.churchId,
+            year: splitGuard.year,
+            month: splitGuard.month,
+            date: splitGuard.date,
+            transaction: { description: tx.description, amount: tx.amount, date: reference_date || transaction_date }
+          });
+        }
       }
 
       let query = '';
@@ -12714,6 +14720,7 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
       const result = await client.query(query, params);
       const row = result.rows[0];
       inserted.push(row);
+      mutatedRows.push(row);
 
       if (row && row.is_confirmed) {
         publishContributionConfirmedEvent(client, row).catch(e => console.error('[EventPublish] Error:', e));
@@ -12721,6 +14728,10 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
     }
 
     await client.query('COMMIT');
+
+    for (const r of mutatedRows) {
+      mirrorTxRowToLocalSqlite(r);
+    }
 
     // 🛡️ Registro de Auditoria Consolidado para Inserção em Lote (Bulk)
     if (inserted.length > 0) {
@@ -12747,7 +14758,10 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
     notifyTenantRealtime(ctx.ownerId || ctx.userId, { type: 'TRANSACTION_UPDATED', action: 'BULK_CREATE', count: inserted.length });
     return res.status(201).json(inserted);
   } catch (err) {
-    await client.query('ROLLBACK');
+    try {
+      await client.query('ROLLBACK');
+    } catch (_) {}
+    if (handleLockVerificationError(res, err)) return;
     console.error('[Contributors API] Error POST bulk consolidated_transactions:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
   } finally {
@@ -12763,34 +14777,49 @@ async function isAuthorizedForTransaction(pool: any, ctx: TenantContext, oldTx: 
   const currentUserId = ctx.userId;
   const currentOwnerId = ctx.ownerId || ctx.userId;
 
-  // 1. Vínculo direto por ID de usuário ou dono
-  if (oldTx.user_id && (oldTx.user_id === currentUserId || oldTx.user_id === currentOwnerId)) {
+  // 1. Vínculo direto por ID de usuário ou dono (somente não-secundários: Owner / Principal)
+  if (!ctx.isSecondaryUser && oldTx.user_id && (oldTx.user_id === currentUserId || oldTx.user_id === currentOwnerId)) {
     return true;
   }
 
-  // 2. Se for usuário secundário: restringe estritamente às congregações permitidas
+  // 2. Se for usuário secundário: restringe estritamente às congregações e bancos permitidos
   if (ctx.isSecondaryUser) {
-    if (!ctx.allowedChurchIds || ctx.allowedChurchIds.length === 0) return false;
+    const hasAllowedChurches = Boolean(ctx.allowedChurchIds && ctx.allowedChurchIds.length > 0);
+    const hasAllowedBanks = Boolean(ctx.allowedBankIds && ctx.allowedBankIds.length > 0);
+    if (!hasAllowedChurches && !hasAllowedBanks) return false;
+
+    const isRealBankId = Boolean(
+      oldTx.bank_id &&
+      oldTx.bank_id !== 'unidentified' &&
+      !String(oldTx.bank_id).startsWith('manual') &&
+      oldTx.bank_id !== 'gmail-sync'
+    );
 
     // Se o lançamento tem congregação definida:
     if (oldTx.church_id && oldTx.church_id !== 'unidentified') {
-      return ctx.allowedChurchIds.includes(oldTx.church_id);
+      if (!hasAllowedChurches || !ctx.allowedChurchIds.includes(oldTx.church_id)) {
+        return false;
+      }
+      if (ctx.allowedBankIds && ctx.allowedBankIds.length > 0 && oldTx.bank_id && isRealBankId) {
+        return ctx.allowedBankIds.includes(oldTx.bank_id);
+      }
+      return true;
     }
 
     // Se a congregação for nula ou não identificada:
     // O lançamento só pode ser acessado se pertencer comprovadamente à mesma organização
     let belongsToOrg = false;
-    if (oldTx.user_id && oldTx.user_id === currentOwnerId) {
+    if (oldTx.user_id && (oldTx.user_id === currentUserId || oldTx.user_id === currentOwnerId)) {
       belongsToOrg = true;
     } else if (oldTx.user_id) {
       const secCheck = await pool.query(
-        'SELECT id FROM app_users WHERE id = $1 AND owner_id = $2 LIMIT 1',
+        'SELECT id FROM app_users WHERE id::text = $1 AND owner_id::text = $2 LIMIT 1',
         [oldTx.user_id, currentOwnerId]
       );
       if (secCheck.rows.length > 0) belongsToOrg = true;
     } else if (oldTx.bank_id) {
       const bankCheck = await pool.query(
-        'SELECT id FROM banks WHERE id = $1 AND (user_id = $2 OR user_id = $3) LIMIT 1',
+        'SELECT id FROM banks WHERE id::text = $1 AND (user_id::text = $2 OR user_id::text = $3) LIMIT 1',
         [oldTx.bank_id, currentUserId, currentOwnerId]
       );
       if (bankCheck.rows.length > 0) belongsToOrg = true;
@@ -12798,12 +14827,13 @@ async function isAuthorizedForTransaction(pool: any, ctx: TenantContext, oldTx: 
 
     if (!belongsToOrg) return false;
 
-    // Se pertence à organização, verifica se o secundário possui permissão bancária específica
-    if (ctx.allowedBankIds && ctx.allowedBankIds.length > 0 && oldTx.bank_id) {
-      return ctx.allowedBankIds.includes(oldTx.bank_id);
+    // Se pertence à organização e possui conta bancária real, exige permissão bancária específica
+    if (isRealBankId) {
+      return Boolean(ctx.allowedBankIds && ctx.allowedBankIds.length > 0 && oldTx.bank_id && ctx.allowedBankIds.includes(oldTx.bank_id));
     }
 
-    return true;
+    // Sem congregação e sem banco real: somente se foi criado pelo próprio usuário secundário
+    return Boolean(oldTx.user_id && oldTx.user_id === currentUserId);
   }
 
   // 3. Se for Proprietário / Administrador da conta (Owner):
@@ -12821,20 +14851,20 @@ async function isAuthorizedForTransaction(pool: any, ctx: TenantContext, oldTx: 
     // 3.2 Se tem user_id, verifica se pertence a um usuário/perfil da organização
     if (oldTx.user_id) {
       const userCheck = await pool.query(
-        'SELECT id FROM profiles WHERE id = $1 AND owner_id = $2 LIMIT 1',
+        'SELECT id FROM profiles WHERE id::text = $1 AND owner_id::text = $2 LIMIT 1',
         [oldTx.user_id, currentOwnerId]
       );
       if (userCheck.rows.length > 0) return true;
 
       const appUserCheck = await pool.query(
-        'SELECT id FROM app_users WHERE id = $1 AND owner_id = $2 LIMIT 1',
+        'SELECT id FROM app_users WHERE id::text = $1 AND owner_id::text = $2 LIMIT 1',
         [oldTx.user_id, currentOwnerId]
       );
       if (appUserCheck.rows.length > 0) return true;
     }
 
     // 3.3 Se tem bank_id, verifica se a conta bancária pertence à organização
-    if (oldTx.bank_id) {
+    if (oldTx.bank_id && isValidStrictUuid(String(oldTx.bank_id))) {
       const bankCheck = await pool.query(
         'SELECT id FROM banks WHERE id = $1 AND (user_id = $2 OR user_id = $3) LIMIT 1',
         [oldTx.bank_id, currentUserId, currentOwnerId]
@@ -12858,8 +14888,8 @@ async function isAuthorizedForFinancialRecord(pool: any, ctx: TenantContext, old
   const currentUserId = ctx.userId;
   const currentOwnerId = ctx.ownerId || ctx.userId;
 
-  // 1. Vínculo direto por ID de usuário ou dono
-  if (oldRec.user_id && (oldRec.user_id === currentUserId || oldRec.user_id === currentOwnerId)) {
+  // 1. Vínculo direto por ID de usuário ou dono (somente não-secundários: Owner / Principal)
+  if (!ctx.isSecondaryUser && oldRec.user_id && (oldRec.user_id === currentUserId || oldRec.user_id === currentOwnerId)) {
     return true;
   }
 
@@ -12869,17 +14899,7 @@ async function isAuthorizedForFinancialRecord(pool: any, ctx: TenantContext, old
     if (oldRec.church_id && oldRec.church_id !== 'unidentified') {
       return ctx.allowedChurchIds.includes(oldRec.church_id);
     }
-    // Se a congregação for nula/unidentified: só pode acessar se o registro pertencer à sua organização
-    if (oldRec.user_id && oldRec.user_id === currentOwnerId) {
-      return true;
-    }
-    if (oldRec.user_id) {
-      const secCheck = await pool.query(
-        'SELECT id FROM app_users WHERE id = $1 AND owner_id = $2 LIMIT 1',
-        [oldRec.user_id, currentOwnerId]
-      );
-      if (secCheck.rows.length > 0) return true;
-    }
+    // Registros financeiros sem congregação não são visíveis nem editáveis por usuários secundários
     return false;
   }
 
@@ -12896,13 +14916,13 @@ async function isAuthorizedForFinancialRecord(pool: any, ctx: TenantContext, old
 
     if (oldRec.user_id) {
       const userCheck = await pool.query(
-        'SELECT id FROM profiles WHERE id = $1 AND owner_id = $2 LIMIT 1',
+        'SELECT id FROM profiles WHERE id::text = $1 AND owner_id::text = $2 LIMIT 1',
         [oldRec.user_id, currentOwnerId]
       );
       if (userCheck.rows.length > 0) return true;
 
       const appUserCheck = await pool.query(
-        'SELECT id FROM app_users WHERE id = $1 AND owner_id = $2 LIMIT 1',
+        'SELECT id FROM app_users WHERE id::text = $1 AND owner_id::text = $2 LIMIT 1',
         [oldRec.user_id, currentOwnerId]
       );
       if (appUserCheck.rows.length > 0) return true;
@@ -12928,230 +14948,457 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: permissão para editar transações necessária.' });
     }
     const { amount, description, type, pix_key, source, status, bank_id, row_hash, is_confirmed, transaction_date, reference_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id, splits, attachments } = req.body;
-    
-    const oldTxRes = await pool.query('SELECT * FROM consolidated_transactions WHERE id::text = $1', [id]);
-    const oldTx = oldTxRes.rows[0] || null;
-    if (!oldTx) return res.status(404).json({ error: 'NOT_FOUND' });
 
-    const isAuthorized = await isAuthorizedForTransaction(pool, ctx, oldTx);
-    if (!isAuthorized) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: a transação pertence a outra organização.' });
+    // 🛡️ Fecha Bypass B (PB-007): bloqueia promover/forjar transação como perna contábil de fechamento via PUT
+    if (source === 'closing' || (row_hash && String(row_hash).startsWith('closing-'))) {
+      return res.status(403).json({
+        error: 'CLOSING_SOURCE_FORBIDDEN',
+        message: 'Operação bloqueada: não é permitido definir source="closing" ou prefixo "closing-" fora do fluxo oficial de Fechamento.'
+      });
     }
 
-    // 🛡️ Validação de Autorização para Origem e Destino
-    const currentUserId = ctx.userId;
-    const currentOwnerId = ctx.ownerId || ctx.userId;
+    const client = await pool.connect();
+    let oldTx: any = null;
+    let updatedRow: any = null;
+    try {
+      await client.query('BEGIN');
 
-    if (ctx.isSecondaryUser) {
-      // 1. Não permite alterar ou desassociar lançamento cuja congregação atual não seja autorizada
-      if (oldTx.church_id && oldTx.church_id !== 'unidentified') {
-        if (!ctx.allowedChurchIds || !ctx.allowedChurchIds.includes(oldTx.church_id)) {
-          return res.status(403).json({
-            error: 'FORBIDDEN',
-            message: 'Acesso negado: o lançamento pertence a uma congregação não autorizada para este usuário.'
+      const oldTxRes = await client.query('SELECT * FROM consolidated_transactions WHERE id::text = $1', [id]);
+      oldTx = oldTxRes.rows[0] || null;
+      if (!oldTx) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'NOT_FOUND' });
+      }
+
+      const isAuthorized = await isAuthorizedForTransaction(client, ctx, oldTx);
+      if (!isAuthorized) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: a transação pertence a outra organização.' });
+      }
+
+      // 🛡️ Validação de Autorização para Origem e Destino
+      const currentUserId = ctx.userId;
+      const currentOwnerId = ctx.ownerId || ctx.userId;
+
+      if (ctx.isSecondaryUser) {
+        if (oldTx.church_id && oldTx.church_id !== 'unidentified') {
+          if (!ctx.allowedChurchIds || !ctx.allowedChurchIds.includes(oldTx.church_id)) {
+            await client.query('ROLLBACK');
+            return res.status(403).json({
+              error: 'FORBIDDEN',
+              message: 'Acesso negado: o lançamento pertence a uma congregação não autorizada para este usuário.'
+            });
+          }
+        }
+        if (church_id !== undefined && church_id !== null && church_id !== 'unidentified') {
+          if (!ctx.allowedChurchIds || !ctx.allowedChurchIds.includes(church_id)) {
+            await client.query('ROLLBACK');
+            return res.status(403).json({
+              error: 'FORBIDDEN',
+              message: 'Acesso negado: congregação de destino não autorizada para este usuário.'
+            });
+          }
+        }
+      } else if (ctx.isOwner && !ctx.isSuperAdmin) {
+        if (church_id !== undefined && church_id !== null && church_id !== 'unidentified') {
+          const destChurchCheck = await client.query(
+            'SELECT id FROM churches WHERE id::text = $1 AND (user_id::text = $2 OR user_id::text = $3) LIMIT 1',
+            [church_id, currentUserId, currentOwnerId]
+          );
+          if (destChurchCheck.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(403).json({
+              error: 'FORBIDDEN',
+              message: 'Acesso negado: congregação de destino não pertence à sua organização.'
+            });
+          }
+        }
+      }
+
+      // 🛡️ Validação Matemática e Multi-Tenant do Rateio (Splits)
+      if (splits !== undefined && splits !== null) {
+        const targetAmount = amount !== undefined ? amount : oldTx.amount;
+        const splitVal = validateTransactionSplits(splits, targetAmount, ctx);
+        if (!splitVal.isValid) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({
+            error: splitVal.error,
+            message: splitVal.message
           });
         }
       }
 
-      // 2. Não permite atribuir o lançamento a uma congregação de destino não autorizada
-      if (church_id !== undefined && church_id !== null && church_id !== 'unidentified') {
-        if (!ctx.allowedChurchIds || !ctx.allowedChurchIds.includes(church_id)) {
-          return res.status(403).json({
-            error: 'FORBIDDEN',
-            message: 'Acesso negado: congregação de destino não autorizada para este usuário.'
-          });
-        }
-      }
-    } else if (ctx.isOwner && !ctx.isSuperAdmin) {
-      // 3. Proprietário não pode transferir transação para congregação pertencente a outra organização
-      if (church_id !== undefined && church_id !== null && church_id !== 'unidentified') {
-        const destChurchCheck = await pool.query(
-          'SELECT id FROM churches WHERE id::text = $1 AND (user_id::text = $2 OR user_id::text = $3) LIMIT 1',
-          [church_id, currentUserId, currentOwnerId]
-        );
-        if (destChurchCheck.rows.length === 0) {
-          return res.status(403).json({
-            error: 'FORBIDDEN',
-            message: 'Acesso negado: congregação de destino não pertence à sua organização.'
-          });
-        }
-      }
-    }
-
-    // 🛡️ Validação Matemática e Multi-Tenant do Rateio (Splits)
-    if (splits !== undefined && splits !== null) {
-      const targetAmount = amount !== undefined ? amount : oldTx.amount;
-      const splitVal = validateTransactionSplits(splits, targetAmount, ctx);
-      if (!splitVal.isValid) {
-        return res.status(400).json({
-          error: splitVal.error,
-          message: splitVal.message
+      // 🛡️ Proteção de Pernas Contábeis de Fechamento (PB-007)
+      if (isForgedOrProtectedClosingTx(oldTx)) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({
+          error: 'CLOSING_LEG_PROTECTED',
+          message: 'Lançamento protegido: Esta transação é uma perna contábil de transporte de saldo gerada por Fechamento. Para alterá-la, utilize o fluxo formal de Reabertura de Fechamento.'
         });
       }
-    }
 
-    // 🛡️ Proteção de Pernas Contábeis de Fechamento (PB-007)
-    const isClosingLeg = oldTx.source === 'closing' || 
-      (oldTx.row_hash && String(oldTx.row_hash).startsWith('closing-')) ||
-      (oldTx.id && String(oldTx.id).startsWith('closing-'));
-    if (isClosingLeg) {
-      return res.status(403).json({
-        error: 'CLOSING_LEG_PROTECTED',
-        message: 'Lançamento protegido: Esta transação é uma perna contábil de transporte de saldo gerada por Fechamento. Para alterá-la, utilize o fluxo formal de Reabertura de Fechamento.'
-      });
-    }
+      // 🛡️ RBAC e Detecção de Mutação em is_confirmed (Decisão 1 + P1-A)
+      const wasConfirmed = isTruthyDbBool(oldTx.is_confirmed);
+      const wantsConfirm = is_confirmed !== undefined && isTruthyDbBool(is_confirmed);
+      const wantsUnlock = is_confirmed !== undefined && !isTruthyDbBool(is_confirmed);
 
-    // 🛡️ Validação de Período Fechado (Congelamento Estrito)
-    // 1. Não permite alterar transação pertencente a um período já fechado
-    const oldEffectiveDate = oldTx.reference_date || oldTx.transaction_date;
-    const oldCheck = await isChurchPeriodClosed(pool, oldTx.church_id, oldEffectiveDate, oldTx.bank_id);
-    if (oldCheck.isClosed) {
-      return res.status(422).json({
-        error: 'PERIOD_CLOSED',
-        message: `PERÍODO CONGELADO: Esta transação pertence ao período ${String(oldCheck.month).padStart(2, '0')}/${oldCheck.year}, que já teve seu Fechamento Final homologado. Alterações estão expressamente bloqueadas.`
-      });
-    }
-
-
-    // 2. Não permite mover transação para uma congregação/data cujo período esteja fechado
-    const targetChurchId = church_id !== undefined ? church_id : oldTx.church_id;
-    const targetDate = (reference_date !== undefined && reference_date) ? reference_date : (transaction_date !== undefined ? transaction_date : (oldTx.reference_date || oldTx.transaction_date));
-    const newCheck = await isChurchPeriodClosed(pool, targetChurchId, targetDate);
-    if (newCheck.isClosed) {
-      return res.status(422).json({
-        error: 'PERIOD_CLOSED',
-        message: newCheck.message
-      });
-    }
-
-    let finalContribReqId = contribution_request_id;
-    if (!finalContribReqId && (church_id || contributor_id || amount !== undefined)) {
-      finalContribReqId = await matchAndLinkContributionRequest(pool, {
-        id: id,
-        church_id: church_id || oldTx.church_id,
-        contributor_id: contributor_id || oldTx.contributor_id,
-        amount: amount !== undefined ? amount : oldTx.amount,
-        contribution_request_id: oldTx.contribution_request_id
-      });
-    }
-
-    let finalSplitsToSet = splits !== undefined ? JSON.stringify(splits) : null;
-    let finalContributionTypeToSet = contribution_type !== undefined ? contribution_type : null;
-
-    if (splits === undefined && finalContribReqId) {
-      try {
-        const reqCheck = await pool.query('SELECT splits, description FROM contribution_requests WHERE id = $1 LIMIT 1', [finalContribReqId]);
-        if (reqCheck.rows.length > 0 && reqCheck.rows[0].splits) {
-          const reqSplits = reqCheck.rows[0].splits;
-          finalSplitsToSet = typeof reqSplits === 'string' ? reqSplits : JSON.stringify(reqSplits);
-          try {
-            const parsed = typeof reqSplits === 'string' ? JSON.parse(reqSplits) : reqSplits;
-            if (Array.isArray(parsed) && parsed.length > 1) {
-              finalContributionTypeToSet = finalContributionTypeToSet || 'Rateado';
-            } else if (Array.isArray(parsed) && parsed.length === 1) {
-              finalContributionTypeToSet = finalContributionTypeToSet || parsed[0]?.contributionType || parsed[0]?.label || null;
-            }
-          } catch (_) {}
-        }
-      } catch (_) {}
-    }
-
-    let finalChurchIdToSet = church_id !== undefined ? (church_id && church_id !== 'unidentified' ? church_id : null) : undefined;
-    // 🛡️ Proteção Anti-Regressão de Congregação: se o lançamento está identificado/resolvido e a igreja recebida foi nula ou não identificada,
-    // preserva a congregação anterior ou recupera do cadastro do contribuinte / regra de associação aprendida
-    if ((status === 'identified' || status === 'resolved' || oldTx.status === 'identified' || oldTx.status === 'resolved') && (!finalChurchIdToSet || finalChurchIdToSet === 'unidentified')) {
-      if (oldTx.church_id && oldTx.church_id !== 'unidentified') {
-        finalChurchIdToSet = oldTx.church_id;
-      } else {
-        const assocOwnerTarget = oldTx.user_id || ctx.ownerId || ctx.userId || '';
-        const assocOwnerIds = assocOwnerTarget ? await getEquivalentUserIds(String(assocOwnerTarget)) : [];
-        const targetContribId = contributor_id || oldTx.contributor_id;
-        if (targetContribId && assocOwnerIds.length > 0) {
-          try {
-            const cRes = await pool.query(
-              'SELECT c.church_id FROM contributors c JOIN churches ch ON ch.id::text = c.church_id::text WHERE c.id = $1 AND ch.user_id::text = ANY($2) LIMIT 1',
-              [targetContribId, assocOwnerIds]
-            );
-            if (cRes.rows.length > 0 && cRes.rows[0].church_id && cRes.rows[0].church_id !== 'unidentified') {
-              finalChurchIdToSet = cRes.rows[0].church_id;
-            }
-          } catch (_) {}
-        }
-        if (!finalChurchIdToSet && assocOwnerIds.length > 0) {
-          try {
-            const descToUse = description || oldTx.description;
-            const normDesc = descToUse ? descToUse.toLowerCase().trim() : '';
-            if (normDesc) {
-              const laRes = await pool.query(
-                'SELECT church_id FROM learned_associations WHERE LOWER(TRIM(normalized_description)) = $1 AND church_id IS NOT NULL AND user_id::text = ANY($2) LIMIT 1',
-                [normDesc, assocOwnerIds]
-              );
-              if (laRes.rows.length > 0 && laRes.rows[0].church_id && laRes.rows[0].church_id !== 'unidentified') {
-                finalChurchIdToSet = laRes.rows[0].church_id;
-              }
-            }
-          } catch (_) {}
+      if (wantsConfirm && !wasConfirmed) {
+        if (ctx.isSecondaryUser && !hasPermission(ctx, 'confirm_final', 'confirmar_final', 'confirmfinal')) {
+          await client.query('ROLLBACK');
+          return res.status(403).json({
+            error: 'FORBIDDEN',
+            message: 'Acesso negado: você não possui permissão de "Confirmar Final".'
+          });
         }
       }
+
+      if (wantsUnlock && wasConfirmed && ctx.isSecondaryUser) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({
+          error: 'FORBIDDEN',
+          message: 'Acesso negado: apenas o proprietário ou administrador pode remover o bloqueio de um lançamento confirmado.'
+        });
+      }
+
+      const normStr = (v: any) => (v === null || v === undefined ? '' : String(v).trim());
+      const normJson = (v: any, fallback: string) => {
+        if (v === null || v === undefined) return fallback;
+        try {
+          return JSON.stringify(typeof v === 'string' ? JSON.parse(v) : v);
+        } catch (_) {
+          return String(v);
+        }
+      };
+
+      const hasOtherFieldMutation =
+        (amount !== undefined && Number(amount) !== Number(oldTx.amount)) ||
+        (description !== undefined && normStr(description) !== normStr(oldTx.description)) ||
+        (type !== undefined && normStr(type) !== normStr(oldTx.type)) ||
+        (pix_key !== undefined && normStr(pix_key) !== normStr(oldTx.pix_key)) ||
+        (source !== undefined && normStr(source) !== normStr(oldTx.source)) ||
+        (row_hash !== undefined && normStr(row_hash) !== normStr(oldTx.row_hash)) ||
+        (bank_id !== undefined && normStr(bank_id) !== normStr(oldTx.bank_id)) ||
+        (church_id !== undefined && normStr(church_id === 'unidentified' ? null : church_id) !== normStr(oldTx.church_id === 'unidentified' ? null : oldTx.church_id)) ||
+        (contributor_id !== undefined && normStr(contributor_id) !== normStr(oldTx.contributor_id)) ||
+        (report_id !== undefined && normStr(report_id) !== normStr(oldTx.report_id)) ||
+        (payment_method !== undefined && normStr(payment_method) !== normStr(oldTx.payment_method)) ||
+        (contribution_type !== undefined && normStr(contribution_type) !== normStr(oldTx.contribution_type)) ||
+        (contribution_request_id !== undefined && normStr(contribution_request_id) !== normStr(oldTx.contribution_request_id)) ||
+        (transaction_date !== undefined && normalizeIsoDateOnly(transaction_date) !== normalizeIsoDateOnly(oldTx.transaction_date)) ||
+        (reference_date !== undefined && normalizeIsoDateOnly(reference_date) !== normalizeIsoDateOnly(oldTx.reference_date)) ||
+        (splits !== undefined && normJson(splits, 'null') !== normJson(oldTx.splits, 'null')) ||
+        (attachments !== undefined && normJson(attachments, '[]') !== normJson(oldTx.attachments, '[]'));
+
+      const isAuthorizedPureUnlock = wasConfirmed && wantsUnlock && !ctx.isSecondaryUser && !hasOtherFieldMutation;
+      const isPureConfirmation = !wasConfirmed && wantsConfirm && !hasOtherFieldMutation && isRealChurchId(oldTx.church_id);
+
+      // 🛡️ Proteção direta de transação já confirmada (Decisão 1 + P1-A)
+      if (wasConfirmed && !isAuthorizedPureUnlock) {
+        await client.query('ROLLBACK');
+        return res.status(422).json({
+          error: 'TRANSACTION_CONFIRMED',
+          message: 'LANÇAMENTO CONFIRMADO: Este lançamento possui Confirmação Final e está bloqueado contra edições, anexos, rateios ou alterações. Remova o bloqueio ou reabra o período antes de editar.'
+        });
+      }
+
+      const targetChurchId = church_id !== undefined ? (church_id === 'unidentified' ? null : church_id) : oldTx.church_id;
+      const targetBankId = bank_id !== undefined ? bank_id : oldTx.bank_id;
+      const newRefDate = reference_date !== undefined ? (reference_date || null) : oldTx.reference_date;
+      const newTxDate = transaction_date !== undefined ? transaction_date : oldTx.transaction_date;
+      const oldDates = [oldTx.reference_date, oldTx.transaction_date];
+      const newDates = [newRefDate, newTxDate];
+
+      // 🛡️ Concorrência: shared advisory locks em origem, destino e splits
+      const putLockTargets: Array<{ churchId?: string | null; dates: Array<string | Date | null | undefined>; bankId?: string | null }> = [
+        { churchId: oldTx.church_id, dates: oldDates, bankId: oldTx.bank_id },
+        { churchId: targetChurchId, dates: newDates, bankId: targetBankId }
+      ];
+      for (const sc of extractSplitChurchIds(oldTx.splits)) {
+        putLockTargets.push({ churchId: sc, dates: oldDates, bankId: oldTx.bank_id });
+      }
+      for (const sc of extractSplitChurchIds(splits)) {
+        putLockTargets.push({ churchId: sc, dates: newDates, bankId: targetBankId });
+      }
+      await acquireSharedPeriodLocks(client, putLockTargets);
+
+      // 🛡️ Validação Unificada de Imutabilidade na Origem e no Destino (Bypass C + Bypass D + Decisão 1 + P2-A)
+      const checkDayLock = !isAuthorizedPureUnlock && !isPureConfirmation;
+      const originGuard = await assertWritablePeriodAndDate(client, {
+        churchId: oldTx.church_id,
+        dates: oldDates,
+        bankId: oldTx.bank_id,
+        excludeTxId: id,
+        checkDayConfirmed: checkDayLock,
+        actionContext: 'update'
+      });
+      if (originGuard.blocked) {
+        await client.query('ROLLBACK');
+        return res.status(originGuard.statusCode || 422).json({
+          error: originGuard.error,
+          message: isAuthorizedPureUnlock && originGuard.error === 'PERIOD_CLOSED'
+            ? `${originGuard.message} Utilize "Reabrir Período" no Livro Caixa para liberar.`
+            : originGuard.message,
+          churchId: originGuard.churchId,
+          year: originGuard.year,
+          month: originGuard.month,
+          date: originGuard.date
+        });
+      }
+
+      const destGuard = await assertWritablePeriodAndDate(client, {
+        churchId: targetChurchId,
+        dates: newDates,
+        bankId: targetBankId,
+        excludeTxId: id,
+        checkDayConfirmed: checkDayLock,
+        actionContext: 'update'
+      });
+      if (destGuard.blocked) {
+        await client.query('ROLLBACK');
+        return res.status(destGuard.statusCode || 422).json({
+          error: destGuard.error,
+          message: destGuard.message,
+          churchId: destGuard.churchId,
+          year: destGuard.year,
+          month: destGuard.month,
+          date: destGuard.date
+        });
+      }
+
+      let finalContribReqId = contribution_request_id;
+      if (!isAuthorizedPureUnlock && !isPureConfirmation && !finalContribReqId && (church_id || contributor_id || amount !== undefined)) {
+        finalContribReqId = await matchAndLinkContributionRequest(client, {
+          id: id,
+          church_id: church_id || oldTx.church_id,
+          contributor_id: contributor_id || oldTx.contributor_id,
+          amount: amount !== undefined ? amount : oldTx.amount,
+          contribution_request_id: oldTx.contribution_request_id
+        });
+      }
+
+      let finalSplitsToSet = splits !== undefined ? JSON.stringify(splits) : null;
+      let finalContributionTypeToSet = contribution_type !== undefined ? contribution_type : null;
+
+      if (splits === undefined && finalContribReqId) {
+        try {
+          const reqCheck = await client.query('SELECT splits, description FROM contribution_requests WHERE id = $1 LIMIT 1', [finalContribReqId]);
+          if (reqCheck.rows.length > 0 && reqCheck.rows[0].splits) {
+            const reqSplits = reqCheck.rows[0].splits;
+            finalSplitsToSet = typeof reqSplits === 'string' ? reqSplits : JSON.stringify(reqSplits);
+            try {
+              const parsed = typeof reqSplits === 'string' ? JSON.parse(reqSplits) : reqSplits;
+              if (Array.isArray(parsed) && parsed.length > 1) {
+                finalContributionTypeToSet = finalContributionTypeToSet || 'Rateado';
+              } else if (Array.isArray(parsed) && parsed.length === 1) {
+                finalContributionTypeToSet = finalContributionTypeToSet || parsed[0]?.contributionType || parsed[0]?.label || null;
+              }
+            } catch (_) {}
+          }
+        } catch (_) {}
+      }
+
+      // 🛡️ AUD-04: Garante escopo RBAC de usuário secundário sobre todas as congregações dos rateios existentes
+      if (ctx.isSecondaryUser && oldTx.splits) {
+        const existingSplitChurches = extractSplitChurchIds(oldTx.splits);
+        for (const splitCid of existingSplitChurches) {
+          if (!ctx.allowedChurchIds || !ctx.allowedChurchIds.includes(splitCid)) {
+            await client.query('ROLLBACK');
+            return res.status(403).json({
+              error: 'FORBIDDEN',
+              message: 'Acesso negado: este lançamento possui rateio em congregação não autorizada para este usuário.'
+            });
+          }
+        }
+      }
+
+      // 🛡️ Fecha Bypass F + AUD-04 (Rateios / Splits): valida todas as congregações dos rateios antigos e novos
+      // (inclusive em confirmação ou desbloqueio puro, bloqueando qualquer split em período fechado)
+      if (isAuthorizedPureUnlock || isPureConfirmation) {
+        if (oldTx.splits) {
+          for (const splitCid of extractSplitChurchIds(oldTx.splits)) {
+            const splitPeriodGuard = await assertWritablePeriodAndDate(client, {
+              churchId: splitCid,
+              dates: oldDates,
+              bankId: oldTx.bank_id,
+              excludeTxId: id,
+              checkDayConfirmed: false,
+              actionContext: 'split'
+            });
+            if (splitPeriodGuard.blocked) {
+              await client.query('ROLLBACK');
+              return res.status(splitPeriodGuard.statusCode || 422).json({
+                error: splitPeriodGuard.error,
+                message: isAuthorizedPureUnlock && splitPeriodGuard.error === 'PERIOD_CLOSED'
+                  ? `${splitPeriodGuard.message} Utilize "Reabrir Período" no Livro Caixa para liberar.`
+                  : splitPeriodGuard.message,
+                churchId: splitPeriodGuard.churchId,
+                year: splitPeriodGuard.year,
+                month: splitPeriodGuard.month,
+                date: splitPeriodGuard.date
+              });
+            }
+          }
+        }
+      } else {
+        if (oldTx.splits) {
+          const oldSplitGuard = await assertSplitsWritable(client, oldTx.splits, oldDates, oldTx.bank_id, id);
+          if (oldSplitGuard.blocked) {
+            await client.query('ROLLBACK');
+            return res.status(oldSplitGuard.statusCode || 422).json({
+              error: oldSplitGuard.error,
+              message: oldSplitGuard.message,
+              churchId: oldSplitGuard.churchId,
+              year: oldSplitGuard.year,
+              month: oldSplitGuard.month,
+              date: oldSplitGuard.date
+            });
+          }
+        }
+        if (finalSplitsToSet) {
+          const newSplitGuard = await assertSplitsWritable(client, finalSplitsToSet, newDates, targetBankId, id);
+          if (newSplitGuard.blocked) {
+            await client.query('ROLLBACK');
+            return res.status(newSplitGuard.statusCode || 422).json({
+              error: newSplitGuard.error,
+              message: newSplitGuard.message,
+              churchId: newSplitGuard.churchId,
+              year: newSplitGuard.year,
+              month: newSplitGuard.month,
+              date: newSplitGuard.date
+            });
+          }
+        }
+      }
+
+      let finalChurchIdToSet = church_id !== undefined ? (church_id && church_id !== 'unidentified' ? church_id : null) : undefined;
+      if ((status === 'identified' || status === 'resolved' || oldTx.status === 'identified' || oldTx.status === 'resolved') && (!finalChurchIdToSet || finalChurchIdToSet === 'unidentified')) {
+        if (oldTx.church_id && oldTx.church_id !== 'unidentified') {
+          finalChurchIdToSet = oldTx.church_id;
+        } else {
+          const assocOwnerTarget = oldTx.user_id || ctx.ownerId || ctx.userId || '';
+          const assocOwnerIds = assocOwnerTarget ? await getEquivalentUserIds(String(assocOwnerTarget)) : [];
+          const targetContribId = contributor_id || oldTx.contributor_id;
+          if (targetContribId && assocOwnerIds.length > 0) {
+            try {
+              const cRes = await client.query(
+                'SELECT c.church_id FROM contributors c JOIN churches ch ON ch.id::text = c.church_id::text WHERE c.id = $1 AND ch.user_id::text = ANY($2) LIMIT 1',
+                [targetContribId, assocOwnerIds]
+              );
+              if (cRes.rows.length > 0 && cRes.rows[0].church_id && cRes.rows[0].church_id !== 'unidentified') {
+                finalChurchIdToSet = cRes.rows[0].church_id;
+              }
+            } catch (_) {}
+          }
+          if (!finalChurchIdToSet && assocOwnerIds.length > 0) {
+            try {
+              const descToUse = description || oldTx.description;
+              const normDesc = descToUse ? descToUse.toLowerCase().trim() : '';
+              if (normDesc) {
+                const laRes = await client.query(
+                  'SELECT church_id FROM learned_associations WHERE LOWER(TRIM(normalized_description)) = $1 AND church_id IS NOT NULL AND user_id::text = ANY($2) LIMIT 1',
+                  [normDesc, assocOwnerIds]
+                );
+                if (laRes.rows.length > 0 && laRes.rows[0].church_id && laRes.rows[0].church_id !== 'unidentified') {
+                  finalChurchIdToSet = laRes.rows[0].church_id;
+                }
+              }
+            } catch (_) {}
+          }
+        }
+      }
+
+      // Se a auto-recuperação de congregação alterou o destino efetivo, revalida bloqueio no destino recuperado
+      if (finalChurchIdToSet && String(finalChurchIdToSet) !== String(targetChurchId || '')) {
+        const recoveredGuard = await assertWritablePeriodAndDate(client, {
+          churchId: finalChurchIdToSet,
+          dates: newDates,
+          bankId: targetBankId,
+          excludeTxId: id,
+          checkDayConfirmed: checkDayLock,
+          actionContext: 'update'
+        });
+        if (recoveredGuard.blocked) {
+          await client.query('ROLLBACK');
+          return res.status(recoveredGuard.statusCode || 422).json({
+            error: recoveredGuard.error,
+            message: recoveredGuard.message,
+            churchId: recoveredGuard.churchId,
+            year: recoveredGuard.year,
+            month: recoveredGuard.month,
+            date: recoveredGuard.date
+          });
+        }
+      }
+
+      const finalAttachmentsToSet = attachments !== undefined
+        ? (typeof attachments === 'string' ? attachments : JSON.stringify(attachments))
+        : null;
+
+      const result = await client.query(
+        `UPDATE consolidated_transactions SET 
+          amount = COALESCE($1, amount), 
+          description = COALESCE($2, description), 
+          type = COALESCE($3, type), 
+          pix_key = COALESCE($4, pix_key), 
+          source = COALESCE($5, source), 
+          status = COALESCE($6, status), 
+          bank_id = CASE WHEN $19::boolean THEN $7 ELSE bank_id END, 
+          row_hash = COALESCE($8, row_hash), 
+          is_confirmed = COALESCE($9, is_confirmed), 
+          transaction_date = COALESCE($10, transaction_date),
+          reference_date = CASE WHEN $23::boolean THEN $22 ELSE reference_date END,
+          church_id = CASE WHEN $20::boolean THEN $11 ELSE church_id END,
+          contributor_id = CASE WHEN $21::boolean THEN $12 ELSE contributor_id END,
+          report_id = COALESCE($13, report_id),
+          payment_method = COALESCE($14, payment_method),
+          contribution_type = COALESCE($15, contribution_type),
+          contribution_request_id = COALESCE($16, contribution_request_id),
+          splits = CASE WHEN $17::text IS NOT NULL THEN $17::jsonb ELSE splits END,
+          attachments = CASE WHEN $24::boolean THEN $25::jsonb ELSE attachments END,
+          updated_at = NOW()
+        WHERE id::text = $18 RETURNING *`,
+        [
+          amount,
+          description,
+          type,
+          pix_key,
+          source,
+          status,
+          bank_id !== undefined ? bank_id : null,
+          row_hash,
+          is_confirmed,
+          transaction_date,
+          finalChurchIdToSet !== undefined ? finalChurchIdToSet : null,
+          contributor_id !== undefined ? contributor_id : null,
+          report_id,
+          payment_method,
+          finalContributionTypeToSet,
+          finalContribReqId || null,
+          finalSplitsToSet,
+          id,
+          bank_id !== undefined,
+          finalChurchIdToSet !== undefined,
+          contributor_id !== undefined,
+          reference_date !== undefined ? (reference_date || null) : null,
+          reference_date !== undefined,
+          attachments !== undefined,
+          finalAttachmentsToSet
+        ]
+      );
+
+      updatedRow = result.rows[0];
+      await client.query('COMMIT');
+    } catch (txErr) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (_) {}
+      throw txErr;
+    } finally {
+      client.release();
     }
 
-    const finalAttachmentsToSet = attachments !== undefined 
-      ? (typeof attachments === 'string' ? attachments : JSON.stringify(attachments)) 
-      : null;
+    mirrorTxRowToLocalSqlite(updatedRow);
 
-    const result = await pool.query(
-      `UPDATE consolidated_transactions SET 
-        amount = COALESCE($1, amount), 
-        description = COALESCE($2, description), 
-        type = COALESCE($3, type), 
-        pix_key = COALESCE($4, pix_key), 
-        source = COALESCE($5, source), 
-        status = COALESCE($6, status), 
-        bank_id = CASE WHEN $19::boolean THEN $7 ELSE bank_id END, 
-        row_hash = COALESCE($8, row_hash), 
-        is_confirmed = COALESCE($9, is_confirmed), 
-        transaction_date = COALESCE($10, transaction_date),
-        reference_date = CASE WHEN $23::boolean THEN $22 ELSE reference_date END,
-        church_id = CASE WHEN $20::boolean THEN $11 ELSE church_id END,
-        contributor_id = CASE WHEN $21::boolean THEN $12 ELSE contributor_id END,
-        report_id = COALESCE($13, report_id),
-        payment_method = COALESCE($14, payment_method),
-        contribution_type = COALESCE($15, contribution_type),
-        contribution_request_id = COALESCE($16, contribution_request_id),
-        splits = CASE WHEN $17::text IS NOT NULL THEN $17::jsonb ELSE splits END,
-        attachments = CASE WHEN $24::boolean THEN $25::jsonb ELSE attachments END,
-        updated_at = NOW()
-      WHERE id::text = $18 RETURNING *`,
-      [
-        amount, 
-        description, 
-        type, 
-        pix_key, 
-        source, 
-        status, 
-        bank_id !== undefined ? bank_id : null, 
-        row_hash, 
-        is_confirmed, 
-        transaction_date, 
-        finalChurchIdToSet !== undefined ? finalChurchIdToSet : null, 
-        contributor_id !== undefined ? contributor_id : null, 
-        report_id, 
-        payment_method, 
-        finalContributionTypeToSet, 
-        finalContribReqId || null, 
-        finalSplitsToSet, 
-        id,
-        bank_id !== undefined,
-        finalChurchIdToSet !== undefined,
-        contributor_id !== undefined,
-        reference_date !== undefined ? (reference_date || null) : null,
-        reference_date !== undefined,
-        attachments !== undefined,
-        finalAttachmentsToSet
-      ]
-    );
-
-    const updatedRow = result.rows[0];
     if (updatedRow && updatedRow.is_confirmed) {
       publishContributionConfirmedEvent(pool, updatedRow).catch(e => console.error('[EventPublish] Error:', e));
     }
@@ -13170,6 +15417,7 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
     notifyTenantRealtime(ctx.ownerId || ctx.userId, { type: 'TRANSACTION_UPDATED', action: 'UPDATE', txId: id });
     return res.json(updatedRow);
   } catch (err) {
+    if (handleLockVerificationError(res, err)) return;
     console.error('[Contributors API] Error PUT consolidated_transaction:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
   }
@@ -13188,39 +15436,102 @@ app.delete('/api/v1/consolidated_transactions/:id', async (req: Request, res: Re
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: permissão para excluir transações necessária.' });
     }
 
-    const oldTxRes = await pool.query('SELECT * FROM consolidated_transactions WHERE id::text = $1', [id]);
-    const oldTx = oldTxRes.rows[0] || null;
-    if (!oldTx) {
-      return res.json({ success: true, notFoundInDb: true, id });
-    }
+    const client = await pool.connect();
+    let oldTx: any = null;
+    try {
+      await client.query('BEGIN');
 
-    const isAuthorized = await isAuthorizedForTransaction(pool, ctx, oldTx);
-    if (!isAuthorized) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: a transação pertence a outra organização.' });
-    }
+      const oldTxRes = await client.query('SELECT * FROM consolidated_transactions WHERE id::text = $1', [id]);
+      oldTx = oldTxRes.rows[0] || null;
+      if (!oldTx) {
+        await client.query('ROLLBACK');
+        return res.json({ success: true, notFoundInDb: true, id });
+      }
 
-    // 🛡️ Proteção de Pernas Contábeis de Fechamento (PB-007)
-    const isClosingLeg = oldTx.source === 'closing' || 
-      (oldTx.row_hash && String(oldTx.row_hash).startsWith('closing-')) ||
-      (oldTx.id && String(oldTx.id).startsWith('closing-'));
-    if (isClosingLeg) {
-      return res.status(403).json({
-        error: 'CLOSING_LEG_PROTECTED',
-        message: 'Lançamento protegido: Esta transação é uma perna contábil de transporte de saldo gerada por Fechamento. Para excluí-la, utilize o fluxo formal de Reabertura de Fechamento.'
+      const isAuthorized = await isAuthorizedForTransaction(client, ctx, oldTx);
+      if (!isAuthorized) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: a transação pertence a outra organização.' });
+      }
+
+      // 🛡️ Proteção de Pernas Contábeis de Fechamento (PB-007)
+      if (isForgedOrProtectedClosingTx(oldTx)) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({
+          error: 'CLOSING_LEG_PROTECTED',
+          message: 'Lançamento protegido: Esta transação é uma perna contábil de transporte de saldo gerada por Fechamento. Para excluí-la, utilize o fluxo formal de Reabertura de Fechamento.'
+        });
+      }
+
+      // 🛡️ Proteção direta de lançamento confirmado (Decisão 1)
+      if (isTruthyDbBool(oldTx.is_confirmed)) {
+        await client.query('ROLLBACK');
+        return res.status(422).json({
+          error: 'TRANSACTION_CONFIRMED',
+          message: 'LANÇAMENTO CONFIRMADO: Este lançamento possui Confirmação Final e não pode ser excluído.'
+        });
+      }
+
+      const txDates = [oldTx.reference_date, oldTx.transaction_date];
+      const delLockTargets: Array<{ churchId?: string | null; dates: Array<string | Date | null | undefined>; bankId?: string | null }> = [
+        { churchId: oldTx.church_id, dates: txDates, bankId: oldTx.bank_id }
+      ];
+      for (const sc of extractSplitChurchIds(oldTx.splits)) {
+        delLockTargets.push({ churchId: sc, dates: txDates, bankId: oldTx.bank_id });
+      }
+      await acquireSharedPeriodLocks(client, delLockTargets);
+
+      // 🛡️ Validação Unificada (Período Mensal/Personalizado + Bypass C + Dia Confirmado Decisão 1/P2-A)
+      const delGuard = await assertWritablePeriodAndDate(client, {
+        churchId: oldTx.church_id,
+        dates: txDates,
+        bankId: oldTx.bank_id,
+        excludeTxId: id,
+        actionContext: 'delete'
       });
+      if (delGuard.blocked) {
+        await client.query('ROLLBACK');
+        return res.status(delGuard.statusCode || 422).json({
+          error: delGuard.error,
+          message: delGuard.message,
+          churchId: delGuard.churchId,
+          year: delGuard.year,
+          month: delGuard.month,
+          date: delGuard.date
+        });
+      }
+
+      if (oldTx.splits) {
+        const splitGuard = await assertSplitsWritable(client, oldTx.splits, txDates, oldTx.bank_id, id);
+        if (splitGuard.blocked) {
+          await client.query('ROLLBACK');
+          return res.status(splitGuard.statusCode || 422).json({
+            error: splitGuard.error,
+            message: splitGuard.message,
+            churchId: splitGuard.churchId,
+            year: splitGuard.year,
+            month: splitGuard.month,
+            date: splitGuard.date
+          });
+        }
+      }
+
+      await client.query('DELETE FROM consolidated_transactions WHERE id::text = $1 RETURNING id', [id]);
+      await client.query('COMMIT');
+    } catch (txErr) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (_) {}
+      throw txErr;
+    } finally {
+      client.release();
     }
 
-    // 🛡️ Validação de Período Fechado (Congelamento)
-    const oldCheck = await isChurchPeriodClosed(pool, oldTx.church_id, oldTx.transaction_date || oldTx.reference_date, oldTx.bank_id);
-    if (oldCheck.isClosed) {
-      return res.status(422).json({
-        error: 'PERIOD_CLOSED',
-        message: `PERÍODO CONGELADO: Esta transação pertence ao período fechado (${String(oldCheck.month).padStart(2, '0')}/${oldCheck.year}). Exclusões estão bloqueadas para manter a inalterabilidade do relatório fechado.`
-      });
+    if (!(pool as any).isUsingSqliteFallback?.() && (pool as any).localEngine) {
+      try {
+        (pool as any).localEngine.query('DELETE FROM consolidated_transactions WHERE id::text = $1', [String(id)]);
+      } catch (_) {}
     }
-
-
-    const result = await pool.query('DELETE FROM consolidated_transactions WHERE id::text = $1 RETURNING id', [id]);
 
     try {
       await logAudit(pool, {
@@ -13239,6 +15550,7 @@ app.delete('/api/v1/consolidated_transactions/:id', async (req: Request, res: Re
     notifyTenantRealtime(ctx.ownerId || ctx.userId, { type: 'TRANSACTION_UPDATED', action: 'DELETE', txId: id });
     return res.json({ success: true, id });
   } catch (err) {
+    if (handleLockVerificationError(res, err)) return;
     console.error('[Contributors API] Error DELETE consolidated_transaction:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
   }
@@ -13259,38 +15571,105 @@ app.post('/api/v1/consolidated_transactions/bulk-delete', async (req: Request, r
     if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: 'VALIDATION_ERROR: ids array is required' });
     }
-    const oldTxsRes = await pool.query('SELECT * FROM consolidated_transactions WHERE id::text = ANY($1)', [ids]);
-    const oldTxs = oldTxsRes.rows || [];
 
-    for (const oldTx of oldTxs) {
-      const isAuthorized = await isAuthorizedForTransaction(pool, ctx, oldTx);
-      if (!isAuthorized) {
-        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: uma ou mais transações pertencem a outra organização.' });
+    const client = await pool.connect();
+    let oldTxs: any[] = [];
+    let deletedCount = 0;
+    try {
+      await client.query('BEGIN');
+
+      const oldTxsRes = await client.query('SELECT * FROM consolidated_transactions WHERE id::text = ANY($1)', [ids]);
+      oldTxs = oldTxsRes.rows || [];
+
+      // 🛡️ Shared advisory locks em todos os períodos afetados pelo lote
+      const bulkDelLocks: Array<{ churchId?: string | null; dates: Array<string | Date | null | undefined>; bankId?: string | null }> = [];
+      for (const oldTx of oldTxs) {
+        const txDates = [oldTx.reference_date, oldTx.transaction_date];
+        bulkDelLocks.push({ churchId: oldTx.church_id, dates: txDates, bankId: oldTx.bank_id });
+        for (const sc of extractSplitChurchIds(oldTx.splits)) {
+          bulkDelLocks.push({ churchId: sc, dates: txDates, bankId: oldTx.bank_id });
+        }
       }
+      await acquireSharedPeriodLocks(client, bulkDelLocks);
 
-      // 🛡️ Proteção de Pernas Contábeis de Fechamento (PB-007)
-      const isClosingLeg = oldTx.source === 'closing' || 
-        (oldTx.row_hash && String(oldTx.row_hash).startsWith('closing-')) ||
-        (oldTx.id && String(oldTx.id).startsWith('closing-'));
-      if (isClosingLeg) {
-        return res.status(403).json({
-          error: 'CLOSING_LEG_PROTECTED',
-          message: `Lançamento protegido: A transação "${oldTx.description}" é uma perna contábil de fechamento e não pode ser excluída em lote.`
+      for (const oldTx of oldTxs) {
+        const isAuthorized = await isAuthorizedForTransaction(client, ctx, oldTx);
+        if (!isAuthorized) {
+          await client.query('ROLLBACK');
+          return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: uma ou mais transações pertencem a outra organização.' });
+        }
+
+        // 🛡️ Proteção de Pernas Contábeis de Fechamento (PB-007)
+        if (isForgedOrProtectedClosingTx(oldTx)) {
+          await client.query('ROLLBACK');
+          return res.status(403).json({
+            error: 'CLOSING_LEG_PROTECTED',
+            message: `Lançamento protegido: A transação "${oldTx.description}" é uma perna contábil de fechamento e não pode ser excluída em lote.`
+          });
+        }
+
+        // 🛡️ Proteção direta de lançamento confirmado (Decisão 1 — atomicidade tudo-ou-nada)
+        if (isTruthyDbBool(oldTx.is_confirmed)) {
+          await client.query('ROLLBACK');
+          return res.status(422).json({
+            error: 'TRANSACTION_CONFIRMED',
+            message: `LANÇAMENTO CONFIRMADO: A transação "${oldTx.description}" possui Confirmação Final e não pode ser excluída em lote.`
+          });
+        }
+
+        const txDates = [oldTx.reference_date, oldTx.transaction_date];
+        const delGuard = await assertWritablePeriodAndDate(client, {
+          churchId: oldTx.church_id,
+          dates: txDates,
+          bankId: oldTx.bank_id,
+          excludeTxId: String(oldTx.id),
+          actionContext: 'delete'
         });
+        if (delGuard.blocked) {
+          await client.query('ROLLBACK');
+          return res.status(delGuard.statusCode || 422).json({
+            error: delGuard.error,
+            message: `${delGuard.message} (Lançamento: "${oldTx.description}")`,
+            churchId: delGuard.churchId,
+            year: delGuard.year,
+            month: delGuard.month,
+            date: delGuard.date
+          });
+        }
+
+        if (oldTx.splits) {
+          const splitGuard = await assertSplitsWritable(client, oldTx.splits, txDates, oldTx.bank_id, String(oldTx.id));
+          if (splitGuard.blocked) {
+            await client.query('ROLLBACK');
+            return res.status(splitGuard.statusCode || 422).json({
+              error: splitGuard.error,
+              message: `${splitGuard.message} (Lançamento: "${oldTx.description}")`,
+              churchId: splitGuard.churchId,
+              year: splitGuard.year,
+              month: splitGuard.month,
+              date: splitGuard.date
+            });
+          }
+        }
       }
 
-      // 🛡️ Validação de Período Fechado (Congelamento)
-      const closedCheck = await isChurchPeriodClosed(pool, oldTx.church_id, oldTx.transaction_date || oldTx.reference_date, oldTx.bank_id);
-      if (closedCheck.isClosed) {
-        return res.status(422).json({
-          error: 'PERIOD_CLOSED',
-          message: `PERÍODO CONGELADO: A transação "${oldTx.description}" pertence ao período fechado (${String(closedCheck.month).padStart(2, '0')}/${closedCheck.year}). Exclusões em lote contendo períodos fechados estão expressamente bloqueadas.`
-        });
-      }
-
+      const result = await client.query('DELETE FROM consolidated_transactions WHERE id::text = ANY($1) RETURNING id', [ids]);
+      deletedCount = result.rows.length;
+      await client.query('COMMIT');
+    } catch (txErr) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (_) {}
+      throw txErr;
+    } finally {
+      client.release();
     }
 
-    const result = await pool.query('DELETE FROM consolidated_transactions WHERE id::text = ANY($1) RETURNING id', [ids]);
+    if (!(pool as any).isUsingSqliteFallback?.() && (pool as any).localEngine) {
+      try {
+        (pool as any).localEngine.query('DELETE FROM consolidated_transactions WHERE id::text = ANY($1)', [ids]);
+      } catch (_) {}
+    }
 
     for (const oldTx of oldTxs) {
       try {
@@ -13309,9 +15688,412 @@ app.post('/api/v1/consolidated_transactions/bulk-delete', async (req: Request, r
     }
 
     notifyTenantRealtime(ctx.ownerId || ctx.userId, { type: 'TRANSACTION_UPDATED', action: 'BULK_DELETE', ids });
-    return res.json({ success: true, count: result.rows.length, ids });
+    return res.json({ success: true, count: deletedCount, ids });
   } catch (err) {
+    if (handleLockVerificationError(res, err)) return;
     console.error('[Contributors API] Error POST bulk-delete consolidated_transactions:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// 🛡️ AUD-01: Validação cross-tenant e RBAC dos campos opcionais de confirm-batch (igreja, banco e contribuinte)
+async function validateConfirmBatchTargetEntities(
+  poolInstance: any,
+  ctx: TenantContext,
+  opts: { optChurchId: string | null; optBankId: string | null; optContributorId: string | null }
+): Promise<{ status: number; error: string; message: string } | null> {
+  if (ctx.isSuperAdmin) return null;
+  const { optChurchId, optBankId, optContributorId } = opts;
+  const hasAnyTarget = Boolean(
+    (optChurchId && isRealChurchId(optChurchId)) ||
+    (optBankId && optBankId !== 'unidentified' && !optBankId.startsWith('manual') && optBankId !== 'gmail-sync') ||
+    (optContributorId && optContributorId !== 'unidentified')
+  );
+  if (!hasAnyTarget) return null;
+
+  const ownerUserIds = await getEquivalentUserIds(ctx.ownerId || ctx.userId || '');
+
+  if (optChurchId && isRealChurchId(optChurchId)) {
+    if (ctx.isSecondaryUser) {
+      if (!ctx.allowedChurchIds || !ctx.allowedChurchIds.includes(optChurchId)) {
+        return { status: 403, error: 'FORBIDDEN', message: 'Acesso negado: congregação informada não é autorizada para este usuário.' };
+      }
+    } else if (!ownerUserIds.includes(optChurchId)) {
+      const churchOwnCheck = await poolInstance.query(
+        'SELECT id FROM churches WHERE id::text = $1 AND user_id::text = ANY($2) LIMIT 1',
+        [optChurchId, ownerUserIds]
+      );
+      if (churchOwnCheck.rows.length === 0) {
+        return { status: 403, error: 'FORBIDDEN', message: 'Acesso negado: congregação informada não pertence à sua organização.' };
+      }
+    }
+  }
+
+  const isRealOptBankId = Boolean(
+    optBankId && optBankId !== 'unidentified' && !optBankId.startsWith('manual') && optBankId !== 'gmail-sync'
+  );
+  if (isRealOptBankId && optBankId) {
+    if (ctx.isSecondaryUser && ctx.allowedBankIds && ctx.allowedBankIds.length > 0 && !ctx.allowedBankIds.includes(optBankId)) {
+      return { status: 403, error: 'FORBIDDEN', message: 'Acesso negado: conta bancária informada não é autorizada para este usuário.' };
+    }
+    const bankOwnCheck = await poolInstance.query(
+      'SELECT id FROM banks WHERE id::text = $1 AND user_id::text = ANY($2) LIMIT 1',
+      [optBankId, ownerUserIds]
+    );
+    if (bankOwnCheck.rows.length === 0) {
+      return { status: 403, error: 'FORBIDDEN', message: 'Acesso negado: conta bancária informada não pertence à sua organização.' };
+    }
+  }
+
+  if (optContributorId && optContributorId !== 'unidentified') {
+    const contribCheck = await poolInstance.query(
+      'SELECT id, church_id, is_global FROM contributors WHERE id::text = $1 LIMIT 1',
+      [optContributorId]
+    );
+    if (contribCheck.rows.length === 0) {
+      return { status: 404, error: 'CONTRIBUTOR_NOT_FOUND', message: 'Contribuinte informado não encontrado.' };
+    }
+    const contribRow = contribCheck.rows[0];
+    const contribChurchId = contribRow.church_id ? String(contribRow.church_id) : null;
+    let contribBelongsToOrg = false;
+    if (contribChurchId) {
+      if (ownerUserIds.includes(contribChurchId)) {
+        contribBelongsToOrg = true;
+      } else {
+        const chCheck = await poolInstance.query(
+          'SELECT id FROM churches WHERE id::text = $1 AND user_id::text = ANY($2) LIMIT 1',
+          [contribChurchId, ownerUserIds]
+        );
+        if (chCheck.rows.length > 0) contribBelongsToOrg = true;
+      }
+    }
+    if (!contribBelongsToOrg) {
+      return { status: 403, error: 'FORBIDDEN', message: 'Acesso negado: contribuinte informado não pertence à sua organização.' };
+    }
+    if (ctx.isSecondaryUser && !isTruthyDbBool(contribRow.is_global)) {
+      if (!contribChurchId || !ctx.allowedChurchIds || !ctx.allowedChurchIds.includes(contribChurchId)) {
+        return { status: 403, error: 'FORBIDDEN', message: 'Acesso negado: contribuinte informado não pertence a uma congregação autorizada.' };
+      }
+    }
+  }
+
+  return null;
+}
+
+// POST /api/v1/consolidated_transactions/confirm-batch - Confirmação final ou desbloqueio em lote atômico (ACID)
+app.post('/api/v1/consolidated_transactions/confirm-batch', async (req: Request, res: Response) => {
+  try {
+    const ctx = getTenantContext(req);
+    await enrichSecondaryUserContext(pool, ctx);
+    if (!ctx.isAuthenticated) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Autenticação necessária para confirmar lançamentos.' });
+    }
+
+    const body = req.body || {};
+    const rawIds = body.ids;
+    const isConfirmedRaw = body.is_confirmed !== undefined ? body.is_confirmed : body.isConfirmed;
+    if (!Array.isArray(rawIds) || rawIds.length === 0 || typeof isConfirmedRaw !== 'boolean') {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: 'Os campos "ids" (lista não vazia) e "is_confirmed" (booleano) são obrigatórios.'
+      });
+    }
+
+    const uniqueIds = Array.from(new Set(rawIds.map((x: any) => String(x || '').trim()).filter(Boolean)));
+    if (uniqueIds.length === 0) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Nenhum ID de transação válido informado.' });
+    }
+
+    const targetConfirmed = Boolean(isConfirmedRaw);
+    const optChurchId = (body.church_id || body.churchId) ? String(body.church_id || body.churchId).trim() : null;
+    const optBankId = (body.bank_id || body.bankId) ? String(body.bank_id || body.bankId).trim() : null;
+    const optContributorId = (body.contributor_id || body.contributorId) ? String(body.contributor_id || body.contributorId).trim() : null;
+
+    // 🛡️ RBAC explícito: Confirmar exige permissão confirmFinal; Desbloquear individualmente (P1-A) restrito ao Titular/Admin
+    if (targetConfirmed) {
+      if (ctx.isSecondaryUser && !hasPermission(ctx, 'confirm_final', 'confirmar_final', 'confirmfinal')) {
+        return res.status(403).json({
+          error: 'FORBIDDEN',
+          message: 'Acesso negado: você não possui permissão de "Confirmar Final".'
+        });
+      }
+    } else if (ctx.isSecondaryUser) {
+      return res.status(403).json({
+        error: 'FORBIDDEN',
+        message: 'Acesso negado: apenas o proprietário ou administrador pode remover o bloqueio de um lançamento confirmado.'
+      });
+    }
+
+    const targetValidationErr = await validateConfirmBatchTargetEntities(pool, ctx, {
+      optChurchId,
+      optBankId,
+      optContributorId
+    });
+    if (targetValidationErr) {
+      return res.status(targetValidationErr.status).json({
+        error: targetValidationErr.error,
+        message: targetValidationErr.message
+      });
+    }
+
+    const client = await pool.connect();
+    const updatedRows: any[] = [];
+    const oldRowsById = new Map<string, any>();
+
+    try {
+      await client.query('BEGIN');
+
+      const foundRes = await client.query(
+        'SELECT * FROM consolidated_transactions WHERE id::text = ANY($1)',
+        [uniqueIds]
+      );
+      const foundRows = foundRes.rows || [];
+      for (const row of foundRows) {
+        oldRowsById.set(String(row.id), row);
+      }
+
+      // Atomicidade estrita: todos os IDs solicitados devem existir
+      const missingIds = uniqueIds.filter(id => !oldRowsById.has(id));
+      if (missingIds.length > 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({
+          error: 'TRANSACTION_NOT_FOUND',
+          message: `Um ou mais lançamentos não foram encontrados (${missingIds.length} ausente(s)). Nenhum registro foi alterado.`,
+          missingIds
+        });
+      }
+
+      // 🛡️ Concorrência: shared advisory locks em todos os períodos envolvidos no lote (incluindo splits)
+      const batchLockTargets: Array<{ churchId?: string | null; dates: Array<string | Date | null | undefined>; bankId?: string | null }> = [];
+      for (const txId of uniqueIds) {
+        const oldTx = oldRowsById.get(txId);
+        const txDates = [oldTx.reference_date, oldTx.transaction_date];
+        batchLockTargets.push({ churchId: oldTx.church_id, dates: txDates, bankId: oldTx.bank_id });
+        if (optChurchId) {
+          batchLockTargets.push({ churchId: optChurchId, dates: txDates, bankId: optBankId || oldTx.bank_id });
+        } else if (optBankId && optBankId !== String(oldTx.bank_id || '')) {
+          batchLockTargets.push({ churchId: oldTx.church_id, dates: txDates, bankId: optBankId });
+        }
+        for (const splitChurchId of extractSplitChurchIds(oldTx.splits)) {
+          batchLockTargets.push({ churchId: splitChurchId, dates: txDates, bankId: oldTx.bank_id });
+        }
+      }
+      await acquireSharedPeriodLocks(client, batchLockTargets);
+
+      for (const txId of uniqueIds) {
+        const oldTx = oldRowsById.get(txId);
+
+        const isAuthorized = await isAuthorizedForTransaction(client, ctx, oldTx);
+        if (!isAuthorized) {
+          await client.query('ROLLBACK');
+          return res.status(403).json({
+            error: 'FORBIDDEN',
+            message: 'Acesso negado: um ou mais lançamentos pertencem a outra organização ou congregação não autorizada. Nenhum registro foi alterado.'
+          });
+        }
+
+        if (isForgedOrProtectedClosingTx(oldTx)) {
+          await client.query('ROLLBACK');
+          return res.status(403).json({
+            error: 'CLOSING_LEG_PROTECTED',
+            message: `Lançamento protegido: "${oldTx.description}" é uma perna contábil de fechamento e não pode ser alterada manualmente. Nenhum registro foi alterado.`
+          });
+        }
+
+        // 🛡️ AUD-01: Impede mutação de congregação/banco/contribuinte em lançamento que já possui Confirmação Final
+        if (isTruthyDbBool(oldTx.is_confirmed)) {
+          const isMutatingChurch = Boolean(optChurchId && optChurchId !== String(oldTx.church_id || ''));
+          const isMutatingBank = Boolean(optBankId && optBankId !== String(oldTx.bank_id || ''));
+          const isMutatingContributor = Boolean(optContributorId && optContributorId !== String(oldTx.contributor_id || ''));
+          if (isMutatingChurch || isMutatingBank || isMutatingContributor) {
+            await client.query('ROLLBACK');
+            return res.status(422).json({
+              error: 'TRANSACTION_CONFIRMED_LOCKED',
+              message: `O lançamento "${oldTx.description}" já possui Confirmação Final e não pode ter congregação, conta bancária ou contribuinte alterados. Nenhum registro foi alterado.`
+            });
+          }
+        }
+
+        const effChurchId = optChurchId ? optChurchId : (oldTx.church_id ? String(oldTx.church_id) : null);
+        const effBankId = optBankId ? optBankId : (oldTx.bank_id ? String(oldTx.bank_id) : null);
+        const txDates = [oldTx.reference_date, oldTx.transaction_date];
+
+        if (targetConfirmed && !isRealChurchId(effChurchId)) {
+          await client.query('ROLLBACK');
+          return res.status(422).json({
+            error: 'CHURCH_REQUIRED_FOR_CONFIRMATION',
+            message: `O lançamento "${oldTx.description}" precisa estar vinculado a uma congregação antes da Confirmação Final. Nenhum registro foi alterado.`
+          });
+        }
+
+        // Valida período fechado em AMBAS as datas (Bypass C + P1-A: mesmo Titular precisa usar Reabrir Período)
+        const originPeriodGuard = await assertWritablePeriodAndDate(client, {
+          churchId: oldTx.church_id,
+          dates: txDates,
+          bankId: oldTx.bank_id,
+          excludeTxId: txId,
+          checkDayConfirmed: false,
+          actionContext: 'update'
+        });
+        if (originPeriodGuard.blocked) {
+          await client.query('ROLLBACK');
+          return res.status(originPeriodGuard.statusCode || 422).json({
+            error: originPeriodGuard.error,
+            message: targetConfirmed
+              ? `${originPeriodGuard.message} (Lançamento: "${oldTx.description}"). Nenhum registro foi alterado.`
+              : `${originPeriodGuard.message} Utilize "Reabrir Período" no Livro Caixa para liberar. Nenhum registro foi alterado.`
+          });
+        }
+
+        // 🛡️ AUD-01: Valida todas as congregações de rateio (splits) contra escopo de secundário e períodos fechados
+        const splitChurchIds = extractSplitChurchIds(oldTx.splits);
+        for (const splitChurchId of splitChurchIds) {
+          if (ctx.isSecondaryUser && (!ctx.allowedChurchIds || !ctx.allowedChurchIds.includes(splitChurchId))) {
+            await client.query('ROLLBACK');
+            return res.status(403).json({
+              error: 'FORBIDDEN',
+              message: `Acesso negado: o lançamento "${oldTx.description}" possui rateio para uma congregação não autorizada. Nenhum registro foi alterado.`
+            });
+          }
+          const splitPeriodGuard = await assertWritablePeriodAndDate(client, {
+            churchId: splitChurchId,
+            dates: txDates,
+            bankId: oldTx.bank_id,
+            excludeTxId: txId,
+            checkDayConfirmed: false,
+            actionContext: 'split'
+          });
+          if (splitPeriodGuard.blocked) {
+            await client.query('ROLLBACK');
+            return res.status(splitPeriodGuard.statusCode || 422).json({
+              error: splitPeriodGuard.error,
+              message: `${splitPeriodGuard.message} (Rateio do lançamento: "${oldTx.description}"). Nenhum registro foi alterado.`,
+              churchId: splitPeriodGuard.churchId,
+              year: splitPeriodGuard.year,
+              month: splitPeriodGuard.month,
+              date: splitPeriodGuard.date
+            });
+          }
+        }
+
+        // Se o lote redirecionar lançamento para outra igreja ou banco, valida fechamento (e dia confirmado se mudar de igreja)
+        const isReassigningChurch = Boolean(optChurchId && optChurchId !== String(oldTx.church_id || ''));
+        const isReassigningBank = Boolean(optBankId && optBankId !== String(oldTx.bank_id || ''));
+        if (isReassigningChurch || isReassigningBank) {
+          const destGuard = await assertWritablePeriodAndDate(client, {
+            churchId: effChurchId,
+            dates: txDates,
+            bankId: effBankId,
+            excludeTxId: txId,
+            checkDayConfirmed: isReassigningChurch,
+            actionContext: 'update'
+          });
+          if (destGuard.blocked) {
+            await client.query('ROLLBACK');
+            return res.status(destGuard.statusCode || 422).json({
+              error: destGuard.error,
+              message: `${destGuard.message} Nenhum registro foi alterado.`,
+              churchId: destGuard.churchId,
+              year: destGuard.year,
+              month: destGuard.month,
+              date: destGuard.date
+            });
+          }
+        }
+
+        const nextStatus = targetConfirmed
+          ? 'resolved'
+          : (oldTx.status === 'resolved' ? 'identified' : (oldTx.status || 'identified'));
+
+        const nextChurchId = normalizePgNullableUuid(effChurchId || oldTx.church_id);
+        const nextBankId = optBankId !== null
+          ? normalizePgNullableUuid(optBankId)
+          : normalizePgNullableUuid(oldTx.bank_id);
+        const nextContributorId = optContributorId !== null
+          ? normalizePgNullableUuid(optContributorId)
+          : normalizePgNullableUuid(oldTx.contributor_id);
+
+        const upRes = await client.query(
+          `UPDATE consolidated_transactions
+           SET is_confirmed = $1,
+               status = $2,
+               church_id = $3,
+               bank_id = $4,
+               contributor_id = $5,
+               updated_at = NOW()
+           WHERE id::text = $6
+           RETURNING *`,
+          [targetConfirmed, nextStatus, nextChurchId, nextBankId, nextContributorId, txId]
+        );
+        if (upRes.rows?.[0]) {
+          updatedRows.push(upRes.rows[0]);
+        }
+      }
+
+      await client.query('COMMIT');
+    } catch (txErr) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (rbErr) {
+        console.warn('[ConfirmBatch] Erro ao executar ROLLBACK:', rbErr);
+      }
+      throw txErr;
+    } finally {
+      client.release();
+    }
+
+    // Espelhamento best-effort no SQLite local quando commit ocorreu no PostgreSQL
+    if (!(pool as any).isUsingSqliteFallback?.() && (pool as any).localEngine) {
+      try {
+        for (const row of updatedRows) {
+          (pool as any).localEngine.query(
+            `UPDATE consolidated_transactions
+             SET is_confirmed = $1, status = $2, church_id = $3, bank_id = $4, contributor_id = $5, updated_at = NOW()
+             WHERE id::text = $6`,
+            [targetConfirmed, row.status, row.church_id || null, row.bank_id || null, row.contributor_id || null, String(row.id)]
+          );
+        }
+      } catch (mirrorErr) {
+        console.warn('[ConfirmBatch] Aviso ao espelhar lote no SQLite local:', mirrorErr);
+      }
+    }
+
+    // Auditoria rastreável (PB-008 compatível)
+    try {
+      const firstChurchId = updatedRows[0]?.church_id || null;
+      await logAudit(pool, {
+        action: targetConfirmed ? 'CONFIRM_FINAL' : 'UNLOCK_CONFIRMATION',
+        entity: 'consolidated_transactions',
+        entityId: uniqueIds.length === 1 ? uniqueIds[0] : `batch_${uniqueIds.length}`,
+        churchId: firstChurchId,
+        userId: ctx.userId || null,
+        newValues: {
+          is_confirmed: targetConfirmed,
+          count: updatedRows.length,
+          ids: uniqueIds.slice(0, 100)
+        },
+        req
+      });
+    } catch (auditErr) {
+      console.warn('[Audit] Erro ao gravar log de auditoria no confirm-batch:', auditErr);
+    }
+
+    notifyTenantRealtime(ctx.ownerId || ctx.userId, {
+      type: 'TRANSACTION_UPDATED',
+      action: targetConfirmed ? 'CONFIRM_BATCH' : 'UNLOCK_BATCH',
+      ids: uniqueIds
+    });
+
+    return res.json({
+      success: true,
+      is_confirmed: targetConfirmed,
+      count: updatedRows.length,
+      updatedIds: updatedRows.map((r: any) => String(r.id)),
+      transactions: updatedRows
+    });
+  } catch (err) {
+    if (handleLockVerificationError(res, err)) return;
+    console.error('[Contributors API] Error POST confirm-batch consolidated_transactions:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
   }
 });
@@ -13393,6 +16175,170 @@ app.get('/api/v1/financial_records', async (req: Request, res: Response) => {
   }
 });
 
+function mirrorFinancialRecordToLocalSqlite(row: any): void {
+  if (!row || (pool as any).isUsingSqliteFallback?.() || !(pool as any).localEngine) return;
+  try {
+    const serializeDate = (val: any): string | null => {
+      if (!val) return null;
+      if (val instanceof Date) return val.toISOString();
+      return String(val);
+    };
+    (pool as any).localEngine.query(
+      `INSERT INTO financial_records (
+        id, user_id, church_id, title, description, amount, type, status,
+        recipient_name, recipient_type, due_date, payment_date, recurrence, parent_id,
+        bank_transaction_id, bank_transaction_desc, attachments, validation_status, validation_notes,
+        created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW())
+      ON CONFLICT (id) DO UPDATE SET
+        user_id = EXCLUDED.user_id,
+        church_id = EXCLUDED.church_id,
+        title = EXCLUDED.title,
+        description = EXCLUDED.description,
+        amount = EXCLUDED.amount,
+        type = EXCLUDED.type,
+        status = EXCLUDED.status,
+        recipient_name = EXCLUDED.recipient_name,
+        recipient_type = EXCLUDED.recipient_type,
+        due_date = EXCLUDED.due_date,
+        payment_date = EXCLUDED.payment_date,
+        recurrence = EXCLUDED.recurrence,
+        parent_id = EXCLUDED.parent_id,
+        bank_transaction_id = EXCLUDED.bank_transaction_id,
+        bank_transaction_desc = EXCLUDED.bank_transaction_desc,
+        attachments = EXCLUDED.attachments,
+        validation_status = EXCLUDED.validation_status,
+        validation_notes = EXCLUDED.validation_notes,
+        updated_at = NOW()`,
+      [
+        String(row.id),
+        row.user_id || null,
+        row.church_id || null,
+        row.title || '',
+        row.description || '',
+        row.amount,
+        row.type || '',
+        row.status || 'pending',
+        row.recipient_name || '',
+        row.recipient_type || 'supplier',
+        serializeDate(row.due_date),
+        serializeDate(row.payment_date),
+        row.recurrence || 'none',
+        row.parent_id || null,
+        row.bank_transaction_id || null,
+        row.bank_transaction_desc || null,
+        row.attachments ? (typeof row.attachments === 'string' ? row.attachments : JSON.stringify(row.attachments)) : '[]',
+        row.validation_status || 'pending_attachment',
+        row.validation_notes || null,
+        serializeDate(row.created_at) || new Date().toISOString()
+      ]
+    );
+  } catch (mirrorErr) {
+    console.warn('[LocalMirror] Aviso ao espelhar financial_record no SQLite local:', mirrorErr);
+  }
+}
+
+function deleteFinancialRecordFromLocalSqlite(id: string): void {
+  if (!id || (pool as any).isUsingSqliteFallback?.() || !(pool as any).localEngine) return;
+  try {
+    (pool as any).localEngine.query('DELETE FROM financial_records WHERE id = $1', [String(id)]);
+  } catch (mirrorErr) {
+    console.warn('[LocalMirror] Aviso ao remover financial_record no SQLite local:', mirrorErr);
+  }
+}
+
+function collectBankTxLockTargets(
+  bankTx: any
+): Array<{ churchId?: string | null; dates: Array<string | Date | null | undefined>; bankId?: string | null }> {
+  if (!bankTx) return [];
+  const txDates = [bankTx.reference_date, bankTx.transaction_date];
+  const targets: Array<{ churchId?: string | null; dates: Array<string | Date | null | undefined>; bankId?: string | null }> = [
+    { churchId: bankTx.church_id, dates: txDates, bankId: bankTx.bank_id }
+  ];
+  for (const sc of extractSplitChurchIds(bankTx.splits)) {
+    targets.push({ churchId: sc, dates: txDates, bankId: bankTx.bank_id });
+  }
+  return targets;
+}
+
+async function assertLinkedBankTransactionWritable(
+  client: any,
+  ctx: TenantContext,
+  bankTxId: string,
+  opts: { mode: 'existing' | 'incoming'; actionVerb: string }
+): Promise<{ blocked: boolean; statusCode?: number; error?: string; message?: string }> {
+  const bankTxRes = await client.query('SELECT * FROM consolidated_transactions WHERE id::text = $1 LIMIT 1', [bankTxId]);
+  if (bankTxRes.rows.length === 0) {
+    if (opts.mode === 'incoming') {
+      return {
+        blocked: true,
+        statusCode: 400,
+        error: 'BANK_TRANSACTION_NOT_FOUND',
+        message: 'A transação bancária vinculada não foi encontrada.'
+      };
+    }
+    return { blocked: false };
+  }
+
+  const bankTx = bankTxRes.rows[0];
+  if (opts.mode === 'incoming') {
+    const isBankTxAuthorized = await isAuthorizedForTransaction(client, ctx, bankTx);
+    if (!isBankTxAuthorized) {
+      return {
+        blocked: true,
+        statusCode: 403,
+        error: 'FORBIDDEN',
+        message: 'Acesso negado: a transação bancária vinculada pertence a outra organização.'
+      };
+    }
+  }
+
+  if (String(bankTx.source || '').toLowerCase() === 'closing' || isTruthyDbBool(bankTx.is_confirmed)) {
+    return {
+      blocked: true,
+      statusCode: 422,
+      error: 'TRANSACTION_CONFIRMED',
+      message: opts.mode === 'existing'
+        ? `LANÇAMENTO CONFIRMADO: Este registro financeiro está vinculado a uma transação bancária confirmada ou de fechamento e não pode ser ${opts.actionVerb} ou desvinculado.`
+        : 'LANÇAMENTO CONFIRMADO: A transação bancária vinculada já possui Confirmação Final ou pertence a fechamento e não pode ser vinculada ou alterada.'
+    };
+  }
+
+  const bankTxGuard = await assertWritablePeriodAndDate(client, {
+    churchId: bankTx.church_id,
+    dates: [bankTx.reference_date, bankTx.transaction_date],
+    bankId: bankTx.bank_id,
+    excludeTxId: String(bankTx.id),
+    actionContext: 'update'
+  });
+  if (bankTxGuard.blocked) {
+    return {
+      blocked: true,
+      statusCode: bankTxGuard.statusCode || 422,
+      error: bankTxGuard.error,
+      message: bankTxGuard.message
+    };
+  }
+
+  const bankSplitsGuard = await assertSplitsWritable(
+    client,
+    bankTx.splits,
+    [bankTx.reference_date, bankTx.transaction_date],
+    bankTx.bank_id,
+    String(bankTx.id)
+  );
+  if (bankSplitsGuard.blocked) {
+    return {
+      blocked: true,
+      statusCode: bankSplitsGuard.statusCode || 422,
+      error: bankSplitsGuard.error,
+      message: bankSplitsGuard.message
+    };
+  }
+
+  return { blocked: false };
+}
+
 // POST /api/v1/financial_records
 app.post('/api/v1/financial_records', async (req: Request, res: Response) => {
   try {
@@ -13427,8 +16373,13 @@ app.post('/api/v1/financial_records', async (req: Request, res: Response) => {
     } = req.body;
 
     const effectiveId = (typeof id === 'string' && id.trim()) ? id.trim() : crypto.randomUUID();
+    if (!isValidStrictUuid(effectiveId)) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'ID inválido para registro financeiro (UUID esperado).' });
+    }
     const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? (ctx.ownerId || ctx.userId) : user_id;
-    const effectiveChurchId = (church_id && church_id !== 'unidentified') ? String(church_id) : ((ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : null);
+    const effectiveChurchId = normalizePgNullableUuid(
+      (church_id && church_id !== 'unidentified') ? String(church_id) : ((ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : null)
+    );
 
     if (!effectiveUserId || !title || amount === undefined || !type) {
       return res.status(400).json({ error: 'VALIDATION_ERROR: user_id, title, amount, and type are required' });
@@ -13457,73 +16408,109 @@ app.post('/api/v1/financial_records', async (req: Request, res: Response) => {
       }
     }
 
-    // 🛡️ Validação de Período Fechado (Congelamento)
-    const recordDate = payment_date || due_date;
-    const closedCheck = await isChurchPeriodClosed(pool, effectiveChurchId, recordDate);
-    if (closedCheck.isClosed) {
-      return res.status(422).json({
-        error: 'PERIOD_CLOSED',
-        message: closedCheck.message
+    const normalizedBankTxId = (bank_transaction_id !== undefined && bank_transaction_id !== null && String(bank_transaction_id).trim() !== '')
+      ? String(bank_transaction_id).trim()
+      : null;
+
+    let createdRec: any = null;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // 🛡️ Concorrência ACID (AUD-07): coleta e ordena todos os shared advisory locks antes das guardas
+      const lockTargets: Array<{ churchId?: string | null; dates: Array<string | Date | null | undefined>; bankId?: string | null }> = [
+        { churchId: effectiveChurchId, dates: [payment_date, due_date] }
+      ];
+
+      if (normalizedBankTxId) {
+        const preBankTxRes = await client.query('SELECT * FROM consolidated_transactions WHERE id::text = $1 LIMIT 1', [normalizedBankTxId]);
+        if (preBankTxRes.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({
+            error: 'BANK_TRANSACTION_NOT_FOUND',
+            message: 'A transação bancária vinculada não foi encontrada.'
+          });
+        }
+        lockTargets.push(...collectBankTxLockTargets(preBankTxRes.rows[0]));
+      }
+
+      await acquireSharedPeriodLocks(client, lockTargets);
+
+      // 🛡️ Validação Unificada (Período Mensal/Personalizado + Dia Confirmado Decisão 1/P2-A + Fail-Closed)
+      const finRecGuard = await assertWritablePeriodAndDate(client, {
+        churchId: effectiveChurchId,
+        dates: [payment_date, due_date],
+        actionContext: 'create'
       });
+      if (finRecGuard.blocked) {
+        await client.query('ROLLBACK');
+        return res.status(finRecGuard.statusCode || 422).json({
+          error: finRecGuard.error,
+          message: finRecGuard.message,
+          churchId: finRecGuard.churchId,
+          year: finRecGuard.year,
+          month: finRecGuard.month,
+          date: finRecGuard.date
+        });
+      }
+
+      // 🛡️ Validação de Conciliação Bancária (pós-lock, imutabilidade + período + splits)
+      if (normalizedBankTxId) {
+        const bankGuard = await assertLinkedBankTransactionWritable(client, ctx, normalizedBankTxId, {
+          mode: 'incoming',
+          actionVerb: 'vinculado'
+        });
+        if (bankGuard.blocked) {
+          await client.query('ROLLBACK');
+          return res.status(bankGuard.statusCode || 422).json({
+            error: bankGuard.error,
+            message: bankGuard.message
+          });
+        }
+      }
+
+      const result = await client.query(
+        `INSERT INTO financial_records (
+          id, user_id, church_id, title, description, amount, type, status, 
+          recipient_name, recipient_type, due_date, payment_date, recurrence, parent_id,
+          bank_transaction_id, bank_transaction_desc, attachments, validation_status, validation_notes
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING *`,
+        [
+          effectiveId,
+          effectiveUserId,
+          effectiveChurchId,
+          title,
+          description || '',
+          amount,
+          type,
+          status || 'pending',
+          recipient_name || '',
+          recipient_type || 'supplier',
+          due_date || null,
+          payment_date || null,
+          recurrence || 'none',
+          parent_id || null,
+          normalizedBankTxId,
+          bank_transaction_desc || null,
+          attachments ? (typeof attachments === 'string' ? attachments : JSON.stringify(attachments)) : '[]',
+          validation_status || (attachments && attachments.length > 0 ? 'manual_review' : 'pending_attachment'),
+          validation_notes || null
+        ]
+      );
+
+      createdRec = result.rows[0];
+      await client.query('COMMIT');
+    } catch (txErr) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (_) {}
+      throw txErr;
+    } finally {
+      client.release();
     }
 
-    // 🛡️ Validação de Conciliação Bancária
-    if (bank_transaction_id) {
-      const bankTxRes = await pool.query('SELECT * FROM consolidated_transactions WHERE id::text = $1 LIMIT 1', [bank_transaction_id]);
-      if (bankTxRes.rows.length === 0) {
-        return res.status(400).json({
-          error: 'BANK_TRANSACTION_NOT_FOUND',
-          message: 'A transação bancária vinculada não foi encontrada.'
-        });
-      }
-      const bankTx = bankTxRes.rows[0];
-      const isBankTxAuthorized = await isAuthorizedForTransaction(pool, ctx, bankTx);
-      if (!isBankTxAuthorized) {
-        return res.status(403).json({
-          error: 'FORBIDDEN',
-          message: 'Acesso negado: a transação bancária vinculada pertence a outra organização.'
-        });
-      }
-      const bankTxCheck = await isChurchPeriodClosed(pool, bankTx.church_id, bankTx.reference_date || bankTx.transaction_date, bankTx.bank_id);
-      if (bankTxCheck.isClosed) {
-        return res.status(422).json({
-          error: 'PERIOD_CLOSED',
-          message: `PERÍODO CONGELADO: A transação bancária vinculada pertence ao período ${String(bankTxCheck.month).padStart(2, '0')}/${bankTxCheck.year}, que já teve seu Fechamento Final homologado.`
-        });
-      }
-    }
+    mirrorFinancialRecordToLocalSqlite(createdRec);
 
-    const result = await pool.query(
-
-      `INSERT INTO financial_records (
-        id, user_id, church_id, title, description, amount, type, status, 
-        recipient_name, recipient_type, due_date, payment_date, recurrence, parent_id,
-        bank_transaction_id, bank_transaction_desc, attachments, validation_status, validation_notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING *`,
-      [
-        effectiveId,
-        effectiveUserId,
-        effectiveChurchId,
-        title,
-        description || '',
-        amount,
-        type,
-        status || 'pending',
-        recipient_name || '',
-        recipient_type || 'supplier',
-        due_date || null,
-        payment_date || null,
-        recurrence || 'none',
-        parent_id || null,
-        bank_transaction_id || null,
-        bank_transaction_desc || null,
-        attachments ? (typeof attachments === 'string' ? attachments : JSON.stringify(attachments)) : '[]',
-        validation_status || (attachments && attachments.length > 0 ? 'manual_review' : 'pending_attachment'),
-        validation_notes || null
-      ]
-    );
-
-    const createdRec = result.rows[0];
     await logAudit(pool, {
       action: 'CREATE',
       entity: 'financial_records',
@@ -13536,6 +16523,7 @@ app.post('/api/v1/financial_records', async (req: Request, res: Response) => {
 
     return res.status(201).json(createdRec);
   } catch (err: any) {
+    if (handleLockVerificationError(res, err)) return;
     console.error('[Contributors API] Error POST financial_records:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: err.message });
   }
@@ -13573,141 +16561,215 @@ app.put('/api/v1/financial_records/:id', async (req: Request, res: Response) => 
       validation_notes
     } = req.body;
 
-    const oldRecRes = await pool.query('SELECT * FROM financial_records WHERE id = $1', [id]);
-    const oldRec = oldRecRes.rows[0] || null;
-    if (!oldRec) return res.status(404).json({ error: 'NOT_FOUND' });
-
-    const isAuthorized = await isAuthorizedForFinancialRecord(pool, ctx, oldRec);
-    if (!isAuthorized) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o registro pertence a outro usuário.' });
-    }
-
-    // 🛡️ Validação de Autorização para Origem e Destino
     const currentUserId = ctx.userId;
     const currentOwnerId = ctx.ownerId || ctx.userId;
 
-    if (ctx.isSecondaryUser) {
-      // 1. Não permite alterar lançamento cuja congregação atual não seja autorizada
-      if (oldRec.church_id && oldRec.church_id !== 'unidentified') {
-        if (!ctx.allowedChurchIds || !ctx.allowedChurchIds.includes(oldRec.church_id)) {
-          return res.status(403).json({
-            error: 'FORBIDDEN',
-            message: 'Acesso negado: o registro pertence a uma congregação não autorizada para este usuário.'
-          });
+    let oldRec: any = null;
+    let updatedRec: any = null;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const oldRecRes = await client.query('SELECT * FROM financial_records WHERE id::text = $1', [id]);
+      oldRec = oldRecRes.rows[0] || null;
+      if (!oldRec) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'NOT_FOUND' });
+      }
+
+      const isAuthorized = await isAuthorizedForFinancialRecord(client, ctx, oldRec);
+      if (!isAuthorized) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o registro pertence a outro usuário.' });
+      }
+
+      // 🛡️ Validação de Autorização para Origem e Destino
+      if (ctx.isSecondaryUser) {
+        // 1. Não permite alterar lançamento cuja congregação atual não seja autorizada
+        if (oldRec.church_id && oldRec.church_id !== 'unidentified') {
+          if (!ctx.allowedChurchIds || !ctx.allowedChurchIds.includes(oldRec.church_id)) {
+            await client.query('ROLLBACK');
+            return res.status(403).json({
+              error: 'FORBIDDEN',
+              message: 'Acesso negado: o registro pertence a uma congregação não autorizada para este usuário.'
+            });
+          }
+        }
+
+        // 2. Não permite atribuir o lançamento a uma congregação de destino não autorizada
+        if (church_id !== undefined && church_id !== null && church_id !== 'unidentified') {
+          if (!ctx.allowedChurchIds || !ctx.allowedChurchIds.includes(church_id)) {
+            await client.query('ROLLBACK');
+            return res.status(403).json({
+              error: 'FORBIDDEN',
+              message: 'Acesso negado: congregação de destino não autorizada para este usuário.'
+            });
+          }
+        }
+      } else if (ctx.isOwner && !ctx.isSuperAdmin) {
+        // 3. Proprietário não pode transferir registro para congregação de outra organização
+        if (church_id !== undefined && church_id !== null && church_id !== 'unidentified') {
+          const destChurchCheck = await client.query(
+            'SELECT id FROM churches WHERE id::text = $1 AND (user_id::text = $2 OR user_id::text = $3) LIMIT 1',
+            [church_id, currentUserId, currentOwnerId]
+          );
+          if (destChurchCheck.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(403).json({
+              error: 'FORBIDDEN',
+              message: 'Acesso negado: congregação de destino não pertence à sua organização.'
+            });
+          }
         }
       }
 
-      // 2. Não permite atribuir o lançamento a uma congregação de destino não autorizada
-      if (church_id !== undefined && church_id !== null && church_id !== 'unidentified') {
-        if (!ctx.allowedChurchIds || !ctx.allowedChurchIds.includes(church_id)) {
-          return res.status(403).json({
-            error: 'FORBIDDEN',
-            message: 'Acesso negado: congregação de destino não autorizada para este usuário.'
-          });
-        }
-      }
-    } else if (ctx.isOwner && !ctx.isSuperAdmin) {
-      // 3. Proprietário não pode transferir registro para congregação de outra organização
-      if (church_id !== undefined && church_id !== null && church_id !== 'unidentified') {
-        const destChurchCheck = await pool.query(
-          'SELECT id FROM churches WHERE id::text = $1 AND (user_id::text = $2 OR user_id::text = $3) LIMIT 1',
-          [church_id, currentUserId, currentOwnerId]
-        );
-        if (destChurchCheck.rows.length === 0) {
-          return res.status(403).json({
-            error: 'FORBIDDEN',
-            message: 'Acesso negado: congregação de destino não pertence à sua organização.'
-          });
-        }
-      }
-    }
+      const targetChurchId = church_id !== undefined ? church_id : oldRec.church_id;
+      const newPayDate = payment_date !== undefined ? payment_date : oldRec.payment_date;
+      const newDueDate = due_date !== undefined ? due_date : oldRec.due_date;
 
-    // 🛡️ Validação de Período Fechado (Congelamento)
-    const oldCheck = await isChurchPeriodClosed(pool, oldRec.church_id, oldRec.payment_date || oldRec.due_date);
-    if (oldCheck.isClosed) {
-      return res.status(422).json({
-        error: 'PERIOD_CLOSED',
-        message: `PERÍODO CONGELADO: Este registro financeiro pertence ao período ${String(oldCheck.month).padStart(2, '0')}/${oldCheck.year}, que já teve seu Fechamento Final homologado. Edições estão bloqueadas.`
+      const oldBankTxId = oldRec.bank_transaction_id ? String(oldRec.bank_transaction_id).trim() : '';
+      const incomingBankTxId = (bank_transaction_id !== undefined && bank_transaction_id !== null && String(bank_transaction_id).trim() !== '')
+        ? String(bank_transaction_id).trim()
+        : '';
+
+      // 🛡️ Concorrência ACID (AUD-07): coleta locks de origem, destino, vínculo bancário anterior e novo
+      const lockTargets: Array<{ churchId?: string | null; dates: Array<string | Date | null | undefined>; bankId?: string | null }> = [
+        { churchId: oldRec.church_id, dates: [oldRec.payment_date, oldRec.due_date] },
+        { churchId: targetChurchId, dates: [newPayDate, newDueDate] }
+      ];
+
+      if (oldBankTxId) {
+        const preOldBankRes = await client.query('SELECT * FROM consolidated_transactions WHERE id::text = $1 LIMIT 1', [oldBankTxId]);
+        if (preOldBankRes.rows.length > 0) {
+          lockTargets.push(...collectBankTxLockTargets(preOldBankRes.rows[0]));
+        }
+      }
+
+      if (incomingBankTxId && incomingBankTxId !== oldBankTxId) {
+        const preNewBankRes = await client.query('SELECT * FROM consolidated_transactions WHERE id::text = $1 LIMIT 1', [incomingBankTxId]);
+        if (preNewBankRes.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({
+            error: 'BANK_TRANSACTION_NOT_FOUND',
+            message: 'A transação bancária vinculada não foi encontrada.'
+          });
+        }
+        lockTargets.push(...collectBankTxLockTargets(preNewBankRes.rows[0]));
+      }
+
+      await acquireSharedPeriodLocks(client, lockTargets);
+
+      // 🛡️ Validação Unificada (Período Mensal/Personalizado + Dia Confirmado Decisão 1/P2-A + Fail-Closed)
+      const oldFinGuard = await assertWritablePeriodAndDate(client, {
+        churchId: oldRec.church_id,
+        dates: [oldRec.payment_date, oldRec.due_date],
+        actionContext: 'update'
       });
-    }
+      if (oldFinGuard.blocked) {
+        await client.query('ROLLBACK');
+        return res.status(oldFinGuard.statusCode || 422).json({
+          error: oldFinGuard.error,
+          message: oldFinGuard.message
+        });
+      }
 
-    const targetChurchId = church_id !== undefined ? church_id : oldRec.church_id;
-    const targetDate = payment_date !== undefined ? payment_date : (due_date !== undefined ? due_date : (oldRec.payment_date || oldRec.due_date));
-    const newCheck = await isChurchPeriodClosed(pool, targetChurchId, targetDate);
-    if (newCheck.isClosed) {
-      return res.status(422).json({
-        error: 'PERIOD_CLOSED',
-        message: newCheck.message
+      const newFinGuard = await assertWritablePeriodAndDate(client, {
+        churchId: targetChurchId,
+        dates: [newPayDate, newDueDate],
+        actionContext: 'update'
       });
+      if (newFinGuard.blocked) {
+        await client.query('ROLLBACK');
+        return res.status(newFinGuard.statusCode || 422).json({
+          error: newFinGuard.error,
+          message: newFinGuard.message
+        });
+      }
+
+      // 🛡️ Proteção contra edição, desvinculação ou reatribuição de bank_transaction_id anterior confirmado/fechado (AUD-07)
+      if (oldBankTxId) {
+        const oldBankGuard = await assertLinkedBankTransactionWritable(client, ctx, oldBankTxId, {
+          mode: 'existing',
+          actionVerb: 'alterado'
+        });
+        if (oldBankGuard.blocked) {
+          await client.query('ROLLBACK');
+          return res.status(oldBankGuard.statusCode || 422).json({
+            error: oldBankGuard.error,
+            message: oldBankGuard.message
+          });
+        }
+      }
+
+      // 🛡️ Validação de Conciliação Bancária de destino/entrada
+      if (incomingBankTxId) {
+        const newBankGuard = await assertLinkedBankTransactionWritable(client, ctx, incomingBankTxId, {
+          mode: 'incoming',
+          actionVerb: 'vinculado'
+        });
+        if (newBankGuard.blocked) {
+          await client.query('ROLLBACK');
+          return res.status(newBankGuard.statusCode || 422).json({
+            error: newBankGuard.error,
+            message: newBankGuard.message
+          });
+        }
+      }
+
+      const updates: string[] = [];
+      const values: any[] = [];
+      let placeholderIndex = 1;
+
+      const normNullableDate = (v: any) => (v === undefined ? undefined : (v === null || String(v).trim() === '' ? null : v));
+      const normNullableText = (v: any) => (v === undefined ? undefined : (v === null || String(v).trim() === '' ? null : String(v).trim()));
+
+      const fields = [
+        { name: 'church_id', value: church_id !== undefined ? normalizePgNullableUuid(church_id) : undefined },
+        { name: 'title', value: title },
+        { name: 'description', value: description },
+        { name: 'amount', value: amount },
+        { name: 'type', value: type },
+        { name: 'status', value: status },
+        { name: 'recipient_name', value: recipient_name },
+        { name: 'recipient_type', value: recipient_type },
+        { name: 'due_date', value: normNullableDate(due_date) },
+        { name: 'payment_date', value: normNullableDate(payment_date) },
+        { name: 'recurrence', value: recurrence },
+        { name: 'parent_id', value: parent_id !== undefined ? normalizePgNullableUuid(parent_id) : undefined },
+        { name: 'bank_transaction_id', value: normNullableText(bank_transaction_id) },
+        { name: 'bank_transaction_desc', value: bank_transaction_desc },
+        { name: 'attachments', value: attachments !== undefined ? (typeof attachments === 'string' ? attachments : JSON.stringify(attachments)) : undefined },
+        { name: 'validation_status', value: validation_status },
+        { name: 'validation_notes', value: validation_notes }
+      ];
+
+      fields.forEach(f => {
+        if (f.value !== undefined) {
+          updates.push(`${f.name} = $${placeholderIndex}`);
+          values.push(f.value);
+          placeholderIndex++;
+        }
+      });
+
+      updates.push('updated_at = NOW()');
+
+      values.push(id);
+      const query = `UPDATE financial_records SET ${updates.join(', ')} WHERE id::text = $${placeholderIndex} RETURNING *`;
+      
+      const result = await client.query(query, values);
+      updatedRec = result.rows[0];
+      await client.query('COMMIT');
+    } catch (txErr) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (_) {}
+      throw txErr;
+    } finally {
+      client.release();
     }
 
-    // 🛡️ Validação de Conciliação Bancária
-    if (bank_transaction_id !== undefined && bank_transaction_id !== null && bank_transaction_id !== '') {
-      const bankTxRes = await pool.query('SELECT * FROM consolidated_transactions WHERE id::text = $1 LIMIT 1', [bank_transaction_id]);
-      if (bankTxRes.rows.length === 0) {
-        return res.status(400).json({
-          error: 'BANK_TRANSACTION_NOT_FOUND',
-          message: 'A transação bancária vinculada não foi encontrada.'
-        });
-      }
-      const bankTx = bankTxRes.rows[0];
-      const isBankTxAuthorized = await isAuthorizedForTransaction(pool, ctx, bankTx);
-      if (!isBankTxAuthorized) {
-        return res.status(403).json({
-          error: 'FORBIDDEN',
-          message: 'Acesso negado: a transação bancária vinculada pertence a outra organização.'
-        });
-      }
-      const bankTxCheck = await isChurchPeriodClosed(pool, bankTx.church_id, bankTx.reference_date || bankTx.transaction_date, bankTx.bank_id);
-      if (bankTxCheck.isClosed) {
-        return res.status(422).json({
-          error: 'PERIOD_CLOSED',
-          message: `PERÍODO CONGELADO: A transação bancária vinculada pertence ao período ${String(bankTxCheck.month).padStart(2, '0')}/${bankTxCheck.year}, que já teve seu Fechamento Final homologado.`
-        });
-      }
-    }
+    mirrorFinancialRecordToLocalSqlite(updatedRec);
 
-    const updates: string[] = [];
-
-    const values: any[] = [];
-    let placeholderIndex = 1;
-
-    const fields = [
-      { name: 'church_id', value: church_id },
-      { name: 'title', value: title },
-      { name: 'description', value: description },
-      { name: 'amount', value: amount },
-      { name: 'type', value: type },
-      { name: 'status', value: status },
-      { name: 'recipient_name', value: recipient_name },
-      { name: 'recipient_type', value: recipient_type },
-      { name: 'due_date', value: due_date },
-      { name: 'payment_date', value: payment_date },
-      { name: 'recurrence', value: recurrence },
-      { name: 'parent_id', value: parent_id },
-      { name: 'bank_transaction_id', value: bank_transaction_id },
-      { name: 'bank_transaction_desc', value: bank_transaction_desc },
-      { name: 'attachments', value: attachments !== undefined ? JSON.stringify(attachments) : undefined },
-      { name: 'validation_status', value: validation_status },
-      { name: 'validation_notes', value: validation_notes }
-    ];
-
-    fields.forEach(f => {
-      if (f.value !== undefined) {
-        updates.push(`${f.name} = $${placeholderIndex}`);
-        values.push(f.value);
-        placeholderIndex++;
-      }
-    });
-
-    updates.push('updated_at = NOW()');
-
-    values.push(id);
-    const query = `UPDATE financial_records SET ${updates.join(', ')} WHERE id = $${placeholderIndex} RETURNING *`;
-    
-    const result = await pool.query(query, values);
-
-    const updatedRec = result.rows[0];
     await logAudit(pool, {
       action: 'UPDATE',
       entity: 'financial_records',
@@ -13721,6 +16783,7 @@ app.put('/api/v1/financial_records/:id', async (req: Request, res: Response) => 
 
     return res.json(updatedRec);
   } catch (err: any) {
+    if (handleLockVerificationError(res, err)) return;
     console.error('[Contributors API] Error PUT financial_records:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: err.message });
   }
@@ -13739,25 +16802,79 @@ app.delete('/api/v1/financial_records/:id', async (req: Request, res: Response) 
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: permissão para excluir registros financeiros necessária.' });
     }
 
-    const oldRecRes = await pool.query('SELECT * FROM financial_records WHERE id = $1', [id]);
-    const oldRec = oldRecRes.rows[0] || null;
-    if (!oldRec) return res.status(404).json({ error: 'NOT_FOUND' });
+    let oldRec: any = null;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    const isAuthorized = await isAuthorizedForFinancialRecord(pool, ctx, oldRec);
-    if (!isAuthorized) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o registro pertence a outro usuário.' });
-    }
+      const oldRecRes = await client.query('SELECT * FROM financial_records WHERE id::text = $1', [id]);
+      oldRec = oldRecRes.rows[0] || null;
+      if (!oldRec) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'NOT_FOUND' });
+      }
 
-    // 🛡️ Validação de Período Fechado (Congelamento)
-    const oldCheck = await isChurchPeriodClosed(pool, oldRec.church_id, oldRec.payment_date || oldRec.due_date);
-    if (oldCheck.isClosed) {
-      return res.status(422).json({
-        error: 'PERIOD_CLOSED',
-        message: `PERÍODO CONGELADO: Este registro pertence ao período ${String(oldCheck.month).padStart(2, '0')}/${oldCheck.year}, que já teve seu Fechamento Final homologado. Exclusões estão bloqueadas.`
+      const isAuthorized = await isAuthorizedForFinancialRecord(client, ctx, oldRec);
+      if (!isAuthorized) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o registro pertence a outro usuário.' });
+      }
+
+      const oldBankTxId = oldRec.bank_transaction_id ? String(oldRec.bank_transaction_id).trim() : '';
+
+      // 🛡️ Concorrência ACID (AUD-07): locks compartilhados no período do registro e na transação bancária vinculada
+      const lockTargets: Array<{ churchId?: string | null; dates: Array<string | Date | null | undefined>; bankId?: string | null }> = [
+        { churchId: oldRec.church_id, dates: [oldRec.payment_date, oldRec.due_date] }
+      ];
+      if (oldBankTxId) {
+        const preOldBankRes = await client.query('SELECT * FROM consolidated_transactions WHERE id::text = $1 LIMIT 1', [oldBankTxId]);
+        if (preOldBankRes.rows.length > 0) {
+          lockTargets.push(...collectBankTxLockTargets(preOldBankRes.rows[0]));
+        }
+      }
+      await acquireSharedPeriodLocks(client, lockTargets);
+
+      // 🛡️ Validação Unificada (Período Mensal/Personalizado + Dia Confirmado Decisão 1/P2-A + Fail-Closed)
+      const oldFinGuard = await assertWritablePeriodAndDate(client, {
+        churchId: oldRec.church_id,
+        dates: [oldRec.payment_date, oldRec.due_date],
+        actionContext: 'delete'
       });
+      if (oldFinGuard.blocked) {
+        await client.query('ROLLBACK');
+        return res.status(oldFinGuard.statusCode || 422).json({
+          error: oldFinGuard.error,
+          message: oldFinGuard.message
+        });
+      }
+
+      // 🛡️ Proteção contra exclusão de registro financeiro vinculado a transação bancária confirmada/fechada (AUD-07)
+      if (oldBankTxId) {
+        const oldBankGuard = await assertLinkedBankTransactionWritable(client, ctx, oldBankTxId, {
+          mode: 'existing',
+          actionVerb: 'excluído'
+        });
+        if (oldBankGuard.blocked) {
+          await client.query('ROLLBACK');
+          return res.status(oldBankGuard.statusCode || 422).json({
+            error: oldBankGuard.error,
+            message: oldBankGuard.message
+          });
+        }
+      }
+
+      await client.query('DELETE FROM financial_records WHERE id::text = $1 RETURNING id', [id]);
+      await client.query('COMMIT');
+    } catch (txErr) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (_) {}
+      throw txErr;
+    } finally {
+      client.release();
     }
 
-    const result = await pool.query('DELETE FROM financial_records WHERE id = $1 RETURNING id', [id]);
+    deleteFinancialRecordFromLocalSqlite(id);
 
     await logAudit(pool, {
       action: 'DELETE',
@@ -13771,6 +16888,7 @@ app.delete('/api/v1/financial_records/:id', async (req: Request, res: Response) 
 
     return res.json({ success: true, id });
   } catch (err: any) {
+    if (handleLockVerificationError(res, err)) return;
     console.error('[Contributors API] Error DELETE financial_records:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: err.message });
   }

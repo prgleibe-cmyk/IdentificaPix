@@ -61,11 +61,82 @@ export const isDateInClosedPeriods = (dateStr: string, closedPeriodsSet: Set<str
  * Respeita estritamente o estado real do fechamento (aberto vs reaberto vs fechado).
  * Quando o Usuário Principal desfaz o fechamento, o período é imediatamente liberado sem ressurreição.
  */
-export const isPeriodClosed = (dateStr: string, matchResults?: any[], churchId?: string): boolean => {
+export const isPeriodClosed = (dateStr: string, matchResults?: any[], churchId?: string, bankId?: string | null): boolean => {
     if (!dateStr || !churchId || churchId === 'unidentified' || churchId === 'geral') return false;
 
-    // 🛡️ O Fechamento Final deve ser identificado e aplicado pela combinação IGREJA + PERÍODO, nunca apenas pelo período.
-    return isChurchPeriodClosedSync(churchId, dateStr);
+    // 🛡️ O Fechamento Final deve ser identificado e aplicado pela combinação IGREJA + PERÍODO (+ conta quando individual).
+    return isChurchPeriodClosedSync(churchId, dateStr, bankId);
+};
+
+/**
+ * 🛡️ Decisão 1 + P2-A: Verifica se já existe lançamento operacional com Confirmação Final
+ * para a combinação exata (Data efetiva, Igreja) em qualquer conta/banco.
+ */
+export const isChurchDayConfirmed = (
+    dateStr: string | null | undefined,
+    matchResults?: any[],
+    churchId?: string | null,
+    excludeTxId?: string | null
+): boolean => {
+    if (!dateStr || !churchId || churchId === 'unidentified' || churchId === 'geral') return false;
+    if (!Array.isArray(matchResults) || matchResults.length === 0) return false;
+
+    const cleanTargetDate = String(dateStr).split(/[T ]/)[0];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanTargetDate)) return false;
+
+    return matchResults.some((r: any) => {
+        if (!r) return false;
+        const txId = String(r.transaction?.id ?? r.id ?? '');
+        if (excludeTxId && txId === String(excludeTxId)) return false;
+
+        const confirmed = Boolean(r.isConfirmed || r.transaction?.isConfirmed);
+        if (!confirmed) return false;
+
+        // Pernas sintéticas de transporte de fechamento não disparam trava de dia individual isolada
+        const source = String(r.transaction?.source ?? r.source ?? '').toLowerCase();
+        const rowHash = String(r.transaction?.row_hash ?? r.row_hash ?? '').toLowerCase();
+        if (source === 'closing' || rowHash.startsWith('closing-') || txId.startsWith('closing-')) {
+            return false;
+        }
+
+        const rChurchId = r.church?.id || r._churchId || r.transaction?.church_id || r.church_id;
+        if (rChurchId !== churchId) return false;
+
+        const rawDate =
+            r.contributor?.reference_date ||
+            r.reference_date ||
+            r.transaction?.reference_date ||
+            r.transaction?.date ||
+            r.date ||
+            '';
+        const cleanRowDate = String(rawDate).split(/[T ]/)[0];
+        return cleanRowDate === cleanTargetDate;
+    });
+};
+
+/**
+ * 🛡️ Retorna o motivo legível do bloqueio para a combinação (Data, Igreja, Conta),
+ * unificando Fechamento do Livro Caixa (Decisão 2) e Confirmação Final por Dia/Igreja (Decisão 1 + P2-A).
+ * Retorna null quando a gravação/alteração está liberada.
+ */
+export const getDateChurchLockReason = (
+    dateStr: string | null | undefined,
+    churchId?: string | null,
+    matchResults?: any[],
+    bankId?: string | null,
+    excludeTxId?: string | null
+): string | null => {
+    if (!dateStr || !churchId || churchId === 'unidentified' || churchId === 'geral') return null;
+
+    if (isPeriodClosed(dateStr, matchResults, churchId, bankId)) {
+        return 'PERÍODO CONGELADO: Este período contábil já teve seu Fechamento Final homologado para esta congregação. Novos lançamentos ou alterações estão bloqueados até que o período seja reaberto.';
+    }
+
+    if (isChurchDayConfirmed(dateStr, matchResults, churchId, excludeTxId)) {
+        return `DIA CONFIRMADO: Já existe lançamento com Confirmação Final em ${formatDate(dateStr)} para esta congregação. Novos lançamentos ou alterações nesta data e igreja estão bloqueados.`;
+    }
+
+    return null;
 };
 
 /**

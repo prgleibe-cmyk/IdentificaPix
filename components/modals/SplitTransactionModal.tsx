@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext, useMemo, useRef } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { XMarkIcon, PlusIcon, TrashIcon, BuildingOfficeIcon } from '../Icons';
-import { formatCurrency, formatDate } from '../../utils/formatters';
+import { formatCurrency, formatDate, isPeriodClosed, getDateChurchLockReason } from '../../utils/formatters';
 import { MatchResult, TransactionSplit } from '../../types';
 import { Layers, Split, Calendar, User, Tag, CreditCard, DollarSign, FileText, CheckCircle2, AlertCircle } from 'lucide-react';
 
@@ -26,6 +26,7 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
         churches, 
         contributorFiles, 
         contributors: rawContributors,
+        matchResults,
         language 
     } = useContext(AppContext);
     const { t } = useTranslation();
@@ -254,12 +255,26 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
         }
     }, [isOpen, matchResult?.transaction?.id, absoluteOriginal, isExpense]);
 
+    const effectiveTxDate = matchResult?.contributor?.reference_date || matchResult?.reference_date || matchResult?.transaction?.reference_date || matchResult?.transaction?.date || '';
+    const sourceChurchId = matchResult?.church?.id && matchResult.church.id !== 'unidentified' ? matchResult.church.id : ((matchResult as any)?._churchId || undefined);
+    const sourceBankId = (matchResult?.transaction as any)?.bank_id || (matchResult as any)?.bankId || undefined;
+    const sourceLockReason = useMemo(() => {
+        if (!matchResult) return null;
+        if (matchResult.isConfirmed || matchResult.transaction?.isConfirmed) {
+            return 'TRANSAÇÃO CONFIRMADA: Lançamentos com Confirmação Final não podem ser rateados ou alterados.';
+        }
+        if (sourceChurchId && isPeriodClosed(effectiveTxDate, matchResults, sourceChurchId, sourceBankId)) {
+            return 'PERÍODO CONGELADO: Este lançamento pertence a um período fechado definitivamente e não pode ser rateado.';
+        }
+        return null;
+    }, [matchResult, effectiveTxDate, matchResults, sourceChurchId, sourceBankId]);
+
     const totalSplitAmount = splits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
     const difference = Math.round((absoluteOriginal - totalSplitAmount) * 100) / 100;
     const isSumPerfect = Math.abs(difference) < 0.01;
     const hasInvalidAmount = splits.some(s => (Number(s.amount) || 0) <= 0);
     const hasInvalidDestination = splits.some(s => !(s.contributionType || '').trim());
-    const isSaveEnabled = isSumPerfect && !hasInvalidAmount && !hasInvalidDestination;
+    const isSaveEnabled = !sourceLockReason && isSumPerfect && !hasInvalidAmount && !hasInvalidDestination;
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -351,6 +366,11 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
     };
 
     const handleSaveClick = () => {
+        if (sourceLockReason) {
+            setErrorMessage(sourceLockReason);
+            return;
+        }
+
         if (!isSumPerfect) {
             setErrorMessage(`A soma das distribuições (${formatCurrency(totalSplitAmount, language)}) precisa ser exatamente igual ao valor total (${formatCurrency(absoluteOriginal, language)})`);
             return;
@@ -366,6 +386,23 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
         if (hasEmptyDestination) {
             setErrorMessage('Selecione a "Descrição / Destino" em todas as linhas do rateio.');
             return;
+        }
+
+        for (const s of splits) {
+            const targetChurchId = s.churchId || sourceChurchId;
+            if (targetChurchId && targetChurchId !== 'unidentified') {
+                const splitLockReason = getDateChurchLockReason(
+                    effectiveTxDate,
+                    targetChurchId,
+                    matchResults,
+                    sourceBankId,
+                    matchResult.transaction?.id
+                );
+                if (splitLockReason) {
+                    setErrorMessage(splitLockReason);
+                    return;
+                }
+            }
         }
 
         // Ajusta o sinal dos valores das distribuições para manter fidelidade com o lançamento original (positivo p/ receitas, negativo p/ despesas)
@@ -722,11 +759,11 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
                         </div>
                     </div>
 
-                    {/* Error Banner */}
-                    {errorMessage && (
+                    {/* Error / Lock Banner */}
+                    {(sourceLockReason || errorMessage) && (
                         <div className="p-3 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 text-xs font-semibold rounded-xl border border-rose-200 dark:border-rose-800/60 flex items-center gap-2">
                             <AlertCircle className="w-4 h-4 shrink-0" />
-                            <span>{errorMessage}</span>
+                            <span>{sourceLockReason || errorMessage}</span>
                         </div>
                     )}
                 </div>

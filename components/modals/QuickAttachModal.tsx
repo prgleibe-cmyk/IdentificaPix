@@ -36,10 +36,12 @@ export const QuickAttachModal: React.FC<QuickAttachModalProps> = ({
 }) => {
     const [attachments, setAttachments] = useState<ExpenseAttachment[]>([]);
     const [isSaving, setIsSaving] = useState<boolean>(false);
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [isReceiptModalOpen, setIsReceiptModalOpen] = useState<boolean>(false);
     const loadedTxIdRef = useRef<string | null>(null);
 
     useEffect(() => {
+        setErrorMsg(null);
         if (!isOpen || !transaction?.id) {
             setAttachments([]);
             loadedTxIdRef.current = null;
@@ -79,23 +81,31 @@ export const QuickAttachModal: React.FC<QuickAttachModalProps> = ({
     const handleSave = async () => {
         if (!transaction.id) return;
         setIsSaving(true);
+        setErrorMsg(null);
         try {
             await saveAttachmentsForTransaction(transaction.id, attachments);
             if (onSaved) {
                 onSaved(transaction.id, attachments);
             }
             onClose();
-        } catch (err) {
+        } catch (err: any) {
             console.error('Erro ao salvar anexos:', err);
+            setErrorMsg(err?.message || 'Não foi possível salvar os anexos.');
         } finally {
             setIsSaving(false);
         }
     };
 
     const handleAttachmentsChange = (newAtts: ExpenseAttachment[]) => {
+        const previousAtts = attachments;
+        setErrorMsg(null);
         setAttachments(newAtts);
         if (transaction?.id) {
-            saveAttachmentsForTransaction(transaction.id, newAtts).catch(console.error);
+            saveAttachmentsForTransaction(transaction.id, newAtts).catch((err: any) => {
+                console.error('Erro ao persistir anexos:', err);
+                setAttachments(previousAtts);
+                setErrorMsg(err?.message || 'Não foi possível alterar os anexos deste lançamento.');
+            });
         }
     };
 
@@ -171,9 +181,14 @@ export const QuickAttachModal: React.FC<QuickAttachModalProps> = ({
 
                 {/* Uploader Body */}
                 <div
-                    className="flex-1 overflow-y-auto custom-scrollbar p-5"
+                    className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-3"
                     style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
                 >
+                    {errorMsg && (
+                        <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-xs font-medium text-rose-700 dark:text-rose-300">
+                            {errorMsg}
+                        </div>
+                    )}
                     <ExpenseDocumentUploader
                         attachments={attachments}
                         onChangeAttachments={handleAttachmentsChange}

@@ -69,10 +69,24 @@ export const useDataDeletion = ({
                 }
                 case 'report-saved': {
                     console.log(`[WRITE:FIX] Excluindo relatório salvo com effectiveUserId: ${effectiveUserId} no VPS`);
-                    
-                    // 🚩 Se o relatório excluído for o ATIVO, limpa a sessão antes para evitar crash de renderização
+
+                    const token = await getAuthToken();
+                    const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
+                    const res = await fetch(`/api/v1/saved_reports/${id}`, { method: 'DELETE', headers });
+                    if (!res.ok) {
+                        let msg = `Erro HTTP ${res.status} ao excluir relatório do servidor.`;
+                        try {
+                            const text = await res.text();
+                            const parsed = text ? JSON.parse(text) : null;
+                            if (parsed?.message) msg = parsed.message;
+                            else if (parsed?.error) msg = parsed.error;
+                        } catch (_) {}
+                        throw new Error(msg);
+                    }
+
+                    // 🚩 Somente após confirmação do backend: se o relatório excluído for o ATIVO, limpa a sessão
                     if (String(reconciliation?.activeReportId) === String(id)) {
-                        console.log("[useDataDeletion] Relatório ativo sendo excluído. Limpando sessão.");
+                        console.log("[useDataDeletion] Relatório ativo excluído no servidor. Limpando sessão.");
                         reconciliation.setActiveReportId?.(null);
                         reconciliation.setHasActiveSession?.(false);
                         reconciliation.setMatchResults?.([]);
@@ -80,26 +94,17 @@ export const useDataDeletion = ({
                         reconciliation.setActiveSpreadsheetData?.(null);
                     }
 
-                    const token = await getAuthToken();
-                    const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
-                    const res = await fetch(`/api/v1/saved_reports/${id}`, { method: 'DELETE', headers });
-                    if (!res.ok) throw new Error("Erro ao excluir relatório do VPS");
-                    
                     if (typeof reportManager?.setSavedReports === 'function') {
                         reportManager.setSavedReports((prev: any[]) => prev.filter(r => r && r.id !== id));
                     }
-                    
+
                     showToast("Relatório excluído.", "success");
                     break;
                 }
                 case 'report-row': {
-                    // Se não for um registro fantasma, remove permanentemente do banco de dados
+                    // Se não for um registro fantasma, remove permanentemente do banco de dados (sem engolir rejeição do backend)
                     if (id && !id.startsWith('ghost-')) {
-                        try {
-                            await consolidationService.deleteTransactionById(id);
-                        } catch (e) {
-                            console.warn('[useDataDeletion] Falha ao deletar do banco mas prosseguindo com remoção do relatório:', e);
-                        }
+                        await consolidationService.deleteTransactionById(id);
                     }
                     
                     // Bloqueio atômico para evitar que o sync passivo restaure a linha durante a persistência
@@ -138,11 +143,7 @@ export const useDataDeletion = ({
                     if (ids.length > 0) {
                         const dbIds = ids.filter((x: string) => x && !x.startsWith('ghost-'));
                         if (dbIds.length > 0) {
-                            try {
-                                await consolidationService.deleteTransactionsByIds(dbIds);
-                            } catch (e) {
-                                console.warn('[useDataDeletion] Falha ao deletar lote do banco mas prosseguindo com remoção do relatório:', e);
-                            }
+                            await consolidationService.deleteTransactionsByIds(dbIds);
                         }
                         
                         // Bloqueio atômico para evitar que o sync passivo restaure o lote durante a persistência
@@ -254,7 +255,7 @@ export const useDataDeletion = ({
             }
         } catch (error: any) {
             console.error("Erro crítico ao excluir:", error);
-            showToast("Erro ao excluir item: " + (error.message || "Erro desconhecido"), "error");
+            showToast(error?.message || "Erro ao excluir item.", "error");
         } finally {
             modalController?.closeDeleteConfirmation?.();
         }

@@ -297,11 +297,7 @@ export const useReconciliationActions = ({
 
         // Salva os comprovantes e faturas no armazenamento persistente
         if (attachments && attachments.length > 0) {
-          try {
-            await saveAttachmentsForTransaction(realId, attachments);
-          } catch (attErr) {
-            console.error('[confirmBulkManualIdentification] Erro ao persistir anexos:', attErr);
-          }
+          await saveAttachmentsForTransaction(realId, attachments);
         }
 
         // 🛡️ Anti-OOM: O estado global em memória React retém apenas metadados leves (sem dataUrl Base64)
@@ -373,7 +369,7 @@ export const useReconciliationActions = ({
         affectedCount = 1;
       } catch (error: any) {
         console.error("[confirmBulkManualIdentification] Erro ao salvar lançamento manual:", error);
-        showToast("Erro ao salvar lançamento manual.", "error");
+        showToast(error?.message || "Erro ao salvar lançamento manual.", "error");
         throw error;
       } finally {
         batchState.isBatchUpdating = false;
@@ -466,14 +462,10 @@ export const useReconciliationActions = ({
         affectedCount++;
       }
 
-      // Salva anexos para as transações identificadas se houver
+      // Salva anexos para as transações identificadas se houver (sem engolir rejeição do backend)
       if (attachments && attachments.length > 0) {
-        try {
-          for (const id of txIds) {
-            await saveAttachmentsForTransaction(id, attachments);
-          }
-        } catch (attErr) {
-          console.error('[confirmBulkManualIdentification] Erro ao salvar anexos não-manual:', attErr);
+        for (const id of txIds) {
+          await saveAttachmentsForTransaction(id, attachments);
         }
       }
 
@@ -613,6 +605,10 @@ export const useReconciliationActions = ({
         onAfterAction(finalIdentifiedResults);
       }
 
+    } catch (error: any) {
+      console.error("[confirmBulkManualIdentification] Erro ao identificar lançamentos:", error);
+      showToast(error?.message || "Erro ao salvar identificação.", "error");
+      throw error;
     } finally {
       batchState.isBatchUpdating = false;
     }
@@ -653,20 +649,21 @@ export const useReconciliationActions = ({
             return cId === firstChurchId && bId === firstBankId && ctId === firstContributorId;
           });
 
+          const allIds = resultsToUpdate.map(r => r.transaction.id);
           if (isUniform) {
-            const allIds = resultsToUpdate.map(r => r.transaction.id);
             await consolidationService.updateConfirmationStatus(allIds, confirmed, firstChurchId, firstBankId, firstContributorId);
           } else {
-            await Promise.all(
-              resultsToUpdate.map(async (result) => {
-                const churchId = result.church?.id || result._churchId;
-                const bankId = result.transaction.bank_id;
-                const contributorId = result.contributor?.id;
-                await consolidationService.updateConfirmationStatus([result.transaction.id], confirmed, churchId, bankId, contributorId);
-              })
-            );
+            // Chamada única e atômica (ACID): o backend preserva church_id/bank_id/contributor_id individuais de cada lançamento
+            await consolidationService.updateConfirmationStatus(allIds, confirmed);
           }
         }
+      } catch (error: any) {
+        console.error("[toggleConfirmation] Operação rejeitada pelo backend:", error);
+        showToast(
+          error?.message || (confirmed ? "Não foi possível confirmar os lançamentos." : "Não foi possível remover o bloqueio."),
+          "error"
+        );
+        return;
       } finally {
         batchState.isBatchUpdating = false;
       }
@@ -742,8 +739,13 @@ export const useReconciliationActions = ({
     }
 
     if (!txId.includes('ghost') && !txId.includes('sim')) {
-      await consolidationService.updateTransactionStatus(txId, 'pending', null, undefined, null, false);
-      await consolidationService.updateConfirmationStatus([txId], false, null, undefined, null);
+      try {
+        await consolidationService.updateTransactionStatus(txId, 'pending', null, undefined, null, false);
+      } catch (error: any) {
+        console.error("[undoIdentification] Operação rejeitada pelo backend:", error);
+        showToast(error?.message || "Não foi possível desfazer a identificação.", "error");
+        return;
+      }
     }
 
     const updatedResults = reconciliation.fullMatchResults.map((r: MatchResult) => 

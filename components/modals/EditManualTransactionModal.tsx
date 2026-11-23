@@ -23,7 +23,7 @@ import { useTranslation } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { MatchResult, Church } from '../../types';
 import { getCachedContributors, subscribeToContributorUpdates } from '../../services/contributorsCache';
-import { resolveContributionType, resolvePaymentMethod, isPeriodClosed } from '../../utils/formatters';
+import { resolveContributionType, resolvePaymentMethod, isPeriodClosed, getDateChurchLockReason } from '../../utils/formatters';
 import { ExpenseDocumentUploader } from '../financial/ExpenseDocumentUploader';
 import { ExpenseAttachment } from '../../types/domain';
 import { getAttachmentsForTransaction, saveAttachmentsForTransaction } from '../../services/expenseAttachmentService';
@@ -51,7 +51,8 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
         contributionKeywords, 
         paymentMethods: sysPaymentMethods, 
         showToast,
-        updateReportData
+        updateReportData,
+        matchResults
     } = useContext(AppContext);
     const { language } = useTranslation();
     const { subscription, user, isSecondaryUser } = useAuth();
@@ -461,8 +462,26 @@ export const EditManualTransactionModal: React.FC<EditManualTransactionModalProp
                 return;
             }
 
-            if (isSecondaryUser && isPeriodClosed(date, undefined, selectedChurch.id)) {
-                setErrorMessage("Este período contábil já foi fechado de forma definitiva pelo usuário principal. Não é permitido editar lançamentos neste período.");
+            if (row.isConfirmed || row.transaction?.isConfirmed) {
+                setErrorMessage('TRANSAÇÃO CONFIRMADA: Este lançamento possui Confirmação Final e não pode ser alterado.');
+                return;
+            }
+
+            const origChurchId = row.church?.id && row.church.id !== 'unidentified' ? row.church.id : undefined;
+            if (origChurchId && isPeriodClosed(initialDate, matchResults, origChurchId, initialBankId || undefined)) {
+                setErrorMessage('PERÍODO CONGELADO: Este lançamento pertence a um período fechado definitivamente e não pode ser alterado.');
+                return;
+            }
+
+            const targetLockReason = getDateChurchLockReason(
+                date,
+                selectedChurch.id,
+                matchResults,
+                bankId || undefined,
+                row.transaction?.id
+            );
+            if (targetLockReason) {
+                setErrorMessage(targetLockReason);
                 return;
             }
 
