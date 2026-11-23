@@ -459,7 +459,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
         try {
             console.log(`[WRITE:FIX] Persistindo learned_association com effectiveUserId: ${effectiveUserId} no VPS`);
-            const token = getAuthToken();
+            const token = await getAuthToken();
             const headers: Record<string, string> = { 'Content-Type': 'application/json' };
             if (token) {
                 headers['Authorization'] = `Bearer ${token}`;

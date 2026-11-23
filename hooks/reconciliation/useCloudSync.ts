@@ -678,7 +678,7 @@ export const useCloudSync = ({
                 }
 
                 if (!isSecondaryUser) {
-                    const token = getAuthToken();
+                    const token = await getAuthToken();
                     if (token) {
                         fetch('/api/v1/consolidated_transactions/repair-churches', {
                             headers: { Authorization: `Bearer ${token}` }
