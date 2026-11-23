@@ -1569,7 +1569,7 @@ export const ManualIdModal: React.FC = () => {
                                         type="text"
                                         value={selectedType}
                                         onChange={e => {
-                                            setSelectedType(e.target.value.toUpperCase());
+                                            setSelectedType(e.target.value);
                                             setShowTypeSuggestions(true);
                                         }}
                                         onFocus={() => setShowTypeSuggestions(true)}
@@ -1625,7 +1625,7 @@ export const ManualIdModal: React.FC = () => {
                                                     type="button"
                                                     onMouseDown={(e) => {
                                                         e.preventDefault();
-                                                        setSelectedType(opt.toUpperCase());
+                                                        setSelectedType(opt);
                                                         setShowTypeSuggestions(false);
                                                     }}
                                                     className={`w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center justify-between cursor-pointer ${
@@ -2321,7 +2321,7 @@ export const ManualIdModal: React.FC = () => {
                                         type="text"
                                         value={selectedType}
                                         onChange={e => {
-                                            setSelectedType(e.target.value.toUpperCase());
+                                            setSelectedType(e.target.value);
                                             setShowTypeSuggestions(true);
                                         }}
                                         onFocus={() => setShowTypeSuggestions(true)}
@@ -2377,7 +2377,7 @@ export const ManualIdModal: React.FC = () => {
                                                     type="button"
                                                     onMouseDown={(e) => {
                                                         e.preventDefault();
-                                                        setSelectedType(opt.toUpperCase());
+                                                        setSelectedType(opt);
                                                         setShowTypeSuggestions(false);
                                                     }}
                                                     className={`w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center justify-between cursor-pointer ${
